@@ -599,6 +599,7 @@ Rules:
         if (!topicName) {
             return { matches: [] };
         }
+        this.logger.log(`Topic similarity check provider=${this.provider} topics=${existingTopics.length}`);
         const normalize = (value) => value
             .toLowerCase()
             .normalize('NFD')
@@ -734,6 +735,7 @@ Rules:
     }
     async _callOllama(prompt, options) {
         const url = `${this.ollamaUrl}/api/generate`;
+        const startedAt = Date.now();
         const resp = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -754,6 +756,7 @@ Rules:
             throw new Error(`Ollama returned ${resp.status}: ${body}`);
         }
         const data = await resp.json();
+        this.logger.log(`Ollama generation completed model=${this.ollamaModel} duration=${Date.now() - startedAt}ms`);
         return data.response || data.choices?.[0]?.text || '';
     }
     async _callNvidia(prompt) {
