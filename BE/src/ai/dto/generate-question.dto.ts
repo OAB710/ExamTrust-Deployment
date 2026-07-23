@@ -1,0 +1,93 @@
+import { IsArray, IsNumber, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
+
+export class GenerateQuestionDto {
+  @IsString()
+  prompt: string;
+
+  @IsOptional()
+  @IsString()
+  questionType?: string; // MULTIPLE_CHOICE, TRUE_FALSE, ESSAY, etc.
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  difficulty?: number;
+
+  @IsOptional()
+  @IsString()
+  language?: string; // 'en' | 'vi'
+
+  @IsOptional()
+  @IsString()
+  courseName?: string;
+
+  @IsOptional()
+  @IsString()
+  useCase?: string; // 'exam' | 'question_bank'
+
+  @IsOptional()
+  @IsObject()
+  context?: Record<string, any>;
+}
+
+export class GenerateExamQuestionsDto {
+  @IsString()
+  prompt: string;
+
+  @IsNumber()
+  @Min(1)
+  @Max(50)
+  questionCount: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  difficulty?: number; // 0.3 | 0.5 | 0.7
+
+  @IsOptional()
+  @IsString()
+  questionType?: string;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
+
+  @IsOptional()
+  @IsString()
+  courseName?: string;
+
+  @IsOptional()
+  @IsString()
+  useCase?: string; // 'exam' | 'question_bank'
+
+  @IsOptional()
+  @IsString()
+  courseId?: string;
+
+  @IsOptional()
+  @IsObject()
+  context?: Record<string, any>;
+}
+
+export class SuggestSimilarTopicsDto {
+  @IsString()
+  topicName: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  existingTopics: string[];
+
+  @IsOptional()
+  @IsString()
+  language?: string;
+
+  @IsOptional()
+  @IsString()
+  courseName?: string;
+
+  @IsOptional()
+  @IsObject()
+  context?: Record<string, any>;
+}
