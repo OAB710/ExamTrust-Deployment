@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
 import { AISection } from '../questions-v2/dto/question-draft.dto';
 
-type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment';
+type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement';
 
 interface CreateAiJobParams {
   task: AiTaskType;
@@ -36,7 +36,7 @@ export class AiJobsService {
           ? nvidiaModel
         : provider === 'openrouter'
           ? openRouterModel
-        : params.task === 'single-question' || params.task === 'exam-questions' || params.task === 'exam-quality-review' || params.task === 'exam-risk-assessment'
+        : params.task === 'single-question' || params.task === 'exam-questions' || params.task === 'exam-quality-review' || params.task === 'exam-risk-assessment' || params.task === 'question-improvement'
           ? googleModel
           : ollamaModel;
 

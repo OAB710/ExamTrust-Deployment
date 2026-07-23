@@ -354,6 +354,30 @@ let AIGenerationProcessor = AIGenerationProcessor_1 = class AIGenerationProcesso
                 }
                 return;
             }
+            if (task === 'question-improvement') {
+                const result = await this.aiService.generateQuestionImprovement({
+                    language: payload.language,
+                    context: {
+                        ...context,
+                        ...(payload.context || {}),
+                    },
+                    original: payload.original || {},
+                    analytics: payload.analytics || {},
+                    qualitySignals: payload.qualitySignals || [],
+                });
+                await this.prisma.aIGenerationRecord.update({
+                    where: { id: jobId },
+                    data: {
+                        status: 'SUCCEEDED',
+                        output: {
+                            ...result,
+                            draft: result.suggestion,
+                        },
+                        completedAt: new Date(),
+                    },
+                });
+                return;
+            }
             const section = String(payload.section || 'CONTENT').toUpperCase();
             const prompt = this.buildDraftPrompt(section, payload.draftState || {}, payload.instruction);
             const result = await this.aiService.generateQuestion({

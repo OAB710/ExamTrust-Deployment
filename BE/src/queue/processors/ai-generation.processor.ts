@@ -6,7 +6,7 @@ import { AiService } from '../../ai/ai.service';
 import { AISection } from '../../questions-v2/dto/question-draft.dto';
 import { ExamTrustAiContext } from '../../ai/ai-profile';
 
-type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment';
+type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement';
 
 @Processor('ai-generation')
 export class AIGenerationProcessor {
@@ -381,6 +381,32 @@ export class AIGenerationProcessor {
             },
           });
         }
+        return;
+      }
+
+      if (task === 'question-improvement') {
+        const result = await this.aiService.generateQuestionImprovement({
+          language: payload.language,
+          context: {
+            ...context,
+            ...(payload.context || {}),
+          },
+          original: payload.original || {},
+          analytics: payload.analytics || {},
+          qualitySignals: payload.qualitySignals || [],
+        });
+
+        await this.prisma.aIGenerationRecord.update({
+          where: { id: jobId },
+          data: {
+            status: 'SUCCEEDED',
+            output: {
+              ...result,
+              draft: result.suggestion,
+            },
+            completedAt: new Date(),
+          },
+        });
         return;
       }
 

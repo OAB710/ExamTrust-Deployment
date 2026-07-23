@@ -237,6 +237,311 @@ let QuestionsService = class QuestionsService {
         await this.syncSingleQuestionTopic(id, topicId);
         return updated;
     }
+    mapAiImprovementStatus(record, currentQuestion) {
+        const payload = this.parseJson(record?.prompt, {})?.payload || {};
+        const sourceUpdatedAt = payload.sourceUpdatedAt ? new Date(payload.sourceUpdatedAt) : null;
+        if (record?.reviewStatus === 'PENDING'
+            && record?.status === 'SUCCEEDED'
+            && sourceUpdatedAt
+            && currentQuestion?.updatedAt
+            && new Date(currentQuestion.updatedAt).getTime() > sourceUpdatedAt.getTime() + 1000) {
+            return 'EXPIRED';
+        }
+        if (record?.reviewStatus === 'APPROVED')
+            return 'APPROVED';
+        if (record?.reviewStatus === 'REJECTED')
+            return 'REJECTED';
+        if (record?.status === 'QUEUED')
+            return 'QUEUED';
+        if (record?.status === 'RUNNING')
+            return 'GENERATING';
+        if (record?.status === 'FAILED')
+            return 'FAILED';
+        if (record?.status === 'SUCCEEDED')
+            return 'READY_FOR_REVIEW';
+        return 'IDLE';
+    }
+    normalizeAiImprovementRecord(record, currentQuestion) {
+        if (!record)
+            return null;
+        const prompt = this.parseJson(record.prompt, {});
+        const output = this.parseJson(record.output, {});
+        return {
+            id: record.id,
+            jobId: record.id,
+            status: this.mapAiImprovementStatus(record, currentQuestion),
+            rawStatus: record.status,
+            reviewStatus: record.reviewStatus,
+            createdAt: record.createdAt,
+            completedAt: record.completedAt,
+            reviewedAt: record.reviewedAt,
+            reviewedBy: record.reviewedBy,
+            reviewNotes: record.reviewNotes,
+            errorMessage: record.errorMessage,
+            sourceUpdatedAt: prompt?.payload?.sourceUpdatedAt || null,
+            originalSnapshot: prompt?.payload?.original || null,
+            proposal: output?.draft || output?.suggestion || null,
+            diagnosis: output?.diagnosis || null,
+            changes: output?.changes || [],
+            confidence: output?.confidence ?? null,
+            warnings: output?.warnings || [],
+            finalApproved: output?.finalApproved || null,
+        };
+    }
+    validateAiImprovementFinal(final, fallbackQuestion) {
+        const content = String(final?.content || '').trim();
+        if (!content) {
+            throw new common_1.BadRequestException('Improved question content is required');
+        }
+        const difficulty = Math.max(1, Math.min(10, Math.round(Number(final?.difficulty || fallbackQuestion.difficulty || 1))));
+        return {
+            content,
+            options: final?.options && typeof final.options === 'object' ? final.options : (fallbackQuestion.options || {}),
+            correctAnswer: final?.correctAnswer && typeof final.correctAnswer === 'object' ? final.correctAnswer : (fallbackQuestion.correctAnswer || {}),
+            explanation: String(final?.explanation ?? fallbackQuestion.explanation ?? ''),
+            difficulty,
+        };
+    }
+    async findActiveAiImprovement(questionId, examId) {
+        const rows = await this.prisma.aIGenerationRecord.findMany({
+            where: {
+                examId,
+                section: 'QUALITY_REVIEW',
+                status: { in: ['QUEUED', 'RUNNING', 'SUCCEEDED'] },
+                reviewStatus: 'PENDING',
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+        });
+        return rows.find((record) => this.parseJson(record.prompt, {})?.payload?.task === 'question-improvement'
+            && this.parseJson(record.prompt, {})?.payload?.questionId === questionId) || null;
+    }
+    async createQuestionAiImprovement(dto, user) {
+        const question = await this.prisma.question.findUnique({
+            where: { id: dto.questionId },
+            include: {
+                course: { select: { id: true, code: true, name: true } },
+                topicLinks: { include: { topic: true } },
+                versions: { orderBy: { versionNo: 'desc' }, take: 1 },
+            },
+        });
+        if (!question)
+            throw new common_1.NotFoundException('Question not found');
+        this.assertCanAccessQuestion(question, user);
+        const examQuestion = await this.prisma.examQuestion.findFirst({
+            where: { examId: dto.examId, questionId: dto.questionId },
+            select: { id: true, examId: true, questionId: true, questionVersionId: true, orderIndex: true, points: true, assignedScore: true },
+        });
+        if (!examQuestion)
+            throw new common_1.NotFoundException('Question is not part of this exam');
+        const latestVersion = question.versions?.[0] || null;
+        const lockName = `question-ai-improvement:${dto.examId}:${dto.questionId}`;
+        const lockRows = await this.prisma.$queryRawUnsafe(`SELECT GET_LOCK(?, 5) AS locked`, lockName);
+        if (!lockRows?.[0]?.locked) {
+            throw new common_1.ConflictException('Another AI improvement request is being created for this question');
+        }
+        try {
+            const active = await this.findActiveAiImprovement(dto.questionId, dto.examId);
+            if (active) {
+                return this.normalizeAiImprovementRecord(active, question);
+            }
+            const qualitySignals = await this.prisma.examQualityReviewItem.findMany({
+                where: { questionId: dto.questionId, job: { examId: dto.examId } },
+                orderBy: { createdAt: 'desc' },
+                take: 5,
+            });
+            const original = {
+                questionId: question.id,
+                questionVersionId: latestVersion?.id || examQuestion.questionVersionId || null,
+                versionNo: latestVersion?.versionNo || question.latestVersionNo || null,
+                type: question.type,
+                content: question.content,
+                options: question.options || {},
+                correctAnswer: question.correctAnswer || {},
+                explanation: question.explanation || '',
+                difficulty: question.difficulty || 1,
+                points: question.points || 1,
+                topics: question.topicLinks.map((link) => link.topic?.name).filter(Boolean),
+            };
+            const record = await this.aiJobsService.createJob({
+                task: 'question-improvement',
+                examId: dto.examId,
+                questionVersionId: latestVersion?.id || examQuestion.questionVersionId || null,
+                section: question_draft_dto_1.AISection.QUALITY_REVIEW,
+                payload: {
+                    task: 'question-improvement',
+                    questionId: dto.questionId,
+                    examId: dto.examId,
+                    examQuestionId: dto.examQuestionId || examQuestion.id,
+                    qualityReviewId: dto.qualityReviewId || null,
+                    sourceUpdatedAt: question.updatedAt.toISOString(),
+                    original,
+                    analytics: dto.analytics || {},
+                    qualitySignals: qualitySignals.map((item) => ({
+                        id: item.id,
+                        severity: item.severity,
+                        reasonSummary: item.reasonSummary,
+                        recommendation: item.recommendation,
+                        statsSnapshot: item.statsSnapshot,
+                    })),
+                    language: 'vi',
+                    context: {
+                        courseId: question.courseId,
+                        courseCode: question.course?.code,
+                        courseName: question.course?.name,
+                        questionId: question.id,
+                        questionVersionId: latestVersion?.id || examQuestion.questionVersionId || null,
+                        questionType: question.type,
+                        examId: dto.examId,
+                    },
+                },
+                requestedBy: user.id,
+            });
+            return this.normalizeAiImprovementRecord(record, question);
+        }
+        finally {
+            await this.prisma.$queryRawUnsafe(`SELECT RELEASE_LOCK(?) AS released`, lockName).catch(() => null);
+        }
+    }
+    async getQuestionAiImprovement(id, user) {
+        const record = await this.prisma.aIGenerationRecord.findUnique({ where: { id } });
+        if (!record)
+            throw new common_1.NotFoundException('AI improvement not found');
+        const payload = this.parseJson(record.prompt, {})?.payload || {};
+        const question = await this.prisma.question.findUnique({
+            where: { id: payload.questionId },
+            select: { id: true, creatorId: true, courseId: true, updatedAt: true },
+        });
+        if (question)
+            this.assertCanAccessQuestion(question, user);
+        return this.normalizeAiImprovementRecord(record, question || undefined);
+    }
+    async updateQuestionAiImprovementDraft(id, dto, user) {
+        const current = await this.getQuestionAiImprovement(id, user);
+        if (!current)
+            throw new common_1.NotFoundException('AI improvement not found');
+        if (!['READY_FOR_REVIEW', 'EXPIRED'].includes(current.status)) {
+            throw new common_1.BadRequestException('Only ready AI proposals can be edited');
+        }
+        const record = await this.prisma.aIGenerationRecord.findUnique({ where: { id } });
+        const output = this.parseJson(record?.output, {});
+        const updated = await this.prisma.aIGenerationRecord.update({
+            where: { id },
+            data: {
+                output: {
+                    ...output,
+                    draft: dto.draft,
+                    lecturerEditedDraft: dto.draft,
+                },
+            },
+        });
+        return this.normalizeAiImprovementRecord(updated);
+    }
+    async approveQuestionAiImprovement(id, dto, user) {
+        const record = await this.prisma.aIGenerationRecord.findUnique({ where: { id } });
+        if (!record)
+            throw new common_1.NotFoundException('AI improvement not found');
+        const prompt = this.parseJson(record.prompt, {});
+        const payload = prompt?.payload || {};
+        const questionId = payload.questionId;
+        const question = await this.prisma.question.findUnique({
+            where: { id: questionId },
+            include: { topicLinks: { include: { topic: true } } },
+        });
+        if (!question)
+            throw new common_1.NotFoundException('Question not found');
+        this.assertCanAccessQuestion(question, user);
+        if (record.status !== 'SUCCEEDED' || record.reviewStatus !== 'PENDING') {
+            throw new common_1.BadRequestException('Only ready pending proposals can be approved');
+        }
+        const sourceUpdatedAt = payload.sourceUpdatedAt ? new Date(payload.sourceUpdatedAt) : null;
+        if (sourceUpdatedAt && question.updatedAt.getTime() > sourceUpdatedAt.getTime() + 1000) {
+            throw new common_1.ConflictException('Question was edited after the AI proposal was generated. Please compare again or create a new proposal.');
+        }
+        const finalData = this.validateAiImprovementFinal(dto.final, question);
+        const nextVersionRows = await this.prisma.$queryRawUnsafe(`SELECT COALESCE(MAX(versionNo), 0) + 1 AS nextVersionNo FROM question_versions WHERE questionId = ?`, question.id);
+        const versionNo = Number(nextVersionRows?.[0]?.nextVersionNo || 1);
+        const output = this.parseJson(record.output, {});
+        const result = await this.prisma.$transaction(async (tx) => {
+            const updatedQuestion = await tx.question.update({
+                where: { id: question.id },
+                data: {
+                    content: finalData.content,
+                    options: finalData.options,
+                    correctAnswer: finalData.correctAnswer,
+                    explanation: finalData.explanation,
+                    difficulty: finalData.difficulty,
+                    latestVersionNo: versionNo,
+                },
+            });
+            const version = await tx.questionVersion.create({
+                data: {
+                    questionId: question.id,
+                    versionNo,
+                    stem: finalData.content,
+                    payload: finalData.options,
+                    answerKey: finalData.correctAnswer,
+                    explanation: finalData.explanation,
+                    difficulty: finalData.difficulty,
+                    points: question.points,
+                    metadata: {
+                        source: 'AI_ASSISTED_IMPROVEMENT',
+                        aiImprovementId: id,
+                        originalSnapshot: payload.original || null,
+                        aiProposal: output?.suggestion || null,
+                        lecturerEditedProposal: output?.lecturerEditedDraft || output?.draft || null,
+                    },
+                    aiGenerated: true,
+                    createdBy: user.id,
+                },
+            });
+            const updatedRecord = await tx.aIGenerationRecord.update({
+                where: { id },
+                data: {
+                    reviewStatus: 'APPROVED',
+                    reviewedBy: user.id,
+                    reviewedAt: new Date(),
+                    output: {
+                        ...output,
+                        finalApproved: finalData,
+                        approvedQuestionVersionId: version.id,
+                    },
+                },
+            });
+            await tx.examQualityReviewItem.updateMany({
+                where: { questionId: question.id, job: { examId: payload.examId } },
+                data: {
+                    reviewStatus: 'APPROVED',
+                    reviewedBy: user.id,
+                    reviewedAt: new Date(),
+                    reviewNotes: 'Resolved by AI-assisted question improvement',
+                },
+            });
+            return { updatedQuestion, version, updatedRecord };
+        });
+        return {
+            ...this.normalizeAiImprovementRecord(result.updatedRecord, result.updatedQuestion),
+            questionVersionId: result.version.id,
+        };
+    }
+    async rejectQuestionAiImprovement(id, dto, user) {
+        const current = await this.getQuestionAiImprovement(id, user);
+        if (!current)
+            throw new common_1.NotFoundException('AI improvement not found');
+        if (!['READY_FOR_REVIEW', 'EXPIRED', 'FAILED'].includes(current.status)) {
+            throw new common_1.BadRequestException('Only completed or failed proposals can be rejected');
+        }
+        const updated = await this.prisma.aIGenerationRecord.update({
+            where: { id },
+            data: {
+                reviewStatus: 'REJECTED',
+                reviewedBy: user.id,
+                reviewedAt: new Date(),
+                reviewNotes: dto.reason || null,
+            },
+        });
+        return this.normalizeAiImprovementRecord(updated);
+    }
     async deleteQuestion(id, user) {
         const question = await this.prisma.question.findUnique({
             where: { id },

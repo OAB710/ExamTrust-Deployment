@@ -18,6 +18,7 @@ const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const question_draft_dto_1 = require("./dto/question-draft.dto");
+const question_ai_improvement_dto_1 = require("./dto/question-ai-improvement.dto");
 const question_crud_dto_1 = require("./dto/question-crud.dto");
 const question_v2_query_dto_1 = require("./dto/question-v2-query.dto");
 const swagger_1 = require("@nestjs/swagger");
@@ -55,6 +56,21 @@ let QuestionDraftsController = class QuestionDraftsController {
     }
     getQuestionHistory(courseId, req) {
         return this.questionsService.getQuestionHistory({ courseId }, req.user);
+    }
+    createQuestionAiImprovement(dto, req) {
+        return this.questionsService.createQuestionAiImprovement(dto, req.user);
+    }
+    getQuestionAiImprovement(id, req) {
+        return this.questionsService.getQuestionAiImprovement(id, req.user);
+    }
+    updateQuestionAiImprovementDraft(id, dto, req) {
+        return this.questionsService.updateQuestionAiImprovementDraft(id, dto, req.user);
+    }
+    approveQuestionAiImprovement(id, dto, req) {
+        return this.questionsService.approveQuestionAiImprovement(id, dto, req.user);
+    }
+    rejectQuestionAiImprovement(id, dto, req) {
+        return this.questionsService.rejectQuestionAiImprovement(id, dto, req.user);
     }
     findQuestionById(id, req) {
         return this.questionsService.findQuestionById(id, req.user);
@@ -152,6 +168,49 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], QuestionDraftsController.prototype, "getQuestionHistory", null);
+__decorate([
+    (0, common_1.Post)('ai-improvements'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [question_ai_improvement_dto_1.CreateQuestionAiImprovementDto, Object]),
+    __metadata("design:returntype", void 0)
+], QuestionDraftsController.prototype, "createQuestionAiImprovement", null);
+__decorate([
+    (0, common_1.Get)('ai-improvements/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], QuestionDraftsController.prototype, "getQuestionAiImprovement", null);
+__decorate([
+    (0, common_1.Patch)('ai-improvements/:id/draft'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, question_ai_improvement_dto_1.UpdateQuestionAiImprovementDraftDto, Object]),
+    __metadata("design:returntype", void 0)
+], QuestionDraftsController.prototype, "updateQuestionAiImprovementDraft", null);
+__decorate([
+    (0, common_1.Post)('ai-improvements/:id/approve'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, question_ai_improvement_dto_1.ApproveQuestionAiImprovementDto, Object]),
+    __metadata("design:returntype", void 0)
+], QuestionDraftsController.prototype, "approveQuestionAiImprovement", null);
+__decorate([
+    (0, common_1.Post)('ai-improvements/:id/reject'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, question_ai_improvement_dto_1.RejectQuestionAiImprovementDto, Object]),
+    __metadata("design:returntype", void 0)
+], QuestionDraftsController.prototype, "rejectQuestionAiImprovement", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),

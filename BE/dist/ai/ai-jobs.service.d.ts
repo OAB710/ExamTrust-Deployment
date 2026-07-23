@@ -1,7 +1,7 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
 import { AISection } from '../questions-v2/dto/question-draft.dto';
-type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment';
+type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement';
 interface CreateAiJobParams {
     task: AiTaskType;
     draftId?: string | null;

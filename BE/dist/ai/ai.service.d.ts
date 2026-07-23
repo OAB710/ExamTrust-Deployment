@@ -105,6 +105,28 @@ export declare class AiService {
         explanation: string;
         recommendReview: boolean;
     }>;
+    generateQuestionImprovement(params: {
+        language?: string;
+        context?: ExamTrustAiContext;
+        original: Record<string, any>;
+        analytics?: Record<string, any>;
+        qualitySignals?: any[];
+    }): Promise<{
+        diagnosis: {
+            issues: any;
+            reason: string;
+        };
+        suggestion: {
+            content: string;
+            options: any;
+            correctAnswer: any;
+            explanation: string;
+            difficulty: number;
+        };
+        changes: any;
+        confidence: number;
+        warnings: any;
+    }>;
     suggestSimilarTopics(params: {
         topicName: string;
         existingTopics: string[];

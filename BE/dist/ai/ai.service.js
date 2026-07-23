@@ -593,6 +593,168 @@ Rules:
             throw new Error(`AI generation failed: ${error.message}`);
         }
     }
+    async generateQuestionImprovement(params) {
+        const targetLanguage = params.language || this.defaultLanguage;
+        const langInstruction = targetLanguage === 'vi'
+            ? 'Write diagnosis, reasons, warnings, and the improved question in Vietnamese.'
+            : 'Write diagnosis, reasons, warnings, and the improved question in English.';
+        const original = params.original || {};
+        const questionType = String(original.type || params.context?.questionType || 'MULTIPLE_CHOICE');
+        const prompt = `${(0, ai_profile_1.buildExamTrustPromptHeader)({
+            appName: this.appName,
+            useCase: 'question_quality_improvement',
+            language: targetLanguage,
+            questionType,
+            context: params.context || {},
+        })}
+${langInstruction}
+
+You are helping a lecturer improve a question with weak assessment performance. You must produce a proposal only. Never say that the question has already been updated.
+
+Original question snapshot:
+${JSON.stringify(original, null, 2)}
+
+Aggregated performance analytics, without student identities:
+${JSON.stringify(params.analytics || {}, null, 2)}
+
+Quality review signals:
+${JSON.stringify(params.qualitySignals || [], null, 2)}
+
+You MUST respond with a valid JSON object (no markdown, no code fences, just pure JSON) with this exact structure:
+{
+  "diagnosis": {
+    "issues": [
+      {
+        "type": "AMBIGUOUS_WORDING | WEAK_DISTRACTOR | WRONG_DIFFICULTY | INCORRECT_ANSWER | POOR_EXPLANATION | OTHER",
+        "description": "string"
+      }
+    ],
+    "reason": "string"
+  },
+  "suggestion": {
+    "content": "string",
+    "options": {},
+    "correctAnswer": {},
+    "explanation": "string",
+    "difficulty": 1
+  },
+  "changes": [
+    {
+      "field": "content",
+      "before": "string",
+      "after": "string",
+      "reason": "string"
+    }
+  ],
+  "confidence": 0.0,
+  "warnings": []
+}
+
+Rules:
+- Preserve the original question type unless there is a clear quality reason to adjust only wording/options.
+- Keep the answer schema compatible with the original options and correctAnswer shape.
+- Do not include student names, emails, or individual answer records.
+- "difficulty" must be an integer from 1 to 10.
+- "confidence" must be a number from 0 to 1.
+- If options or correctAnswer are not applicable, return {} for that field.
+- Return ONLY the JSON object, no additional text.`;
+        const callModel = async () => {
+            if (this.provider === 'ollama') {
+                return this._callOllama(prompt, this.buildOllamaOptions('question_generation'));
+            }
+            if (this.provider === 'nvidia') {
+                return this._callNvidia(prompt);
+            }
+            if (this.provider === 'openrouter') {
+                return this._callOpenRouter(prompt);
+            }
+            if (this.provider === 'local' && this.localUrl) {
+                const resp = await fetch(this.localUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt }),
+                });
+                if (!resp.ok)
+                    throw new Error(`Local model server returned ${resp.status}`);
+                return resp.text();
+            }
+            if (this.provider === 'mock') {
+                return JSON.stringify({
+                    diagnosis: {
+                        issues: [{ type: 'AMBIGUOUS_WORDING', description: 'Mock proposal based on high incorrect rate.' }],
+                        reason: 'The question may need clearer wording and stronger distractors.',
+                    },
+                    suggestion: {
+                        content: String(original.content || original.stem || '').trim() || 'Improved question content',
+                        options: original.options || {},
+                        correctAnswer: original.correctAnswer || original.answerKey || {},
+                        explanation: original.explanation || 'Giải thích được bổ sung để làm rõ đáp án đúng.',
+                        difficulty: Number(original.difficulty || 3),
+                    },
+                    changes: [
+                        {
+                            field: 'explanation',
+                            before: String(original.explanation || ''),
+                            after: original.explanation || 'Giải thích được bổ sung để làm rõ đáp án đúng.',
+                            reason: 'Improve reviewability for lecturers and learners.',
+                        },
+                    ],
+                    confidence: 0.72,
+                    warnings: [],
+                });
+            }
+            const result = await this.model.generateContent(prompt);
+            return result.response.text();
+        };
+        try {
+            let lastError = null;
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                try {
+                    const responseText = await callModel();
+                    const cleaned = responseText
+                        .replace(/```json\s*/gi, '')
+                        .replace(/```\s*/gi, '')
+                        .trim();
+                    const parsed = JSON.parse(cleaned);
+                    const suggestion = parsed?.suggestion || {};
+                    const content = String(suggestion.content || '').trim();
+                    if (!content || typeof parsed?.diagnosis !== 'object' || !Array.isArray(parsed?.changes)) {
+                        throw new Error('Invalid response format: missing diagnosis, suggestion.content, or changes');
+                    }
+                    const difficulty = Math.max(1, Math.min(10, Math.round(Number(suggestion.difficulty || original.difficulty || 1))));
+                    return {
+                        diagnosis: {
+                            issues: Array.isArray(parsed.diagnosis?.issues) ? parsed.diagnosis.issues : [],
+                            reason: String(parsed.diagnosis?.reason || '').trim(),
+                        },
+                        suggestion: {
+                            content,
+                            options: suggestion.options && typeof suggestion.options === 'object' ? suggestion.options : {},
+                            correctAnswer: suggestion.correctAnswer && typeof suggestion.correctAnswer === 'object' ? suggestion.correctAnswer : {},
+                            explanation: String(suggestion.explanation || '').trim(),
+                            difficulty,
+                        },
+                        changes: parsed.changes.map((change) => ({
+                            field: String(change?.field || 'content'),
+                            before: String(change?.before ?? ''),
+                            after: String(change?.after ?? ''),
+                            reason: String(change?.reason || '').trim(),
+                        })),
+                        confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0)),
+                        warnings: Array.isArray(parsed.warnings) ? parsed.warnings.map((item) => String(item)) : [],
+                    };
+                }
+                catch (error) {
+                    lastError = error;
+                }
+            }
+            throw lastError;
+        }
+        catch (error) {
+            this.logger.error('Failed to generate question improvement:', error);
+            throw new Error(`AI generation failed: ${error.message}`);
+        }
+    }
     async suggestSimilarTopics(params) {
         const topicName = String(params.topicName || '').trim();
         const existingTopics = Array.from(new Set((params.existingTopics || []).map((topic) => String(topic || '').trim()).filter(Boolean))).slice(0, 50);

@@ -1934,6 +1934,7 @@ let SubmissionsService = class SubmissionsService {
                         select: {
                             type: true,
                             content: true,
+                            updatedAt: true,
                         },
                     },
                     questionVersion: {
@@ -1974,6 +1975,7 @@ let SubmissionsService = class SubmissionsService {
             orderIndex: item.orderIndex,
             questionType: item.question?.type || 'UNKNOWN',
             questionContent: item.questionVersion?.stem || item.question?.content || '',
+            questionUpdatedAt: item.question?.updatedAt || null,
         }));
         const topicByQuestionId = new Map();
         try {
@@ -2051,6 +2053,56 @@ let SubmissionsService = class SubmissionsService {
                 continue;
             flaggedByQuestion.set(questionId, (flaggedByQuestion.get(questionId) || 0) + 1);
         }
+        const aiImprovementRecords = await this.prisma.aIGenerationRecord.findMany({
+            where: {
+                examId,
+                section: 'QUALITY_REVIEW',
+            },
+            select: {
+                id: true,
+                status: true,
+                reviewStatus: true,
+                errorMessage: true,
+                prompt: true,
+                createdAt: true,
+                completedAt: true,
+                reviewedAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+        });
+        const aiImprovementByQuestion = new Map();
+        for (const record of aiImprovementRecords) {
+            const payload = this.parseJsonValue(record.prompt, {})?.payload || {};
+            if (payload.task !== 'question-improvement' || !payload.questionId)
+                continue;
+            const questionId = String(payload.questionId);
+            if (aiImprovementByQuestion.has(questionId))
+                continue;
+            let status = 'IDLE';
+            if (record.reviewStatus === 'APPROVED')
+                status = 'APPROVED';
+            else if (record.reviewStatus === 'REJECTED')
+                status = 'REJECTED';
+            else if (record.status === 'QUEUED')
+                status = 'QUEUED';
+            else if (record.status === 'RUNNING')
+                status = 'GENERATING';
+            else if (record.status === 'FAILED')
+                status = 'FAILED';
+            else if (record.status === 'SUCCEEDED')
+                status = 'READY_FOR_REVIEW';
+            aiImprovementByQuestion.set(questionId, {
+                id: record.id,
+                status,
+                rawStatus: record.status,
+                reviewStatus: record.reviewStatus,
+                completedAt: record.completedAt,
+                reviewedAt: record.reviewedAt,
+                errorMessage: record.status === 'FAILED' ? record.errorMessage : null,
+                sourceUpdatedAt: payload.sourceUpdatedAt || null,
+            });
+        }
         const questionMetrics = examQuestions.map((eq) => {
             const metricKey = eq.questionVersionId || eq.questionId;
             const rows = byQuestion.get(metricKey) || [];
@@ -2063,6 +2115,13 @@ let SubmissionsService = class SubmissionsService {
                 : 0;
             const topic = topicByQuestionId.get(eq.questionId);
             const stats = eq.questionVersionId ? statsByVersionId.get(eq.questionVersionId) : null;
+            const aiImprovement = aiImprovementByQuestion.get(eq.questionId) || null;
+            if (aiImprovement?.status === 'READY_FOR_REVIEW'
+                && aiImprovement.sourceUpdatedAt
+                && eq.questionUpdatedAt
+                && new Date(eq.questionUpdatedAt).getTime() > new Date(aiImprovement.sourceUpdatedAt).getTime() + 1000) {
+                aiImprovement.status = 'EXPIRED';
+            }
             return {
                 questionId: eq.questionId,
                 questionVersionId: eq.questionVersionId || null,
@@ -2075,6 +2134,7 @@ let SubmissionsService = class SubmissionsService {
                 skipRate: this.clampPercent((skippedCount / attemptsPerQuestion) * 100),
                 avgTimeSeconds,
                 flaggedCount: flaggedByQuestion.get(eq.questionId) || 0,
+                aiImprovement,
                 correctCount,
                 incorrectCount,
                 skippedCount,
@@ -2085,6 +2145,7 @@ let SubmissionsService = class SubmissionsService {
                     path: '/lecturer/question-bank',
                     params: {
                         courseId: exam.courseId,
+                        questionId: eq.questionId,
                         topicId: topic?.topicId || undefined,
                         type: eq.questionType,
                     },

@@ -22,6 +22,12 @@ import {
   SaveDraftStepDto,
   ValidateQuestionDraftDto,
 } from './dto/question-draft.dto';
+import {
+  ApproveQuestionAiImprovementDto,
+  CreateQuestionAiImprovementDto,
+  RejectQuestionAiImprovementDto,
+  UpdateQuestionAiImprovementDraftDto,
+} from './dto/question-ai-improvement.dto';
 import { CreateQuestionCrudDto, UpdateQuestionCrudDto } from './dto/question-crud.dto';
 import { ListQuestionsQueryDto } from './dto/question-v2-query.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -104,6 +110,46 @@ export class QuestionDraftsController {
   @Get('history')
   getQuestionHistory(@Query('courseId') courseId: string | undefined, @Request() req) {
     return this.questionsService.getQuestionHistory({ courseId }, req.user);
+  }
+
+  @Post('ai-improvements')
+  createQuestionAiImprovement(
+    @Body() dto: CreateQuestionAiImprovementDto,
+    @Request() req,
+  ) {
+    return this.questionsService.createQuestionAiImprovement(dto, req.user);
+  }
+
+  @Get('ai-improvements/:id')
+  getQuestionAiImprovement(@Param('id') id: string, @Request() req) {
+    return this.questionsService.getQuestionAiImprovement(id, req.user);
+  }
+
+  @Patch('ai-improvements/:id/draft')
+  updateQuestionAiImprovementDraft(
+    @Param('id') id: string,
+    @Body() dto: UpdateQuestionAiImprovementDraftDto,
+    @Request() req,
+  ) {
+    return this.questionsService.updateQuestionAiImprovementDraft(id, dto, req.user);
+  }
+
+  @Post('ai-improvements/:id/approve')
+  approveQuestionAiImprovement(
+    @Param('id') id: string,
+    @Body() dto: ApproveQuestionAiImprovementDto,
+    @Request() req,
+  ) {
+    return this.questionsService.approveQuestionAiImprovement(id, dto, req.user);
+  }
+
+  @Post('ai-improvements/:id/reject')
+  rejectQuestionAiImprovement(
+    @Param('id') id: string,
+    @Body() dto: RejectQuestionAiImprovementDto,
+    @Request() req,
+  ) {
+    return this.questionsService.rejectQuestionAiImprovement(id, dto, req.user);
   }
 
   @Get(':id')

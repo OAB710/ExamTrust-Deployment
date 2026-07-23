@@ -31,7 +31,7 @@ let AiJobsService = class AiJobsService {
                 ? nvidiaModel
                 : provider === 'openrouter'
                     ? openRouterModel
-                    : params.task === 'single-question' || params.task === 'exam-questions' || params.task === 'exam-quality-review' || params.task === 'exam-risk-assessment'
+                    : params.task === 'single-question' || params.task === 'exam-questions' || params.task === 'exam-quality-review' || params.task === 'exam-risk-assessment' || params.task === 'question-improvement'
                         ? googleModel
                         : ollamaModel;
         const record = await this.prisma.aIGenerationRecord.create({
