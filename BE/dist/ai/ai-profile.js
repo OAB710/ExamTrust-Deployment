@@ -76,6 +76,7 @@ function buildExamTrustPromptHeader(params) {
         topic_matching: 'topic matching',
         grading_support: 'grading support',
         exam_quality_review: 'exam quality review',
+        question_quality_improvement: 'question quality improvement',
         exam_risk_assessment: 'exam integrity risk assessment',
     };
     const lines = [

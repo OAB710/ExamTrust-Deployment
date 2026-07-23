@@ -1,7 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
-import { AISection } from '../questions-v2/dto/question-draft.dto';
+
+const AI_SECTIONS = [
+  'CONTENT',
+  'ANSWERS',
+  'EXPLANATION',
+  'CLASSIFICATION',
+  'QUALITY_REVIEW',
+  'RISK_ASSESSMENT',
+] as const;
+
+type AISectionValue = (typeof AI_SECTIONS)[number];
 
 type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement';
 
@@ -11,7 +21,7 @@ interface CreateAiJobParams {
   questionVersionId?: string | null;
   examId?: string | null;
   submissionId?: string | null;
-  section?: AISection | null;
+  section?: AISectionValue | string | null;
   payload: Record<string, any>;
   requestedBy?: string | null;
 }
@@ -22,6 +32,13 @@ export class AiJobsService {
     private readonly prisma: PrismaService,
     private readonly queueService: QueueService,
   ) {}
+
+  private normalizeSection(section?: AISectionValue | string | null): AISectionValue {
+    const normalized = String(section || '').trim().toUpperCase();
+    return AI_SECTIONS.includes(normalized as AISectionValue)
+      ? (normalized as AISectionValue)
+      : 'CONTENT';
+  }
 
   async createJob(params: CreateAiJobParams) {
     const provider = process.env.AI_PROVIDER || 'google';
@@ -39,6 +56,7 @@ export class AiJobsService {
         : params.task === 'single-question' || params.task === 'exam-questions' || params.task === 'exam-quality-review' || params.task === 'exam-risk-assessment' || params.task === 'question-improvement'
           ? googleModel
           : ollamaModel;
+    const section = this.normalizeSection(params.section);
 
     const record = await this.prisma.aIGenerationRecord.create({
       data: {
@@ -46,7 +64,7 @@ export class AiJobsService {
         questionVersionId: params.questionVersionId ?? null,
         examId: params.examId ?? null,
         submissionId: params.submissionId ?? null,
-        section: params.section ?? AISection.CONTENT,
+        section,
         status: 'QUEUED',
         reviewStatus: 'PENDING',
         provider,
@@ -67,7 +85,7 @@ export class AiJobsService {
       questionVersionId: params.questionVersionId ?? null,
       examId: params.examId ?? null,
       submissionId: params.submissionId ?? null,
-      section: params.section ?? null,
+      section,
       payload: params.payload,
     });
 

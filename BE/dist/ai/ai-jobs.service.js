@@ -13,11 +13,24 @@ exports.AiJobsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const queue_service_1 = require("../queue/queue.service");
-const question_draft_dto_1 = require("../questions-v2/dto/question-draft.dto");
+const AI_SECTIONS = [
+    'CONTENT',
+    'ANSWERS',
+    'EXPLANATION',
+    'CLASSIFICATION',
+    'QUALITY_REVIEW',
+    'RISK_ASSESSMENT',
+];
 let AiJobsService = class AiJobsService {
     constructor(prisma, queueService) {
         this.prisma = prisma;
         this.queueService = queueService;
+    }
+    normalizeSection(section) {
+        const normalized = String(section || '').trim().toUpperCase();
+        return AI_SECTIONS.includes(normalized)
+            ? normalized
+            : 'CONTENT';
     }
     async createJob(params) {
         const provider = process.env.AI_PROVIDER || 'google';
@@ -34,13 +47,14 @@ let AiJobsService = class AiJobsService {
                     : params.task === 'single-question' || params.task === 'exam-questions' || params.task === 'exam-quality-review' || params.task === 'exam-risk-assessment' || params.task === 'question-improvement'
                         ? googleModel
                         : ollamaModel;
+        const section = this.normalizeSection(params.section);
         const record = await this.prisma.aIGenerationRecord.create({
             data: {
                 draftId: params.draftId ?? null,
                 questionVersionId: params.questionVersionId ?? null,
                 examId: params.examId ?? null,
                 submissionId: params.submissionId ?? null,
-                section: params.section ?? question_draft_dto_1.AISection.CONTENT,
+                section,
                 status: 'QUEUED',
                 reviewStatus: 'PENDING',
                 provider,
@@ -60,7 +74,7 @@ let AiJobsService = class AiJobsService {
             questionVersionId: params.questionVersionId ?? null,
             examId: params.examId ?? null,
             submissionId: params.submissionId ?? null,
-            section: params.section ?? null,
+            section,
             payload: params.payload,
         });
         return record;

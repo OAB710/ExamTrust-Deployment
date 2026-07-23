@@ -1,4 +1,4 @@
-export type ExamTrustAiUseCase = 'question_generation' | 'exam_generation' | 'draft_section' | 'topic_matching' | 'grading_support' | 'exam_quality_review' | 'exam_risk_assessment';
+export type ExamTrustAiUseCase = 'question_generation' | 'exam_generation' | 'draft_section' | 'topic_matching' | 'grading_support' | 'exam_quality_review' | 'question_quality_improvement' | 'exam_risk_assessment';
 export interface ExamTrustAiAnalyticsSummary {
     totalAttempts?: number;
     correctAttempts?: number;

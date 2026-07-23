@@ -5,6 +5,7 @@ export type ExamTrustAiUseCase =
   | 'topic_matching'
   | 'grading_support'
   | 'exam_quality_review'
+  | 'question_quality_improvement'
   | 'exam_risk_assessment';
 
 export interface ExamTrustAiAnalyticsSummary {
@@ -142,6 +143,7 @@ export function buildExamTrustPromptHeader(params: ExamTrustAiPromptParams): str
     topic_matching: 'topic matching',
     grading_support: 'grading support',
     exam_quality_review: 'exam quality review',
+    question_quality_improvement: 'question quality improvement',
     exam_risk_assessment: 'exam integrity risk assessment',
   };
 
