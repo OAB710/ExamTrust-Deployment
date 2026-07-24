@@ -37,9 +37,10 @@ type DraftGrade = {
 
 export default function ManualGradingDetail() {
   const params = useParams();
-  const slug = Array.isArray(params?.slug) ? params.slug : [];
-  const examId = slug[1];
-  const submissionId = slug[3];
+  const examId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const submissionId = Array.isArray(params?.submissionId)
+    ? params.submissionId[0]
+    : params?.submissionId;
   const router = useRouter();
   const pathname = usePathname();
   const basePath = pathname.startsWith("/admin") ? "/admin" : "/lecturer";
@@ -52,7 +53,11 @@ export default function ManualGradingDetail() {
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      if (!submissionId) return;
+      if (!submissionId) {
+        setLoading(false);
+        toast.error("Missing submission id.");
+        return;
+      }
       try {
         setLoading(true);
         const data = await api.getManualGradingSubmission(submissionId);

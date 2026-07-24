@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { DataPagination } from "@/components/common/DataPagination";
@@ -66,6 +66,7 @@ import {
   BarChart3,
   Activity,
   Eye,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import api, { unwrapPaginatedData } from "@/lib/api";
@@ -114,6 +115,15 @@ interface CourseExamSummary {
   totalPoints?: number | null;
 }
 
+interface StudentExamPerformance {
+  examId: string;
+  examTitle: string;
+  status: string;
+  scorePct: number | null;
+  submittedAt: string | null;
+  reviewSignalCount: number;
+}
+
 interface StudentCoursePerformance {
   studentId: string;
   studentCode: string;
@@ -123,6 +133,7 @@ interface StudentCoursePerformance {
   avgScorePct: number | null;
   latestSubmissionAt: string | null;
   reviewSignalCount: number;
+  examResults: StudentExamPerformance[];
 }
 
 interface CourseExam {
@@ -243,6 +254,9 @@ export default function CourseDetail() {
   const [studentPerformance, setStudentPerformance] = useState<
     StudentCoursePerformance[]
   >([]);
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(
+    null,
+  );
   const [courseExamLoading, setCourseExamLoading] = useState(false);
 
   // Manual Add Form
@@ -301,15 +315,23 @@ export default function CourseDetail() {
 
       setCourseExams(examRows.map((row) => row.summary));
 
-      const submissionsByStudent = new Map<string, ExamSubmission[]>();
+      const submissionsByStudent = new Map<string, StudentExamPerformance[]>();
       examRows.forEach((row) => {
         row.submissions.forEach((submission) => {
           const studentId = submission.student?.id;
           if (!studentId) return;
           const current = submissionsByStudent.get(studentId) || [];
           current.push({
-            ...submission,
-            score: getSubmissionScorePct(submission, row.totalPoints),
+            examId: row.summary.id,
+            examTitle: row.summary.title,
+            status: submission.status || "SUBMITTED",
+            scorePct: getSubmissionScorePct(submission, row.totalPoints),
+            submittedAt:
+              submission.submittedAt ||
+              submission.updatedAt ||
+              submission.createdAt ||
+              null,
+            reviewSignalCount: getSubmissionReviewSignalCount(submission),
           });
           submissionsByStudent.set(studentId, current);
         });
@@ -320,21 +342,20 @@ export default function CourseDetail() {
           const submissions = submissionsByStudent.get(student.userId) || [];
           const scored = submissions
             .map((submission) =>
-              typeof submission.score === "number" ? submission.score : null,
+              typeof submission.scorePct === "number"
+                ? submission.scorePct
+                : null,
             )
             .filter((score): score is number => score !== null);
           const latestSubmissionAt = submissions
-            .map(
-              (submission) =>
-                submission.submittedAt ||
-                submission.updatedAt ||
-                submission.createdAt ||
-                null,
-            )
+            .map((submission) => submission.submittedAt)
             .filter((value): value is string => Boolean(value))
             .sort(
               (a, b) => new Date(b).getTime() - new Date(a).getTime(),
             )[0] || null;
+          const submissionsByExam = new Map(
+            submissions.map((submission) => [submission.examId, submission]),
+          );
 
           return {
             studentId: student.userId,
@@ -348,9 +369,22 @@ export default function CourseDetail() {
                 : null,
             latestSubmissionAt,
             reviewSignalCount: submissions.reduce(
-              (sum, submission) => sum + getSubmissionReviewSignalCount(submission),
+              (sum, submission) => sum + submission.reviewSignalCount,
               0,
             ),
+            examResults: examRows.map((row) => {
+              const submitted = submissionsByExam.get(row.summary.id);
+              return (
+                submitted || {
+                  examId: row.summary.id,
+                  examTitle: row.summary.title,
+                  status: "NOT_SUBMITTED",
+                  scorePct: null,
+                  submittedAt: null,
+                  reviewSignalCount: 0,
+                }
+              );
+            }),
           };
         }),
       );
@@ -367,6 +401,7 @@ export default function CourseDetail() {
           avgScorePct: null,
           latestSubmissionAt: null,
           reviewSignalCount: 0,
+          examResults: [],
         })),
       );
     } finally {
@@ -1085,56 +1120,180 @@ export default function CourseDetail() {
                             <TableHead>Điểm TB</TableHead>
                             <TableHead>Bài gần nhất</TableHead>
                             <TableHead>Tín hiệu cần xem xét</TableHead>
+                            <TableHead className="text-right">Chi tiết</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {studentPerformance.length === 0 ? (
                             <TableRow>
                               <TableCell
-                                colSpan={6}
+                                colSpan={7}
                                 className="py-10 text-center text-muted-foreground"
                               >
                                 Chưa có sinh viên để tổng hợp thống kê.
                               </TableCell>
                             </TableRow>
                           ) : (
-                            studentPerformance.map((student) => (
-                              <TableRow key={student.studentId}>
-                                <TableCell>
-                                  <div>
-                                    <p className="font-medium text-foreground">
-                                      {student.name}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {student.email}
-                                    </p>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="font-mono">
-                                  {student.studentCode}
-                                </TableCell>
-                                <TableCell className="tabular-nums">
-                                  {student.submittedExamCount}/{courseExams.length}
-                                </TableCell>
-                                <TableCell>
-                                  {formatPercent(student.avgScorePct)}
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
-                                  {formatDateTime(student.latestSubmissionAt)}
-                                </TableCell>
-                                <TableCell>
-                                  {student.reviewSignalCount > 0 ? (
-                                    <StatusBadge tone="warning">
-                                      {student.reviewSignalCount} tín hiệu
-                                    </StatusBadge>
-                                  ) : (
-                                    <span className="text-sm text-muted-foreground">
-                                      Không có
-                                    </span>
+                            studentPerformance.map((student) => {
+                              const isExpanded =
+                                expandedStudentId === student.studentId;
+                              const completionPct =
+                                courseExams.length > 0
+                                  ? (student.submittedExamCount /
+                                      courseExams.length) *
+                                    100
+                                  : 0;
+
+                              return (
+                                <Fragment key={student.studentId}>
+                                  <TableRow>
+                                    <TableCell>
+                                      <div>
+                                        <p className="font-medium text-foreground">
+                                          {student.name}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {student.email}
+                                        </p>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="font-mono">
+                                      {student.studentCode}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center gap-2 text-sm tabular-nums">
+                                          <span>
+                                            {student.submittedExamCount}/
+                                            {courseExams.length}
+                                          </span>
+                                          <span className="text-xs text-muted-foreground">
+                                            {Math.round(completionPct)}%
+                                          </span>
+                                        </div>
+                                        <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
+                                          <div
+                                            className="h-full rounded-full bg-primary"
+                                            style={{
+                                              width: `${Math.min(
+                                                completionPct,
+                                                100,
+                                              )}%`,
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      {formatPercent(student.avgScorePct)}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {formatDateTime(student.latestSubmissionAt)}
+                                    </TableCell>
+                                    <TableCell>
+                                      {student.reviewSignalCount > 0 ? (
+                                        <StatusBadge tone="warning">
+                                          {student.reviewSignalCount} tín hiệu
+                                        </StatusBadge>
+                                      ) : (
+                                        <span className="text-sm text-muted-foreground">
+                                          Không có
+                                        </span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="gap-2"
+                                        onClick={() =>
+                                          setExpandedStudentId((current) =>
+                                            current === student.studentId
+                                              ? null
+                                              : student.studentId,
+                                          )
+                                        }
+                                      >
+                                        Chi tiết
+                                        <ChevronDown
+                                          className={`h-4 w-4 transition-transform ${
+                                            isExpanded ? "rotate-180" : ""
+                                          }`}
+                                        />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                  {isExpanded && (
+                                    <TableRow>
+                                      <TableCell
+                                        colSpan={7}
+                                        className="bg-muted/30 p-4"
+                                      >
+                                        <div className="overflow-x-auto rounded-lg border bg-background">
+                                          <div className="min-w-[760px]">
+                                            <div className="grid grid-cols-[minmax(240px,1fr)_140px_120px_170px_140px] gap-3 border-b bg-muted/40 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                              <span>Bài kiểm tra</span>
+                                              <span>Trạng thái</span>
+                                              <span>Điểm</span>
+                                              <span>Thời gian nộp</span>
+                                              <span>Tín hiệu</span>
+                                            </div>
+                                            {student.examResults.map((result) => (
+                                              <div
+                                                key={`${student.studentId}-${result.examId}`}
+                                                className="grid grid-cols-[minmax(240px,1fr)_140px_120px_170px_140px] items-center gap-3 border-b px-4 py-3 last:border-b-0"
+                                              >
+                                                <div>
+                                                  <p className="font-medium text-foreground">
+                                                    {result.examTitle}
+                                                  </p>
+                                                </div>
+                                                <div>
+                                                  {result.status ===
+                                                  "NOT_SUBMITTED" ? (
+                                                    <StatusBadge tone="neutral">
+                                                      Chưa nộp
+                                                    </StatusBadge>
+                                                  ) : (
+                                                    <StatusBadge
+                                                      status={result.status}
+                                                      domain="exam"
+                                                    />
+                                                  )}
+                                                </div>
+                                                <div className="font-medium tabular-nums">
+                                                  {formatPercent(result.scorePct)}
+                                                </div>
+                                                <div className="text-sm text-muted-foreground">
+                                                  {formatDateTime(
+                                                    result.submittedAt,
+                                                  )}
+                                                </div>
+                                                <div>
+                                                  {result.reviewSignalCount >
+                                                  0 ? (
+                                                    <StatusBadge tone="warning">
+                                                      {
+                                                        result.reviewSignalCount
+                                                      }{" "}
+                                                      tín hiệu
+                                                    </StatusBadge>
+                                                  ) : (
+                                                    <span className="text-sm text-muted-foreground">
+                                                      Không có
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
                                   )}
-                                </TableCell>
-                              </TableRow>
-                            ))
+                                </Fragment>
+                              );
+                            })
                           )}
                         </TableBody>
                       </Table>

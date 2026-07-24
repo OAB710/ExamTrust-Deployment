@@ -12,9 +12,21 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -36,6 +48,7 @@ import {
   ChevronRight,
   ChevronLeft,
   CheckCircle2,
+  Check,
   Plus,
   FileText,
   Settings,
@@ -57,6 +70,14 @@ import {
   parseNumericInput,
   sanitizeNumericInput,
 } from "@/lib/number-input";
+import {
+  COURSE_TERM_OPTIONS,
+  formatCourseTerm,
+  getAcademicYearOptions,
+  getDefaultAcademicYear,
+  type CourseTerm,
+} from "@/lib/course-term";
+import { cn } from "@/lib/utils";
 
 // ─── Steps ───────────────────────────────────────────────────────
 type Step = "info" | "settings" | "questions" | "preview";
@@ -225,10 +246,19 @@ const MAX_ATTEMPT_OPTIONS = Array.from({ length: 10 }, (_, index) =>
   String(index + 1),
 );
 
+const getCurrentCourseTerm = (date = new Date()): CourseTerm => {
+  const month = date.getMonth() + 1;
+  if (month >= 8) return "TERM_1";
+  if (month >= 6) return "SUMMER";
+  return "TERM_2";
+};
+
 interface CourseOption {
   id: string;
   code: string;
   name: string;
+  academicYear?: string | null;
+  term?: CourseTerm | null;
 }
 
 interface BankTopic {
@@ -378,6 +408,15 @@ export default function CreateExam() {
   const [manualLearningObjective, setManualLearningObjective] = useState("");
   const [manualAiPrompt, setManualAiPrompt] = useState("");
   const [isManualAiGenerating, setIsManualAiGenerating] = useState(false);
+  const [courseComboboxOpen, setCourseComboboxOpen] = useState(false);
+  const [courseSearch, setCourseSearch] = useState("");
+  const skipNextCourseFocusRef = useRef(false);
+  const [courseAcademicYearFilter, setCourseAcademicYearFilter] = useState(() =>
+    getDefaultAcademicYear(),
+  );
+  const [courseTermFilter, setCourseTermFilter] = useState<CourseTerm | "all">(
+    () => getCurrentCourseTerm(),
+  );
   const isSingleAttempt = form.maxAttempts === "1";
 
   useEffect(() => {
@@ -392,6 +431,42 @@ export default function CreateExam() {
 
   const set = (key: keyof ExamForm, val: string | boolean) =>
     setForm((f) => ({ ...f, [key]: val }));
+
+  const selectedCourse = useMemo(
+    () => courses.find((course) => course.id === form.course),
+    [courses, form.course],
+  );
+
+  const selectedCourseLabel = selectedCourse
+    ? `${selectedCourse.code} - ${selectedCourse.name}`
+    : "";
+
+  const filteredCourses = useMemo(() => {
+    const query = courseSearch.trim().toLowerCase();
+
+    return courses.filter((course) =>
+      (!query ||
+        `${course.code} ${course.name}`.toLowerCase().includes(query)) &&
+      (!courseAcademicYearFilter ||
+        course.academicYear === courseAcademicYearFilter) &&
+      (courseTermFilter === "all" || course.term === courseTermFilter),
+    );
+  }, [courseAcademicYearFilter, courseSearch, courseTermFilter, courses]);
+
+  const courseAcademicYearOptions = useMemo(() => {
+    const years = new Set(getAcademicYearOptions());
+    courses.forEach((course) => {
+      if (course.academicYear) years.add(course.academicYear);
+    });
+
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [courses]);
+
+  const resetCourseFilters = () => {
+    setCourseSearch("");
+    setCourseAcademicYearFilter(getDefaultAcademicYear());
+    setCourseTermFilter(getCurrentCourseTerm());
+  };
 
   const bankSelectionWarning = useMemo(() => {
     const selectedTopics = bankTopics.filter((topic) => topic.selected);
@@ -425,6 +500,8 @@ export default function CreateExam() {
           id: course.id,
           code: course.code,
           name: course.name,
+          academicYear: course.academicYear,
+          term: course.term,
         }));
         setCourses(mappedCourses);
 
@@ -1218,24 +1295,171 @@ export default function CreateExam() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="course">
+                  <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="course-academic-year-filter"
+                        className="text-sm"
+                      >
+                        Năm học
+                      </Label>
+                      <Select
+                        value={courseAcademicYearFilter}
+                        onValueChange={setCourseAcademicYearFilter}
+                      >
+                        <SelectTrigger
+                          id="course-academic-year-filter"
+                          className="h-11 rounded-xl"
+                        >
+                          <SelectValue placeholder="Năm học" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {courseAcademicYearOptions.map((year) => (
+                            <SelectItem key={year} value={year}>
+                              {year}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="course-term-filter" className="text-sm">
+                        Học kỳ
+                      </Label>
+                      <Select
+                        value={courseTermFilter}
+                        onValueChange={(value) =>
+                          setCourseTermFilter(value as CourseTerm | "all")
+                        }
+                      >
+                        <SelectTrigger
+                          id="course-term-filter"
+                          className="h-11 rounded-xl"
+                        >
+                          <SelectValue placeholder="Học kỳ" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tất cả học kỳ</SelectItem>
+                          {COURSE_TERM_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="self-end"
+                      onClick={resetCourseFilters}
+                    >
+                      Đặt lại
+                    </Button>
+                  </div>
+                  <Label htmlFor="course" className="mt-4 block">
                     Course <span className="text-red-500">*</span>
                   </Label>
-                  <Select
-                    value={form.course}
-                    onValueChange={(v) => set("course", v)}
+                  <Popover
+                    open={courseComboboxOpen}
+                    onOpenChange={(open) => {
+                      setCourseComboboxOpen(open);
+                      if (open) setCourseSearch("");
+                    }}
                   >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select a course…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {courses.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.code} - {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <PopoverTrigger asChild>
+                      <Input
+                        id="course"
+                        role="combobox"
+                        aria-expanded={courseComboboxOpen}
+                        disabled={courses.length === 0}
+                        value={
+                          courseComboboxOpen ? courseSearch : selectedCourseLabel
+                        }
+                        onChange={(event) => {
+                          setCourseSearch(event.target.value);
+                          setCourseComboboxOpen(true);
+                        }}
+                          onFocus={() => {
+                            if (skipNextCourseFocusRef.current) {
+                              skipNextCourseFocusRef.current = false;
+                              return;
+                            }
+                            setCourseComboboxOpen(true);
+                          }}
+                        placeholder="Search by course code or name..."
+                        className="mt-1 h-12 rounded-xl text-base"
+                      />
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      className="w-[--radix-popover-trigger-width] p-0"
+                    >
+                      <Command>
+                        <CommandList className="max-h-80">
+                          {filteredCourses.length === 0 ? (
+                            <CommandEmpty>
+                              No course found for the selected filters.
+                            </CommandEmpty>
+                          ) : (
+                            <CommandGroup>
+                              {filteredCourses.map((course) => {
+                                const label = `${course.code} - ${course.name}`;
+
+                                return (
+                                  <CommandItem
+                                    key={course.id}
+                                    value={label}
+                                    onSelect={() => {
+                                      set("course", course.id);
+                                      setCourseSearch("");
+                                      skipNextCourseFocusRef.current = true;
+                                      setCourseComboboxOpen(false);
+                                    }}
+                                    className="items-start gap-3 py-3"
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mt-0.5 h-4 w-4 shrink-0",
+                                        form.course === course.id
+                                          ? "opacity-100"
+                                          : "opacity-0",
+                                      )}
+                                    />
+                                    <span className="min-w-0 flex-1">
+                                      <span className="flex min-w-0 items-center gap-2">
+                                        <span className="truncate font-medium">
+                                          {course.code}
+                                        </span>
+                                        <Badge
+                                          variant="secondary"
+                                          className="shrink-0"
+                                        >
+                                          {formatCourseTerm(
+                                            course.academicYear,
+                                            course.term,
+                                          )}
+                                        </Badge>
+                                      </span>
+                                      <span className="block truncate text-xs text-muted-foreground">
+                                        {course.name}
+                                      </span>
+                                    </span>
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {courses.length === 0 ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      No courses available yet.
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <Label htmlFor="desc">Description</Label>

@@ -386,6 +386,49 @@ export default function QuestionBankManagement() {
     }
   }, [courses, searchParams, selectedCourse]);
 
+  useEffect(() => {
+    const questionId = searchParams.get("questionId");
+    if (!questionId) return;
+
+    let cancelled = false;
+
+    const openPreviewFromUrl = async () => {
+      setDetailLoading(true);
+      setDetailError(false);
+      try {
+        const detail = (await api.getQuestionById(questionId)) as Question;
+        if (cancelled) return;
+
+        const questionCourseCode = detail.course?.code;
+        if (questionCourseCode && selectedCourse !== questionCourseCode) {
+          setSelectedCourse(questionCourseCode);
+        }
+        setPreviewQuestion(detail);
+        setDetailQuestion(detail);
+      } catch {
+        if (cancelled) return;
+        const fallbackQuestion = questions.find(
+          (question) => question.id === questionId,
+        );
+        if (fallbackQuestion) {
+          setPreviewQuestion(fallbackQuestion);
+        }
+        setDetailQuestion(null);
+        setDetailError(true);
+      } finally {
+        if (!cancelled) {
+          setDetailLoading(false);
+        }
+      }
+    };
+
+    void openPreviewFromUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [questions, searchParams, selectedCourse]);
+
   const courseFilterDefinitions: FilterDefinition[] = useMemo(
     () => [
       {
@@ -1188,7 +1231,10 @@ export default function QuestionBankManagement() {
             }
           }}
         >
-          <DialogContent className="w-[950px] max-w-[95vw] max-h-[85vh] overflow-hidden p-0 gap-0">
+          <DialogContent
+            hideCloseButton
+            className="w-[950px] max-w-[95vw] max-h-[85vh] overflow-hidden p-0 gap-0"
+          >
             {detailLoading && (
               <div className="flex items-center justify-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
