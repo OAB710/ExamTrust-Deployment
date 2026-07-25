@@ -10,10 +10,8 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
 import { ListPageHeader } from "@/components/common/list/ListPageHeader";
 import { SearchBar } from "@/components/common/list/SearchBar";
-import { FilterPanel } from "@/components/common/list/FilterPanel";
 import { ActiveFilterChips } from "@/components/common/list/ActiveFilterChips";
 import {
-  getActiveFilterCount,
   getFilterChips,
 } from "@/components/common/list/filter-utils";
 import {
@@ -57,8 +55,8 @@ type ScheduleExamItem = {
 };
 
 const dayLabel = (date: Date) => {
-  if (isToday(date)) return "Hôm nay";
-  if (isTomorrow(date)) return "Ngày mai";
+  if (isToday(date)) return "HÃƒÂ´m nay";
+  if (isTomorrow(date)) return "NgÃƒÂ y mai";
   return format(date, "EEEE", { locale: vi });
 };
 
@@ -141,26 +139,26 @@ export default function StudentSchedule() {
     () => [
       {
         key: "status",
-        label: "Trạng thái",
+        label: "TrÃ¡ÂºÂ¡ng thÃƒÂ¡i",
         type: "select",
-        allLabel: "Tất cả trạng thái",
+        allLabel: "TÃ¡ÂºÂ¥t cÃ¡ÂºÂ£ trÃ¡ÂºÂ¡ng thÃƒÂ¡i",
         options: [
-          { label: "Đã công bố", value: "PUBLISHED" },
-          { label: "Đang diễn ra", value: "ONGOING" },
+          { label: "Ã„ÂÃƒÂ£ cÃƒÂ´ng bÃ¡Â»â€˜", value: "PUBLISHED" },
+          { label: "Ã„Âang diÃ¡Â»â€¦n ra", value: "ONGOING" },
         ],
       },
       {
         key: "courseCode",
-        label: "Khóa học",
+        label: "KhÃƒÂ³a hÃ¡Â»Âc",
         type: "select",
-        allLabel: "Tất cả khóa học",
+        allLabel: "TÃ¡ÂºÂ¥t cÃ¡ÂºÂ£ khÃƒÂ³a hÃ¡Â»Âc",
         options: Array.from(
           new Set(items.map((item) => item.course?.code).filter(Boolean)),
         ).map((code) => ({ label: String(code), value: String(code) })),
       },
       {
         key: "startTime",
-        label: "Ngày thi",
+        label: "NgÃƒÂ y thi",
         type: "date-range",
       },
     ],
@@ -270,9 +268,12 @@ export default function StudentSchedule() {
     setDraftFilters(next);
   };
 
-  const activeFilterCount = getActiveFilterCount(appliedFilters, filterDefinitions);
   const activeFilterChips = getFilterChips(appliedFilters, filterDefinitions);
-  const courseOptions = filterDefinitions.find((filter) => filter.key === "courseCode")?.options || [];
+  const courseOptions =
+    filterDefinitions.find(
+      (filter): filter is Extract<FilterDefinition, { type: "select" }> =>
+        filter.key === "courseCode" && filter.type === "select",
+    )?.options || [];
   const dateFilter = (draftFilters.startTime as { from?: string; to?: string }) || {};
 
   return (
@@ -281,40 +282,26 @@ export default function StudentSchedule() {
         <BackToDashboardButton to="/student" className="-ml-2" />
 
         <div className="space-y-4 rounded-xl border border-border bg-card/80 p-4 shadow-sm">
-          <ListPageHeader title="Lịch thi" />
+          <ListPageHeader title="LÃ¡Â»â€¹ch thi" />
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Tìm tên bài thi hoặc khóa học"
+              placeholder="TÃƒÂ¬m tÃƒÂªn bÃƒÂ i thi hoÃ¡ÂºÂ·c khÃƒÂ³a hÃ¡Â»Âc"
               className="flex-1"
             />
-            {false && (
-            <FilterPanel
-              title="Bộ lọc lịch thi"
-              description="Lọc theo trạng thái, khóa học và khoảng ngày."
-              filters={filterDefinitions}
-              value={draftFilters}
-              onValueChange={(key, nextValue) =>
-                setDraftFilters((prev) => ({ ...prev, [key]: nextValue }))
-              }
-              onApply={applyFilters}
-              onClear={clearFilters}
-              activeCount={activeFilterCount}
-            />
-            )}
           </div>
           <div className="grid gap-3 rounded-lg border border-border bg-muted/20 p-3 md:grid-cols-[minmax(220px,1fr)_minmax(180px,.8fr)_minmax(260px,1fr)_auto] md:items-end">
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-muted-foreground">
-                Trạng thái
+                TrÃ¡ÂºÂ¡ng thÃƒÂ¡i
               </Label>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { label: "Tất cả", value: "all" },
-                  { label: "Đã công bố", value: "PUBLISHED" },
-                  { label: "Đang diễn ra", value: "ONGOING" },
+                  { label: "TÃ¡ÂºÂ¥t cÃ¡ÂºÂ£", value: "all" },
+                  { label: "Ã„ÂÃƒÂ£ cÃƒÂ´ng bÃ¡Â»â€˜", value: "PUBLISHED" },
+                  { label: "Ã„Âang diÃ¡Â»â€¦n ra", value: "ONGOING" },
                 ].map((option) => (
                   <Button
                     key={option.value}
@@ -332,7 +319,7 @@ export default function StudentSchedule() {
 
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-muted-foreground">
-                Khóa học
+                KhÃƒÂ³a hÃ¡Â»Âc
               </Label>
               <Select
                 value={String(draftFilters.courseCode || "all")}
@@ -342,7 +329,7 @@ export default function StudentSchedule() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tất cả khóa học</SelectItem>
+                  <SelectItem value="all">TÃ¡ÂºÂ¥t cÃ¡ÂºÂ£ khÃƒÂ³a hÃ¡Â»Âc</SelectItem>
                   {courseOptions.map((option) => (
                     <SelectItem key={option.value} value={String(option.value)}>
                       {option.label}
@@ -354,7 +341,7 @@ export default function StudentSchedule() {
 
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-muted-foreground">
-                Ngày thi
+                Ngay thi
               </Label>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Input
@@ -388,7 +375,7 @@ export default function StudentSchedule() {
               onClick={clearFilters}
               className="h-9"
             >
-              Xóa lọc
+              Xoa loc
             </Button>
           </div>
           <ActiveFilterChips
@@ -404,10 +391,10 @@ export default function StudentSchedule() {
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <CalendarClock className="h-5 w-5" />
               </span>
-              Dòng thời gian bài thi
+              Dong thoi gian bai thi
             </CardTitle>
             <CardDescription>
-              Theo dõi thời gian bắt đầu và kết thúc của từng bài thi.
+              Theo doi thoi gian bat dau va ket thuc cua tung bai thi.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -418,7 +405,7 @@ export default function StudentSchedule() {
             ) : groupedByDate.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
                 <CalendarClock className="mx-auto h-6 w-6" />
-                <p className="mt-2">Không có bài thi phù hợp với bộ lọc hiện tại.</p>
+                <p className="mt-2">Khong co bai thi phu hop voi bo loc hien tai.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -436,10 +423,10 @@ export default function StudentSchedule() {
                           <h3 className="text-lg font-semibold text-foreground">
                             {representativeDate
                               ? `${dayLabel(representativeDate)} - ${format(representativeDate, "dd/MM/yyyy", { locale: vi })}`
-                              : "Chưa xếp lịch"}
+                              : "Chua xep lich"}
                           </h3>
                           <p className="text-xs text-muted-foreground">
-                            {dateItems.length} bài thi
+                            {dateItems.length} bai thi
                           </p>
                         </div>
                       </div>
@@ -453,16 +440,16 @@ export default function StudentSchedule() {
                             <div className="border-l-2 border-primary/50 pl-3">
                               <p className="font-semibold text-foreground">{item.title}</p>
                               <p className="text-sm text-muted-foreground">
-                                {item.course?.code || "-"} - {item.course?.name || "Chưa có thông tin khóa học"}
+                                {item.course?.code || "-"} - {item.course?.name || "ChÃ†Â°a cÃƒÂ³ thÃƒÂ´ng tin khÃƒÂ³a hÃ¡Â»Âc"}
                               </p>
                               <p className="mt-1 text-xs text-slate-500">
                                 <span className="inline-flex items-center gap-1">
                                   <Clock3 className="h-3.5 w-3.5" />
                                   {item.startTime
                                     ? format(new Date(item.startTime), "HH:mm")
-                                    : "Chưa lên lịch"}
-                                  {" đến "}
-                                  {item.endTime ? format(new Date(item.endTime), "HH:mm") : "Chưa lên lịch"}
+                                    : "ChÃ†Â°a lÃƒÂªn lÃ¡Â»â€¹ch"}
+                                  {" Ã„â€˜Ã¡ÂºÂ¿n "}
+                                  {item.endTime ? format(new Date(item.endTime), "HH:mm") : "ChÃ†Â°a lÃƒÂªn lÃ¡Â»â€¹ch"}
                                 </span>
                               </p>
                             </div>
@@ -475,7 +462,7 @@ export default function StudentSchedule() {
                                   variant="secondary"
                                   className="border-emerald-200 bg-emerald-50 text-emerald-700"
                                 >
-                                  Đã nộp
+                                  Ã„ÂÃƒÂ£ nÃ¡Â»â„¢p
                                 </Badge>
                               ) : null}
                               <Button
@@ -484,7 +471,7 @@ export default function StudentSchedule() {
                                 variant="outline"
                                 className="hover:border-primary/30 hover:bg-primary/5"
                               >
-                                <Link href={`/student/exams/${item.id}`}>Chi tiết</Link>
+                                <Link href={`/student/exams/${item.id}`}>Chi tiÃ¡ÂºÂ¿t</Link>
                               </Button>
                             </div>
                           </div>
