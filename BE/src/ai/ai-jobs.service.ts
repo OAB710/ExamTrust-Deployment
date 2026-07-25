@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
 
@@ -78,16 +78,25 @@ export class AiJobsService {
       },
     });
 
-    await this.queueService.enqueueAiGeneration({
-      jobId: record.id,
-      task: params.task,
-      draftId: params.draftId ?? null,
-      questionVersionId: params.questionVersionId ?? null,
-      examId: params.examId ?? null,
-      submissionId: params.submissionId ?? null,
-      section,
-      payload: params.payload,
-    });
+    try {
+      await this.queueService.enqueueAiGeneration({
+        jobId: record.id,
+        task: params.task,
+        draftId: params.draftId ?? null,
+        questionVersionId: params.questionVersionId ?? null,
+        examId: params.examId ?? null,
+        submissionId: params.submissionId ?? null,
+        section,
+        payload: params.payload,
+      });
+    } catch (error: any) {
+      const message = 'Không thể đưa yêu cầu AI vào hàng đợi. Vui lòng thử lại sau.';
+      await this.prisma.aIGenerationRecord.update({
+        where: { id: record.id },
+        data: { status: 'FAILED', errorMessage: String(error?.message || message) },
+      });
+      throw new ServiceUnavailableException({ code: 'AI_QUEUE_UNAVAILABLE', message });
+    }
 
     return record;
   }

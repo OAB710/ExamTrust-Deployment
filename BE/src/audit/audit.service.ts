@@ -63,7 +63,7 @@ export class AuditService {
           role: actor?.role || 'SYSTEM',
           action: record.kind,
           resource: payload?.resource || payload?.examId || payload?.submissionId || payload?.questionId || 'event_store',
-          ip: payload?.ip || payload?.remoteIp || payload?.clientIp || null,
+          ip: null,
           severity: inferredSeverity,
           status: record.status,
           details: record.lastError || payload?.message || JSON.stringify(payload || {}),

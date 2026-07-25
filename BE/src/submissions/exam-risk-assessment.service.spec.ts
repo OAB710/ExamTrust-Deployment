@@ -29,7 +29,7 @@ describe('ExamRiskAssessmentService', () => {
     ...overrides,
   });
 
-  const buildService = (overrides: { submission?: any; createJobResult?: any } = {}) => {
+  const buildService = (overrides: { submission?: any; createJobResult?: any; existingJob?: any } = {}) => {
     const prisma = {
       examSubmission: {
         findUnique: jest.fn().mockResolvedValue(
@@ -43,7 +43,7 @@ describe('ExamRiskAssessmentService', () => {
         update: jest.fn(),
       },
       aIGenerationRecord: {
-        findFirst: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(overrides.existingJob ?? null),
       },
       exam: {
         findUnique: jest.fn().mockResolvedValue({ id: examId }),
@@ -70,7 +70,7 @@ describe('ExamRiskAssessmentService', () => {
 
       const result = await service.requestAssessment(submissionId, user);
 
-      expect(result).toEqual({ jobId: 'job-1', status: 'QUEUED' });
+      expect(result).toEqual({ jobId: 'job-1', status: 'QUEUED', reused: false });
       expect(aiJobsService.createJob).toHaveBeenCalledTimes(1);
 
       const jobArgs = aiJobsService.createJob.mock.calls[0][0];
@@ -103,6 +103,19 @@ describe('ExamRiskAssessmentService', () => {
     });
   });
 
+  it('reuses an assessment that is already queued instead of creating a duplicate job', async () => {
+    const { service, aiJobsService } = buildService({
+      existingJob: { id: 'job-existing', status: 'RUNNING' },
+    });
+
+    await expect(service.requestAssessment(submissionId, user)).resolves.toEqual({
+      jobId: 'job-existing',
+      status: 'RUNNING',
+      reused: true,
+    });
+    expect(aiJobsService.createJob).not.toHaveBeenCalled();
+  });
+
   describe('requestAssessment - insufficient data', () => {
     it('rejects with BadRequestException when there are no answers and no proctoring events', async () => {
       const { service, aiJobsService } = buildService({
@@ -114,6 +127,17 @@ describe('ExamRiskAssessmentService', () => {
 
       await expect(service.requestAssessment(submissionId, user)).rejects.toThrow(BadRequestException);
       expect(aiJobsService.createJob).not.toHaveBeenCalled();
+    });
+  });
+
+  it('returns an ineligible preflight result when no behavioral data exists', async () => {
+    const { service } = buildService({
+      submission: buildSubmission({ proctoring: null, answers: [] }),
+    });
+
+    await expect(service.getEligibility(submissionId, user)).resolves.toMatchObject({
+      eligible: false,
+      reasonCode: 'INSUFFICIENT_RISK_DATA',
     });
   });
 

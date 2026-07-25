@@ -19,7 +19,6 @@ type AuditLog = {
   role: string;
   action: string;
   resource: string;
-  ip?: string | null;
   severity: "info" | "warning" | "critical";
   status: string;
   details: string;

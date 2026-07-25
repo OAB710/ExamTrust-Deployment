@@ -11,6 +11,7 @@ interface RequestUser {
 }
 
 const TOO_FAST_ANSWER_SECONDS = 3;
+const REUSABLE_JOB_STATUSES = ['QUEUED', 'RUNNING', 'SUCCEEDED'];
 
 @Injectable()
 export class ExamRiskAssessmentService {
@@ -20,7 +21,7 @@ export class ExamRiskAssessmentService {
     private readonly accessPolicy: AccessPolicyService,
   ) {}
 
-  async requestAssessment(submissionId: string, user: RequestUser) {
+  private async getAssessmentContext(submissionId: string, user: RequestUser) {
     const submission = await this.prisma.examSubmission.findUnique({
       where: { id: submissionId },
       select: {
@@ -44,18 +45,25 @@ export class ExamRiskAssessmentService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException({ code: 'SUBMISSION_NOT_FOUND', message: 'Không tìm thấy lượt làm bài của sinh viên.' });
     }
 
     await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
 
+    return submission;
+  }
+
+  private buildEligibility(submission: any) {
     const answers = submission.answers || [];
     const logs = submission.proctoring?.logs || [];
 
     if (answers.length === 0 && logs.length === 0) {
-      throw new BadRequestException(
-        'Not enough behavioral data to assess integrity risk. The student has not answered any questions or triggered any proctoring events yet.',
-      );
+      return {
+        eligible: false,
+        reasonCode: 'INSUFFICIENT_RISK_DATA',
+        reason: 'Chưa đủ dữ liệu hành vi để đánh giá. Sinh viên cần có câu trả lời hoặc sự kiện giám sát được ghi nhận.',
+        signals: { totalAnswers: 0, totalIntegrityEvents: 0 },
+      };
     }
 
     const eventBreakdown: Record<string, number> = {};
@@ -79,6 +87,73 @@ export class ExamRiskAssessmentService {
       ? Number(((endedAt.getTime() - startedAt.getTime()) / 60000).toFixed(1))
       : null;
 
+    return {
+      eligible: true,
+      reasonCode: null,
+      reason: null,
+      submissionSummary: {
+        attemptNo: submission.attemptNo,
+        score: submission.score ?? null,
+        durationMinutes: submission.exam?.duration ?? null,
+        timeSpentMinutes,
+      },
+      signals: {
+        tabSwitchCount,
+        mouseAnomalies,
+        fullscreenExitCount,
+        focusLossCount,
+        pageHiddenCount,
+        tooFastAnswerCount,
+        totalAnswers: answers.length,
+        totalIntegrityEvents: logs.length,
+        eventBreakdown,
+      },
+    };
+  }
+
+  private async getLatestAssessment(submissionId: string) {
+    return this.prisma.aIGenerationRecord.findFirst({
+      where: { submissionId, section: AISection.RISK_ASSESSMENT },
+      select: {
+        id: true,
+        status: true,
+        output: true,
+        errorMessage: true,
+        completedAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getEligibility(submissionId: string, user: RequestUser) {
+    const submission = await this.getAssessmentContext(submissionId, user);
+    const [eligibility, existingAssessment] = await Promise.all([
+      Promise.resolve(this.buildEligibility(submission)),
+      this.getLatestAssessment(submission.id),
+    ]);
+
+    return {
+      ...eligibility,
+      existingAssessment,
+    };
+  }
+
+  async requestAssessment(submissionId: string, user: RequestUser) {
+    const submission = await this.getAssessmentContext(submissionId, user);
+    const eligibility = this.buildEligibility(submission);
+    if (!eligibility.eligible) {
+      throw new BadRequestException({
+        code: eligibility.reasonCode,
+        message: eligibility.reason,
+      });
+    }
+
+    const existingAssessment = await this.getLatestAssessment(submission.id);
+    if (existingAssessment && REUSABLE_JOB_STATUSES.includes(existingAssessment.status)) {
+      return { jobId: existingAssessment.id, status: existingAssessment.status, reused: true };
+    }
+
     const record = await this.aiJobsService.createJob({
       task: 'exam-risk-assessment',
       examId: submission.examId,
@@ -88,29 +163,14 @@ export class ExamRiskAssessmentService {
         examId: submission.examId,
         submissionId: submission.id,
         examInstanceId: submission.examInstanceId,
-        submissionSummary: {
-          attemptNo: submission.attemptNo,
-          score: submission.score ?? null,
-          durationMinutes: submission.exam?.duration ?? null,
-          timeSpentMinutes,
-        },
-        signals: {
-          tabSwitchCount,
-          mouseAnomalies,
-          fullscreenExitCount,
-          focusLossCount,
-          pageHiddenCount,
-          tooFastAnswerCount,
-          totalAnswers: answers.length,
-          totalIntegrityEvents: logs.length,
-          eventBreakdown,
-        },
+        submissionSummary: eligibility.submissionSummary,
+        signals: eligibility.signals,
         language: 'vi',
       },
       requestedBy: user.id,
     });
 
-    return { jobId: record.id, status: record.status };
+    return { jobId: record.id, status: record.status, reused: false };
   }
 
   async getJob(submissionId: string, jobId: string, user: RequestUser) {
@@ -120,7 +180,7 @@ export class ExamRiskAssessmentService {
       where: { id: jobId, submissionId },
     });
     if (!job) {
-      throw new NotFoundException('Risk assessment job not found');
+      throw new NotFoundException({ code: 'RISK_JOB_NOT_FOUND', message: 'Không tìm thấy kết quả đánh giá rủi ro.' });
     }
 
     const flag = await this.prisma.anomalyFlag.findFirst({ where: { jobId: job.id } });

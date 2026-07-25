@@ -80,10 +80,8 @@ export class SubmissionsController {
   @UseGuards(RateLimitGuard)
   @RateLimit('start')
   startExam(@Body() startExamDto: StartExamDto, @Request() req) {
-    const forwardedFor = req?.headers?.['x-forwarded-for'] as string | undefined;
-    const remoteIp = req?.socket?.remoteAddress || req?.ip;
     const userAgent = req?.headers?.['user-agent'] || undefined;
-    return this.submissionsService.startExam(startExamDto, req.user.id, { remoteIp, forwardedFor, userAgent });
+    return this.submissionsService.startExam(startExamDto, req.user.id, { userAgent });
   }
 
   @Post(':id/submit')
@@ -205,6 +203,13 @@ export class SubmissionsController {
   @Roles('LECTURER', 'ADMIN')
   requestRiskAssessment(@Param('id') id: string, @Request() req) {
     return this.riskAssessmentService.requestAssessment(id, req.user);
+  }
+
+  @Get(':id/risk-assessment/eligibility')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  getRiskAssessmentEligibility(@Param('id') id: string, @Request() req) {
+    return this.riskAssessmentService.getEligibility(id, req.user);
   }
 
   @Get(':id/risk-assessment/jobs/:jobId')

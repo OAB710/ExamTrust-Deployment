@@ -143,7 +143,7 @@ export class ExamLinksService {
     return link;
   }
 
-  private async validateEligibility(link: any, userId?: string, ip?: string) {
+  private async validateEligibility(link: any, userId?: string) {
     if (link.disabled) {
       throw new ForbiddenException('Link has been revoked');
     }
@@ -191,23 +191,6 @@ export class ExamLinksService {
       }
     }
 
-    // Enforce LAB-mode whitelist via AccessPolicyService (falls back to legacy settings when no DB entries)
-    try {
-      const check = await this.accessPolicy.isIpAllowedForExam(link.exam.id, ip ? normalizeIp(ip) : null);
-      if (!check.allowed) {
-        await this.accessPolicy.logDeniedAccess(link.exam.id, {
-          resolvedClientIp: ip ? normalizeIp(ip) : null,
-          remoteIp: ip || null,
-          reasonCode: check.reason || 'LAB_IP_DENIED',
-          reasonMessage: 'Access denied by lab IP whitelist',
-          route: 'exam-links.validateEligibility',
-        });
-        throw new ForbiddenException('Access denied: outside allowed lab network');
-      }
-    } catch (e) {
-      if (e instanceof ForbiddenException) throw e;
-      throw new ForbiddenException('Access restricted by network policy');
-    }
   }
 
   async validateToken(token: string) {
@@ -245,7 +228,7 @@ export class ExamLinksService {
 
   async joinByToken(token: string, dto: JoinExamLinkDto, context: { userId?: string; ip?: string; userAgent?: string }) {
     const link = await this.getLinkByRawToken(token);
-    await this.validateEligibility(link, context.userId, context.ip);
+    await this.validateEligibility(link, context.userId);
 
     if (link.passwordHash) {
       const provided = dto.password || '';
@@ -298,7 +281,6 @@ export class ExamLinksService {
         data: {
           linkId: link.id,
           userId: context.userId ?? null,
-          ip: context.ip || null,
           userAgent: context.userAgent || null,
         },
       });

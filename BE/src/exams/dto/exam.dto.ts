@@ -65,11 +65,6 @@ export class CreateExamDto {
 
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  ipWhitelist?: string[];
-
-  @IsOptional()
-  @IsArray()
   questionIds?: string[];
 }
 
@@ -134,11 +129,6 @@ export class UpdateExamDto {
   @IsOptional()
   @IsEnum(['NORMAL', 'LAB'])
   mode?: string;
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  ipWhitelist?: string[];
 
   @IsOptional()
   @IsEnum(['DRAFT', 'PUBLISHED', 'ONGOING', 'COMPLETED', 'ARCHIVED'])

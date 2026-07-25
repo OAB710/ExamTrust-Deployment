@@ -435,7 +435,7 @@ export default function CourseManagement() {
         {/* Recently Accessed Courses */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Recently accessed courses</h2>
+            <h2 className="text-lg font-semibold">Recently accessed courses</h2>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm">
                 <ChevronLeft className="h-4 w-4" />
@@ -519,7 +519,7 @@ export default function CourseManagement() {
         {/* Course Overview */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Course overview</h2>
+            <h2 className="text-lg font-semibold">Course overview</h2>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="gap-2">
                 <Filter className="h-4 w-4" />

@@ -250,7 +250,7 @@ export function DashboardLayout({
           <GraduationCap className="h-3.5 w-3.5" />
         </div>
         {(isMobile || !collapsed) && (
-          <span className="font-bold text-sidebar-foreground text-base tracking-tight">
+          <span className="font-bold text-sidebar-foreground text-base tracking-normal">
             ExamTrust
           </span>
         )}
@@ -269,7 +269,7 @@ export function DashboardLayout({
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-3 mt-2 overflow-y-auto">
         {(isMobile || !collapsed) && (
-          <p className="px-3 mb-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+          <p className="px-3 mb-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
             Điều hướng
           </p>
         )}
@@ -348,7 +348,7 @@ export function DashboardLayout({
               <p className="text-sm font-semibold text-sidebar-foreground truncate">
                 {user.fullName}
               </p>
-              <span className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
+              <span className="text-xs font-medium uppercase tracking-wider text-sidebar-foreground/50">
                 {roleLabel}
               </span>
             </div>
@@ -506,7 +506,7 @@ export function DashboardLayout({
                               </p>
                             </button>
                             <div className="flex flex-col items-end gap-1">
-                              <span className="text-[11px] text-muted-foreground shrink-0">
+                              <span className="text-xs text-muted-foreground shrink-0">
                                 {item.time
                                   ? new Date(item.time).toLocaleTimeString([], {
                                       hour: "2-digit",

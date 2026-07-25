@@ -575,14 +575,14 @@ export default function ExamManagement() {
     <DashboardLayout>
       <AdminPageShell backTo="/lecturer">
         <ListPageHeader
-          title="Exam Management"
+          title="Quản lý bài thi"
           actions={
             <Button
               onClick={() => router.push("/lecturer/exams/create")}
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              Create Exam
+              Tạo bài thi
             </Button>
           }
         />
@@ -592,26 +592,26 @@ export default function ExamManagement() {
           <AdminStatCard
             icon={FileText}
             value={stats.total}
-            label="Total Exams"
+            label="Tổng số bài thi"
           />
           <AdminStatCard
             icon={CheckCircle2}
             value={stats.published}
-            label="Published"
+            label="Đã công bố"
             iconWrapClassName="bg-blue-500/10"
             iconClassName="text-blue-600"
           />
           <AdminStatCard
             icon={Clock}
             value={stats.ongoing}
-            label="Ongoing"
+            label="Đang diễn ra"
             iconWrapClassName="bg-amber-500/10"
             iconClassName="text-amber-600"
           />
           <AdminStatCard
             icon={AlertCircle}
             value={stats.draft}
-            label="Draft"
+            label="Bản nháp"
             iconWrapClassName="bg-gray-500/10"
             iconClassName="text-gray-600"
           />
@@ -780,22 +780,7 @@ export default function ExamManagement() {
                                   Theo dõi
                                 </Button>
                               )}
-                              {exam.status === "PUBLISHED" && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleRepublishExam(exam)}
-                                  disabled={publishingExamId === exam.id}
-                                  className="h-8 gap-1.5 border-emerald-200 bg-emerald-50 px-2.5 text-emerald-700 shadow-none hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800 disabled:opacity-70"
-                                >
-                                  {publishingExamId === exam.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                  )}
-                                  Công bố lại
-                                </Button>
-                              )}
+
                               {(exam.status === "COMPLETED" ||
                                 (exam._count?.submissions ?? 0) > 0) && (
                                 <Button

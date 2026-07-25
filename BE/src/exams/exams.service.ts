@@ -9,7 +9,7 @@ import {
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessPolicyService } from '../common/services/access-policy.service';
-import { isValidIpOrCidr } from '../common/utils/ip.utils';
+
 import { CreateExamDto, UpdateExamDto, AddQuestionsToExamDto, UpdateExamQuestionDto, RescheduleExamDto } from './dto/exam.dto';
 import { PaginationDto, buildPaginatedResult } from '../common/dto/pagination.dto';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -321,13 +321,6 @@ export class ExamsService {
           .filter((item: any) => item.topicId && item.count > 0)
       : [];
 
-    if (Array.isArray((createExamDto as any).ipWhitelist)) {
-      const invalidRule = (createExamDto as any).ipWhitelist.find((rule: string) => !isValidIpOrCidr(rule));
-      if (invalidRule) {
-        throw new BadRequestException(`Invalid IP/CIDR format: ${invalidRule}. Example: 192.168.1.10 or 192.168.1.0/24`);
-      }
-    }
-
     // Check if course exists
     const course = await this.prisma.course.findUnique({
       where: { id: createExamDto.courseId },
@@ -371,12 +364,6 @@ export class ExamsService {
           },
         },
       });
-
-      // Persist IP whitelist entries if provided on creation
-      if (Array.isArray((createExamDto as any).ipWhitelist) && (createExamDto as any).ipWhitelist.length > 0) {
-        const toCreate = (createExamDto as any).ipWhitelist.map((r: string) => ({ examId: exam.id, rule: r, normalized: r }));
-        await tx.examIpWhitelist.createMany({ data: toCreate });
-      }
 
       // Add questions if provided
       if (questionIds && questionIds.length > 0) {
@@ -731,7 +718,7 @@ export class ExamsService {
     };
   }
 
-  async findForStudent(id: string, studentId: string, clientIp?: string | null) {
+  async findForStudent(id: string, studentId: string) {
     const exam = await this.prisma.exam.findUnique({
       where: { id },
       include: {
@@ -767,25 +754,6 @@ export class ExamsService {
       throw new ForbiddenException('Exam is not available');
     }
 
-    // Enforce LAB-mode IP whitelist if needed
-    try {
-      const check = await this.accessPolicy.isIpAllowedForExam(exam.id, clientIp ?? null);
-      if (!check.allowed) {
-        await this.accessPolicy.logDeniedAccess(exam.id, {
-          studentId,
-          resolvedClientIp: clientIp ?? null,
-          reasonCode: check.reason || 'LAB_IP_DENIED',
-          reasonMessage: 'Access denied by lab IP whitelist',
-          route: 'exams.findForStudent',
-        });
-        throw new ForbiddenException('Access denied: outside allowed lab network');
-      }
-    } catch (e) {
-      if (e instanceof ForbiddenException) throw e;
-      // If access policy checks failed unexpectedly, treat as restricted
-      throw new ForbiddenException('Access restricted by network policy');
-    }
-
     const examQuestions = await this.loadExamQuestionsCompat(id, false);
     return {
       ...exam,
@@ -807,13 +775,6 @@ export class ExamsService {
 
     if (!exam) {
       throw new NotFoundException('Exam not found');
-    }
-
-    if (Array.isArray((updateExamDto as any).ipWhitelist)) {
-      const invalidRule = (updateExamDto as any).ipWhitelist.find((rule: string) => !isValidIpOrCidr(rule));
-      if (invalidRule) {
-        throw new BadRequestException(`Invalid IP/CIDR format: ${invalidRule}. Example: 192.168.1.10 or 192.168.1.0/24`);
-      }
     }
 
     const updateData: any = { ...updateExamDto };
@@ -839,18 +800,6 @@ export class ExamsService {
         },
       },
     });
-
-    // Update IP whitelist if provided via DTO (replace existing entries)
-    if (Array.isArray((updateExamDto as any).ipWhitelist)) {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.examIpWhitelist.deleteMany({ where: { examId: id } });
-        const newList = (updateExamDto as any).ipWhitelist || [];
-        if (newList.length > 0) {
-          const toCreate = newList.map((r: string) => ({ examId: id, rule: r, normalized: r }));
-          await tx.examIpWhitelist.createMany({ data: toCreate });
-        }
-      });
-    }
 
     try {
       const studentIds = await this.getCourseRecipientIds(updatedExam.course.id);

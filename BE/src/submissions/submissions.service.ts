@@ -225,7 +225,7 @@ export class SubmissionsService {
     }
   }
 
-  async startExam(startExamDto: StartExamDto, studentId: string, context?: { remoteIp?: string; forwardedFor?: string; userAgent?: string }): Promise<any> {
+  async startExam(startExamDto: StartExamDto, studentId: string, context?: { userAgent?: string }): Promise<any> {
     const exam = await this.prisma.exam.findUnique({
       where: { id: startExamDto.examId },
       include: {
@@ -265,28 +265,6 @@ export class SubmissionsService {
       throw new ForbiddenException('Exam has ended');
     }
 
-    // Resolve client IP (respecting trusted proxy configuration) and enforce LAB whitelist
-    try {
-      const clientIp = this.accessPolicy.resolveClientIpFromParts(context?.remoteIp ?? null, context?.forwardedFor ?? null);
-      const check = await this.accessPolicy.isIpAllowedForExam(startExamDto.examId, clientIp);
-      if (!check.allowed) {
-        await this.accessPolicy.logDeniedAccess(startExamDto.examId, {
-          studentId,
-          resolvedClientIp: clientIp,
-          remoteIp: context?.remoteIp ?? null,
-          forwardedFor: context?.forwardedFor ?? null,
-          userAgent: context?.userAgent ?? null,
-          reasonCode: check.reason || 'LAB_IP_DENIED',
-          reasonMessage: 'Access denied by lab IP whitelist',
-          route: 'submissions.startExam',
-        });
-        throw new ForbiddenException('Access denied: outside allowed lab network');
-      }
-    } catch (e) {
-      if (e instanceof ForbiddenException) throw e;
-      throw new ForbiddenException('Access restricted by network policy');
-    }
-
     const latestSnapshot = await this.prisma.examSnapshot.findFirst({
       where: { examId: startExamDto.examId },
       orderBy: { publishedAt: 'desc' },
@@ -303,11 +281,6 @@ export class SubmissionsService {
     if (!latestSnapshot || !Array.isArray(latestSnapshot.questions) || latestSnapshot.questions.length === 0) {
       throw new ConflictException('Exam snapshot is unavailable. Please ask the instructor to republish the exam.');
     }
-
-    const resolvedClientIp =
-      typeof (context as any)?.remoteIp !== 'undefined' || typeof (context as any)?.forwardedFor !== 'undefined'
-        ? this.accessPolicy.resolveClientIpFromParts(context?.remoteIp ?? null, context?.forwardedFor ?? null)
-        : null;
 
     // Check for in-progress submission (idempotency: return existing IN_PROGRESS)
     const inProgressSubmission = await this.prisma.examSubmission.findFirst({
@@ -333,14 +306,12 @@ export class SubmissionsService {
           status: 'IN_PROGRESS',
           startedAt: inProgressSubmission.startedAt || now,
           lastActivityAt: now,
-          ipAddress: resolvedClientIp,
           userAgent: context?.userAgent ?? null,
         },
         update: {
           status: 'IN_PROGRESS',
           lastActivityAt: now,
           examSnapshotId: latestSnapshot.id,
-          ipAddress: resolvedClientIp ?? undefined,
           userAgent: context?.userAgent ?? undefined,
         },
       });
@@ -440,7 +411,6 @@ export class SubmissionsService {
             questionOrder: mappedSnapshotQuestions.map((item) => item.questionSnapshotId ?? item.questionId),
             status: 'IN_PROGRESS',
             lastActivityAt: now,
-            ipAddress: resolvedClientIp ?? undefined,
             userAgent: context?.userAgent ?? undefined,
           },
         })
@@ -455,7 +425,6 @@ export class SubmissionsService {
             status: 'IN_PROGRESS',
             startedAt: now,
             lastActivityAt: now,
-            ipAddress: resolvedClientIp,
             userAgent: context?.userAgent ?? null,
           },
         });
@@ -541,14 +510,11 @@ export class SubmissionsService {
       throw new ConflictException('Failed to create exam submission');
     }
 
-    // Create an initial proctoring session and record the client's IP (if provided)
+    // Create an initial proctoring session
     try {
       await this.prisma.proctoringSession.create({
         data: {
           submissionId: startedSubmission.id,
-          ipAddress: typeof (context as any)?.remoteIp !== 'undefined' || typeof (context as any)?.forwardedFor !== 'undefined'
-            ? this.accessPolicy.resolveClientIpFromParts(context?.remoteIp ?? null, context?.forwardedFor ?? null)
-            : null,
         },
       });
     } catch (e) {
@@ -1813,7 +1779,6 @@ export class SubmissionsService {
               startedAt: true,
               submittedAt: true,
               lastActivityAt: true,
-              ipAddress: true,
               suspiciousFlag: true,
               anomalyScore: true,
             },
@@ -1821,7 +1786,6 @@ export class SubmissionsService {
           proctoring: {
             select: {
               id: true,
-              ipAddress: true,
               tabSwitchCount: true,
               mouseAnomalies: true,
               flaggedStatus: true,
@@ -2208,7 +2172,6 @@ export class SubmissionsService {
         },
         select: {
           id: true,
-          ipAddress: true,
           tabSwitchCount: true,
           mouseAnomalies: true,
           submission: {
@@ -2884,7 +2847,6 @@ export class SubmissionsService {
         proctoring: {
           select: {
             id: true,
-            ipAddress: true,
             tabSwitchCount: true,
             mouseAnomalies: true,
             flaggedStatus: true,
@@ -2969,7 +2931,7 @@ export class SubmissionsService {
         type: 'exam_start',
         description: 'Exam session started',
         severity: 'normal',
-        detail: submission.proctoring?.ipAddress ? `IP: ${submission.proctoring.ipAddress}` : undefined,
+        detail: undefined,
       });
     }
 
@@ -3137,7 +3099,6 @@ export class SubmissionsService {
         },
         proctoring: {
           select: {
-            ipAddress: true,
             tabSwitchCount: true,
             mouseAnomalies: true,
             logs: true,
@@ -3274,7 +3235,6 @@ export class SubmissionsService {
         },
         proctoring: {
           select: {
-            ipAddress: true,
             tabSwitchCount: true,
             mouseAnomalies: true,
             logs: true,

@@ -91,7 +91,6 @@ interface StudentSession {
   userId: string;
   name: string;
   studentId: string;
-  ip: string;
   status:
     | "in_progress"
     | "submitted"
@@ -116,7 +115,6 @@ interface IntegrityAlert {
     | "tab_switch"
     | "similarity"
     | "timing"
-    | "ip_anomaly"
     | "mouse_pattern"
     | "fullscreen_exit";
   message: string;
@@ -152,7 +150,6 @@ const mapEventTypeToAlertType = (
   if (event.includes("fullscreen")) return "fullscreen_exit";
   if (event.includes("tab")) return "tab_switch";
   if (event.includes("mouse")) return "mouse_pattern";
-  if (event.includes("ip")) return "ip_anomaly";
   if (event.includes("timing")) return "timing";
   return "similarity";
 };
@@ -216,6 +213,8 @@ export default function ExamMonitor() {
   const [riskResult, setRiskResult] = useState<any | null>(null);
   const [riskFlag, setRiskFlag] = useState<any | null>(null);
   const [riskError, setRiskError] = useState<string | null>(null);
+  const [riskEligibility, setRiskEligibility] = useState<any | null>(null);
+  const [riskEligibilityLoading, setRiskEligibilityLoading] = useState(false);
   const [reviewNotes, setReviewNotes] = useState("");
 
   const riskFlagsBySubmission = useMemo(() => {
@@ -311,10 +310,6 @@ export default function ExamMonitor() {
           userId: student?.id || "",
           name: student?.fullName || "Unknown student",
           studentId: student?.studentId || "-",
-          ip:
-            submission?.examInstance?.ipAddress ||
-            submission?.proctoring?.ipAddress ||
-            "-",
           status,
           progress:
             status === "submitted"
@@ -399,10 +394,12 @@ export default function ExamMonitor() {
     loadRiskFlags();
   }, [id]);
 
-  const openRiskDialog = (submissionId: string, studentName: string) => {
+  const openRiskDialog = async (submissionId: string, studentName: string) => {
     setRiskDialogSubmission({ id: submissionId, name: studentName });
     setRiskError(null);
     setReviewNotes("");
+    setRiskEligibility(null);
+    setRiskEligibilityLoading(true);
     const existingFlag = riskFlagsBySubmission.get(submissionId);
     if (existingFlag) {
       setRiskFlag(existingFlag);
@@ -411,6 +408,21 @@ export default function ExamMonitor() {
       setRiskFlag(null);
       setRiskResult(null);
     }
+
+    try {
+      const eligibility = await api.getExamRiskAssessmentEligibility(submissionId);
+      setRiskEligibility(eligibility);
+      if (eligibility.existingAssessment?.status === "SUCCEEDED" && eligibility.existingAssessment.output) {
+        setRiskResult(eligibility.existingAssessment.output);
+      }
+      if (eligibility.existingAssessment?.status === "FAILED" && eligibility.existingAssessment.errorMessage) {
+        setRiskError(eligibility.existingAssessment.errorMessage);
+      }
+    } catch (err: any) {
+      setRiskError(err?.message || "Không thể kiểm tra điều kiện đánh giá rủi ro.");
+    } finally {
+      setRiskEligibilityLoading(false);
+    }
   };
 
   const closeRiskDialog = () => {
@@ -418,10 +430,12 @@ export default function ExamMonitor() {
     setRiskResult(null);
     setRiskFlag(null);
     setRiskError(null);
+    setRiskEligibility(null);
+    setRiskEligibilityLoading(false);
   };
 
   const handleGenerateRisk = async () => {
-    if (!riskDialogSubmission) return;
+    if (!riskDialogSubmission || !riskEligibility?.eligible) return;
     setRiskLoading(true);
     setRiskError(null);
     try {
@@ -430,7 +444,7 @@ export default function ExamMonitor() {
       setRiskFlag(job?.flag || null);
       await loadRiskFlags();
     } catch (err: any) {
-      setRiskError(err?.message || "Failed to generate AI risk assessment.");
+          setRiskError(err?.message || "Không thể tạo đánh giá dấu hiệu rủi ro.");
     } finally {
       setRiskLoading(false);
     }
@@ -883,9 +897,6 @@ export default function ExamMonitor() {
                       <Shield className="h-4 w-4" />
                     )}
                     {alert.type === "timing" && <Clock className="h-4 w-4" />}
-                    {alert.type === "ip_anomaly" && (
-                      <Globe className="h-4 w-4" />
-                    )}
                     {alert.type === "mouse_pattern" && (
                       <MousePointerClick className="h-4 w-4" />
                     )}
@@ -972,9 +983,8 @@ export default function ExamMonitor() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[28%]">Student</TableHead>
-                    <TableHead className="w-[18%]">IP Address</TableHead>
-                    <TableHead className="w-[20%]">Progress</TableHead>
+                    <TableHead className="w-[35%]">Student</TableHead>
+                    <TableHead className="w-[22%]">Progress</TableHead>
                     <TableHead className="w-[12%] text-center">Tab Sw.</TableHead>
                     <TableHead className="w-[14%]">Status</TableHead>
                     <TableHead className="w-[8%] text-right">Action</TableHead>
@@ -984,7 +994,7 @@ export default function ExamMonitor() {
                   {paginatedStudents.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={5}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
                         No student sessions match your current search or filters.
@@ -1002,12 +1012,6 @@ export default function ExamMonitor() {
                             <p className="text-xs text-muted-foreground">
                               {s.studentId}
                             </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="font-mono text-xs">{s.ip}</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -1068,7 +1072,7 @@ export default function ExamMonitor() {
                                     className="ml-1"
                                   />
                                 ) : (
-                                  "AI Risk"
+                                  "Đánh giá rủi ro"
                                 )}
                               </Button>
                             )}
@@ -1170,33 +1174,48 @@ export default function ExamMonitor() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Eye className="h-5 w-5" />
-                AI Integrity Risk — {riskDialogSubmission?.name}
+                Đánh giá dấu hiệu rủi ro — {riskDialogSubmission?.name}
               </DialogTitle>
               <DialogDescription>
-                AI-assessed risk based on real proctoring signals for this attempt. This is a risk
-                indicator only — it does not conclude that the student cheated.
+                Công cụ này tổng hợp dữ liệu giám sát của lượt làm bài để hỗ trợ giảng viên rà soát.
+                Đây chỉ là chỉ báo rủi ro, không phải kết luận sinh viên gian lận.
               </DialogDescription>
             </DialogHeader>
 
             {!riskResult && !riskLoading && (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  No AI risk assessment has been generated for this attempt yet.
-                </p>
-                <Button
-                  onClick={handleGenerateRisk}
-                  className="gap-2"
-                  disabled={!riskDialogSubmission}
-                >
-                  Generate AI Risk Assessment
-                </Button>
+                <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">Dữ liệu được xem xét</p>
+                  <p className="mt-1 leading-6">
+                    Đổi tab, mất focus, thoát fullscreen, thao tác chuột và thời gian trả lời quá nhanh.
+                    Hệ thống chỉ dùng các tín hiệu đã ghi nhận trong lượt làm bài này.
+                  </p>
+                </div>
+                {riskEligibilityLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Đang kiểm tra dữ liệu giám sát...
+                  </div>
+                ) : riskEligibility?.eligible ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Chưa có kết quả đánh giá cho lượt làm bài này.
+                    </p>
+                    <Button onClick={handleGenerateRisk} className="gap-2" disabled={!riskDialogSubmission}>
+                      Phân tích dấu hiệu rủi ro
+                    </Button>
+                  </>
+                ) : riskEligibility ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    {riskEligibility.reason || "Chưa đủ dữ liệu để đánh giá dấu hiệu rủi ro."}
+                  </div>
+                ) : null}
                 {riskError && <p className="text-sm text-red-600">{riskError}</p>}
               </div>
             )}
 
             {riskLoading && (
               <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
-                <RefreshCw className="h-4 w-4 animate-spin" /> Analyzing behavioral signals with AI...
+                <RefreshCw className="h-4 w-4 animate-spin" /> Đang phân tích dữ liệu giám sát...
               </div>
             )}
 
@@ -1204,9 +1223,9 @@ export default function ExamMonitor() {
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <StatusBadge domain="severity" status={riskResult.riskLevel?.toLowerCase()}>
-                    {riskResult.riskLevel} risk
+                    Rủi ro {riskResult.riskLevel}
                   </StatusBadge>
-                  <span className="text-sm text-muted-foreground">Score: {riskResult.riskScore}/100</span>
+                  <span className="text-sm text-muted-foreground">Điểm rủi ro: {riskResult.riskScore}/100</span>
                   {riskFlag?.status && (
                     <StatusBadge
                       domain="integrity"
@@ -1220,7 +1239,7 @@ export default function ExamMonitor() {
                 {Array.isArray(riskResult.signals) && riskResult.signals.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Detected signals
+                      Tín hiệu được ghi nhận
                     </p>
                     {riskResult.signals.map((sig: any, idx: number) => (
                       <div key={idx} className="rounded-md border border-border bg-muted/30 p-2 text-sm">
@@ -1231,11 +1250,11 @@ export default function ExamMonitor() {
                 )}
 
                 <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Review decision
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Xử lý của giảng viên
                   </p>
                   <Textarea
-                    placeholder="Optional review note..."
+                    placeholder="Ghi chú rà soát (không bắt buộc)..."
                     value={reviewNotes}
                     onChange={(e) => setReviewNotes(e.target.value)}
                     className="text-sm min-h-[60px]"
@@ -1247,7 +1266,7 @@ export default function ExamMonitor() {
                       disabled={!riskFlag?.id}
                       onClick={() => handleReviewFlag("REVIEWED")}
                     >
-                      Mark Reviewed
+                      Đã rà soát
                     </Button>
                     <Button
                       size="sm"
@@ -1255,7 +1274,7 @@ export default function ExamMonitor() {
                       disabled={!riskFlag?.id}
                       onClick={() => handleReviewFlag("DISMISSED")}
                     >
-                      Dismiss
+                      Bỏ qua cảnh báo
                     </Button>
                     <Button
                       size="sm"
@@ -1263,15 +1282,7 @@ export default function ExamMonitor() {
                       disabled={!riskFlag?.id}
                       onClick={() => handleReviewFlag("CONFIRMED")}
                     >
-                      Confirm Needs Investigation
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="ml-auto"
-                      onClick={handleGenerateRisk}
-                    >
-                      Regenerate
+                      Cần điều tra thêm
                     </Button>
                   </div>
                 </div>

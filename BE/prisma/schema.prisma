@@ -235,8 +235,6 @@ model Exam {
   submissions    ExamSubmission[]
   examInstances  ExamInstance[]
   links          ExamLink[]
-  ipWhitelist    ExamIpWhitelist[]
-  accessDeniedLogs ExamAccessDeniedLog[]
   snapshots      ExamSnapshot[]
   qualityReviewJobs AIGenerationRecord[] @relation("ExamQualityReviewJobs")
 
@@ -245,39 +243,6 @@ model Exam {
   @@index([status])
   @@index([gradingStrategy])
   @@map("exams")
-}
-
-model ExamIpWhitelist {
-  id            String   @id @default(uuid())
-  exam          Exam     @relation(fields: [examId], references: [id])
-  examId        String
-  rule          String   // e.g. single IP or CIDR (192.168.1.10 or 192.168.1.0/24)
-  ipVersion     Int?
-  normalized    String?
-  createdBy     String?
-  createdAt     DateTime @default(now())
-
-  @@index([examId])
-  @@map("exam_ip_whitelist")
-}
-
-model ExamAccessDeniedLog {
-  id              String   @id @default(uuid())
-  exam            Exam     @relation(fields: [examId], references: [id])
-  examId          String
-  studentId       String?
-  resolvedClientIp String
-  remoteIp        String?
-  forwardedFor    String?
-  userAgent       String?
-  reasonCode      String
-  reasonMessage   String?
-  route           String?
-  createdAt       DateTime @default(now())
-
-  @@index([examId])
-  @@index([studentId])
-  @@map("exam_access_denied_log")
 }
 
 model ExamLink {
@@ -314,7 +279,6 @@ model ExamLinkUsage {
   linkId     String
   user       User?    @relation("ExamLinkUsageUser", fields: [userId], references: [id])
   userId     String?
-  ip         String?  @db.VarChar(64)
   userAgent  String?  @db.Text
   usedAt     DateTime @default(now())
 
@@ -648,7 +612,6 @@ model ExamInstance {
   startedAt      DateTime?
   submittedAt    DateTime?
   lastActivityAt DateTime?
-  ipAddress      String?  @db.VarChar(64)
   userAgent      String?  @db.Text
   encryptedPayload Bytes?
   payloadChecksum String? @db.VarChar(64)
@@ -819,7 +782,6 @@ model ProctoringSession {
   id             String   @id @default(uuid())
   submission     ExamSubmission @relation(fields: [submissionId], references: [id])
   submissionId   String   @unique
-  ipAddress      String?
   tabSwitchCount Int?     @default(0)
   mouseAnomalies Int?     @default(0)
   flaggedStatus  String?

@@ -18,6 +18,17 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+  ) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -59,11 +70,20 @@ class ApiClient {
     const responseReceivedMs = elapsedMs(startedAt);
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }));
+      const responseText = await response.text();
+      let error: any = {};
+      try {
+        error = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        error = { message: responseText };
+      }
+      const message = Array.isArray(error?.message)
+        ? error.message.filter(Boolean).join('. ')
+        : error?.message || `Yêu cầu thất bại (HTTP ${response.status}).`;
       if (isPerfLogEnabled()) {
         logPerf(`${method} ${endpoint} failed network=${responseReceivedMs}ms status=${response.status}`);
       }
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      throw new ApiRequestError(message, response.status, error?.code);
     }
 
     const parsed = await response.json();
@@ -1010,6 +1030,22 @@ class ApiClient {
     return this.request<{ jobId: string; status: string }>(`/submissions/${submissionId}/risk-assessment`, {
       method: 'POST',
     });
+  }
+
+  async getExamRiskAssessmentEligibility(submissionId: string) {
+    return this.request<{
+      eligible: boolean;
+      reasonCode?: string | null;
+      reason?: string | null;
+      signals?: Record<string, number>;
+      existingAssessment?: {
+        id: string;
+        status: string;
+        output?: any;
+        errorMessage?: string | null;
+        completedAt?: string | null;
+      } | null;
+    }>(`/submissions/${submissionId}/risk-assessment/eligibility`);
   }
 
   async getExamRiskAssessmentJob(submissionId: string, jobId: string) {

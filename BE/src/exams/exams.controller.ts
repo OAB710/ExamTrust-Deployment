@@ -146,8 +146,7 @@ export class ExamsController {
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req) {
     if (req.user.role === 'STUDENT') {
-      const clientIp = this.accessPolicy.resolveClientIp(req);
-      return this.examsService.findForStudent(id, req.user.id, clientIp);
+      return this.examsService.findForStudent(id, req.user.id);
     }
     await this.accessPolicy.assertInstructorCanAccessExam(id, req.user);
     return this.examsService.findOne(id);

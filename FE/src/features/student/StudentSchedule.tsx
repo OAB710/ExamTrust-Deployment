@@ -387,7 +387,7 @@ export default function StudentSchedule() {
 
         <Card className="overflow-hidden shadow-medium">
           <CardHeader className="border-b border-border bg-muted/30">
-            <CardTitle className="flex items-center gap-2 text-xl">
+            <CardTitle className="flex items-center gap-2 text-lg">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <CalendarClock className="h-5 w-5" />
               </span>

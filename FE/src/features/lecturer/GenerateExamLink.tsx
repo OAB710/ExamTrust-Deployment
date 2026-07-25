@@ -75,7 +75,6 @@ interface ExamLinkItem {
 
 interface LinkUsage {
   id: string;
-  ip?: string;
   userAgent?: string;
   usedAt: string;
   user?: { fullName?: string; email?: string; studentId?: string };
@@ -561,14 +560,13 @@ export default function GenerateExamLink() {
                     <TableHead>Time</TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Student ID</TableHead>
-                    <TableHead>IP</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {usage.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={4}
+                        colSpan={3}
                         className="text-center py-8 text-muted-foreground"
                       >
                         No usage records yet.
@@ -584,7 +582,6 @@ export default function GenerateExamLink() {
                           {item.user?.fullName || item.user?.email || "Unknown"}
                         </TableCell>
                         <TableCell>{item.user?.studentId || "-"}</TableCell>
-                        <TableCell>{item.ip || "-"}</TableCell>
                       </TableRow>
                     ))
                   )}

@@ -984,7 +984,7 @@ export default function ExamAnalytics() {
                 {data.analyticsScope === "OFFICIAL" ? "Phân tích chính thức" : "Phân tích luyện tập"}
               </Badge>
             ) : null}
-            <h1 className="text-2xl font-bold">Phân tích hiệu suất</h1>
+            <h1 className="text-xl font-bold sm:text-2xl">Phân tích hiệu suất</h1>
             <p className="text-sm text-muted-foreground">
               Phan tich - Luyen tap - Cai thien theo tung bai thi.
             </p>
@@ -993,7 +993,7 @@ export default function ExamAnalytics() {
 
         <Card className="border-border/60 shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 font-bold">
               <BarChart3 className="h-4 w-4 text-primary" />
               Bo loc phan tich bai thi
             </CardTitle>
@@ -1249,7 +1249,7 @@ export default function ExamAnalytics() {
                           <div key={item.questionId} className="p-4">
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold text-foreground">Ã†Â¯u tiÃƒÂªn {item.orderIndex + 1}</p>
+                                <p className="text-sm font-semibold text-foreground">Bài tập ưu tiên {item.orderIndex + 1}</p>
                                 <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{translateMetricText(item.questionText)}</p>
                               </div>
                               <div className="flex shrink-0 flex-wrap gap-2">
