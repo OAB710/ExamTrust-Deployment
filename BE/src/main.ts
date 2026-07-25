@@ -31,6 +31,13 @@ async function bootstrap() {
     credentials: true,
   });
 
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+    next();
+  });
+
   // Global validation pipe
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,

@@ -33,6 +33,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" suppressHydrationWarning>
+      <head>
+        <meta charSet="utf-8" />
+      </head>
       <body className="min-h-[100dvh] bg-background font-sans text-foreground antialiased">
         <a className="skip-link" href="#main-content">
           Chuyển đến nội dung chính
