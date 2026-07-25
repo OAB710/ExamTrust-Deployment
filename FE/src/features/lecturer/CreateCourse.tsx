@@ -2044,10 +2044,10 @@ export default function CreateCourse() {
                         </div>
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-foreground">
-                            {course.code}
+                            {course.name}
                           </p>
                           <p className="truncate text-sm text-muted-foreground">
-                            {course.name}
+                            {course.code}
                           </p>
                         </div>
                       </div>

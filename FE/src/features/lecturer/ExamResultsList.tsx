@@ -481,7 +481,7 @@ export default function ExamResultsList() {
                         colSpan={6}
                         className="py-10 text-center text-muted-foreground"
                       >
-                        No submissions found for this exam yet.
+                        Chưa có lượt nộp bài nào cho kỳ thi này.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -547,7 +547,7 @@ export default function ExamResultsList() {
           totalPages={totalPages}
           totalItems={submissions.length}
           onPageChange={setPage}
-          itemLabel="submissions"
+          itemLabel="lượt nộp"
           className="border-t-0 px-0"
         />
       </div>

@@ -465,10 +465,10 @@ export default function LecturerDashboard() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="line-clamp-1 text-sm font-semibold text-foreground">
-                            {bank.courseCode}
+                            {bank.courseName}
                           </p>
                           <p className="line-clamp-1 text-xs text-muted-foreground">
-                            {bank.courseName}
+                            {bank.courseCode}
                           </p>
                         </div>
                         <span className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold tabular-nums text-primary">

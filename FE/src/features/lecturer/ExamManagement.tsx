@@ -714,12 +714,11 @@ export default function ExamManagement() {
                           </TableCell>
                           <TableCell>
                             <div className="text-sm">
-                              <div className="font-mono">
-                                {" "}
-                                {exam.course.code}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
+                              <div className="font-medium text-foreground">
                                 {exam.course.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground font-mono">
+                                {exam.course.code}
                               </div>
                             </div>
                           </TableCell>

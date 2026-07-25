@@ -349,7 +349,7 @@ export default function ExamMonitor() {
           submittedAt: submission?.submittedAt
             ? new Date(submission.submittedAt).toLocaleTimeString()
             : null,
-          flagReason: status === "flagged" ? "Submission flagged" : null,
+          flagReason: status === "flagged" ? "Lượt nộp bị gắn cờ" : null,
         };
       });
 
