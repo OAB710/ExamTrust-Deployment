@@ -304,6 +304,11 @@ export class SubmissionsService {
       throw new ConflictException('Exam snapshot is unavailable. Please ask the instructor to republish the exam.');
     }
 
+    const resolvedClientIp =
+      typeof (context as any)?.remoteIp !== 'undefined' || typeof (context as any)?.forwardedFor !== 'undefined'
+        ? this.accessPolicy.resolveClientIpFromParts(context?.remoteIp ?? null, context?.forwardedFor ?? null)
+        : null;
+
     // Check for in-progress submission (idempotency: return existing IN_PROGRESS)
     const inProgressSubmission = await this.prisma.examSubmission.findFirst({
       where: {
@@ -314,13 +319,62 @@ export class SubmissionsService {
     });
 
     if (inProgressSubmission) {
-      if (!inProgressSubmission.examSnapshotId) {
-        await this.prisma.examSubmission.update({
-          where: { id: inProgressSubmission.id },
-          data: { examSnapshotId: latestSnapshot.id },
+      const examInstance = await this.prisma.examInstance.upsert({
+        where: {
+          examId_studentId: {
+            examId: startExamDto.examId,
+            studentId,
+          },
+        },
+        create: {
+          examId: startExamDto.examId,
+          studentId,
+          examSnapshotId: latestSnapshot.id,
+          status: 'IN_PROGRESS',
+          startedAt: inProgressSubmission.startedAt || now,
+          lastActivityAt: now,
+          ipAddress: resolvedClientIp,
+          userAgent: context?.userAgent ?? null,
+        },
+        update: {
+          status: 'IN_PROGRESS',
+          lastActivityAt: now,
+          examSnapshotId: latestSnapshot.id,
+          ipAddress: resolvedClientIp ?? undefined,
+          userAgent: context?.userAgent ?? undefined,
+        },
+      });
+      const updatedSubmission = await this.prisma.examSubmission.update({
+        where: { id: inProgressSubmission.id },
+        data: {
+          examSnapshotId: inProgressSubmission.examSnapshotId || latestSnapshot.id,
+          examInstanceId: inProgressSubmission.examInstanceId || examInstance.id,
+          lastActivityAt: now,
+        },
+        include: {
+          exam: {
+            select: {
+              id: true,
+              title: true,
+              duration: true,
+            },
+          },
+          examInstance: true,
+          proctoring: true,
+        },
+      });
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[exam:start]', {
+          examId: startExamDto.examId,
+          studentId,
+          sessionId: updatedSubmission.id,
+          examInstanceId: updatedSubmission.examInstanceId,
+          status: updatedSubmission.status,
         });
       }
-      return inProgressSubmission;
+
+      return updatedSubmission;
     }
 
     const examSettings: any = exam.settings || {};
@@ -375,11 +429,6 @@ export class SubmissionsService {
         },
       },
     });
-
-    const resolvedClientIp =
-      typeof (context as any)?.remoteIp !== 'undefined' || typeof (context as any)?.forwardedFor !== 'undefined'
-        ? this.accessPolicy.resolveClientIpFromParts(context?.remoteIp ?? null, context?.forwardedFor ?? null)
-        : null;
 
     const examInstance = existingExamInstance
       ? await this.prisma.examInstance.update({
@@ -1203,6 +1252,7 @@ export class SubmissionsService {
     const result = await this.prisma.$transaction(async (tx) => {
       const tabSwitchCount = entries.filter((x) => String(x.type).toLowerCase() === 'tab_switch').length;
       const mouseAnomalies = entries.filter((x) => String(x.type).toLowerCase() === 'mouse_anomaly').length;
+      const now = new Date();
 
       const proctoringSession = await tx.proctoringSession.upsert({
         where: { submissionId },
@@ -1227,6 +1277,48 @@ export class SubmissionsService {
 
       if (createLogs.length > 0) {
         await tx.integrityLog.createMany({ data: createLogs });
+      }
+
+      if (submission.examInstanceId && entries.length > 0) {
+        await tx.examInstance.update({
+          where: { id: submission.examInstanceId },
+          data: { lastActivityAt: now },
+        });
+
+        const tabEvents = entries
+          .filter((l) => String(l.type).toLowerCase() === 'tab_switch')
+          .map((l) => ({
+            examInstanceId: submission.examInstanceId!,
+            occurredAt: l.ts ? new Date(l.ts) : now,
+            fromTab: 'exam',
+            toTab: 'hidden',
+          }));
+        if (tabEvents.length > 0) {
+          await tx.tabSwitchEvent.createMany({ data: tabEvents });
+        }
+
+        const focusEvents = entries
+          .filter((l) => ['blur', 'window_blur', 'fullscreen_exit'].includes(String(l.type).toLowerCase()))
+          .map((l) => ({
+            examInstanceId: submission.examInstanceId!,
+            occurredAt: l.ts ? new Date(l.ts) : now,
+            focusState: 'BLURRED' as const,
+            reason: String(l.details || l.type).slice(0, 255),
+          }));
+        if (focusEvents.length > 0) {
+          await tx.focusEvent.createMany({ data: focusEvents });
+        }
+
+        const interactionEvents = entries.map((l) => ({
+          examInstanceId: submission.examInstanceId!,
+          eventType: String(l.type).slice(0, 100),
+          payload: {
+            details: l.details ?? null,
+            clientTimestamp: l.ts ?? null,
+          },
+          createdAt: l.ts ? new Date(l.ts) : now,
+        }));
+        await tx.interactionLog.createMany({ data: interactionEvents });
       }
 
       return { success: true };
@@ -1714,8 +1806,35 @@ export class SubmissionsService {
               studentId: true,
             },
           },
+          examInstance: {
+            select: {
+              id: true,
+              status: true,
+              startedAt: true,
+              submittedAt: true,
+              lastActivityAt: true,
+              ipAddress: true,
+              suspiciousFlag: true,
+              anomalyScore: true,
+            },
+          },
+          proctoring: {
+            select: {
+              id: true,
+              ipAddress: true,
+              tabSwitchCount: true,
+              mouseAnomalies: true,
+              flaggedStatus: true,
+              integrityScore: true,
+            },
+          },
+          answers: {
+            select: {
+              id: true,
+            },
+          },
         },
-        orderBy: { submittedAt: 'desc' },
+        orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),

@@ -342,7 +342,7 @@ export class ExamsService {
     }
 
     // Use transaction: create exam + attach questions atomically
-    const createdExam = await this.prisma.$transaction(async (tx) => {
+    let createdExam = await this.prisma.$transaction(async (tx) => {
       const exam = await tx.exam.create({
         data: {
           ...examData,
@@ -581,12 +581,6 @@ export class ExamsService {
             }
         }
 
-      // If exam has at least one question, auto-publish by default
-      const qCount = await tx.examQuestion.count({ where: { examId: exam.id } });
-      if (qCount > 0) {
-        await tx.exam.update({ where: { id: exam.id }, data: { status: 'PUBLISHED' } });
-      }
-
       // Return exam with counts so client shows question count and status immediately
       const createdExam = await tx.exam.findUnique({
         where: { id: exam.id },
@@ -599,6 +593,22 @@ export class ExamsService {
 
       return createdExam;
     });
+
+    if (createdExam?._count?.examQuestions > 0) {
+      await this.publishExam(createdExam.id);
+      createdExam = await this.prisma.exam.findUnique({
+        where: { id: createdExam.id },
+        include: {
+          course: { select: { id: true, code: true, name: true } },
+          creator: { select: { id: true, fullName: true } },
+          _count: { select: { examQuestions: true, submissions: true } },
+        },
+      });
+    }
+
+    if (!createdExam) {
+      throw new InternalServerErrorException('Exam was created but could not be loaded');
+    }
 
     try {
       const studentIds = await this.getCourseRecipientIds(createdExam.course.id);

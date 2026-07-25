@@ -140,12 +140,6 @@ export default function ExamReadyCheck() {
   const failedCount = checks.filter((c) => c.status === "failed").length;
 
   const handleStartExam = async () => {
-    try {
-      document.documentElement.requestFullscreen?.();
-    } catch {
-      /* continue */
-    }
-
     if (!examId) {
       toast.error("Thiếu mã bài thi. Vui lòng mở lại bài thi từ trang tổng quan.");
       return;
@@ -160,6 +154,7 @@ export default function ExamReadyCheck() {
       try {
         localStorage.setItem("currentSubmissionId", res.id);
         localStorage.setItem("currentSubmissionExamId", examId);
+        localStorage.setItem("examFullscreenGraceStartedAt", String(Date.now()));
       } catch {}
     } catch (err: any) {
       console.error("Failed to start submission on server:", err);

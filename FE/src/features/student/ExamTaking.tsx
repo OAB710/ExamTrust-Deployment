@@ -425,11 +425,57 @@ export default function ExamTaking() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fullscreenCountdown, setFullscreenCountdown] = useState(15);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [examSessionStatus, setExamSessionStatus] = useState<
+    "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED"
+  >("NOT_STARTED");
+  const [fullscreenRequestedAt, setFullscreenRequestedAt] = useState<number | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const logRef = useRef<{ type: string; ts: number; detail?: string }[]>([]);
   const lastMouseActivityRef = useRef<number>(Date.now());
   const mouseIdleLoggedRef = useRef<boolean>(false);
+  const startSessionRequestedRef = useRef(false);
+
+  useEffect(() => {
+    if (!examId || isPreviewMode) return;
+    const storedSubmissionId = localStorage.getItem("currentSubmissionId");
+    const storedExamId = localStorage.getItem("currentSubmissionExamId");
+    if (storedSubmissionId && storedExamId === examId) {
+      setSubmissionId(storedSubmissionId);
+      setExamSessionStatus("IN_PROGRESS");
+    }
+    const graceStartedAt = Number(localStorage.getItem("examFullscreenGraceStartedAt") || 0);
+    if (graceStartedAt > 0 && Date.now() - graceStartedAt < 5000) {
+      setFullscreenRequestedAt(graceStartedAt);
+    }
+    localStorage.removeItem("examFullscreenGraceStartedAt");
+  }, [examId, isPreviewMode]);
+
+  useEffect(() => {
+    if (!examId || isPreviewMode || isLoadingExam || submissionId) return;
+    if (startSessionRequestedRef.current) return;
+    startSessionRequestedRef.current = true;
+
+    let cancelled = false;
+    api
+      .startExam(examId)
+      .then((started) => {
+        if (cancelled || !started?.id) return;
+        setSubmissionId(started.id);
+        setExamSessionStatus("IN_PROGRESS");
+        localStorage.setItem("currentSubmissionId", started.id);
+        localStorage.setItem("currentSubmissionExamId", examId);
+      })
+      .catch((error) => {
+        startSessionRequestedRef.current = false;
+        console.error("Failed to initialize exam session:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [examId, isLoadingExam, isPreviewMode, submissionId]);
 
   useEffect(() => {
     let mounted = true;
@@ -507,25 +553,28 @@ export default function ExamTaking() {
     log("submit");
     // attempt to submit answers + logs if we have a submissionId stored
     try {
-      let submissionId = localStorage.getItem("currentSubmissionId");
+      let activeSubmissionId =
+        submissionId || localStorage.getItem("currentSubmissionId");
       const submissionExamId = localStorage.getItem("currentSubmissionExamId");
 
       // Drop stale submission ids from previous exams.
       if (examId && submissionExamId && submissionExamId !== examId) {
-        submissionId = null;
+        activeSubmissionId = null;
       }
 
       // Create a submission now if missing.
-      if (!submissionId && examId) {
+      if (!activeSubmissionId && examId) {
         const started = await api.startExam(examId);
         if (started?.id) {
-          submissionId = started.id;
-          localStorage.setItem("currentSubmissionId", submissionId);
+          activeSubmissionId = started.id;
+          setSubmissionId(activeSubmissionId);
+          setExamSessionStatus("IN_PROGRESS");
+          localStorage.setItem("currentSubmissionId", activeSubmissionId);
           localStorage.setItem("currentSubmissionExamId", examId);
         }
       }
 
-      if (!submissionId) {
+      if (!activeSubmissionId) {
         throw new Error("No active submission found for this exam.");
       }
 
@@ -554,7 +603,8 @@ export default function ExamTaking() {
         details: l.detail,
         ts: l.ts,
       }));
-      await api.submitExam(submissionId, payloadAnswers, logs);
+      await api.submitExam(activeSubmissionId, payloadAnswers, logs);
+      setExamSessionStatus("SUBMITTED");
 
       // Clear active submission markers after successful submit.
       try {
@@ -574,16 +624,17 @@ export default function ExamTaking() {
     if (examId)
       router.push(`/student/grading?examId=${encodeURIComponent(examId)}`);
     else router.push("/student/grading");
-  }, [log, router, examId, answers, questions]);
+  }, [log, router, examId, answers, questions, submissionId]);
 
   const handleViolation = useCallback(
     (entry: ViolationLog) => {
       log(entry.type, entry.detail);
       try {
-        const submissionId = localStorage.getItem("currentSubmissionId");
-        if (submissionId) {
+        const activeSubmissionId =
+          submissionId || localStorage.getItem("currentSubmissionId");
+        if (activeSubmissionId) {
           api
-            .sendExamLogs(submissionId, [
+            .sendExamLogs(activeSubmissionId, [
               {
                 type: entry.type,
                 details: entry.detail ?? `Security violation: ${entry.type}`,
@@ -596,7 +647,7 @@ export default function ExamTaking() {
         console.error("Failed to send violation log", e);
       }
     },
-    [log],
+    [log, submissionId],
   );
 
   const {
@@ -607,8 +658,11 @@ export default function ExamTaking() {
     returnToExam,
     canFullscreen,
   } = useExamSecurity({
-    enabled: !isSubmitting,
+    enabled: !isPreviewMode && !isLoadingExam && examSessionStatus === "IN_PROGRESS",
     maxViolations: MAX_VIOLATIONS,
+    sessionStatus: examSessionStatus,
+    isSubmitting,
+    initialFullscreenRequestedAt: fullscreenRequestedAt,
     onViolation: handleViolation,
     onEscalate: () => {
       if (isSubmitting) return;
@@ -652,6 +706,7 @@ export default function ExamTaking() {
 
   // Mouse idle tracking (silent for student): logs when no activity for a threshold period.
   useEffect(() => {
+    if (isPreviewMode || examSessionStatus !== "IN_PROGRESS" || isSubmitting) return;
     const markActivity = () => {
       lastMouseActivityRef.current = Date.now();
       mouseIdleLoggedRef.current = false;
@@ -682,10 +737,11 @@ export default function ExamTaking() {
       log("mouse_idle", detail);
 
       try {
-        const submissionId = localStorage.getItem("currentSubmissionId");
-        if (submissionId) {
+        const activeSubmissionId =
+          submissionId || localStorage.getItem("currentSubmissionId");
+        if (activeSubmissionId) {
           api
-            .sendExamLogs(submissionId, [
+            .sendExamLogs(activeSubmissionId, [
               { type: "mouse_idle", details: detail, ts: now },
             ])
             .catch((e) => console.error("sendExamLogs mouse_idle failed", e));
@@ -701,7 +757,7 @@ export default function ExamTaking() {
       );
       window.clearInterval(idleCheckId);
     };
-  }, [log]);
+  }, [examSessionStatus, isPreviewMode, isSubmitting, log, submissionId]);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60),

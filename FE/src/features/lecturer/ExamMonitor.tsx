@@ -177,7 +177,8 @@ const STUDENTS_PER_PAGE = 10;
 export default function ExamMonitor() {
   const params = useParams();
   const slug = Array.isArray(params?.slug) ? params.slug : [];
-  const id = slug[1];
+  const routeId = (params as any)?.id;
+  const id = Array.isArray(routeId) ? routeId[0] : routeId || slug[1];
   const pathname = usePathname();
   const basePath = pathname.startsWith("/admin")
     ? "/admin"
@@ -276,15 +277,17 @@ export default function ExamMonitor() {
 
       const anomalyBySubmissionId = new Map<
         string,
-        { tab: number; mouse: number }
+        { tab: number; mouse: number; all: number }
       >();
       for (const anomaly of overview.anomalies || []) {
         if (!anomaly?.submissionId) continue;
         const current = anomalyBySubmissionId.get(anomaly.submissionId) || {
           tab: 0,
           mouse: 0,
+          all: 0,
         };
         const event = String(anomaly.eventType || "").toLowerCase();
+        current.all += 1;
         if (event.includes("tab")) current.tab += 1;
         if (event.includes("mouse")) current.mouse += 1;
         anomalyBySubmissionId.set(anomaly.submissionId, current);
@@ -308,14 +311,38 @@ export default function ExamMonitor() {
           userId: student?.id || "",
           name: student?.fullName || "Unknown student",
           studentId: student?.studentId || "-",
-          ip: "-",
+          ip:
+            submission?.examInstance?.ipAddress ||
+            submission?.proctoring?.ipAddress ||
+            "-",
           status,
           progress:
-            status === "submitted" ? 100 : status === "in_progress" ? 50 : 0,
+            status === "submitted"
+              ? 100
+              : status === "in_progress"
+                ? Math.max(
+                    1,
+                    Math.min(
+                      99,
+                      Number(submission?.answers?.length || 0) > 0
+                        ? Math.round(
+                            (Number(submission.answers.length) /
+                              Math.max(1, Number(examRes?._count?.examQuestions || 1))) *
+                              100,
+                          )
+                        : 1,
+                    ),
+                  )
+                : 0,
           score: submission?.score ?? null,
-          tabSwitches: anomalyCount?.tab || 0,
-          mouseAnomalies: anomalyCount?.mouse || 0,
-          integrityEvents: (anomalyCount?.tab || 0) + (anomalyCount?.mouse || 0),
+          tabSwitches:
+            anomalyCount?.tab || Number(submission?.proctoring?.tabSwitchCount || 0),
+          mouseAnomalies:
+            anomalyCount?.mouse || Number(submission?.proctoring?.mouseAnomalies || 0),
+          integrityEvents:
+            anomalyCount?.all ||
+            Number(submission?.proctoring?.tabSwitchCount || 0) +
+              Number(submission?.proctoring?.mouseAnomalies || 0),
           startedAt: submission?.startedAt
             ? new Date(submission.startedAt).toLocaleTimeString()
             : null,
@@ -349,6 +376,13 @@ export default function ExamMonitor() {
       );
       setAlerts(mappedAlerts);
       setLastRefresh(new Date().toLocaleTimeString());
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[exam-monitor] fetched", {
+          examId: id,
+          sessions: joinedRows.length,
+          violations: mappedAlerts.length,
+        });
+      }
     } catch (err: any) {
       setError(err?.message || "Failed to load monitor data");
     } finally {

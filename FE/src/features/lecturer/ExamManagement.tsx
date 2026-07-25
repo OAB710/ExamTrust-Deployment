@@ -118,6 +118,7 @@ export default function ExamManagement() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [publishingExamId, setPublishingExamId] = useState<string | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
@@ -258,6 +259,30 @@ export default function ExamManagement() {
       endTime: toDatetimeLocalValue(exam.endTime),
     });
     setShowRescheduleDialog(true);
+  };
+
+  const handleRepublishExam = async (exam: Exam) => {
+    try {
+      setPublishingExamId(exam.id);
+      const updated = await api.publishExam(exam.id);
+      setExams((prev) =>
+        prev.map((item) =>
+          item.id === exam.id
+            ? { ...item, status: (updated?.status as Exam["status"]) || "PUBLISHED" }
+            : item,
+        ),
+      );
+      toast.success("Đã công bố lại bài thi và tạo snapshot cho học sinh.");
+    } catch (error) {
+      console.error("Failed to republish exam:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Không thể công bố lại bài thi",
+      );
+    } finally {
+      setPublishingExamId(null);
+    }
   };
 
   const handleSaveReschedule = async () => {
@@ -754,6 +779,22 @@ export default function ExamManagement() {
                                 >
                                   <Clock className="h-3.5 w-3.5" />
                                   Theo dõi
+                                </Button>
+                              )}
+                              {exam.status === "PUBLISHED" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRepublishExam(exam)}
+                                  disabled={publishingExamId === exam.id}
+                                  className="h-8 gap-1.5 border-emerald-200 bg-emerald-50 px-2.5 text-emerald-700 shadow-none hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800 disabled:opacity-70"
+                                >
+                                  {publishingExamId === exam.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                  )}
+                                  Công bố lại
                                 </Button>
                               )}
                               {(exam.status === "COMPLETED" ||

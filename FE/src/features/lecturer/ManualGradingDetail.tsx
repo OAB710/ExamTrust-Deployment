@@ -30,6 +30,14 @@ function toDisplayText(value: any): string {
   return String(value);
 }
 
+function toSavedPoints(value: any): string {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function normalizeFeedback(value: any): string {
+  return String(value || "");
+}
+
 type DraftGrade = {
   pointsAwarded: string;
   feedback: string;
@@ -94,6 +102,8 @@ export default function ManualGradingDetail() {
       }).length,
     [drafts, submission?.manualAnswers],
   );
+  const manualTotal = Number(submission?.manualTotal || 0);
+  const isAllManualGraded = manualTotal > 0 && gradedCount === manualTotal;
 
   const saveAnswer = async (answer: any) => {
     const draft = drafts[answer.id];
@@ -106,6 +116,10 @@ export default function ManualGradingDetail() {
     try {
       setSavingId(answer.id);
       const updated = await api.gradeAnswer(answer.id, points, draft?.feedback || "");
+      const savedDraft = {
+        pointsAwarded: toSavedPoints(updated.pointsAwarded),
+        feedback: normalizeFeedback(updated.feedback),
+      };
       setSubmission((current: any) => ({
         ...current,
         manualAnswers: (current?.manualAnswers || []).map((item: any) =>
@@ -117,6 +131,10 @@ export default function ManualGradingDetail() {
               }
             : item,
         ),
+      }));
+      setDrafts((current) => ({
+        ...current,
+        [answer.id]: savedDraft,
       }));
       toast.success("Manual grade saved.");
     } catch (err: any) {
@@ -156,8 +174,17 @@ export default function ManualGradingDetail() {
                       {submission?.student?.fullName || "Student"} - {submission?.exam?.title || "Exam"}
                     </CardDescription>
                   </div>
-                  <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                    {gradedCount}/{submission?.manualTotal || 0} graded
+                  <Badge
+                    variant="outline"
+                    className={
+                      isAllManualGraded
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-blue-200 bg-blue-50 text-blue-700"
+                    }
+                  >
+                    {isAllManualGraded
+                      ? "Xem điểm"
+                      : `${gradedCount}/${manualTotal} graded`}
                   </Badge>
                 </div>
               </CardHeader>
@@ -173,6 +200,13 @@ export default function ManualGradingDetail() {
               <div className="space-y-4">
                 {submission.manualAnswers.map((answer: any, index: number) => {
                   const draft = drafts[answer.id] || { pointsAwarded: "", feedback: "" };
+                  const savedPoints = toSavedPoints(answer.pointsAwarded);
+                  const savedFeedback = normalizeFeedback(answer.feedback);
+                  const isSaved = savedPoints !== "";
+                  const isDirty =
+                    draft.pointsAwarded !== savedPoints ||
+                    draft.feedback !== savedFeedback;
+                  const isSaving = savingId === answer.id;
                   return (
                     <Card key={answer.id} className="border-slate-200 bg-white/95 shadow-sm">
                       <CardHeader className="border-b border-slate-100 bg-slate-50/70">
@@ -249,16 +283,19 @@ export default function ManualGradingDetail() {
 
                         <div className="flex justify-end">
                           <Button
+                            variant={isSaved && !isDirty ? "outline" : "default"}
                             className="gap-2"
                             onClick={() => saveAnswer(answer)}
-                            disabled={savingId === answer.id}
+                            disabled={isSaving || (isSaved && !isDirty)}
                           >
-                            {savingId === answer.id ? (
+                            {isSaving ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : isSaved && !isDirty ? (
+                              <UserCheck className="h-4 w-4 text-emerald-600" />
                             ) : (
                               <Save className="h-4 w-4" />
                             )}
-                            Save Grade
+                            {isSaved && !isDirty ? "Đã lưu" : "Lưu điểm"}
                           </Button>
                         </div>
                       </CardContent>

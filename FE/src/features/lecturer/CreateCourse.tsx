@@ -330,27 +330,27 @@ export default function CreateCourse() {
     () => [
       {
         key: "status",
-        label: "Status",
+        label: "Trạng thái",
         type: "select",
-        allLabel: "All Status",
+        allLabel: "Tất cả trạng thái",
         options: [
-          { label: "Draft", value: "draft" },
-          { label: "Active", value: "active" },
-          { label: "Archived", value: "archived" },
+          { label: "Bản nháp", value: "draft" },
+          { label: "Đang hoạt động", value: "active" },
+          { label: "Đã lưu trữ", value: "archived" },
         ],
       },
       {
         key: "academicYear",
-        label: "Academic year",
+        label: "Năm học",
         type: "text",
-        placeholder: "Filter by academic year",
+        placeholder: "Lọc theo năm học",
         operators: ["contains", "startsWith", "equals"],
       },
       {
         key: "term",
-        label: "Term",
+        label: "Học kỳ",
         type: "select",
-        allLabel: "All Terms",
+        allLabel: "Tất cả học kỳ",
         options: COURSE_TERM_OPTIONS.map((option) => ({
           label: option.label,
           value: option.value,
@@ -358,7 +358,7 @@ export default function CreateCourse() {
       },
       {
         key: "students",
-        label: "Students",
+        label: "Sinh viên",
         type: "number-range",
         min: 0,
         max: 500,
@@ -471,10 +471,10 @@ export default function CreateCourse() {
   const activeFilterChips = getFilterChips(appliedFilters, courseFilterDefinitions);
 
   const courseSortOptions = [
-    { field: "name", label: "Course Name" },
-    { field: "credits", label: "Credits" },
-    { field: "students", label: "Students" },
-    { field: "status", label: "Status" },
+    { field: "name", label: "Tên khóa học" },
+    { field: "credits", label: "Tín chỉ" },
+    { field: "students", label: "Sinh viên" },
+    { field: "status", label: "Trạng thái" },
   ];
 
   const formatExamDateTime = (value?: string | null) => {
@@ -1097,7 +1097,7 @@ export default function CreateCourse() {
     <DashboardLayout>
       <AdminPageShell backTo="/lecturer">
         <ListPageHeader
-          title="Course Management"
+          title="Quản lý khóa học"
           className="mb-6"
           actions={
           <>
@@ -1111,7 +1111,7 @@ export default function CreateCourse() {
             <DialogTrigger asChild>
               <Button className="gap-2">
                 <Plus className="h-4 w-4" />
-                Create Course
+                Tạo khóa học
               </Button>
             </DialogTrigger>
             <DialogContent
@@ -1933,22 +1933,22 @@ export default function CreateCourse() {
           <AdminStatCard
             icon={BookOpen}
             value={courses.length}
-            label="Total Courses"
+            label="Tổng khóa học"
           />
           <AdminStatCard
             icon={Users}
             value={courses.reduce((s, c) => s + c.students, 0)}
-            label="Total Students"
+            label="Tổng sinh viên"
           />
           <AdminStatCard
             icon={GraduationCap}
             value={courses.filter((c) => c.status === "active").length}
-            label="Active Courses"
+            label="Khóa học hoạt động"
           />
           <AdminStatCard
             icon={FileSpreadsheet}
             value={courses.reduce((s, c) => s + c.exams, 0)}
-            label="Total Exams"
+            label="Tổng bài thi"
           />
         </div>
 
@@ -1958,7 +1958,7 @@ export default function CreateCourse() {
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Search by code, name, academic year, or term"
+              placeholder="Tìm theo mã, tên khóa học, năm học hoặc học kỳ"
               className="flex-1"
             />
             <SortButton
@@ -1971,8 +1971,8 @@ export default function CreateCourse() {
               }}
             />
             <FilterPanel
-              title="Course filters"
-              description="Filter by status, academic year, term, and student range."
+              title="Bộ lọc khóa học"
+              description="Lọc theo trạng thái, năm học, học kỳ và số lượng sinh viên."
               filters={courseFilterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -1993,9 +1993,9 @@ export default function CreateCourse() {
         {/* Course rows */}
         <section>
           <div className="mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Your Courses</h2>
+            <h2 className="text-lg font-semibold text-foreground">Khóa học của bạn</h2>
             <p className="text-sm text-muted-foreground">
-              Manage courses and associated exams
+              Quản lý khóa học và các bài thi liên quan
             </p>
           </div>
 
@@ -2004,14 +2004,14 @@ export default function CreateCourse() {
             style={{ minHeight: COURSE_TABLE_MIN_HEIGHT }}
           >
             <div className="hidden border-b bg-muted/40 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid md:grid-cols-[minmax(260px,1.4fr)_80px_minmax(170px,.9fr)_90px_80px_110px_110px_24px] md:items-center md:gap-4">
-              <span>Course</span>
-              <span>Credits</span>
-              <span>Academic term</span>
-              <span>Students</span>
-              <span>Exams</span>
-              <span>Status</span>
-              <span className="text-right">Actions</span>
-              <span className="sr-only">Open</span>
+              <span>Khóa học</span>
+              <span>Tín chỉ</span>
+              <span>Học kỳ</span>
+              <span>Sinh viên</span>
+              <span>Bài thi</span>
+              <span>Trạng thái</span>
+              <span className="text-right">Thao tác</span>
+              <span className="sr-only">Mở</span>
             </div>
 
             <div className="divide-y">
@@ -2055,7 +2055,7 @@ export default function CreateCourse() {
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 md:contents">
                     <div>
                       <span className="block text-xs text-muted-foreground md:hidden">
-                        Credits
+                        Tín chỉ
                       </span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {course.credits ?? "—"}
@@ -2063,7 +2063,7 @@ export default function CreateCourse() {
                     </div>
                     <div className="min-w-0">
                       <span className="block text-xs text-muted-foreground md:hidden">
-                        Academic term
+                        Học kỳ
                       </span>
                       <span className="block truncate text-foreground">
                         {formatCourseTerm(course.academicYear, course.term)}
@@ -2071,7 +2071,7 @@ export default function CreateCourse() {
                     </div>
                     <div>
                       <span className="block text-xs text-muted-foreground md:hidden">
-                        Students
+                        Sinh viên
                       </span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {course.students}
@@ -2079,7 +2079,7 @@ export default function CreateCourse() {
                     </div>
                     <div>
                       <span className="block text-xs text-muted-foreground md:hidden">
-                        Exams
+                        Bài thi
                       </span>
                       <Button
                         type="button"
@@ -2105,7 +2105,7 @@ export default function CreateCourse() {
                     </div>
                     <div>
                       <span className="mb-1 block text-xs text-muted-foreground md:hidden">
-                        Status
+                        Trạng thái
                       </span>
                       <StatusBadge status={course.status} domain="course">
                         {course.status}
@@ -2120,14 +2120,14 @@ export default function CreateCourse() {
                         variant="ghost"
                         size="sm"
                         onClick={() => openEditDialog(course)}
-                        title="Edit course"
+                        title="Sửa khóa học"
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
                       <ConfirmActionDialog
-                        title="Delete course"
-                        description="This action cannot be undone. The course will be deleted if no dependent data blocks deletion."
-                        confirmText="Delete"
+                        title="Xóa khóa học"
+                        description="Hành động này không thể hoàn tác. Khóa học sẽ bị xóa nếu không có dữ liệu phụ thuộc ngăn thao tác."
+                        confirmText="Xóa"
                         destructive
                         onConfirm={() => handleDelete(course.id)}
                       >
@@ -2135,7 +2135,7 @@ export default function CreateCourse() {
                           variant="ghost"
                           size="sm"
                           className="text-destructive hover:text-destructive"
-                          title="Delete course"
+                          title="Xóa khóa học"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

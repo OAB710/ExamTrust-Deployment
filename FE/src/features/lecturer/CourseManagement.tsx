@@ -355,7 +355,7 @@ export default function CourseManagement() {
     <DashboardLayout>
       <AdminPageShell backTo="/lecturer">
         <ListPageHeader
-          title="Course Management"
+          title="Quản lý khóa học"
           actions={
             <div className="flex items-center gap-3">
               <Select
@@ -414,7 +414,7 @@ export default function CourseManagement() {
             />
             <FilterPanel
               title="Course filters"
-              description="Filter by faculty, exam state, academic year, term, and student range."
+              description="Tìm kiếm và lọc các khóa học theo các tiêu chí khác nhau."
               filters={courseFilterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>

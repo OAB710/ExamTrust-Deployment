@@ -246,17 +246,45 @@ export default function ExamResultsList() {
         </div>
 
         {manualStatus?.hasManualGrading ? (
-          <Card className="border-amber-200 bg-amber-50/70 shadow-[0_16px_40px_-30px_rgba(180,83,9,0.45)]">
+          <Card
+            className={
+              manualStatus.manualPending > 0
+                ? "border-amber-200 bg-amber-50/70 shadow-[0_16px_40px_-30px_rgba(180,83,9,0.45)]"
+                : "border-emerald-200 bg-emerald-50/70 shadow-[0_16px_40px_-30px_rgba(5,150,105,0.35)]"
+            }
+          >
             <CardContent className="flex flex-col gap-4 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-amber-100 p-2 text-amber-700">
+                <div
+                  className={
+                    manualStatus.manualPending > 0
+                      ? "rounded-xl bg-amber-100 p-2 text-amber-700"
+                      : "rounded-xl bg-emerald-100 p-2 text-emerald-700"
+                  }
+                >
                   <ClipboardCheck className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-amber-950">
-                    Manual grading required
+                  <h2
+                    className={
+                      manualStatus.manualPending > 0
+                        ? "font-semibold text-amber-950"
+                        : "font-semibold text-emerald-950"
+                    }
+                  >
+                    {manualStatus.manualPending > 0
+                      ? "Manual grading required"
+                      : manualStatus.published
+                        ? "Results published"
+                        : "Manual grading completed"}
                   </h2>
-                  <p className="mt-1 text-sm text-amber-800">
+                  <p
+                    className={
+                      manualStatus.manualPending > 0
+                        ? "mt-1 text-sm text-amber-800"
+                        : "mt-1 text-sm text-emerald-800"
+                    }
+                  >
                     {manualStatus.manualGraded}/{manualStatus.manualTotal} subjective answers graded.
                     {manualStatus.published
                       ? " Results have been published to students."
@@ -459,6 +487,8 @@ export default function ExamResultsList() {
                   ) : (
                     filtered.map((s) => {
                       const manualRow = manualBySubmission.get(s.id) as any;
+                      const isManualCompleted = Boolean(manualRow?.completed);
+                      const isPublished = Boolean(manualStatus?.published);
                       return (
                       <TableRow key={s.id} className="transition-colors hover:bg-slate-50/80">
                         <TableCell className="py-4">
@@ -487,14 +517,16 @@ export default function ExamResultsList() {
                           {manualRow?.manualTotal > 0 ? (
                             <Button
                               size="sm"
-                              variant={manualRow.completed ? "outline" : "default"}
+                              variant={isManualCompleted ? "outline" : "default"}
                               onClick={() =>
                                 router.push(`${basePath}/exam/${examId}/submissions/${s.id}/manual-grading`)
                               }
                             >
-                              {manualRow.completed
-                                ? "Review Grading"
-                                : `Grade ${manualRow.manualPending}/${manualRow.manualTotal}`}
+                              {isManualCompleted
+                                ? isPublished
+                                  ? "Xem điểm"
+                                  : "Đã chấm - sửa lại"
+                                : `Chấm ${manualRow.manualPending}/${manualRow.manualTotal}`}
                             </Button>
                           ) : (
                             <span className="text-xs text-muted-foreground">Auto only</span>

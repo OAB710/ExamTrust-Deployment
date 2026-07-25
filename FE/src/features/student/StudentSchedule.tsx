@@ -22,6 +22,15 @@ import {
 } from "@/components/common/list/filter-types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -233,6 +242,11 @@ export default function StudentSchedule() {
     setAppliedFilters(draftFilters);
   };
 
+  const updateVisibleFilter = (key: string, nextValue: any) => {
+    setDraftFilters((prev) => ({ ...prev, [key]: nextValue }));
+    setAppliedFilters((prev) => ({ ...prev, [key]: nextValue }));
+  };
+
   const clearFilters = () => {
     const empty: FilterValues = {
       status: "all",
@@ -258,6 +272,8 @@ export default function StudentSchedule() {
 
   const activeFilterCount = getActiveFilterCount(appliedFilters, filterDefinitions);
   const activeFilterChips = getFilterChips(appliedFilters, filterDefinitions);
+  const courseOptions = filterDefinitions.find((filter) => filter.key === "courseCode")?.options || [];
+  const dateFilter = (draftFilters.startTime as { from?: string; to?: string }) || {};
 
   return (
     <DashboardLayout>
@@ -274,6 +290,7 @@ export default function StudentSchedule() {
               placeholder="Tìm tên bài thi hoặc khóa học"
               className="flex-1"
             />
+            {false && (
             <FilterPanel
               title="Bộ lọc lịch thi"
               description="Lọc theo trạng thái, khóa học và khoảng ngày."
@@ -286,6 +303,93 @@ export default function StudentSchedule() {
               onClear={clearFilters}
               activeCount={activeFilterCount}
             />
+            )}
+          </div>
+          <div className="grid gap-3 rounded-lg border border-border bg-muted/20 p-3 md:grid-cols-[minmax(220px,1fr)_minmax(180px,.8fr)_minmax(260px,1fr)_auto] md:items-end">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground">
+                Trạng thái
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: "Tất cả", value: "all" },
+                  { label: "Đã công bố", value: "PUBLISHED" },
+                  { label: "Đang diễn ra", value: "ONGOING" },
+                ].map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant={draftFilters.status === option.value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => updateVisibleFilter("status", option.value)}
+                    className="h-9"
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground">
+                Khóa học
+              </Label>
+              <Select
+                value={String(draftFilters.courseCode || "all")}
+                onValueChange={(value) => updateVisibleFilter("courseCode", value)}
+              >
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả khóa học</SelectItem>
+                  {courseOptions.map((option) => (
+                    <SelectItem key={option.value} value={String(option.value)}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground">
+                Ngày thi
+              </Label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Input
+                  type="date"
+                  value={dateFilter.from || ""}
+                  onChange={(event) =>
+                    updateVisibleFilter("startTime", {
+                      ...dateFilter,
+                      from: event.target.value || undefined,
+                    })
+                  }
+                  className="h-9 bg-background"
+                />
+                <Input
+                  type="date"
+                  value={dateFilter.to || ""}
+                  onChange={(event) =>
+                    updateVisibleFilter("startTime", {
+                      ...dateFilter,
+                      to: event.target.value || undefined,
+                    })
+                  }
+                  className="h-9 bg-background"
+                />
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+              className="h-9"
+            >
+              Xóa lọc
+            </Button>
           </div>
           <ActiveFilterChips
             chips={activeFilterChips}

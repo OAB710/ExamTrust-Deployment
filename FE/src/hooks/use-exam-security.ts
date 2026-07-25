@@ -11,6 +11,11 @@ export interface ViolationLog {
 interface UseExamSecurityOptions {
   enabled?: boolean;
   maxViolations?: number;
+  sessionStatus?: "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "DISCONNECTED" | string;
+  isSubmitting?: boolean;
+  fullscreenGraceMs?: number;
+  initialFullscreenRequestedAt?: number | null;
+  violationCooldownMs?: number;
   onViolation?: (log: ViolationLog, totalCount: number) => void;
   onEscalate?: (totalCount: number, logs: ViolationLog[]) => void;
 }
@@ -35,8 +40,21 @@ const emptyCounts: Record<ViolationType, number> = {
   focus: 0,
 };
 
+const DEFAULT_FULLSCREEN_GRACE_MS = 5000;
+const DEFAULT_VIOLATION_COOLDOWN_MS = 3000;
+
 export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSecurityResult {
-  const { enabled = true, maxViolations = 3, onViolation, onEscalate } = options;
+  const {
+    enabled = true,
+    maxViolations = 3,
+    sessionStatus = "IN_PROGRESS",
+    isSubmitting = false,
+    fullscreenGraceMs = DEFAULT_FULLSCREEN_GRACE_MS,
+    initialFullscreenRequestedAt = null,
+    violationCooldownMs = DEFAULT_VIOLATION_COOLDOWN_MS,
+    onViolation,
+    onEscalate,
+  } = options;
 
   const canFullscreen =
     typeof document !== "undefined" &&
@@ -59,11 +77,35 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   const escalatedRef = useRef(false);
   const focusArmedRef = useRef(false);
   const allowClearRef = useRef(false);
+  const fullscreenRequestedAtRef = useRef<number | null>(initialFullscreenRequestedAt);
+  const hasEnteredFullscreenOnceRef = useRef(false);
+  const lastViolationAtRef = useRef<Partial<Record<ViolationType, number>>>({});
+
+  const isTrackingActive = useCallback(() => {
+    return enabled && !isSubmitting && String(sessionStatus).toUpperCase() === "IN_PROGRESS";
+  }, [enabled, isSubmitting, sessionStatus]);
+
+  const isWithinFullscreenGrace = useCallback(() => {
+    const requestedAt = fullscreenRequestedAtRef.current;
+    return Boolean(requestedAt && Date.now() - requestedAt < fullscreenGraceMs);
+  }, [fullscreenGraceMs]);
+
+  useEffect(() => {
+    if (initialFullscreenRequestedAt) {
+      fullscreenRequestedAtRef.current = initialFullscreenRequestedAt;
+    }
+  }, [initialFullscreenRequestedAt]);
 
   const recordViolation = useCallback(
     (type: ViolationType, detail?: string) => {
+      if (!isTrackingActive()) return;
+      const now = Date.now();
+      const previousAt = lastViolationAtRef.current[type] || 0;
+      if (now - previousAt < violationCooldownMs) return;
+      lastViolationAtRef.current[type] = now;
+
       const entry: ViolationLog = {
-        timestamp: Date.now(),
+        timestamp: now,
         type,
         detail,
       };
@@ -84,18 +126,22 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       setIsBlocked(true);
       onViolation?.(entry, logsRef.current.length);
     },
-    [maxViolations, onEscalate, onViolation],
+    [isTrackingActive, maxViolations, onEscalate, onViolation, violationCooldownMs],
   );
 
   const requestFullscreen = useCallback(async (allowClear = false) => {
     if (!enabled || !canFullscreen) return;
+    fullscreenRequestedAtRef.current = Date.now();
     if (allowClear) {
       allowClearRef.current = true;
     }
     try {
       await document.documentElement.requestFullscreen();
-    } catch {
-      // Keep blocked until the user successfully re-enters fullscreen.
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[exam-security] requestFullscreen ignored", error);
+      }
+      // Browser policy failures are not student violations.
     }
   }, [canFullscreen, enabled]);
 
@@ -113,10 +159,10 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     const active = Boolean(document.fullscreenElement);
     setIsFullscreen(active);
     setIsBlocked(!active);
-    if (!active) {
-      requestFullscreen(true);
+    if (active) {
+      hasEnteredFullscreenOnceRef.current = true;
     }
-  }, [enabled, requestFullscreen]);
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -124,8 +170,27 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       const active = Boolean(document.fullscreenElement);
       setIsFullscreen(active);
       if (active) {
+        hasEnteredFullscreenOnceRef.current = true;
         setIsBlocked(false);
         allowClearRef.current = false;
+        return;
+      }
+
+      const withinGracePeriod = isWithinFullscreenGrace();
+      if (
+        !isTrackingActive() ||
+        withinGracePeriod ||
+        !hasEnteredFullscreenOnceRef.current
+      ) {
+        if (process.env.NODE_ENV !== "production") {
+          console.debug("[exam-security] fullscreen exit ignored", {
+            withinGracePeriod,
+            hasEnteredFullscreenOnce: hasEnteredFullscreenOnceRef.current,
+            sessionStatus,
+            isSubmitting,
+          });
+        }
+        setIsBlocked(false);
         return;
       }
       recordViolation("fullscreen_exit", "User exited fullscreen");
@@ -133,12 +198,13 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, [enabled, recordViolation]);
+  }, [enabled, isSubmitting, isTrackingActive, isWithinFullscreenGrace, recordViolation, sessionStatus]);
 
   useEffect(() => {
     if (!enabled) return;
 
     const onVisibility = () => {
+      if (!isTrackingActive() || isWithinFullscreenGrace()) return;
       if (document.hidden) {
         focusArmedRef.current = true;
         recordViolation("tab_switch", "Document hidden");
@@ -146,11 +212,13 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     };
 
     const onBlur = () => {
+      if (!isTrackingActive() || isWithinFullscreenGrace()) return;
       focusArmedRef.current = true;
       recordViolation("blur", "Window lost focus");
     };
 
     const onFocus = () => {
+      if (!isTrackingActive() || isWithinFullscreenGrace()) return;
       if (!focusArmedRef.current) return;
       focusArmedRef.current = false;
       if (!document.fullscreenElement) {
@@ -167,7 +235,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("focus", onFocus);
     };
-  }, [enabled, recordViolation]);
+  }, [enabled, isTrackingActive, isWithinFullscreenGrace, recordViolation]);
 
   useEffect(() => {
     if (!enabled) return;

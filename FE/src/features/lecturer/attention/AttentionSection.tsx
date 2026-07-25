@@ -58,12 +58,12 @@ export function AttentionSection() {
                   usedBy: "Giảng viên dùng để ưu tiên các việc như bài thi sắp diễn ra, bài cần giám sát hoặc câu hỏi cần rà soát.",
                   note: "Mục này chỉ gom việc cần chú ý; quyết định xử lý vẫn do giảng viên thực hiện.",
                 }}>
-                  Needs your attention
+                  Cần bạn chú ý
                 </HelpedTitle>
               </CardTitle>
             </div>
             <CardDescription>
-              Important tasks and upcoming deadlines
+              Các nhiệm vụ quan trọng và thời hạn sắp tới
             </CardDescription>
           </div>
           {items.length > 0 && (
@@ -74,7 +74,7 @@ export function AttentionSection() {
               asChild
             >
               <Link href="/lecturer/exams">
-                View all tasks
+                Xem tất cả
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </Button>
@@ -105,7 +105,7 @@ export function AttentionSection() {
         {!loading && error && (
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <p className="text-sm font-medium text-foreground">
-              Unable to load attention items
+              Không thể tải danh sách
             </p>
             <Button
               type="button"
@@ -115,7 +115,7 @@ export function AttentionSection() {
               onClick={() => void retry()}
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Retry
+              Thử lại
             </Button>
           </div>
         )}
@@ -125,10 +125,10 @@ export function AttentionSection() {
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
             <p className="text-sm font-medium text-foreground">
-              You&apos;re all caught up
+              Bạn đã xử lý xong mọi việc
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              There are no urgent tasks requiring your attention.
+              Không có nhiệm vụ khẩn cấp nào cần bạn xử lý.
             </p>
           </div>
         )}
