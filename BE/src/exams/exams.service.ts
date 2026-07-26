@@ -12,7 +12,6 @@ import { AccessPolicyService } from '../common/services/access-policy.service';
 
 import { CreateExamDto, UpdateExamDto, AddQuestionsToExamDto, UpdateExamQuestionDto, RescheduleExamDto } from './dto/exam.dto';
 import { PaginationDto, buildPaginatedResult } from '../common/dto/pagination.dto';
-import { NotificationsService } from '../notifications/notifications.service';
 
 const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE']);
 
@@ -23,7 +22,6 @@ export class ExamsService {
 
   constructor(
     private prisma: PrismaService,
-    private notificationsService: NotificationsService,
     private readonly accessPolicy: AccessPolicyService,
   ) {}
 
@@ -597,29 +595,7 @@ export class ExamsService {
       throw new InternalServerErrorException('Exam was created but could not be loaded');
     }
 
-    try {
-      const studentIds = await this.getCourseRecipientIds(createdExam.course.id);
 
-      await this.notificationsService.createForUsers(studentIds, {
-        kind: 'EXAM_CREATED',
-        title: 'New exam available',
-        message: `A new exam \"${createdExam.title}\" is available in ${createdExam.course.code}.`,
-        link: '/student/exams',
-        priority: 'high',
-        metadata: { examId: createdExam.id, courseId: createdExam.course.id },
-      });
-
-      await this.notificationsService.createForRole('ADMIN', {
-        kind: 'EXAM_CREATED',
-        title: 'Exam created',
-        message: `${createdExam.creator.fullName} created exam \"${createdExam.title}\".`,
-        link: '/admin',
-        priority: 'low',
-        metadata: { examId: createdExam.id, creatorId },
-      });
-    } catch {
-      // Notification failures must not block exam creation.
-    }
 
     return createdExam;
   }
@@ -628,8 +604,12 @@ export class ExamsService {
     courseId?: string;
     creatorId?: string;
     status?: string;
+    includeArchived?: boolean;
+    search?: string;
+    timeRange?: string;
+    sort?: string;
   }, pagination?: PaginationDto) {
-    const where: any = {};
+    const where: any = { deletedAt: null };
 
     if (filters?.courseId) {
       where.courseId = filters.courseId;
@@ -641,6 +621,15 @@ export class ExamsService {
 
     if (filters?.status) {
       where.status = filters.status;
+    } else if (!filters?.includeArchived) {
+      where.status = { not: 'ARCHIVED' };
+    }
+
+    if (filters?.search) {
+      where.OR = [
+        { title: { contains: filters.search } },
+        { course: { is: { OR: [{ code: { contains: filters.search } }, { name: { contains: filters.search } }] } } },
+      ];
     }
 
     const page = pagination?.page || 1;
@@ -672,7 +661,7 @@ export class ExamsService {
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: filters?.sort === 'title' ? { title: 'asc' } : filters?.sort === 'startTime' ? { startTime: 'asc' } : { updatedAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -683,8 +672,8 @@ export class ExamsService {
   }
 
   async findOne(id: string) {
-    const exam = await this.prisma.exam.findUnique({
-      where: { id },
+    const exam = await this.prisma.exam.findFirst({
+      where: { id, deletedAt: null },
       include: {
         course: {
           select: {
@@ -719,8 +708,8 @@ export class ExamsService {
   }
 
   async findForStudent(id: string, studentId: string) {
-    const exam = await this.prisma.exam.findUnique({
-      where: { id },
+    const exam = await this.prisma.exam.findFirst({
+      where: { id, deletedAt: null, course: { status: { not: 'archived' } } },
       include: {
         course: {
           select: {
@@ -777,6 +766,10 @@ export class ExamsService {
       throw new NotFoundException('Exam not found');
     }
 
+    if (updateExamDto.status !== undefined) {
+      throw new BadRequestException('Use the dedicated publish, archive, or restore action to change exam lifecycle status');
+    }
+
     const updateData: any = { ...updateExamDto };
 
     if (updateExamDto.startTime) {
@@ -801,19 +794,7 @@ export class ExamsService {
       },
     });
 
-    try {
-      const studentIds = await this.getCourseRecipientIds(updatedExam.course.id);
-      await this.notificationsService.createForUsers(studentIds, {
-        kind: 'EXAM_UPDATED',
-        title: 'Exam updated',
-        message: `Exam \"${updatedExam.title}\" has updated details or schedule.`,
-        link: '/student/exams',
-        priority: 'high',
-        metadata: { examId: updatedExam.id, courseId: updatedExam.course.id },
-      });
-    } catch {
-      // Notification failures must not block exam update.
-    }
+
 
     return updatedExam;
   }
@@ -892,29 +873,12 @@ export class ExamsService {
       },
     });
 
-    try {
-      const studentIds = await this.getCourseRecipientIds(updatedExam.course.id);
-      await this.notificationsService.createForUsers(studentIds, {
-        kind: 'EXAM_UPDATED',
-        title: 'Exam rescheduled',
-        message: `Exam "${updatedExam.title}" has a new schedule. Please check the updated exam time.`,
-        link: '/student/exams',
-        priority: 'high',
-        metadata: {
-          examId: updatedExam.id,
-          courseId: updatedExam.course.id,
-          startTime: updatedExam.startTime,
-          endTime: updatedExam.endTime,
-        },
-      });
-    } catch {
-      // Notification failures must not block exam reschedule.
-    }
+
 
     return updatedExam;
   }
 
-  async remove(id: string) {
+  async remove(id: string, userId?: string) {
     const exam = await this.prisma.exam.findUnique({
       where: { id },
       include: {
@@ -924,92 +888,39 @@ export class ExamsService {
       },
     });
 
-    if (!exam) {
+    if (!exam || exam.deletedAt) {
       throw new NotFoundException('Exam not found');
     }
-
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        // Use SQL cleanup to remain robust even when Prisma delegates are out of sync.
-        await tx.$executeRawUnsafe(
-          `DELETE il
-           FROM integrity_logs il
-           INNER JOIN proctoring_sessions ps ON ps.id = il.proctoringId
-           INNER JOIN exam_submissions es ON es.id = ps.submissionId
-           WHERE es.examId = ?`,
-          id,
-        );
-
-        await tx.$executeRawUnsafe(
-          `DELETE sa
-           FROM submission_answers sa
-           INNER JOIN exam_submissions es ON es.id = sa.submissionId
-           WHERE es.examId = ?`,
-          id,
-        );
-
-        await tx.$executeRawUnsafe(
-          `DELETE ps
-           FROM proctoring_sessions ps
-           INNER JOIN exam_submissions es ON es.id = ps.submissionId
-           WHERE es.examId = ?`,
-          id,
-        );
-
-        await tx.$executeRawUnsafe(
-          'DELETE FROM exam_submissions WHERE examId = ?',
-          id,
-        );
-
-        await tx.$executeRawUnsafe(
-          `DELETE elu
-           FROM exam_link_usages elu
-           INNER JOIN exam_links el ON el.id = elu.linkId
-           WHERE el.examId = ?`,
-          id,
-        );
-
-        await tx.$executeRawUnsafe('DELETE FROM exam_links WHERE examId = ?', id);
-        await tx.$executeRawUnsafe('DELETE FROM exam_questions WHERE examId = ?', id);
-        await tx.$executeRawUnsafe('DELETE FROM exams WHERE id = ?', id);
-      });
-    } catch (error: any) {
-      if (error?.code === 'P2003') {
-        throw new ConflictException(
-          'Cannot delete exam because it still has related data',
-        );
-      }
-
-      if (error?.code === 'P2025') {
-        throw new NotFoundException('Exam not found');
-      }
-
-      console.error('Failed to delete exam', {
-        examId: id,
-        code: error?.code,
-        message: error?.message,
-        meta: error?.meta,
-      });
-      throw new InternalServerErrorException(
-        'Failed to delete exam due to a server-side data constraint issue',
-      );
+    const submissionCount = await this.prisma.examSubmission.count({ where: { examId: id } });
+    if (exam.status !== 'DRAFT' || submissionCount > 0) {
+      throw new ConflictException('Bài thi đã có dữ liệu làm bài và không thể xóa. Hãy lưu trữ bài thi thay thế.');
     }
+    await this.prisma.exam.update({ where: { id }, data: { deletedAt: new Date(), deletedById: userId ?? null } });
+    return { message: 'Draft exam deleted successfully' };
+  }
 
-    try {
-      const studentIds = await this.getCourseRecipientIds(exam.course.id);
-      await this.notificationsService.createForUsers(studentIds, {
-        kind: 'EXAM_DELETED',
-        title: 'Exam removed',
-        message: `Exam \"${exam.title}\" in ${exam.course.code} has been removed.`,
-        link: '/student/exams',
-        priority: 'high',
-        metadata: { examId: exam.id, courseId: exam.course.id },
-      });
-    } catch {
-      // Notification failures must not block exam deletion.
-    }
+  async archive(id: string, userId: string) {
+    const exam = await this.prisma.exam.findFirst({ where: { id, deletedAt: null } });
+    if (!exam) throw new NotFoundException('Exam not found');
+    if (exam.status === 'ARCHIVED') throw new ConflictException('Exam is already archived');
+    const inProgress = await this.prisma.examSubmission.count({ where: { examId: id, status: 'IN_PROGRESS' } });
+    if (inProgress > 0) throw new ConflictException('Không thể lưu trữ bài thi khi đang có lượt làm bài diễn ra.');
+    return this.prisma.exam.update({
+      where: { id },
+      data: { status: 'ARCHIVED', archivedAt: new Date(), archivedById: userId, archivedFromStatus: exam.status },
+    });
+  }
 
-    return { message: 'Exam deleted successfully' };
+  async restore(id: string, userId: string) {
+    const exam = await this.prisma.exam.findFirst({ where: { id, deletedAt: null } });
+    if (!exam) throw new NotFoundException('Exam not found');
+    if (exam.status !== 'ARCHIVED') throw new ConflictException('Exam is not archived');
+    const previous = exam.archivedFromStatus || 'DRAFT';
+    const restoredStatus = previous === 'ONGOING' ? 'COMPLETED' : previous;
+    return this.prisma.exam.update({
+      where: { id },
+      data: { status: restoredStatus, archivedAt: null, archivedById: null, archivedFromStatus: null },
+    });
   }
 
   async addQuestionsToExam(examId: string, questionIds: string[]) {
@@ -1246,40 +1157,7 @@ export class ExamsService {
       return updated;
     });
 
-    try {
-      const fullExam = await this.prisma.exam.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          title: true,
-          endTime: true,
-          course: { select: { id: true, code: true } },
-        },
-      });
 
-      if (fullExam) {
-        const studentIds = await this.getCourseRecipientIds(fullExam.course.id);
-        await this.notificationsService.createForUsers(studentIds, {
-          kind: 'EXAM_PUBLISHED',
-          title: 'Exam published',
-          message: `Exam \"${fullExam.title}\" is now open${fullExam.endTime ? ` until ${fullExam.endTime.toISOString()}` : ''}.`,
-          link: '/student/exams',
-          priority: 'high',
-          metadata: { examId: fullExam.id, courseId: fullExam.course.id },
-        });
-
-        await this.notificationsService.createForRole('ADMIN', {
-          kind: 'EXAM_PUBLISHED',
-          title: 'Exam published',
-          message: `Exam \"${fullExam.title}\" (${fullExam.course.code}) has been published.`,
-          link: '/admin',
-          priority: 'normal',
-          metadata: { examId: fullExam.id, courseId: fullExam.course.id },
-        });
-      }
-    } catch {
-      // Notification failures must not block exam publishing.
-    }
 
     return publishedExam;
   }
@@ -1303,6 +1181,8 @@ export class ExamsService {
     const exams = await this.prisma.exam.findMany({
       where: {
         courseId: { in: courseIds },
+        deletedAt: null,
+        course: { status: { not: 'archived' } },
         status: { in: ['PUBLISHED', 'ONGOING'] },
         OR: [
           { startTime: null },
@@ -1359,6 +1239,8 @@ export class ExamsService {
     return this.prisma.exam.findMany({
       where: {
         courseId,
+        deletedAt: null,
+        course: { status: { not: 'archived' } },
         status: { in: ['PUBLISHED', 'ONGOING', 'COMPLETED'] },
       },
       select: {
