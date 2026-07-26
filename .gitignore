@@ -52,3 +52,6 @@ tmp/
 temp/
 uploads/
 exports/
+
+# Local working notes
+CLOUDFLARE_DEPLOY_NOTES.txt
