@@ -205,7 +205,6 @@ const EMPTY_FILTERS: FilterValues = {
   status: "all",
   academicYear: { value: "", operator: "contains" },
   term: "all",
-  students: { min: undefined, max: undefined },
 };
 
 export default function CreateCourse() {
@@ -359,10 +358,7 @@ export default function CreateCourse() {
       {
         key: "students",
         label: "Sinh viên",
-        type: "number-range",
-        min: 0,
-        max: 500,
-        step: 1,
+        type: "text",
       },
     ],
     [],
@@ -373,9 +369,6 @@ export default function CreateCourse() {
     const statusFilter = appliedFilters.status as string | undefined;
     const academicYearFilter = appliedFilters.academicYear as TextFilterValue | undefined;
     const termFilter = appliedFilters.term as string | undefined;
-    const studentsFilter = appliedFilters.students as
-      | { min?: number; max?: number }
-      | undefined;
 
     const matchesText = (source: string | undefined, filter?: TextFilterValue) => {
       if (!filter || !filter.value.trim()) return true;
@@ -407,18 +400,6 @@ export default function CreateCourse() {
 
       if (termFilter && termFilter !== "all" && course.term !== termFilter) {
         return false;
-      }
-
-      if (
-        studentsFilter &&
-        (studentsFilter.min !== undefined || studentsFilter.max !== undefined)
-      ) {
-        if (studentsFilter.min !== undefined && course.students < studentsFilter.min) {
-          return false;
-        }
-        if (studentsFilter.max !== undefined && course.students > studentsFilter.max) {
-          return false;
-        }
       }
 
       return true;
@@ -1953,7 +1934,7 @@ export default function CreateCourse() {
         </div>
 
         <div className="mb-6 space-y-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}

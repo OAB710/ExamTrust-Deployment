@@ -244,7 +244,7 @@ export default function StudentResults() {
 
         <div className="space-y-3">
           <ListPageHeader title="Kết quả" />
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}

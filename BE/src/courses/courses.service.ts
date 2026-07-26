@@ -451,9 +451,16 @@ export class CoursesService {
 
     const results = await Promise.all(
       courses.map(async (c) => {
-        const [enrolledCount, publishedExamsCount, totalSubmissions, lastSubmission] = await Promise.all([
+        const [
+          enrolledCount,
+          publishedExamsCount,
+          totalExamsCount,
+          totalSubmissions,
+          lastSubmission,
+        ] = await Promise.all([
           this.prisma.enrollment.count({ where: { courseId: c.id } }),
           this.prisma.exam.count({ where: { courseId: c.id, status: 'PUBLISHED' } }),
+          this.prisma.exam.count({ where: { courseId: c.id } }),
           this.prisma.examSubmission.count({ where: { exam: { courseId: c.id, status: 'PUBLISHED' } } }),
           this.prisma.examSubmission.findFirst({
             where: { exam: { courseId: c.id } },
@@ -479,6 +486,7 @@ export class CoursesService {
           lecturerId: c.lecturerId,
           enrolledStudents: enrolledCount,
           totalStudents: enrolledCount,
+          exams: totalExamsCount,
           progress,
           lastAccessed,
         };

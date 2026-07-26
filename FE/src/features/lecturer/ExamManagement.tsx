@@ -106,14 +106,12 @@ export default function ExamManagement() {
     status: requestedStatus,
     courseId: "all",
     title: { value: "", operator: "contains" },
-    duration: { min: undefined, max: undefined },
     createdAt: { from: undefined, to: undefined },
   });
   const [appliedFilters, setAppliedFilters] = useState<FilterValues>({
     status: requestedStatus,
     courseId: "all",
     title: { value: "", operator: "contains" },
-    duration: { min: undefined, max: undefined },
     createdAt: { from: undefined, to: undefined },
   });
   const [sortField, setSortField] = useState("title");
@@ -405,14 +403,6 @@ export default function ExamManagement() {
         operators: ["contains", "startsWith", "equals"],
       },
       {
-        key: "duration",
-        label: "Thời lượng (phút)",
-        type: "number-range",
-        min: 0,
-        max: 300,
-        step: 5,
-      },
-      {
         key: "createdAt",
         label: "Ngày tạo",
         type: "date-range",
@@ -426,9 +416,6 @@ export default function ExamManagement() {
     const statusValue = appliedFilters.status as string | undefined;
     const courseValue = appliedFilters.courseId as string | undefined;
     const titleFilter = appliedFilters.title as TextFilterValue | undefined;
-    const durationFilter = appliedFilters.duration as
-      | { min?: number; max?: number }
-      | undefined;
     const createdAtRange = appliedFilters.createdAt as
       | { from?: string; to?: string }
       | undefined;
@@ -457,22 +444,6 @@ export default function ExamManagement() {
       const matchesCourse =
         !courseValue || courseValue === "all" || exam.course.id === courseValue;
       const matchesTitle = matchesText(exam.title, titleFilter);
-
-      const matchesDuration = (() => {
-        if (
-          !durationFilter ||
-          (durationFilter.min === undefined && durationFilter.max === undefined)
-        ) {
-          return true;
-        }
-        if (durationFilter.min !== undefined && exam.duration < durationFilter.min) {
-          return false;
-        }
-        if (durationFilter.max !== undefined && exam.duration > durationFilter.max) {
-          return false;
-        }
-        return true;
-      })();
 
       const matchesCreatedAt = (() => {
         if (!createdAtRange || (!createdAtRange.from && !createdAtRange.to)) {
@@ -506,7 +477,6 @@ export default function ExamManagement() {
         matchesStatus &&
         matchesCourse &&
         matchesTitle &&
-        matchesDuration &&
         matchesCreatedAt &&
         matchesTimeRange
       );
@@ -528,7 +498,6 @@ export default function ExamManagement() {
       status: "all",
       courseId: "all",
       title: { value: "", operator: "contains" },
-      duration: { min: undefined, max: undefined },
       createdAt: { from: undefined, to: undefined },
     };
     setDraftFilters(empty);
@@ -542,7 +511,6 @@ export default function ExamManagement() {
       status: "all",
       courseId: "all",
       title: { value: "", operator: "contains" },
-      duration: { min: undefined, max: undefined },
       createdAt: { from: undefined, to: undefined },
     };
     const next = { ...appliedFilters, [key]: empty[key] };
@@ -646,7 +614,7 @@ export default function ExamManagement() {
         </div>
 
         <div className="mb-6 space-y-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}
@@ -675,7 +643,7 @@ export default function ExamManagement() {
               onClear={clearFilters}
               activeCount={activeFilterCount}
               inline
-              className="w-full xl:w-72"
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips

@@ -809,7 +809,7 @@ export default function CourseDetail() {
           <TabsContent value="students" className="space-y-4">
         {/* Filters */}
         <div className="space-y-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}

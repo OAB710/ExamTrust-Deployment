@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,20 @@ export function SearchBar({
   disabled,
   clearable = true,
 }: SearchBarProps) {
+  const previousValue = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (previousValue.current === null) {
+      previousValue.current = value;
+      return;
+    }
+    if (previousValue.current === value) return;
+
+    previousValue.current = value;
+    const timeoutId = window.setTimeout(onSearch, 250);
+    return () => window.clearTimeout(timeoutId);
+  }, [onSearch, value]);
+
   return (
     <div className={cn("flex w-full items-center gap-2", className)}>
       <div className="relative min-w-0 flex-1">
@@ -56,15 +71,6 @@ export function SearchBar({
           </Button>
         ) : null}
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        onClick={onSearch}
-        disabled={disabled}
-        className="h-11 shrink-0 rounded-lg border-border bg-card px-3 text-foreground hover:bg-muted"
-      >
-        Tìm
-      </Button>
     </div>
   );
 }

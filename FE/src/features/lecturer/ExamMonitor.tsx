@@ -941,7 +941,7 @@ export default function ExamMonitor() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">Student Sessions</CardTitle>
                 </div>
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
                   <SearchBar
                     value={searchInput}
                     onChange={setSearchInput}

@@ -93,17 +93,11 @@ export const getFilterChips = (
 
     if (definition.type === "text") {
       if (!isTextFilterValue(value) || !value.value.trim()) return [];
-      const prefix =
-        value.operator === "startsWith"
-          ? "Starts with"
-          : value.operator === "equals"
-            ? "Is"
-            : "Contains";
       return [
         {
           key: definition.key,
           label: definition.label,
-          valueLabel: `${prefix} ${value.value.trim()}`,
+          valueLabel: value.value.trim(),
         },
       ];
     }

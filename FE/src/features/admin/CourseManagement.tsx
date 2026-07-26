@@ -764,7 +764,7 @@ export default function AdminCourseManagement() {
         </div>
 
         <div className="mb-6 space-y-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}

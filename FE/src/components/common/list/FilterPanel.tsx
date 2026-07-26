@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Filter, Search as SearchIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Filter } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -39,7 +39,6 @@ import {
   FilterDefinition,
   FilterValues,
   NumberRangeValue,
-  TextFilterValue,
 } from "./filter-types";
 
 type FilterPanelProps = {
@@ -56,8 +55,6 @@ type FilterPanelProps = {
   inline?: boolean;
 };
 
-const EMPTY_TEXT_FILTER: TextFilterValue = { value: "", operator: "contains" };
-
 const getNumberFieldKey = (filterKey: string, bound: "min" | "max") =>
   `${filterKey}::${bound}`;
 
@@ -72,13 +69,28 @@ export function FilterPanel({
   triggerLabel = "Lọc",
   activeCount = 0,
   className,
-  inline = false,
+  inline = true,
 }: FilterPanelProps) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [numberDrafts, setNumberDrafts] = useState<Record<string, string>>({});
   const [numberErrors, setNumberErrors] = useState<Record<string, string>>({});
+  const previousFilterSignature = useRef<string | null>(null);
+  const filterSignature = JSON.stringify(
+    filters.map((filter) => value[filter.key]),
+  );
 
+  useEffect(() => {
+    if (previousFilterSignature.current === null) {
+      previousFilterSignature.current = filterSignature;
+      return;
+    }
+    if (previousFilterSignature.current === filterSignature) return;
+
+    previousFilterSignature.current = filterSignature;
+    const timeoutId = window.setTimeout(onApply, 100);
+    return () => window.clearTimeout(timeoutId);
+  }, [filterSignature, onApply]);
   const getRangeDraftValue = (
     filterKey: string,
     bound: "min" | "max",
@@ -150,39 +162,6 @@ export function FilterPanel({
     return true;
   };
 
-  const handleApplyWithValidation = () => {
-    let hasError = false;
-
-    filters.forEach((filter) => {
-      if (filter.type !== "number-range") return;
-      const current = value[filter.key];
-      const range =
-        current && typeof current === "object"
-          ? (current as NumberRangeValue)
-          : {};
-
-      const minRaw = getRangeDraftValue(filter.key, "min", range.min);
-      const maxRaw = getRangeDraftValue(filter.key, "max", range.max);
-
-      const minOk = commitRangeValue(filter, "min", minRaw, range);
-      const maxOk = commitRangeValue(filter, "max", maxRaw, {
-        min: parseNumericInput(minRaw, {
-          min: filter.min ?? 0,
-          max: filter.max,
-          integer: false,
-        }),
-        max: range.max,
-      });
-
-      if (!minOk || !maxOk) {
-        hasError = true;
-      }
-    });
-
-    if (hasError) return;
-    onApply();
-  };
-
   const handleClearWithReset = () => {
     setNumberDrafts({});
     setNumberErrors({});
@@ -210,100 +189,40 @@ export function FilterPanel({
   );
 
   const content = (
-    <div className="flex max-h-[min(50vh,20rem)] min-h-0 flex-col gap-2.5">
-      <div className="flex items-center justify-between gap-2">
+    <div
+      className={cn(
+        "flex min-h-0 gap-2.5",
+        inline
+          ? "flex-wrap items-end rounded-lg border border-border bg-card p-3"
+          : "max-h-[min(50vh,20rem)] flex-col",
+      )}
+    >
+      <div className={cn("flex items-center gap-2", inline && "w-full")}>
         <div>
           <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-          <p className="text-xs text-muted-foreground">{description}</p>
+          {!inline ? <p className="text-xs text-muted-foreground">{description}</p> : null}
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={handleClearWithReset}
-          className="h-8 rounded-full px-2.5 text-xs"
-        >
-          Xóa
-        </Button>
       </div>
 
-      <Separator />
+      {!inline ? <Separator /> : null}
 
-      <div className="max-h-[16rem] min-h-[6rem] overflow-y-auto pr-2">
-        <div className="space-y-3">
+      <div className={cn(inline ? "w-full" : "max-h-[16rem] min-h-[6rem] overflow-y-auto pr-2")}>
+        <div className={cn(inline ? "flex flex-wrap items-end gap-3" : "space-y-3")}>
           {filters.map((filter) => {
             const current = value[filter.key];
 
-            if (filter.type === "text") {
-              const currentValue =
-                typeof current === "object" && current && "value" in current
-                  ? (current as TextFilterValue)
-                  : EMPTY_TEXT_FILTER;
-
-              return (
-                <div
-                  key={filter.key}
-                  className="mx-auto w-full max-w-[26rem] space-y-1.5"
-                >
-                  <Label className="text-xs font-medium">{filter.label}</Label>
-                  <div className="grid gap-1.5 sm:grid-cols-[120px_1fr]">
-                    <Select
-                      value={currentValue.operator}
-                      onValueChange={(operator) =>
-                        onValueChange(filter.key, {
-                          ...currentValue,
-                          operator: operator as TextFilterValue["operator"],
-                        })
-                      }
-                    >
-                      <SelectTrigger className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0 data-[state=open]:border-primary data-[state=open]:ring-0">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(
-                          filter.operators || [
-                            "contains",
-                            "startsWith",
-                            "equals",
-                          ]
-                        ).map((operator) => (
-                          <SelectItem key={operator} value={operator}>
-                            {operator === "startsWith"
-                              ? "Bắt đầu bằng"
-                              : operator === "equals"
-                                ? "Bằng"
-                                : "Chứa"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="relative">
-                      <SearchIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        value={currentValue.value}
-                        onChange={(event) =>
-                          onValueChange(filter.key, {
-                            ...currentValue,
-                            value: event.target.value,
-                          })
-                        }
-                        placeholder={
-                          filter.placeholder ||
-                          `Tìm ${filter.label.toLowerCase()}`
-                        }
-                        className="h-9 rounded-lg border-border bg-card pl-8 text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            }
+            if (filter.type === "text") return null;
 
             if (filter.type === "select") {
               return (
                 <div
                   key={filter.key}
-                  className="mx-auto w-full max-w-[26rem] space-y-1.5"
+                  className={cn(
+                    "space-y-1.5",
+                    inline
+                      ? "min-w-[12rem] flex-1"
+                      : "mx-auto w-full max-w-[26rem]",
+                  )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
                   <Select
@@ -343,7 +262,12 @@ export function FilterPanel({
               return (
                 <div
                   key={filter.key}
-                  className="mx-auto w-full max-w-[26rem] space-y-1.5"
+                  className={cn(
+                    "space-y-1.5",
+                    inline
+                      ? "min-w-[16rem] flex-1"
+                      : "mx-auto w-full max-w-[26rem]",
+                  )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
                   <div className="rounded-lg border border-border/80 p-2.5">
@@ -392,7 +316,12 @@ export function FilterPanel({
               return (
                 <div
                   key={filter.key}
-                  className="mx-auto w-full max-w-[26rem] space-y-1.5"
+                  className={cn(
+                    "space-y-1.5",
+                    inline
+                      ? "min-w-[16rem] flex-1"
+                      : "mx-auto w-full max-w-[26rem]",
+                  )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
                   <div className="flex items-center justify-between rounded-lg border border-border/80 px-2.5 py-2">
@@ -440,7 +369,12 @@ export function FilterPanel({
               return (
                 <div
                   key={filter.key}
-                  className="mx-auto w-full max-w-[26rem] space-y-1.5"
+                  className={cn(
+                    "space-y-1.5",
+                    inline
+                      ? "min-w-[18rem] flex-1"
+                      : "mx-auto w-full max-w-[26rem]",
+                  )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
                   {filter.showSlider &&
@@ -609,7 +543,12 @@ export function FilterPanel({
               return (
                 <div
                   key={filter.key}
-                  className="mx-auto w-full max-w-[26rem] space-y-1.5"
+                  className={cn(
+                    "space-y-1.5",
+                    inline
+                      ? "min-w-[18rem] flex-1"
+                      : "mx-auto w-full max-w-[26rem]",
+                  )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
                   <div className="grid gap-2 rounded-lg border border-border/80 p-2.5 md:grid-cols-2">
@@ -655,7 +594,7 @@ export function FilterPanel({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5 sm:flex-row sm:justify-end">
+      <div className={cn("flex flex-col gap-1.5 sm:flex-row", inline ? "sm:ml-auto" : "sm:justify-end")}>
         <Button
           type="button"
           variant="outline"
@@ -663,13 +602,6 @@ export function FilterPanel({
           className="h-8 rounded-lg px-3 text-xs"
         >
           Xóa bộ lọc
-        </Button>
-        <Button
-          type="button"
-          onClick={handleApplyWithValidation}
-          className="h-8 rounded-lg px-2.5 text-xs"
-        >
-          Áp dụng
         </Button>
       </div>
     </div>
@@ -692,7 +624,7 @@ export function FilterPanel({
   }
 
   if (inline) {
-    return <aside className={cn("sticky top-4 self-start rounded-lg border border-border bg-card p-3", className)}>{content}</aside>;
+    return <section className={cn("w-full", className)}>{content}</section>;
   }
 
   return (

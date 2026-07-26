@@ -105,7 +105,6 @@ const EMPTY_FILTERS: FilterValues = {
   status: "all",
   courseId: "all",
   creatorId: "all",
-  duration: { min: undefined, max: undefined },
   totalPoints: { min: undefined, max: undefined },
   createdAt: { from: undefined, to: undefined },
   title: { value: "", operator: "contains" },
@@ -220,14 +219,6 @@ export default function AdminExamManagement() {
         defaultOperator: "contains",
       },
       {
-        key: "duration",
-        label: "Thời lượng (phút)",
-        type: "number-range",
-        min: 0,
-        max: 300,
-        step: 5,
-      },
-      {
         key: "totalPoints",
         label: "Tổng điểm",
         type: "number-range",
@@ -258,9 +249,6 @@ export default function AdminExamManagement() {
     const courseValue = appliedFilters.courseId as string | undefined;
     const creatorValue = appliedFilters.creatorId as string | undefined;
     const titleFilter = appliedFilters.title as TextFilterValue | undefined;
-    const durationFilter = appliedFilters.duration as
-      | { min?: number; max?: number }
-      | undefined;
     const totalPointsFilter = appliedFilters.totalPoints as
       | { min?: number; max?: number }
       | undefined;
@@ -299,24 +287,6 @@ export default function AdminExamManagement() {
         creatorValue === "all" ||
         exam.creator.id === creatorValue;
       const matchesTitle = matchesText(exam.title, titleFilter);
-      const matchesDuration = (() => {
-        if (
-          !durationFilter ||
-          (durationFilter.min === undefined && durationFilter.max === undefined)
-        )
-          return true;
-        if (
-          durationFilter.min !== undefined &&
-          exam.duration < durationFilter.min
-        )
-          return false;
-        if (
-          durationFilter.max !== undefined &&
-          exam.duration > durationFilter.max
-        )
-          return false;
-        return true;
-      })();
       const matchesPoints = (() => {
         if (
           !totalPointsFilter ||
@@ -358,7 +328,6 @@ export default function AdminExamManagement() {
         matchesCourse &&
         matchesCreator &&
         matchesTitle &&
-        matchesDuration &&
         matchesPoints &&
         matchesCreatedAt
       );
@@ -562,7 +531,7 @@ export default function AdminExamManagement() {
         </div>
 
         <div className="mb-6 space-y-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}

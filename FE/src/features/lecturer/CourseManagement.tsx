@@ -30,6 +30,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Plus,
   BookOpen,
   ChevronLeft,
@@ -80,7 +88,6 @@ const EMPTY_FILTERS: FilterValues = {
   examState: "all",
   academicYear: { value: "", operator: "contains" },
   term: "all",
-  students: { min: undefined, max: undefined },
 };
 
 const gradientClasses = [
@@ -99,7 +106,7 @@ export default function CourseManagement() {
   const [courseActionId, setCourseActionId] = useState<string | null>(null);
   const [recentCourses, setRecentCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"card" | "list">("card");
+  const [viewMode, setViewMode] = useState<"card" | "list">("list");
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [draftFilters, setDraftFilters] = useState<FilterValues>(EMPTY_FILTERS);
@@ -131,7 +138,7 @@ export default function CourseManagement() {
         id: c.id,
         code: c.code,
         name: c.name,
-        faculty: c.faculty ?? c.department ?? "General",
+        faculty: c.faculty ?? c.department ?? "Chung",
         department: c.department,
         academicYear: c.academicYear,
         term: c.term,
@@ -140,8 +147,9 @@ export default function CourseManagement() {
         progress: c.progress ?? 0,
         lastAccessed: safeRelativeTime(c.lastAccessed),
         _count: {
-          enrollments: c._count?.enrollments ?? 0,
-          exams: c._count?.exams ?? 0,
+          enrollments:
+            c._count?.enrollments ?? c.enrolledStudents ?? c.totalStudents ?? 0,
+          exams: c._count?.exams ?? c.exams ?? 0,
         },
       }));
       setCourses(list);
@@ -192,11 +200,11 @@ export default function CourseManagement() {
     () => [
       {
         key: "faculty",
-        label: "Faculty",
+        label: "Khoa",
         type: "select",
-        allLabel: "All Faculties",
+        allLabel: "Tất cả khoa",
         options: Array.from(
-          new Set(courses.map((course) => course.faculty || "General")),
+          new Set(courses.map((course) => course.faculty || "Chung")),
         ).map((faculty) => ({
           label: faculty,
           value: faculty,
@@ -204,38 +212,30 @@ export default function CourseManagement() {
       },
       {
         key: "examState",
-        label: "Exam State",
+        label: "Trạng thái bài thi",
         type: "select",
-        allLabel: "All Courses",
+        allLabel: "Tất cả bài thi",
         options: [
-          { label: "Has Exams", value: "hasExams" },
-          { label: "No Exams", value: "noExams" },
+          { label: "Có bài thi", value: "hasExams" },
+          { label: "Chưa có bài thi", value: "noExams" },
         ],
       },
       {
         key: "academicYear",
-        label: "Academic year",
+        label: "Năm học",
         type: "text",
         operators: ["contains", "startsWith", "equals"],
-        placeholder: "Filter by academic year",
+        placeholder: "Lọc theo năm học",
       },
       {
         key: "term",
-        label: "Term",
+        label: "Học kỳ",
         type: "select",
-        allLabel: "All Terms",
+        allLabel: "Tất cả học kỳ",
         options: COURSE_TERM_OPTIONS.map((option) => ({
           label: option.label,
           value: option.value,
         })),
-      },
-      {
-        key: "students",
-        label: "Students",
-        type: "number-range",
-        min: 0,
-        max: 500,
-        step: 1,
       },
     ],
     [courses],
@@ -249,9 +249,6 @@ export default function CourseManagement() {
       | TextFilterValue
       | undefined;
     const termFilter = appliedFilters.term as string | undefined;
-    const studentsFilter = appliedFilters.students as
-      | { min?: number; max?: number }
-      | undefined;
 
     const matchText = (source: string | undefined, filter?: TextFilterValue) => {
       if (!filter || !filter.value.trim()) return true;
@@ -278,7 +275,7 @@ export default function CourseManagement() {
       if (
         facultyFilter &&
         facultyFilter !== "all" &&
-        (course.faculty || "General") !== facultyFilter
+        (course.faculty || "Chung") !== facultyFilter
       ) {
         return false;
       }
@@ -291,19 +288,6 @@ export default function CourseManagement() {
 
       if (termFilter && termFilter !== "all" && course.term !== termFilter) {
         return false;
-      }
-
-      if (
-        studentsFilter &&
-        (studentsFilter.min !== undefined || studentsFilter.max !== undefined)
-      ) {
-        const totalStudents = course._count?.enrollments || 0;
-        if (studentsFilter.min !== undefined && totalStudents < studentsFilter.min) {
-          return false;
-        }
-        if (studentsFilter.max !== undefined && totalStudents > studentsFilter.max) {
-          return false;
-        }
       }
 
       return true;
@@ -352,9 +336,9 @@ export default function CourseManagement() {
   const activeFilterChips = getFilterChips(appliedFilters, courseFilterDefinitions);
 
   const courseSortOptions = [
-    { field: "name", label: "Course Name" },
-    { field: "_count.enrollments", label: "Students" },
-    { field: "_count.exams", label: "Exams" },
+    { field: "name", label: "Tên khóa học" },
+    { field: "_count.enrollments", label: "Sinh viên" },
+    { field: "_count.exams", label: "Bài thi" },
   ];
 
   const runSearch = () => setAppliedSearch(searchInput.trim());
@@ -389,14 +373,14 @@ export default function CourseManagement() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="list">List</SelectItem>
+                  <SelectItem value="card">Thẻ</SelectItem>
+                  <SelectItem value="list">Danh sách</SelectItem>
                 </SelectContent>
               </Select>
               <Button asChild className="gap-2">
                 <Link href="/lecturer/courses">
                   <Plus className="h-4 w-4" />
-                  Add Course
+                  Thêm khóa học
                 </Link>
               </Button>
             </div>
@@ -406,24 +390,24 @@ export default function CourseManagement() {
         {/* Quick stats */}
         <section>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <AdminStatCard icon={BookOpen} value={courses.length} label="Total Courses" />
-            <AdminStatCard icon={Users} value={totalStudents} label="Total Students" />
-            <AdminStatCard icon={Clock} value={totalExams} label="Total Exams" />
+            <AdminStatCard icon={BookOpen} value={courses.length} label="Tổng khóa học" />
+            <AdminStatCard icon={Users} value={totalStudents} label="Tổng sinh viên" />
+            <AdminStatCard icon={Clock} value={totalExams} label="Tổng bài thi" />
             <AdminStatCard
               icon={Filter}
               value={facultiesCount}
-              label="Faculties"
+              label="Khoa"
             />
           </div>
         </section>
 
         <section className="space-y-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Search by code, name, faculty, academic year, or term"
+              placeholder="Tìm theo mã, tên, khoa, năm học hoặc học kỳ"
               className="flex-1"
             />
             <SortButton
@@ -436,7 +420,7 @@ export default function CourseManagement() {
               }}
             />
             <FilterPanel
-              title="Course filters"
+              title="Bộ lọc khóa học"
               description="Tìm kiếm và lọc các khóa học theo các tiêu chí khác nhau."
               filters={courseFilterDefinitions}
               value={draftFilters}
@@ -458,7 +442,7 @@ export default function CourseManagement() {
         {/* Recently Accessed Courses */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Recently accessed courses</h2>
+            <h2 className="text-lg font-semibold">Khóa học truy cập gần đây</h2>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm">
                 <ChevronLeft className="h-4 w-4" />
@@ -498,7 +482,7 @@ export default function CourseManagement() {
                           {course._count?.enrollments || 0}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Students
+                          Sinh viên
                         </div>
                       </div>
                       <div className="flex flex-col items-center justify-center">
@@ -506,7 +490,7 @@ export default function CourseManagement() {
                           {course._count?.exams || 0}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Exams
+                          Bài thi
                         </div>
                       </div>
                       <div className="flex flex-col items-center justify-center">
@@ -514,7 +498,7 @@ export default function CourseManagement() {
                           {course.lastAccessed}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Accessed
+                          Đã truy cập
                         </div>
                       </div>
                     </div>
@@ -522,7 +506,7 @@ export default function CourseManagement() {
                     {course.progress && (
                       <div className="space-y-1">
                         <div className="flex justify-between text-sm">
-                          <span>{course.progress}% complete</span>
+                          <span>Hoàn thành {course.progress}%</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
@@ -542,7 +526,7 @@ export default function CourseManagement() {
         {/* Course Overview */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Course overview</h2>
+            <h2 className="text-lg font-semibold">Tổng quan khóa học</h2>
             <div className="flex items-center gap-2">
               <Select value={archiveScope} onValueChange={(value) => setArchiveScope(value as "active" | "archived")}>
                 <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
@@ -553,25 +537,25 @@ export default function CourseManagement() {
               </Select>
               <Button variant="outline" size="sm" className="gap-2">
                 <Filter className="h-4 w-4" />
-                All (except removed from view)
+                Tất cả khóa học
               </Button>
               <Select defaultValue="name">
                 <SelectTrigger className="w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="name">Course name</SelectItem>
-                  <SelectItem value="code">Course code</SelectItem>
-                  <SelectItem value="faculty">Faculty</SelectItem>
+                  <SelectItem value="name">Tên khóa học</SelectItem>
+                  <SelectItem value="code">Mã khóa học</SelectItem>
+                  <SelectItem value="faculty">Khoa</SelectItem>
                 </SelectContent>
               </Select>
-              <Select defaultValue="card">
+              <Select value={viewMode} onValueChange={(value: "card" | "list") => setViewMode(value)}>
                 <SelectTrigger className="w-24">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="list">List</SelectItem>
+                  <SelectItem value="card">Thẻ</SelectItem>
+                  <SelectItem value="list">Danh sách</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -583,20 +567,58 @@ export default function CourseManagement() {
             </div>
           ) : (
             <div className="space-y-8">
-              {Object.entries(paginatedGrouped).map(
+              {viewMode === "list" ? (
+                <div className="overflow-hidden rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="w-36">Mã khóa học</TableHead>
+                        <TableHead>Tên khóa học</TableHead>
+                        <TableHead className="w-40">Khoa</TableHead>
+                        <TableHead className="w-32">Học kỳ</TableHead>
+                        <TableHead className="w-24 text-center">Sinh viên</TableHead>
+                        <TableHead className="w-20 text-center">Bài thi</TableHead>
+                        <TableHead className="w-40">Truy cập gần nhất</TableHead>
+                        <TableHead className="w-32 text-right">Thao tác</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedCourses.map((course) => (
+                        <TableRow key={course.id} className="hover:bg-muted/50">
+                          <TableCell className="font-medium">{course.code}</TableCell>
+                          <TableCell>
+                            <p className="font-medium">{course.name}</p>
+                          </TableCell>
+                          <TableCell>{course.faculty}</TableCell>
+                          <TableCell>{formatCourseTerm(course.academicYear, course.term)}</TableCell>
+                          <TableCell className="text-center">{course._count?.enrollments || 0}</TableCell>
+                          <TableCell className="text-center">{course._count?.exams || 0}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{course.lastAccessed || "Chưa truy cập"}</TableCell>
+                          <TableCell className="text-right">
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/lecturer/course/${course.id}`}>Xem chi tiết</Link>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : null}
+              {viewMode !== "list" && Object.entries(paginatedGrouped).map(
                 ([faculty, facultyCourses]) => (
                   <div key={faculty}>
                     <h3 className="text-lg font-medium mb-4 text-foreground">
                       {faculty}
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className={viewMode === "list" ? "space-y-3" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"}>
                       {facultyCourses.map((course, index) => (
                         <Card
                           key={course.id}
-                          className="overflow-hidden hover:shadow-md transition-shadow"
+                          className={viewMode === "list" ? "overflow-hidden transition-shadow hover:shadow-md" : "overflow-hidden transition-shadow hover:shadow-md"}
                         >
                           <div
-                            className={`h-24 ${getGradientClass(index)} relative`}
+                            className={`${viewMode === "list" ? "hidden" : "h-24"} ${getGradientClass(index)} relative`}
                           >
                             <div className="absolute inset-0 bg-black/20" />
                             <div className="absolute top-3 right-3">
@@ -613,8 +635,8 @@ export default function CourseManagement() {
                             </div>
                           </div>
 
-                          <CardContent className="p-4">
-                            <div className="space-y-3">
+                          <CardContent className={viewMode === "list" ? "p-4" : "p-4"}>
+                            <div className={viewMode === "list" ? "flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between" : "space-y-3"}>
                               <div>
                                 <h4 className="font-medium text-sm">
                                   {course.code}
@@ -631,7 +653,7 @@ export default function CourseManagement() {
                                   </div>
                                   <div className="text-xs text-muted-foreground flex items-center gap-0.5">
                                     <Users className="h-3 w-3" />
-                                    <span>Students</span>
+                                    <span>Sinh viên</span>
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-center justify-center">
@@ -640,7 +662,7 @@ export default function CourseManagement() {
                                   </div>
                                   <div className="text-xs text-muted-foreground flex items-center gap-0.5">
                                     <BookOpen className="h-3 w-3" />
-                                    <span>Exams</span>
+                                    <span>Bài thi</span>
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-center justify-center">
@@ -649,7 +671,7 @@ export default function CourseManagement() {
                                   </div>
                                   <div className="text-xs text-muted-foreground flex items-center gap-0.5">
                                     <Clock className="h-3 w-3" />
-                                    <span>Accessed</span>
+                                    <span>Đã truy cập</span>
                                   </div>
                                 </div>
                               </div>
@@ -657,7 +679,7 @@ export default function CourseManagement() {
                               {course.progress && (
                                 <div className="space-y-1">
                                   <div className="flex justify-between text-xs">
-                                    <span>{course.progress}% complete</span>
+                                    <span>Hoàn thành {course.progress}%</span>
                                   </div>
                                   <div className="w-full bg-gray-200 rounded-full h-1.5">
                                     <div
@@ -675,7 +697,7 @@ export default function CourseManagement() {
                                 className="w-full"
                               >
                                 <Link href={`/lecturer/course/${course.id}`}>
-                                  View Details
+                                  Xem chi tiết
                                 </Link>
                               </Button>
                             </div>
@@ -689,7 +711,7 @@ export default function CourseManagement() {
               {filteredCourses.length === 0 && (
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground">
-                    No courses match current search/filter.
+                    Không có khóa học phù hợp với tìm kiếm hoặc bộ lọc hiện tại.
                   </CardContent>
                 </Card>
               )}
@@ -700,7 +722,7 @@ export default function CourseManagement() {
             totalPages={totalPages}
             totalItems={filteredCourses.length}
             onPageChange={setPage}
-            itemLabel="courses"
+            itemLabel="khóa học"
             className="border-t-0 px-0"
             syncUrl={false}
           />
