@@ -503,7 +503,6 @@ async function ensureExamInstance(params: {
       normalizedScore: params.normalizedScore ?? null,
       anomalyScore: params.anomalyScore ?? null,
       suspiciousFlag: params.suspiciousFlag ?? false,
-      ipAddress: null,
       userAgent: null,
     },
   });
@@ -958,7 +957,6 @@ async function main() {
         update: {
           tabSwitchCount: 6 + idx,
           mouseAnomalies: 3 + idx,
-          ipAddress: `203.0.113.${10 + idx}`,
           flaggedStatus: 'review',
           integrityScore: 0.82,
         },
@@ -966,7 +964,6 @@ async function main() {
           submissionId: submission.id,
           tabSwitchCount: 6 + idx,
           mouseAnomalies: 3 + idx,
-          ipAddress: `203.0.113.${10 + idx}`,
           flaggedStatus: 'review',
           integrityScore: 0.82,
         },
