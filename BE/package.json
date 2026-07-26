@@ -4,6 +4,7 @@
   "description": "ExamTrust Backend API - NestJS + Prisma + MySQL",
   "main": "dist/main.js",
   "scripts": {
+    "postinstall": "prisma generate --schema prisma/schema.prisma",
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "nest start",
