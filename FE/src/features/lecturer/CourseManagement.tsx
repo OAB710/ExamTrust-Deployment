@@ -611,14 +611,14 @@ export default function CourseManagement() {
                     <h3 className="text-lg font-medium mb-4 text-foreground">
                       {faculty}
                     </h3>
-                    <div className={viewMode === "list" ? "space-y-3" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                       {facultyCourses.map((course, index) => (
                         <Card
                           key={course.id}
-                          className={viewMode === "list" ? "overflow-hidden transition-shadow hover:shadow-md" : "overflow-hidden transition-shadow hover:shadow-md"}
+                          className="overflow-hidden transition-shadow hover:shadow-md"
                         >
                           <div
-                            className={`${viewMode === "list" ? "hidden" : "h-24"} ${getGradientClass(index)} relative`}
+                            className={`h-24 ${getGradientClass(index)} relative`}
                           >
                             <div className="absolute inset-0 bg-black/20" />
                             <div className="absolute top-3 right-3">
@@ -635,8 +635,8 @@ export default function CourseManagement() {
                             </div>
                           </div>
 
-                          <CardContent className={viewMode === "list" ? "p-4" : "p-4"}>
-                            <div className={viewMode === "list" ? "flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between" : "space-y-3"}>
+                          <CardContent className="p-4">
+                            <div className="space-y-3">
                               <div>
                                 <h4 className="font-medium text-sm">
                                   {course.code}

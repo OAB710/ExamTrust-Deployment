@@ -11,6 +11,12 @@ dist/
 */dist/
 .next/
 */.next/
+.next-build/
+*/.next-build/
+.open-next/
+*/.open-next/
+.wrangler/
+*/.wrangler/
 out/
 */out/
 coverage/
@@ -46,3 +52,6 @@ tmp/
 temp/
 uploads/
 exports/
+
+# Local working notes
+CLOUDFLARE_DEPLOY_NOTES.txt
