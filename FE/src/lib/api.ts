@@ -264,16 +264,18 @@ class ApiClient {
   }
 
   // Courses endpoints
-  async getCourses(params?: { page?: number; limit?: number }) {
+  async getCourses(params?: { page?: number; limit?: number; archiveStatus?: 'active' | 'archived' | 'all' }) {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', String(params.page));
     if (params?.limit) queryParams.append('limit', String(params.limit));
+    if (params?.archiveStatus) queryParams.append('archiveStatus', params.archiveStatus);
     const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
     return this.request<any>(`/courses${query}`);
   }
 
-  async getMyCourses() {
-    return this.request<any>('/courses/my-courses');
+  async getMyCourses(archiveStatus?: 'active' | 'archived' | 'all') {
+    const query = archiveStatus ? `?archiveStatus=${archiveStatus}` : '';
+    return this.request<any>(`/courses/my-courses${query}`);
   }
 
   async getCourse(id: string) {
@@ -303,6 +305,14 @@ class ApiClient {
 
   async deleteCourse(id: string) {
     return this.request<any>(`/courses/${id}`, { method: 'DELETE' });
+  }
+
+  async archiveCourse(id: string) {
+    return this.request<any>(`/courses/${id}/archive`, { method: 'PATCH' });
+  }
+
+  async restoreCourse(id: string) {
+    return this.request<any>(`/courses/${id}/restore`, { method: 'PATCH' });
   }
 
   // Enrollments endpoints
@@ -700,10 +710,14 @@ class ApiClient {
   }
 
   // Exams endpoints
-  async getExams(filters?: { courseId?: string; status?: string; page?: number; limit?: number }) {
+  async getExams(filters?: { courseId?: string; status?: string; includeArchived?: boolean; search?: string; timeRange?: string; sort?: string; page?: number; limit?: number }) {
     const params = new URLSearchParams();
     if (filters?.courseId) params.append('courseId', filters.courseId);
     if (filters?.status) params.append('status', filters.status);
+    if (filters?.includeArchived) params.append('includeArchived', 'true');
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.timeRange) params.append('timeRange', filters.timeRange);
+    if (filters?.sort) params.append('sort', filters.sort);
     if (filters?.page) params.append('page', String(filters.page));
     if (filters?.limit) params.append('limit', String(filters.limit));
     const query = params.toString() ? `?${params.toString()}` : '';
@@ -844,6 +858,14 @@ class ApiClient {
 
   async deleteExam(id: string) {
     return this.request<any>(`/exams/${id}`, { method: 'DELETE' });
+  }
+
+  async archiveExam(id: string) {
+    return this.request<any>(`/exams/${id}/archive`, { method: 'PATCH' });
+  }
+
+  async restoreExam(id: string) {
+    return this.request<any>(`/exams/${id}/restore`, { method: 'PATCH' });
   }
 
   async generateExamLink(
@@ -1103,38 +1125,6 @@ class ApiClient {
     return this.request<any>(`/submissions/${submissionId}/status`, {
       method: 'PATCH',
       body: { status },
-    });
-  }
-
-  // Notifications endpoints
-  async getMyNotifications(params?: { page?: number; limit?: number; unreadOnly?: boolean }) {
-    const queryParams = new URLSearchParams();
-    if (params?.page) queryParams.append('page', String(params.page));
-    if (params?.limit) queryParams.append('limit', String(params.limit));
-    if (params?.unreadOnly !== undefined) queryParams.append('unreadOnly', String(params.unreadOnly));
-    const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
-    return this.request<any>(`/notifications/my${query}`);
-  }
-
-  async getUnreadNotificationCount() {
-    return this.request<{ count: number }>('/notifications/unread-count');
-  }
-
-  async markNotificationAsRead(id: string) {
-    return this.request<any>(`/notifications/${id}/read`, {
-      method: 'PATCH',
-    });
-  }
-
-  async markAllNotificationsAsRead() {
-    return this.request<{ message: string }>('/notifications/read-all', {
-      method: 'PATCH',
-    });
-  }
-
-  async deleteNotification(id: string) {
-    return this.request<{ message: string }>(`/notifications/${id}`, {
-      method: 'DELETE',
     });
   }
 

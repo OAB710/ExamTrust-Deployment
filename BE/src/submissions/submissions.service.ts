@@ -6,7 +6,6 @@ import { AccessPolicyService } from '../common/services/access-policy.service';
 import { StartExamDto, SubmitExamDto, GradeAnswerDto, UpdateSubmissionStatusDto, AutosaveExamDto } from './dto/submission.dto';
 import { PaginationDto, buildPaginatedResult } from '../common/dto/pagination.dto';
 import { SubmissionsEventsService } from './submissions-events.service';
-import { NotificationsService } from '../notifications/notifications.service';
 import { QueueService } from '../queue/queue.service';
 
 type AutosaveAnswerMeta = {
@@ -82,7 +81,6 @@ export class SubmissionsService {
   constructor(
     private prisma: PrismaService,
     private submissionsEvents: SubmissionsEventsService,
-    private readonly notificationsService: NotificationsService,
     private readonly accessPolicy: AccessPolicyService,
     private readonly queueService: QueueService,
   ) {}
@@ -522,19 +520,7 @@ export class SubmissionsService {
       // Log warning if needed in future
     }
 
-    try {
-      await this.notificationsService.create({
-        recipientId: studentId,
-        kind: 'EXAM_SESSION_STARTED',
-        title: 'Exam session started',
-        message: `You started ${startedSubmission.exam.title}.`,
-        link: `/student/exam-ready?examId=${startedSubmission.exam.id}`,
-        priority: 'low',
-        metadata: { submissionId: startedSubmission.id, examId: startedSubmission.exam.id },
-      });
-    } catch {
-      // Notification failures must not block exam start.
-    }
+
 
     return startedSubmission;
   }
@@ -949,11 +935,6 @@ export class SubmissionsService {
         logs,
       );
     }
-
-    this.sendIntegrityNotifications(submissionId, studentId).catch((err) => {
-      console.error('Failed to send notifications:', err);
-    });
-
     return {
       ...this.buildSubmitResponse(result.submission, false),
       rawScore: result.totalScore,
@@ -1174,7 +1155,7 @@ export class SubmissionsService {
 
   async addLogs(
     submissionId: string,
-    logs: Array<{ type: string; details?: any; ts?: number }>, 
+    logs: Array<{ type: string; details?: any; ts?: number }>,
     studentId: string
   ): Promise<void> {
     const submission = await this.prisma.examSubmission.findUnique({
@@ -1304,104 +1285,9 @@ export class SubmissionsService {
       );
     }
 
-    // Send notifications asynchronously (do not block response)
-    this.sendIntegrityNotifications(submissionId, studentId).catch((err) => {
-      console.error('Failed to send notifications:', err);
-      // Do not throw, notifications are non-critical
-    });
-
     return result;
   }
 
-  private async sendIntegrityNotifications(submissionId: string, studentId: string): Promise<void> {
-    try {
-      await this.notificationsService.create({
-        recipientId: studentId,
-        kind: 'SUBMISSION_RECEIVED',
-        title: 'Submission received',
-        message: `Your submission for exam has been received.`,
-        link: '/student/results',
-        priority: 'normal',
-        metadata: {
-          submissionId,
-        },
-      });
-
-      const submissionMeta = await this.prisma.examSubmission.findUnique({
-        where: { id: submissionId },
-        select: {
-          student: { select: { fullName: true } },
-          exam: {
-            select: {
-              id: true,
-              title: true,
-              creatorId: true,
-            },
-          },
-          proctoring: {
-            select: {
-              tabSwitchCount: true,
-              mouseAnomalies: true,
-            },
-          },
-        },
-      });
-
-      if (submissionMeta?.exam.creatorId) {
-        await this.notificationsService.create({
-          recipientId: submissionMeta.exam.creatorId,
-          kind: 'SUBMISSION_RECEIVED',
-          title: 'New submission received',
-          message: `${submissionMeta.student.fullName} submitted ${submissionMeta.exam.title}.`,
-          link: `/lecturer/exam/${submissionMeta.exam.id}/results`,
-          priority: 'normal',
-          metadata: {
-            submissionId,
-            examId: submissionMeta.exam.id,
-            studentName: submissionMeta.student.fullName,
-          },
-        });
-
-        const tabSwitchCount = Number(submissionMeta.proctoring?.tabSwitchCount || 0);
-        const mouseAnomalies = Number(submissionMeta.proctoring?.mouseAnomalies || 0);
-        if (tabSwitchCount >= 5 || mouseAnomalies >= 8) {
-          await this.notificationsService.createMany([
-            {
-              recipientId: submissionMeta.exam.creatorId,
-              kind: 'INTEGRITY_RISK_DETECTED',
-              title: 'Integrity risk detected',
-              message: `${submissionMeta.student.fullName} has suspicious behavior in ${submissionMeta.exam.title}.`,
-              link: `/lecturer/exam/${submissionMeta.exam.id}/monitor`,
-              priority: 'high',
-              metadata: {
-                submissionId,
-                examId: submissionMeta.exam.id,
-                tabSwitchCount,
-                mouseAnomalies,
-              },
-            },
-          ]);
-
-          await this.notificationsService.createForRole('ADMIN', {
-            kind: 'INTEGRITY_RISK_DETECTED',
-            title: 'Integrity risk flagged',
-            message: `Potential integrity risk in exam ${submissionMeta.exam.title}.`,
-            link: '/admin/integrity',
-            priority: 'high',
-            metadata: {
-              submissionId,
-              examId: submissionMeta.exam.id,
-              tabSwitchCount,
-              mouseAnomalies,
-            },
-          });
-        }
-      }
-    } catch (err) {
-      // Notification failures must not block submission flow
-      console.error('Notification error:', err);
-    }
-  }
 
   private compareAnswers(submitted: any, correct: any): boolean {
     if (typeof submitted === 'object' && typeof correct === 'object') {
@@ -1719,17 +1605,7 @@ export class SubmissionsService {
       data: { status: 'FINALIZED' },
     });
 
-    this.notificationsService.notify({
-      recipientId: submission.studentId,
-      kind: 'submission-finalized',
-      title: 'Submission Finalized',
-      message: `Your submission for ${submission.exam.title} has been received.`,
-      metadata: {
-        examId: submission.exam.id,
-        status: 'FINALIZED',
-        score: submission.score,
-      },
-    });
+
   }
 
   async finalizeGrading(submissionId: string, user?: RequestUser): Promise<void> {
@@ -3298,43 +3174,7 @@ export class SubmissionsService {
       data: { status: updateDto.status },
     });
 
-    try {
-      const context = await this.prisma.examSubmission.findUnique({
-        where: { id },
-        select: {
-          studentId: true,
-          exam: { select: { id: true, title: true, creatorId: true } },
-        },
-      });
 
-      if (context) {
-        const recipients = Array.from(new Set([context.studentId, context.exam.creatorId]));
-        await this.notificationsService.createForUsers(recipients, {
-          kind: 'SUBMISSION_STATUS_UPDATED',
-          title: 'Submission status updated',
-          message: `Submission status for ${context.exam.title} changed to ${updateDto.status}.`,
-          link:
-            updateDto.status === 'FLAGGED'
-              ? `/lecturer/exam/${context.exam.id}/monitor`
-              : `/lecturer/exam/${context.exam.id}/results`,
-          priority: updateDto.status === 'FLAGGED' ? 'high' : 'normal',
-          metadata: { submissionId: id, examId: context.exam.id, status: updateDto.status },
-        });
-
-        if (updateDto.status === 'FLAGGED') {
-          await this.notificationsService.createForRole('ADMIN', {
-            kind: 'SUBMISSION_FLAGGED',
-            title: 'Submission flagged',
-            message: `A submission in ${context.exam.title} was flagged for review.`,
-            link: '/admin/integrity',
-            priority: 'high',
-            metadata: { submissionId: id, examId: context.exam.id },
-          });
-        }
-      }
-    } catch {
-      // Notification failures must not block status update.
-    }
 
     return updated;
   }

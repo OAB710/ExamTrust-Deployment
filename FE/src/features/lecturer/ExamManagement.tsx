@@ -52,6 +52,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
+  Archive,
+  RotateCcw,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -97,6 +99,7 @@ export default function ExamManagement() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [draftFilters, setDraftFilters] = useState<FilterValues>({
@@ -116,6 +119,8 @@ export default function ExamManagement() {
   const [sortField, setSortField] = useState("title");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [publishingExamId, setPublishingExamId] = useState<string | null>(null);
@@ -153,13 +158,20 @@ export default function ExamManagement() {
 
   useEffect(() => {
     fetchExams();
-  }, []);
+  }, [appliedFilters, appliedSearch, sortField, sortOrder, page]);
 
   const fetchExams = async () => {
     try {
       setLoading(true);
       const [examData, courseData] = await Promise.all([
-        api.getExams(),
+        api.getExams({
+          status: typeof appliedFilters.status === 'string' && appliedFilters.status !== 'all' ? appliedFilters.status : undefined,
+          courseId: typeof appliedFilters.courseId === 'string' && appliedFilters.courseId !== 'all' ? appliedFilters.courseId : undefined,
+          search: appliedSearch || undefined,
+          sort: sortField === 'course.code' ? 'title' : sortField,
+          page,
+          limit: ITEMS_PER_PAGE,
+        }),
         api.getMyCourses(),
       ]);
       setExams(unwrapPaginatedData(examData) || []);
@@ -190,6 +202,23 @@ export default function ExamManagement() {
       toast.error("Failed to delete exam");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleArchiveExam = async () => {
+    if (!selectedExam) return;
+    try {
+      setIsArchiving(true);
+      const archived = selectedExam.status === 'ARCHIVED';
+      await (archived ? api.restoreExam(selectedExam.id) : api.archiveExam(selectedExam.id));
+      setExams((previous) => previous.filter((exam) => exam.id !== selectedExam.id));
+      toast.success(archived ? 'Đã khôi phục bài thi' : 'Đã lưu trữ bài thi');
+      setShowArchiveDialog(false);
+      setSelectedExam(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể cập nhật bài thi');
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -535,7 +564,6 @@ export default function ExamManagement() {
   ];
 
   const ITEMS_PER_PAGE = 10;
-  const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(filteredExams.length / ITEMS_PER_PAGE));
   const EXAM_ROW_HEIGHT = 60;
   const EXAM_TABLE_HEADER_HEIGHT = 48;
@@ -646,6 +674,8 @@ export default function ExamManagement() {
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              inline
+              className="w-full xl:w-72"
             />
           </div>
           <ActiveFilterChips
@@ -809,6 +839,18 @@ export default function ExamManagement() {
                                   Đổi lịch
                                 </Button>
                               )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedExam(exam);
+                                  setShowArchiveDialog(true);
+                                }}
+                                className="h-8 gap-1.5 px-2.5"
+                              >
+                                {exam.status === "ARCHIVED" ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                                {exam.status === "ARCHIVED" ? "Khôi phục" : "Lưu trữ"}
+                              </Button>
                               {exam.status === "DRAFT" && (
                                 <>
                                   <Button
@@ -1000,7 +1042,7 @@ export default function ExamManagement() {
           <DialogHeader>
             <DialogTitle>Xóa bài thi</DialogTitle>
             <DialogDescription>
-              Bạn có chắc muốn xóa "{selectedExam?.title}"? Thao tác này không thể hoàn tác.
+              Chỉ bản nháp chưa có dữ liệu làm bài mới có thể xóa. Bài thi khác sẽ được lưu trữ để giữ lịch sử.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1018,7 +1060,27 @@ export default function ExamManagement() {
               {isDeleting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              Xóa
+              Xóa bản nháp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedExam?.status === 'ARCHIVED' ? 'Khôi phục bài thi?' : 'Lưu trữ bài thi?'}</DialogTitle>
+            <DialogDescription>
+              {selectedExam?.status === 'ARCHIVED'
+                ? 'Bài thi sẽ trở lại danh sách quản lý phù hợp với trạng thái trước đó.'
+                : 'Bài thi sẽ được ẩn khỏi danh sách quản lý thông thường. Toàn bộ lượt làm bài, điểm và dữ liệu giám sát vẫn được giữ lại.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowArchiveDialog(false)}>Hủy</Button>
+            <Button onClick={handleArchiveExam} disabled={isArchiving}>
+              {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {selectedExam?.status === 'ARCHIVED' ? 'Khôi phục' : 'Lưu trữ'}
             </Button>
           </DialogFooter>
         </DialogContent>

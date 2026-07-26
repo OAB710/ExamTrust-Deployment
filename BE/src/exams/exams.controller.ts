@@ -79,30 +79,6 @@ export class ExamsController {
   async create(@Body() createExamDto: CreateExamDto, @Request() req) {
     const created = await this.examsService.create(createExamDto, req.user.id, req.user.role);
 
-    // Email notifications disabled per user request
-    // After creating exam, attempt to notify enrolled students with join link
-    // try {
-    //   const courseId = created?.course?.id || (created as any)?.courseId;
-    //   if (courseId) {
-    //     const enrollments = await this.enrollmentsService.findByCourse(courseId, req.user);
-    //     const studentEmails = (enrollments || [])
-    //       .map((enr: any) => enr?.student?.email)
-    //       .filter(Boolean) as string[];
-    //     const emails = Array.from(new Set(studentEmails));
-    //     if (emails.length > 0) {
-    //       const frontend = process.env.FRONTEND_URL || process.env.APP_BASE_URL || 'http://localhost:3000';
-    //       const link = `${frontend}/student/exam-ready?examId=${created.id}`;
-    //       const subject = `Invitation to exam: ${created?.title || 'Exam'}`;
-    //       const html = `<p>You have been invited to join the exam <strong>${created?.title || 'Exam'}</strong>.</p>
-    //         <p>Click to join: <a href="${link}">${link}</a></p>`;
-    //       await this.mailerService.sendExamLink(emails, subject, html);
-    //     }
-    //   }
-    // } catch (err) {
-    //   // Do not block exam creation if email fails — just log and continue
-    //   console.error('Failed to send auto-notification emails for exam creation', err);
-    // }
-
     return created;
   }
 
@@ -111,6 +87,10 @@ export class ExamsController {
     @Request() req,
     @Query('courseId') courseId?: string,
     @Query('status') status?: string,
+    @Query('includeArchived') includeArchived?: string,
+    @Query('search') search?: string,
+    @Query('timeRange') timeRange?: string,
+    @Query('sort') sort?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -129,6 +109,10 @@ export class ExamsController {
 
     if (courseId) filters.courseId = courseId;
     if (status) filters.status = status;
+    if (search) filters.search = search;
+    if (timeRange) filters.timeRange = timeRange;
+    if (sort) filters.sort = sort;
+    filters.includeArchived = includeArchived === 'true' || status === 'ARCHIVED';
 
     const pagination = {
       page: page ? parseInt(page, 10) : 1,
@@ -212,6 +196,22 @@ export class ExamsController {
     return this.examsService.reschedule(id, rescheduleExamDto);
   }
 
+  @Patch(':id/archive')
+  @UseGuards(RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  async archive(@Param('id') id: string, @Request() req) {
+    await this.accessPolicy.assertInstructorCanAccessExam(id, req.user);
+    return this.examsService.archive(id, req.user.id);
+  }
+
+  @Patch(':id/restore')
+  @UseGuards(RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  async restore(@Param('id') id: string, @Request() req) {
+    await this.accessPolicy.assertInstructorCanAccessExam(id, req.user);
+    return this.examsService.restore(id, req.user.id);
+  }
+
   @Post(':id/publish')
   @UseGuards(RolesGuard)
   @Roles('LECTURER', 'ADMIN')
@@ -258,6 +258,6 @@ export class ExamsController {
   @Roles('LECTURER', 'ADMIN')
   async remove(@Param('id') id: string, @Request() req) {
     await this.accessPolicy.assertInstructorCanAccessExam(id, req.user);
-    return this.examsService.remove(id);
+    return this.examsService.remove(id, req.user.id);
   }
 }

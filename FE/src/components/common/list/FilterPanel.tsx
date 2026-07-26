@@ -53,6 +53,7 @@ type FilterPanelProps = {
   triggerLabel?: string;
   activeCount?: number;
   className?: string;
+  inline?: boolean;
 };
 
 const EMPTY_TEXT_FILTER: TextFilterValue = { value: "", operator: "contains" };
@@ -71,6 +72,7 @@ export function FilterPanel({
   triggerLabel = "Lọc",
   activeCount = 0,
   className,
+  inline = false,
 }: FilterPanelProps) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -687,6 +689,10 @@ export function FilterPanel({
         </DrawerContent>
       </Drawer>
     );
+  }
+
+  if (inline) {
+    return <aside className={cn("sticky top-4 self-start rounded-lg border border-border bg-card p-3", className)}>{content}</aside>;
   }
 
   return (

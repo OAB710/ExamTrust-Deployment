@@ -12,8 +12,6 @@ export class QueueService {
   constructor(
     @InjectQueue('integrity-logs')
     private integrityLogsQueue: Queue,
-    @InjectQueue('notifications')
-    private notificationsQueue: Queue,
     @InjectQueue('grading')
     private gradingQueue: Queue,
     @InjectQueue('events')
@@ -33,18 +31,6 @@ export class QueueService {
       backoff: {
         type: 'exponential',
         delay: 2000,
-      },
-    });
-  }
-
-  async enqueueNotification(data: any): Promise<void> {
-    await this.notificationsQueue.add(data, {
-      removeOnComplete: true,
-      removeOnFail: false,
-      attempts: 2,
-      backoff: {
-        type: 'exponential',
-        delay: 1000,
       },
     });
   }
@@ -143,8 +129,6 @@ export class QueueService {
     switch (name) {
       case 'integrity-logs':
         return this.integrityLogsQueue;
-      case 'notifications':
-        return this.notificationsQueue;
       case 'grading':
         return this.gradingQueue;
       case 'events':

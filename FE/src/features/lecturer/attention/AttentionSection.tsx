@@ -47,7 +47,7 @@ export function AttentionSection() {
   const { items, loading, error, retry } = useAttentionItems();
 
   return (
-    <Card className="card-elevated">
+    <Card className="card-elevated h-full">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>

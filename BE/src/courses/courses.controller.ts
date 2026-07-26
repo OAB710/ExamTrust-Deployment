@@ -33,7 +33,7 @@ export class CoursesController {
   }
 
   @Get()
-  findAll(@Request() req, @Query('page') page?: string, @Query('limit') limit?: string) {
+  findAll(@Request() req, @Query('page') page?: string, @Query('limit') limit?: string, @Query('archiveStatus') archiveStatus?: string) {
     const pagination = {
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
@@ -42,18 +42,32 @@ export class CoursesController {
       return this.coursesService.getMyCoursesAsStudent(req.user.id);
     }
     if (req.user.role === 'LECTURER') {
-      return this.coursesService.getMyCoursesAsLecturer(req.user.id);
+      return this.coursesService.getMyCoursesAsLecturer(req.user.id, archiveStatus);
     }
     // Admin sees all
-    return this.coursesService.findAll(undefined, pagination);
+    return this.coursesService.findAll(undefined, pagination, archiveStatus);
   }
 
   @Get('my-courses')
-  getMyCourses(@Request() req) {
+  getMyCourses(@Request() req, @Query('archiveStatus') archiveStatus?: string) {
     if (req.user.role === 'STUDENT') {
       return this.coursesService.getMyCoursesAsStudent(req.user.id);
     }
-    return this.coursesService.getMyCoursesAsLecturer(req.user.id);
+    return this.coursesService.getMyCoursesAsLecturer(req.user.id, archiveStatus);
+  }
+
+  @Patch(':id/archive')
+  @UseGuards(RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  archive(@Param('id') id: string, @Request() req) {
+    return this.coursesService.archive(id, req.user);
+  }
+
+  @Patch(':id/restore')
+  @UseGuards(RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  restore(@Param('id') id: string, @Request() req) {
+    return this.coursesService.restore(id, req.user);
   }
 
   @Get('my-recent-courses')

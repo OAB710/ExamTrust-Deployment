@@ -12,13 +12,11 @@ import { AccessPolicyService } from '../common/services/access-policy.service';
 import { GenerateExamLinkDto, JoinExamLinkDto, UpdateExamLinkDto } from './dto/exam-link.dto';
 import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
-import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ExamLinksService {
   constructor(
     private prisma: PrismaService,
-    private notificationsService: NotificationsService,
     private readonly accessPolicy: AccessPolicyService,
   ) {}
 
@@ -87,21 +85,7 @@ export class ExamLinksService {
 
     const url = `${this.getAppBaseUrl()}/student/join/${token}`;
 
-    try {
-      if (created.exam) {
-        await this.notificationsService.create({
-          recipientId: userId,
-          kind: 'EXAM_LINK_CREATED',
-          title: 'Exam link generated',
-          message: `Secure join link for ${created.exam.title} has been generated.`,
-          link: `/lecturer/generate-link?examId=${examId}`,
-          priority: 'normal',
-          metadata: { examId, linkId: created.id },
-        });
-      }
-    } catch {
-      // Notification failures must not block link generation.
-    }
+
 
     return {
       id: created.id,
@@ -288,38 +272,7 @@ export class ExamLinksService {
       return saved;
     });
 
-    try {
-      const examOwner = await this.prisma.exam.findUnique({
-        where: { id: link.exam.id },
-        select: { creatorId: true, title: true },
-      });
 
-      if (context.userId) {
-        await this.notificationsService.create({
-          recipientId: context.userId,
-          kind: 'EXAM_LINK_USED',
-          title: 'Exam link accepted',
-          message: `You can now join ${link.exam.title}.`,
-          link: `/student/exam-ready?examId=${link.exam.id}`,
-          priority: 'low',
-          metadata: { examId: link.exam.id, linkId: link.id },
-        });
-      }
-
-      if (examOwner?.creatorId) {
-        await this.notificationsService.create({
-          recipientId: examOwner.creatorId,
-          kind: 'EXAM_LINK_USED',
-          title: 'Exam link was used',
-          message: `A student joined exam ${examOwner.title} via secure link.`,
-          link: `/lecturer/exam/${link.exam.id}/monitor`,
-          priority: 'normal',
-          metadata: { examId: link.exam.id, linkId: link.id, usedCount: updated.usedCount },
-        });
-      }
-    } catch {
-      // Notification failures must not block join by link.
-    }
 
     return {
       valid: true,
@@ -383,19 +336,7 @@ export class ExamLinksService {
       },
     });
 
-    try {
-      await this.notificationsService.create({
-        recipientId: userId,
-        kind: 'EXAM_LINK_UPDATED',
-        title: 'Exam link updated',
-        message: `Exam link settings were updated${updated.disabled ? ' and the link is now disabled' : ''}.`,
-        link: `/lecturer/generate-link?examId=${link.examId}`,
-        priority: updated.disabled ? 'high' : 'normal',
-        metadata: { linkId: updated.id, examId: link.examId, disabled: updated.disabled },
-      });
-    } catch {
-      // Notification failures must not block link updates.
-    }
+
 
     return {
       id: updated.id,

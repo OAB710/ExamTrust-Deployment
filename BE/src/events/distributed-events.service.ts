@@ -69,17 +69,6 @@ export class DistributedEventsService {
     return this.subscribeToChannel(channel);
   }
 
-  // Broadcast notification to role-based channel
-  async broadcastToRole(role: string, event: any): Promise<void> {
-    const channel = `role:${role}:notifications`;
-    await this.emitEvent(channel, event);
-  }
-
-  subscribeToRoleNotifications(role: string): Observable<any> {
-    const channel = `role:${role}:notifications`;
-    return this.subscribeToChannel(channel);
-  }
-
   // Clean up
   async disconnect(): Promise<void> {
     await this.redisSubscriber.quit();

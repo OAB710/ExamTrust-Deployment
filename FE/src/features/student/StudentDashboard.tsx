@@ -200,27 +200,6 @@ export default function StudentDashboard() {
     fetchData();
   }, []);
 
-  const notifications = [
-    {
-      id: "1",
-      type: "info" as const,
-      message:
-        examHistory.length > 0
-          ? `Đã có kết quả cho "${examHistory[0]?.exam?.title}"`
-          : "Không có thông báo mới",
-      time: addHours(new Date(), -2),
-    },
-    {
-      id: "2",
-      type: "warning" as const,
-      message:
-        upcomingExams.length > 0
-          ? `Nhắc lịch: "${upcomingExams[0]?.title}" sắp diễn ra`
-          : "Không có bài thi sắp tới",
-      time: addHours(new Date(), -5),
-    },
-  ];
-
   const avgScore =
     examHistory.length > 0
       ? Math.round(
@@ -539,7 +518,6 @@ export default function StudentDashboard() {
             </Card>
           </div>
 
-          {/* Notifications moved to header bell dropdown for compact responsive UI */}
         </div>
 
         {/* Recent Results */}

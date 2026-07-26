@@ -11,8 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNotificationPopup } from "@/contexts/NotificationPopupContext";
-import api from "@/lib/api";
 import { elapsedMs, logPerf, nowMs } from "@/lib/perf";
 
 const demoAccounts = [
@@ -29,7 +27,6 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const { login, isLoading } = useAuth();
-  const { addNotification } = useNotificationPopup();
   const router = useRouter();
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -41,33 +38,6 @@ export default function Login() {
       const loginStartedAt = nowMs();
       await login(email, password);
       logPerf(`login-submit-to-auth-complete=${elapsedMs(loginStartedAt)}ms`);
-      addNotification({
-        title: "Đăng nhập thành công",
-        message: "Phiên làm việc của bạn đã sẵn sàng.",
-        type: "success",
-      });
-
-      void (async () => {
-        const notificationsStartedAt = nowMs();
-        try {
-          const response = await api.getMyNotifications({ limit: 3, unreadOnly: true });
-          logPerf(`login-recent-notifications=${elapsedMs(notificationsStartedAt)}ms`);
-          const recentNotifications = response.data || [];
-          if (Array.isArray(recentNotifications)) {
-            recentNotifications.forEach((notification: any) => {
-              addNotification({
-                title: notification.title || "Thông báo",
-                message: notification.message || notification.content || "Bạn có thông báo mới.",
-                type: notification.type || "info",
-                timestamp: notification.createdAt ? new Date(notification.createdAt) : new Date(),
-              });
-            });
-          }
-        } catch (notificationError) {
-          console.debug("Could not fetch recent notifications:", notificationError);
-        }
-      })();
-
       const normalizedEmail = email.toLowerCase();
       logPerf(`complete-login-before-redirect=${elapsedMs(flowStartedAt)}ms`);
       if (normalizedEmail.includes("lecturer")) router.push("/lecturer");

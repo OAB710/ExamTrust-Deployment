@@ -3,7 +3,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { PaginationDto, buildPaginatedResult } from '../common/dto/pagination.dto';
-import { NotificationsService } from '../notifications/notifications.service';
 
 interface AuthUser {
   id: string;
@@ -14,7 +13,6 @@ interface AuthUser {
 export class CoursesService {
   constructor(
     private prisma: PrismaService,
-    private notificationsService: NotificationsService,
   ) {}
 
   private async assertLecturerExists(lecturerId: string) {
@@ -136,62 +134,15 @@ export class CoursesService {
       },
     });
 
-    try {
-      const inputs: any[] = [];
 
-      if (createdCourse.lecturer?.id) {
-        inputs.push({
-          recipientId: createdCourse.lecturer.id,
-          kind: 'COURSE_ASSIGNED',
-          title: 'Course assigned',
-          message: `You are assigned to ${createdCourse.code} - ${createdCourse.name}.`,
-          link: '/lecturer/courses',
-          priority: 'normal',
-          metadata: { courseId: createdCourse.id },
-        });
-      }
-
-      if (user.role === 'LECTURER') {
-        inputs.push({
-          recipientId: user.id,
-          kind: 'COURSE_CREATED',
-          title: 'Course created',
-          message: `Your course ${createdCourse.code} - ${createdCourse.name} was created successfully.`,
-          link: '/lecturer/courses',
-          priority: 'low',
-          metadata: { courseId: createdCourse.id },
-        });
-      }
-
-      const admins = await this.prisma.user.findMany({
-        where: { role: 'ADMIN', status: { not: 'deleted' } },
-        select: { id: true },
-      });
-
-      admins.forEach((admin) => {
-        if (admin.id !== user.id) {
-          inputs.push({
-            recipientId: admin.id,
-            kind: 'COURSE_CREATED',
-            title: 'New course created',
-            message: `${createdCourse.code} - ${createdCourse.name} has been created.`,
-            link: '/admin/courses',
-            priority: 'low',
-            metadata: { courseId: createdCourse.id, createdBy: user.id },
-          });
-        }
-      });
-
-      await this.notificationsService.createMany(inputs);
-    } catch {
-      // Notification failures must not block course creation.
-    }
 
     return createdCourse;
   }
 
-  async findAll(lecturerId?: string, pagination?: PaginationDto) {
-    const where = lecturerId ? { lecturerId } : undefined;
+  async findAll(lecturerId?: string, pagination?: PaginationDto, archiveStatus = 'active') {
+    const where: any = lecturerId ? { lecturerId } : {};
+    if (archiveStatus === 'archived') where.status = 'archived';
+    else if (archiveStatus !== 'all') where.status = { not: 'archived' };
     const page = pagination?.page || 1;
     const limit = pagination?.limit || 20;
 
@@ -265,6 +216,10 @@ export class CoursesService {
 
     await this.assertCanAccessCourse(course.id, course.lecturerId, user);
 
+    if (user.role === 'STUDENT' && course.status === 'archived') {
+      throw new NotFoundException('Course not found');
+    }
+
     return course;
   }
 
@@ -306,97 +261,60 @@ export class CoursesService {
       },
     });
 
-    try {
-      const enrollments = await this.prisma.enrollment.findMany({
-        where: { courseId: id },
-        select: { studentId: true },
-      });
 
-      const recipientIds = Array.from(
-        new Set([
-          ...enrollments.map((e) => e.studentId),
-          ...(updatedCourse.lecturer?.id ? [updatedCourse.lecturer.id] : []),
-        ]),
-      );
-
-      await this.notificationsService.createForUsers(recipientIds, {
-        kind: 'COURSE_UPDATED',
-        title: 'Course updated',
-        message: `${updatedCourse.code} - ${updatedCourse.name} has new updates.`,
-        link:
-          user.role === 'ADMIN'
-            ? '/admin/courses'
-            : `/lecturer/course/${updatedCourse.id}`,
-        priority: 'normal',
-        metadata: { courseId: updatedCourse.id },
-      });
-
-      if (user.role !== 'ADMIN') {
-        await this.notificationsService.createForRole('ADMIN', {
-          kind: 'COURSE_UPDATED',
-          title: 'Course modified',
-          message: `${updatedCourse.code} - ${updatedCourse.name} was updated by lecturer.`,
-          link: '/admin/courses',
-          priority: 'low',
-          metadata: { courseId: updatedCourse.id, updatedBy: user.id },
-        });
-      }
-    } catch {
-      // Notification failures must not block course updates.
-    }
 
     return updatedCourse;
   }
 
   async remove(id: string, user: AuthUser) {
+    await this.archive(id, user);
+    return { message: 'Course archived successfully' };
+  }
+
+  async archive(id: string, user: AuthUser) {
     const course = await this.prisma.course.findUnique({ where: { id } });
-
-    if (!course) {
-      throw new NotFoundException('Course not found');
-    }
-
+    if (!course) throw new NotFoundException('Course not found');
     await this.assertCanAccessCourse(course.id, course.lecturerId, user);
+    if (course.status === 'archived') {
+      throw new ConflictException('Course is already archived');
+    }
 
-    const impactedEnrollments = await this.prisma.enrollment.findMany({
-      where: { courseId: id },
-      select: { studentId: true },
+    const activeWork = await this.prisma.exam.count({
+      where: {
+        courseId: id,
+        OR: [
+          { status: 'ONGOING' },
+          { submissions: { some: { status: 'IN_PROGRESS' } } },
+        ],
+      },
     });
-
-    const impactedUserIds = Array.from(
-      new Set([
-        ...impactedEnrollments.map((e) => e.studentId),
-        ...(course.lecturerId ? [course.lecturerId] : []),
-      ]),
-    );
-
-    try {
-      await this.prisma.course.delete({ where: { id } });
-    } catch (error: any) {
-      if (error?.code === 'P2003') {
-        throw new ConflictException('Cannot delete course because it still has related data');
-      }
-      throw error;
+    if (activeWork > 0) {
+      throw new ConflictException('Không thể lưu trữ khóa học khi đang có bài thi hoặc lượt làm bài đang diễn ra.');
     }
 
-    try {
-      await this.notificationsService.createForUsers(impactedUserIds, {
-        kind: 'COURSE_DELETED',
-        title: 'Course removed',
-        message: `Course ${course.code} - ${course.name} has been removed from the system.`,
-        link: user.role === 'ADMIN' ? '/admin/courses' : '/lecturer/courses',
-        priority: 'high',
-        metadata: { courseId: course.id },
-      });
-    } catch {
-      // Notification failures must not block course deletion.
-    }
+    return this.prisma.course.update({
+      where: { id },
+      data: { status: 'archived', archivedAt: new Date(), archivedById: user.id },
+    });
+  }
 
-    return { message: 'Course deleted successfully' };
+  async restore(id: string, user: AuthUser) {
+    const course = await this.prisma.course.findUnique({ where: { id } });
+    if (!course) throw new NotFoundException('Course not found');
+    await this.assertCanAccessCourse(course.id, course.lecturerId, user);
+    if (course.status !== 'archived') {
+      throw new ConflictException('Course is not archived');
+    }
+    return this.prisma.course.update({
+      where: { id },
+      data: { status: 'active', archivedAt: null, archivedById: null },
+    });
   }
 
   async getMyCoursesAsStudent(studentId: string, limit?: number) {
     const courses = await this.prisma.course.findMany({
       where: {
+        status: { not: 'archived' },
         enrollments: {
           some: { studentId },
         },
@@ -520,9 +438,14 @@ export class CoursesService {
     });
   }
 
-  async getMyCoursesAsLecturer(lecturerId: string) {
+  async getMyCoursesAsLecturer(lecturerId: string, archiveStatus = 'active') {
     const courses = await this.prisma.course.findMany({
-      where: { lecturerId },
+      where: {
+        lecturerId,
+        ...(archiveStatus === 'archived'
+          ? { status: 'archived' }
+          : archiveStatus === 'all' ? {} : { status: { not: 'archived' } }),
+      },
       orderBy: { createdAt: 'desc' },
     });
 

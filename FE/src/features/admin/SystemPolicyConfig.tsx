@@ -72,11 +72,6 @@ export default function SystemPolicyConfig() {
   const [autoArchive, setAutoArchive] = useState(true);
   const [backupFrequency, setBackupFrequency] = useState("daily");
 
-  // Notification Policies
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [integrityAlertEmail, setIntegrityAlertEmail] = useState(true);
-  const [examReminderHours, setExamReminderHours] = useState("24");
-
   const [numberErrors, setNumberErrors] = useState<Record<string, string>>({});
 
   // System Maintenance
@@ -101,12 +96,6 @@ export default function SystemPolicyConfig() {
         getNumericInputError(maxLoginAttempts, {
           min: 1,
           max: 20,
-          integer: true,
-        }) || "",
-      examReminderHours:
-        getNumericInputError(examReminderHours, {
-          min: 1,
-          max: 72,
           integer: true,
         }) || "",
     };
@@ -528,73 +517,6 @@ export default function SystemPolicyConfig() {
                   checked={autoArchive}
                   onCheckedChange={setAutoArchive}
                 />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Notifications */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Bell className="h-4 w-4" />
-                <HelpedTitle help="Cấu hình các thông báo hệ thống và cảnh báo toàn vẹn gửi cho người liên quan.">
-                  Notification Policies
-                </HelpedTitle>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Email Notifications</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Send system notifications via email
-                  </p>
-                </div>
-                <Switch
-                  checked={emailNotifications}
-                  onCheckedChange={setEmailNotifications}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Integrity Alert Emails</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Send email alerts when integrity issues are detected
-                  </p>
-                </div>
-                <Switch
-                  checked={integrityAlertEmail}
-                  onCheckedChange={setIntegrityAlertEmail}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Exam Reminder (hours before)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={72}
-                  value={examReminderHours}
-                  onChange={(e) =>
-                    setExamReminderHours(sanitizeNumericInput(e.target.value))
-                  }
-                  onBlur={(e) =>
-                    setNumberErrors((prev) => ({
-                      ...prev,
-                      examReminderHours:
-                        getNumericInputError(e.target.value, {
-                          min: 1,
-                          max: 72,
-                          integer: true,
-                        }) || "",
-                    }))
-                  }
-                  className="w-24"
-                />
-                {numberErrors.examReminderHours ? (
-                  <p className="text-xs text-destructive">
-                    {numberErrors.examReminderHours}
-                  </p>
-                ) : null}
               </div>
             </CardContent>
           </Card>

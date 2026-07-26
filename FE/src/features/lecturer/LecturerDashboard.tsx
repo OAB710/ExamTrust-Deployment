@@ -184,6 +184,34 @@ const buildQuestionBankSummaries = (
     });
 };
 
+function AiAssistantCard() {
+  return (
+    <Card className="card-elevated h-full overflow-hidden relative">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5" />
+      <CardContent className="relative flex h-full flex-col justify-center pt-6">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+            <Sparkles className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-foreground">AI Assistant</h3>
+            <p className="text-xs text-muted-foreground">Tạo câu hỏi với AI</p>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Dùng AI để đề xuất câu hỏi từ tài liệu khóa học, sau đó giảng viên xem xét trước khi sử dụng.
+        </p>
+        <Button asChild variant="outline" className="w-full rounded-xl gap-2" size="sm">
+          <Link href="/lecturer/question-bank">
+            <Zap className="h-4 w-4" />
+            Mở ngân hàng câu hỏi
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function LecturerDashboard() {
   const { user } = useAuth();
   const [exams, setExams] = useState<Exam[]>([]);
@@ -219,25 +247,9 @@ export default function LecturerDashboard() {
     fetchData();
   }, []);
 
-  const alerts: {
-    id: string;
-    type: "info" | "warning";
-    title: string;
-    message: string;
-    time: Date;
-  }[] = [
-    {
-      id: "1",
-      type: "info",
-      title: "Trang tổng quan đã sẵn sàng",
-      message: `Bạn có ${courses.length} khóa học, ${exams.length} bài thi và ${questionCount} câu hỏi trong ngân hàng`,
-      time: addHours(new Date(), -2),
-    },
-  ];
-
   if (loading) {
     return (
-      <DashboardLayout notifications={alerts}>
+      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -251,7 +263,7 @@ export default function LecturerDashboard() {
   }
 
   return (
-    <DashboardLayout notifications={alerts}>
+    <DashboardLayout>
       <div className="space-y-8">
         {/* Header */}
         <div className="flex items-start justify-between">
@@ -275,13 +287,15 @@ export default function LecturerDashboard() {
           </Button>
         </div>
 
-        {/* Needs your attention */}
-        <AttentionSection />
+        <div className="grid items-stretch gap-6 xl:grid-cols-2">
+          <AttentionSection />
+          <AiAssistantCard />
+        </div>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+        <div className="grid items-stretch gap-6 xl:grid-cols-2">
           {/* Recent Exams */}
           <div>
-            <Card className="card-elevated">
+            <Card className="card-elevated flex h-full flex-col">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-lg font-bold">
@@ -301,7 +315,7 @@ export default function LecturerDashboard() {
                   </Link>
                 </Button>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1">
                 <div className="space-y-3">
                   {exams.length === 0 ? (
                     <div className="text-center py-12">
@@ -357,36 +371,36 @@ export default function LecturerDashboard() {
                       return (
                         <div
                           key={exam.id}
-                          className={`flex items-center justify-between rounded-xl border border-border/50 p-4 hover:bg-secondary/50 hover:border-primary/10 transition-all duration-200 animate-fade-in opacity-0 stagger-${i + 1}`}
+                          className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-xl border border-border/50 p-4 hover:bg-secondary/50 hover:border-primary/10 transition-all duration-200 animate-fade-in opacity-0 stagger-${i + 1}`}
                         >
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2.5">
-                              <h4 className="font-semibold text-foreground">
+                          <div className="min-w-0 space-y-2">
+                            <div className="flex min-w-0 items-start gap-2.5">
+                              <h4 className="line-clamp-2 font-semibold leading-5 text-foreground">
                                 {exam.title}
                               </h4>
                               {isExpired ? (
-                                <StatusBadge tone="danger">
+                                <StatusBadge tone="danger" className="shrink-0">
                                   Expired
                                 </StatusBadge>
                               ) : (
-                                <StatusBadge status={exam.status} domain="exam" />
+                                <StatusBadge status={exam.status} domain="exam" className="shrink-0" />
                               )}
                             </div>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                               <span className="font-medium">
                                 {exam.course?.code}
                               </span>
-                              <span className="flex items-center gap-1">
-                                <BookOpen className="h-3 w-3" />
+                              <span className="flex items-center gap-1 whitespace-nowrap">
+                                <BookOpen className="h-3.5 w-3.5" />
                                 {questionCount} câu hỏi
                               </span>
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
+                              <span className="flex items-center gap-1 whitespace-nowrap">
+                                <Clock className="h-3.5 w-3.5" />
                                 {exam.duration} phút
                               </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex shrink-0 items-center gap-3">
                             {exam.status === "COMPLETED" && (
                               <div className="text-right">
                                 <p className="text-lg font-bold text-foreground">
@@ -409,7 +423,7 @@ export default function LecturerDashboard() {
                                   </p>
                                 </div>
                               )}
-                            <Button size="sm" className="rounded-xl" asChild>
+                            <Button size="sm" className="min-w-28 rounded-xl" asChild>
                               <Link href={actionHref}>{actionLabel}</Link>
                             </Button>
                           </div>
@@ -423,8 +437,8 @@ export default function LecturerDashboard() {
           </div>
 
           {/* Right panel */}
-          <div className="space-y-6">
-            <Card className="card-elevated">
+          <div className="flex">
+            <Card className="card-elevated flex h-full w-full flex-col">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-bold">
                   <HelpedTitle help="Các khóa học có câu hỏi được cập nhật gần đây, giúp bạn nhanh chóng quay lại quản lý ngân hàng câu hỏi.">
@@ -435,7 +449,7 @@ export default function LecturerDashboard() {
                   Các khóa học có câu hỏi được cập nhật gần nhất
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="flex flex-1 flex-col space-y-3">
                 {questionBanks.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border/70 bg-muted/30 p-4 text-center">
                     <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -508,7 +522,7 @@ export default function LecturerDashboard() {
                   asChild
                   variant="outline"
                   size="sm"
-                  className="w-full rounded-xl"
+                  className="mt-auto w-full rounded-xl"
                 >
                   <Link href="/lecturer/question-bank">
                     Quản lý ngân hàng câu hỏi
@@ -518,7 +532,7 @@ export default function LecturerDashboard() {
             </Card>
 
             {/* AI Quick Action */}
-            <Card className="card-elevated overflow-hidden relative">
+            <Card className="hidden card-elevated overflow-hidden relative">
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5" />
               <CardContent className="pt-6 relative">
                 <div className="flex items-center gap-3 mb-3">

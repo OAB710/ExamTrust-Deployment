@@ -4,7 +4,6 @@ import { ReactNode, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNotifications } from "@/contexts/NotificationsContext";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -20,22 +19,14 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeft,
-  Bell,
   Menu,
   X,
   User,
-  CheckCheck,
-  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,49 +144,14 @@ const adminNavItems: NavItem[] = [
 
 interface DashboardLayoutProps {
   children: ReactNode;
-  notifications?: Array<{
-    id: string;
-    type?: "info" | "warning" | "error";
-    title: string;
-    message: string;
-    time?: string | Date;
-  }>;
 }
 
-export function DashboardLayout({
-  children,
-  notifications = [],
-}: DashboardLayoutProps) {
+export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const {
-    notifications: liveNotifications,
-    unreadCount,
-    loading: notificationsLoading,
-    markAsRead,
-    markAllAsRead,
-    removeNotification,
-  } = useNotifications();
-
-  const effectiveNotifications =
-    liveNotifications.length > 0
-      ? liveNotifications.map((item) => ({
-          id: item.id,
-          title: item.title,
-          message: item.message,
-          time: item.createdAt,
-          isRead: item.isRead,
-          link: item.link,
-        }))
-      : notifications.map((item) => ({
-          ...item,
-          isRead: false,
-          link: null,
-        }));
-
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
@@ -441,120 +397,6 @@ export function DashboardLayout({
             <div className="hidden lg:block" />
             <div className="flex items-center gap-1 sm:gap-2">
               <ThemeToggle compact />
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="relative text-muted-foreground hover:text-foreground h-8 w-8"
-                  >
-                    <Bell className="h-[18px] w-[18px]" />
-                    {unreadCount > 0 && (
-                      <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive" />
-                    )}
-                    <span className="sr-only">Thông báo</span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-80 p-0">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                    <span className="font-semibold text-sm">Thông báo</span>
-                    {unreadCount > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => void markAllAsRead()}
-                      >
-                        Đánh dấu đã đọc
-                      </Button>
-                    )}
-                  </div>
-                  {notificationsLoading ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
-                      <p className="text-sm">Đang tải thông báo...</p>
-                    </div>
-                  ) : effectiveNotifications.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
-                      <Bell className="h-8 w-8 mb-2 opacity-30" />
-                      <p className="text-sm">Chưa có thông báo mới</p>
-                    </div>
-                  ) : (
-                    <div className="max-h-[360px] overflow-y-auto p-2">
-                      {effectiveNotifications.map((item) => (
-                        <div
-                          key={item.id}
-                          className={cn(
-                            "rounded-lg px-3 py-2.5 hover:bg-muted/60",
-                            !item.isRead && "bg-primary/5",
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <button
-                              className="text-left flex-1"
-                              onClick={async () => {
-                                if (!item.isRead) await markAsRead(item.id);
-                                if (item.link) {
-                                  router.push(item.link);
-                                }
-                              }}
-                            >
-                              <p className="text-sm font-semibold text-foreground">
-                                {item.title}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {item.message}
-                              </p>
-                            </button>
-                            <div className="flex flex-col items-end gap-1">
-                              <span className="text-xs text-muted-foreground shrink-0">
-                                {item.time
-                                  ? new Date(item.time).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : ""}
-                              </span>
-                              <div className="flex items-center gap-1">
-                                {!item.isRead && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() => void markAsRead(item.id)}
-                                  >
-                                    <CheckCheck className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
-                                {liveNotifications.length > 0 && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 text-muted-foreground"
-                                    onClick={() =>
-                                      void removeNotification(item.id)
-                                    }
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="px-2 pt-1 pb-2">
-                        <Button
-                          variant="outline"
-                          className="w-full h-8 text-xs"
-                          onClick={() => router.push("/notifications")}
-                        >
-                          Xem tất cả thông báo
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </PopoverContent>
-              </Popover>
               <div className="h-6 w-px bg-border hidden sm:block" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

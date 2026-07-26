@@ -2,7 +2,6 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEnrollmentDto, BulkEnrollmentDto, BulkEnrollByEmailsDto, BulkImportStudentsDto, UpdateEnrollmentStatusDto } from './dto/enrollment.dto';
 import * as bcrypt from 'bcrypt';
-import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class EnrollmentsService {
@@ -31,7 +30,6 @@ export class EnrollmentsService {
 
   constructor(
     private prisma: PrismaService,
-    private notificationsService: NotificationsService,
   ) {}
 
   async create(createEnrollmentDto: CreateEnrollmentDto, user: { id: string; role: 'ADMIN' | 'LECTURER' | 'STUDENT' }) {
@@ -94,35 +92,7 @@ export class EnrollmentsService {
       },
     });
 
-    try {
-      const inputs: any[] = [
-        {
-          recipientId: enrollment.student.id,
-          kind: 'ENROLLMENT_CREATED',
-          title: 'Enrollment confirmed',
-          message: `You are enrolled in ${enrollment.course.code} - ${enrollment.course.name}.`,
-          link: `/student/course/${enrollment.course.id}`,
-          priority: 'normal',
-          metadata: { courseId: enrollment.course.id, enrollmentId: enrollment.id },
-        },
-      ];
 
-      if (course.lecturerId) {
-        inputs.push({
-          recipientId: course.lecturerId,
-          kind: 'ENROLLMENT_CREATED',
-          title: 'New student enrolled',
-          message: `${enrollment.student.fullName} joined ${enrollment.course.code}.`,
-          link: `/lecturer/course/${enrollment.course.id}`,
-          priority: 'low',
-          metadata: { courseId: enrollment.course.id, studentId: enrollment.student.id },
-        });
-      }
-
-      await this.notificationsService.createMany(inputs);
-    } catch {
-      // Notification failures must not block enrollment creation.
-    }
 
     return enrollment;
   }
@@ -183,36 +153,7 @@ export class EnrollmentsService {
       }
     }
 
-    try {
-      if (results.success.length > 0) {
-        await this.notificationsService.createForUsers(results.success, {
-          kind: 'ENROLLMENT_CREATED',
-          title: 'Enrollment confirmed',
-          message: `You have been enrolled in ${course.code} - ${course.name}.`,
-          link: `/student/course/${course.id}`,
-          priority: 'normal',
-          metadata: { courseId: course.id },
-        });
 
-        if (course.lecturerId) {
-          await this.notificationsService.create({
-            recipientId: course.lecturerId,
-            kind: 'ENROLLMENT_BULK_CREATED',
-            title: 'Bulk enrollment completed',
-            message: `${results.success.length} student(s) were enrolled into ${course.code}.`,
-            link: `/lecturer/course/${course.id}`,
-            priority: 'normal',
-            metadata: {
-              courseId: course.id,
-              successCount: results.success.length,
-              failedCount: results.failed.length,
-            },
-          });
-        }
-      }
-    } catch {
-      // Notification failures must not block bulk enroll flow.
-    }
 
     return results;
   }
@@ -265,43 +206,7 @@ export class EnrollmentsService {
       }
     }
 
-    try {
-      const successEmails = new Set(results.success.map((s) => s.email.toLowerCase().trim()));
-      if (successEmails.size > 0) {
-        const successStudents = await this.prisma.user.findMany({
-          where: {
-            role: 'STUDENT',
-            email: { in: Array.from(successEmails) },
-          },
-          select: { id: true },
-        });
 
-        await this.notificationsService.createForUsers(
-          successStudents.map((s) => s.id),
-          {
-            kind: 'ENROLLMENT_CREATED',
-            title: 'Enrollment confirmed',
-            message: `You have been enrolled in ${course.code} - ${course.name}.`,
-            link: `/student/course/${course.id}`,
-            priority: 'normal',
-            metadata: { courseId: course.id },
-          },
-        );
-      }
-
-      if (results.provisioned > 0) {
-        await this.notificationsService.createForRole('ADMIN', {
-          kind: 'USER_AUTO_PROVISIONED',
-          title: 'Student accounts auto-provisioned',
-          message: `${results.provisioned} new student account(s) were created during email enrollment.`,
-          link: '/admin/users',
-          priority: 'normal',
-          metadata: { courseId: course.id, provisioned: results.provisioned },
-        });
-      }
-    } catch {
-      // Notification failures must not block bulk-by-email flow.
-    }
 
     return results;
   }
@@ -386,62 +291,6 @@ export class EnrollmentsService {
         this.logger.error(`Bulk import failed for ${email}: ${err?.message}`);
         results.failed.push({ email, reason: err?.message ?? 'Unknown error', row: rowNum });
       }
-    }
-
-    // --- Notifications ---
-    try {
-      // Notify each successfully enrolled student
-      if (results.success.length > 0) {
-        const successEmails = results.success.map((s) => s.email);
-        const successStudents = await this.prisma.user.findMany({
-          where: { email: { in: successEmails }, role: 'STUDENT' },
-          select: { id: true },
-        });
-
-        await this.notificationsService.createForUsers(
-          successStudents.map((s) => s.id),
-          {
-            kind: 'ENROLLMENT_CREATED',
-            title: 'Enrollment confirmed',
-            message: `You have been enrolled in ${course.code} - ${course.name}.`,
-            link: `/student/course/${course.id}`,
-            priority: 'normal',
-            metadata: { courseId: course.id },
-          },
-        );
-
-        // Notify lecturer about bulk import result
-        if (course.lecturerId) {
-          await this.notificationsService.create({
-            recipientId: course.lecturerId,
-            kind: 'ENROLLMENT_BULK_CREATED',
-            title: 'Bulk import completed',
-            message: `${results.success.length} student(s) imported into ${course.code}. ${results.failed.length} row(s) skipped.`,
-            link: `/lecturer/course/${course.id}`,
-            priority: 'normal',
-            metadata: {
-              courseId: course.id,
-              successCount: results.success.length,
-              failedCount: results.failed.length,
-              provisionedCount: results.provisioned,
-            },
-          });
-        }
-      }
-
-      // Notify admins about auto-provisioned accounts
-      if (results.provisioned > 0) {
-        await this.notificationsService.createForRole('ADMIN', {
-          kind: 'USER_AUTO_PROVISIONED',
-          title: 'Student accounts auto-provisioned',
-          message: `${results.provisioned} new student account(s) were created during bulk import into ${course.code}.`,
-          link: '/admin/users',
-          priority: 'normal',
-          metadata: { courseId: course.id, provisioned: results.provisioned },
-        });
-      }
-    } catch {
-      // Notification failures must not block bulk import flow.
     }
 
     return results;
@@ -575,30 +424,7 @@ export class EnrollmentsService {
       },
     });
 
-    try {
-      const course = await this.prisma.course.findUnique({
-        where: { id: updated.course.id },
-        select: { lecturerId: true },
-      });
 
-      const recipients = Array.from(
-        new Set([
-          updated.student.id,
-          ...(course?.lecturerId ? [course.lecturerId] : []),
-        ]),
-      );
-
-      await this.notificationsService.createForUsers(recipients, {
-        kind: 'ENROLLMENT_STATUS_CHANGED',
-        title: 'Enrollment status updated',
-        message: `Enrollment status for ${updated.course.code} is now ${updated.status}.`,
-        link: `/student/course/${updated.course.id}`,
-        priority: 'normal',
-        metadata: { enrollmentId: updated.id, status: updated.status },
-      });
-    } catch {
-      // Notification failures must not block status update.
-    }
 
     return updated;
   }
@@ -624,24 +450,7 @@ export class EnrollmentsService {
 
     await this.prisma.enrollment.delete({ where: { id } });
 
-    try {
-      await this.notificationsService.createForUsers(
-        [
-          enrollment.student.id,
-          ...(enrollment.course.lecturerId ? [enrollment.course.lecturerId] : []),
-        ],
-        {
-          kind: 'ENROLLMENT_REMOVED',
-          title: 'Enrollment removed',
-          message: `${enrollment.student.fullName} is no longer enrolled in ${enrollment.course.code}.`,
-          link: '/lecturer/courses',
-          priority: 'high',
-          metadata: { courseId: enrollment.course.id },
-        },
-      );
-    } catch {
-      // Notification failures must not block enrollment removal.
-    }
+
 
     return { message: 'Enrollment removed successfully' };
   }
@@ -668,24 +477,7 @@ export class EnrollmentsService {
       where: { id: enrollment.id },
     });
 
-    try {
-      await this.notificationsService.createForUsers(
-        [
-          studentId,
-          ...(enrollment.course.lecturerId ? [enrollment.course.lecturerId] : []),
-        ],
-        {
-          kind: 'ENROLLMENT_REMOVED',
-          title: 'Enrollment removed',
-          message: `Enrollment in ${enrollment.course.code} has been removed.`,
-          link: '/student',
-          priority: 'high',
-          metadata: { courseId: enrollment.course.id },
-        },
-      );
-    } catch {
-      // Notification failures must not block enrollment removal.
-    }
+
 
     return { message: 'Enrollment removed successfully' };
   }

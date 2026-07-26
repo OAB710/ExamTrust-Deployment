@@ -38,6 +38,8 @@ import {
   MoreHorizontal,
   Users,
   Clock,
+  Archive,
+  RotateCcw,
 } from "lucide-react";
 import Link from "next/link";
 import { api, unwrapPaginatedData } from "@/lib/api";
@@ -93,6 +95,8 @@ const gradientClasses = [
 
 export default function CourseManagement() {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [archiveScope, setArchiveScope] = useState<"active" | "archived">("active");
+  const [courseActionId, setCourseActionId] = useState<string | null>(null);
   const [recentCourses, setRecentCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
@@ -106,13 +110,13 @@ export default function CourseManagement() {
 
   useEffect(() => {
     fetchCourses();
-  }, []);
+  }, [archiveScope]);
 
   const fetchCourses = async () => {
     try {
       setLoading(true);
       // Use my-courses which returns aggregated fields from the backend
-      const raw = await api.getMyCourses();
+      const raw = await api.getMyCourses(archiveScope);
       // Normalise: backend returns array directly (not paginated)
       const safeRelativeTime = (raw: any): string => {
         if (!raw) return "—";
@@ -146,6 +150,25 @@ export default function CourseManagement() {
       console.error("Failed to fetch courses:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleArchiveToggle = async (course: Course) => {
+    const restoring = archiveScope === "archived";
+    const confirmed = window.confirm(
+      restoring
+        ? `Khôi phục khóa học "${course.name}"?`
+        : `Lưu trữ khóa học "${course.name}"? Dữ liệu bài thi và kết quả vẫn được giữ lại.`,
+    );
+    if (!confirmed) return;
+    try {
+      setCourseActionId(course.id);
+      await (restoring ? api.restoreCourse(course.id) : api.archiveCourse(course.id));
+      setCourses((previous) => previous.filter((item) => item.id !== course.id));
+    } catch (error) {
+      console.error("Failed to update course archive state", error);
+    } finally {
+      setCourseActionId(null);
     }
   };
 
@@ -521,6 +544,13 @@ export default function CourseManagement() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Course overview</h2>
             <div className="flex items-center gap-2">
+              <Select value={archiveScope} onValueChange={(value) => setArchiveScope(value as "active" | "archived")}>
+                <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Các khóa học đang hoạt động</SelectItem>
+                  <SelectItem value="archived">Các khóa học đã được lưu trữ</SelectItem>
+                </SelectContent>
+              </Select>
               <Button variant="outline" size="sm" className="gap-2">
                 <Filter className="h-4 w-4" />
                 All (except removed from view)
@@ -574,8 +604,11 @@ export default function CourseManagement() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-white hover:bg-white/20"
+                                onClick={() => handleArchiveToggle(course)}
+                                disabled={courseActionId === course.id}
+                                title={archiveScope === "archived" ? "Khôi phục khóa học" : "Lưu trữ khóa học"}
                               >
-                                <MoreHorizontal className="h-4 w-4" />
+                                {courseActionId === course.id ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : archiveScope === "archived" ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
                               </Button>
                             </div>
                           </div>

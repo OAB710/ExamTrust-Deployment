@@ -10,7 +10,6 @@ import { SubmissionsModule } from './submissions/submissions.module';
 import { AiModule } from './ai/ai.module';
 import { ExamLinksModule } from './exam-links/exam-links.module';
 import { MailerModule } from './mailer/mailer.module';
-import { NotificationsModule } from './notifications/notifications.module';
 import { QuestionsContractsModule } from './questions-v2/questions-v2-contracts.module';
 import { SharedRedisModule } from './redis/redis.module';
 import { QueueModule } from './queue/queue.module';
@@ -40,7 +39,6 @@ import { LecturerDashboardModule } from './lecturer-dashboard/lecturer-dashboard
     SubmissionsModule,
     AiModule,
     ExamLinksModule,
-    NotificationsModule,
     QuestionsContractsModule,
     AuditModule,
     LecturerDashboardModule,
