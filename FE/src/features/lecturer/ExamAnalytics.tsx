@@ -143,10 +143,12 @@ function getCourseLabel(course?: QuestionCourseInfo | null) {
   return code || name;
 }
 
+// Bank questions store difficulty as an integer 1..10 (see QuestionEditor's
+// Easy/Medium/Hard buttons: 0.3/0.5/0.7 slider values * 10 => ~3/5/7).
 function getDifficultyLabel(value?: number | null) {
   const normalized = Number.isFinite(Number(value)) ? Math.round(Number(value)) : 1;
-  if (normalized <= 1) return { text: "Dễ", className: "text-emerald-600" };
-  if (normalized === 2) return { text: "Trung bình", className: "text-amber-600" };
+  if (normalized <= 4) return { text: "Dễ", className: "text-emerald-600" };
+  if (normalized === 5) return { text: "Trung bình", className: "text-amber-600" };
   return { text: "Khó", className: "text-rose-600" };
 }
 

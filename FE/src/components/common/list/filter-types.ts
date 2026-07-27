@@ -81,6 +81,7 @@ export type FilterDefinition =
       label: string;
       type: "date-range";
       showTime?: boolean;
+      hideLabel?: boolean;
     };
 
 export type FilterChip = {

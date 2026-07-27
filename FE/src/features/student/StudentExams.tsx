@@ -229,6 +229,7 @@ export default function StudentExams() {
         key: "startTime",
         label: "Thời gian bắt đầu",
         type: "date-range",
+        hideLabel: true,
       },
     ],
     [exams],
@@ -304,7 +305,7 @@ export default function StudentExams() {
     page * ITEMS_PER_PAGE,
   );
   const EXAM_ITEM_HEIGHT = 106;
-  const EXAM_LIST_MIN_HEIGHT = ITEMS_PER_PAGE * EXAM_ITEM_HEIGHT;
+  const EXAM_LIST_MIN_HEIGHT = Math.min(paginatedExams.length, ITEMS_PER_PAGE) * EXAM_ITEM_HEIGHT;
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
@@ -382,8 +383,6 @@ export default function StudentExams() {
               className="flex-1"
             />
             <FilterPanel
-              title="Bộ lọc bài thi"
-              description="Lọc theo trạng thái, khóa học và thời gian bắt đầu."
               filters={examFilterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>

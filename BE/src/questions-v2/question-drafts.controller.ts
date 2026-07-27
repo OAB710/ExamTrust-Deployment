@@ -28,7 +28,7 @@ import {
   RejectQuestionAiImprovementDto,
   UpdateQuestionAiImprovementDraftDto,
 } from './dto/question-ai-improvement.dto';
-import { CreateQuestionCrudDto, UpdateQuestionCrudDto } from './dto/question-crud.dto';
+import { CopyQuestionBankDto, CreateQuestionCrudDto, UpdateQuestionCrudDto } from './dto/question-crud.dto';
 import { ListQuestionsQueryDto } from './dto/question-v2-query.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { QuestionsService } from './questions-v2.service';
@@ -49,6 +49,11 @@ export class QuestionDraftsController {
   @Post('drafts')
   createDraft(@Body() dto: CreateQuestionDraftDto, @Request() req) {
     return this.questionsService.createDraft(dto, req.user);
+  }
+
+  @Post('copy-bank')
+  copyQuestionBank(@Body() dto: CopyQuestionBankDto, @Request() req) {
+    return this.questionsService.copyQuestionBank(dto, req.user);
   }
 
   @Patch('drafts/:draftId/steps/:stepKey')

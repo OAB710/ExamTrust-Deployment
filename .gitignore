@@ -11,6 +11,8 @@ dist/
 */dist/
 .next/
 */.next/
+.next-dev/
+*/.next-dev/
 .next-build/
 */.next-build/
 .open-next/

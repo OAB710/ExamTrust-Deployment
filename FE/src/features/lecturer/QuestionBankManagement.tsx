@@ -43,9 +43,17 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Search,
   Plus,
@@ -63,7 +71,9 @@ import {
   Database,
   Loader2,
   ChevronRight,
+  FolderInput,
 } from "lucide-react";
+import { toast } from "sonner";
 import api from "@/lib/api";
 import { unwrapPaginatedData } from "@/lib/api";
 
@@ -247,10 +257,12 @@ const typeLabels: Record<string, string> = {
   ORDERING: "Ordering",
 };
 
+// Backend stores difficulty as an integer 1..10 (see QuestionEditor's Easy/Medium/Hard
+// buttons: 0.3/0.5/0.7 slider values * 10 => ~3/5/7).
 const difficultyLabel = (d: number) => {
   const normalized = Number.isFinite(d) ? Math.round(d) : 1;
-  if (normalized <= 1) return { text: "Dễ", color: "text-green-600" };
-  if (normalized === 2) return { text: "Trung bình", color: "text-yellow-600" };
+  if (normalized <= 4) return { text: "Dễ", color: "text-green-600" };
+  if (normalized === 5) return { text: "Trung bình", color: "text-yellow-600" };
   return { text: "Khó", color: "text-red-600" };
 };
 
@@ -317,6 +329,9 @@ export default function QuestionBankManagement() {
   const QUESTIONS_PER_PAGE = 12;
   const COURSES_PER_PAGE = 12;
   const [coursePage, setCoursePage] = useState(1);
+  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+  const [copySourceCourseId, setCopySourceCourseId] = useState<string>("");
+  const [copyLoading, setCopyLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -574,6 +589,50 @@ export default function QuestionBankManagement() {
       setQuestions((prev) => [newQuestion, ...prev]);
     } catch (error) {
       console.error("Failed to duplicate question:", error);
+    }
+  };
+
+  const handleCopyQuestionBank = async () => {
+    const targetCourse = courses.find((c) => c.code === selectedCourse);
+    if (!targetCourse || !copySourceCourseId) return;
+
+    setCopyLoading(true);
+    try {
+      const result = await api.copyQuestionBank({
+        sourceCourseId: copySourceCourseId,
+        targetCourseId: targetCourse.id,
+      });
+      toast.success(
+        `Đã sao chép ${result.copied} câu hỏi${
+          result.skipped > 0 ? `, bỏ qua ${result.skipped} câu trùng` : ""
+        }.`,
+      );
+      setCopyDialogOpen(false);
+      setCopySourceCourseId("");
+
+      const firstPage = await api.listQuestions({ page: 1, limit: 100 });
+      const firstPageQuestions = unwrapPaginatedData<Question>(firstPage);
+      const pages = Math.max(1, Number(firstPage?.totalPages ?? 1));
+      if (pages === 1) {
+        setQuestions(firstPageQuestions);
+      } else {
+        const remainingPages = await Promise.all(
+          Array.from({ length: pages - 1 }, (_, i) =>
+            api.listQuestions({ page: i + 2, limit: 100 }),
+          ),
+        );
+        setQuestions([
+          ...firstPageQuestions,
+          ...remainingPages.flatMap((response) =>
+            unwrapPaginatedData<Question>(response),
+          ),
+        ]);
+      }
+    } catch (error) {
+      console.warn("Failed to copy question bank:", (error as Error)?.message ?? error);
+      toast.error("Sao chép ngân hàng câu hỏi thất bại. Vui lòng thử lại.");
+    } finally {
+      setCopyLoading(false);
     }
   };
 
@@ -1028,6 +1087,13 @@ export default function QuestionBankManagement() {
                   <BarChart3 className="h-4 w-4" /> Analytics
                 </Button>
                 <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setCopyDialogOpen(true)}
+                >
+                  <FolderInput className="h-4 w-4" /> Sao chép từ khóa học khác
+                </Button>
+                <Button
                   className="gap-2"
                   onClick={() =>
                     router.push(
@@ -1099,8 +1165,8 @@ export default function QuestionBankManagement() {
                               <ArrowUpDown className="h-3 w-3" />
                             </button>
                           </TableHead>
-                          <TableHead className="flex-1 min-w-48">Content</TableHead>
-                          <TableHead className="w-28">Type</TableHead>
+                          <TableHead className="min-w-48">Content</TableHead>
+                          <TableHead className="w-36 whitespace-nowrap">Type</TableHead>
                           <TableHead className="w-28 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <button
@@ -1124,10 +1190,10 @@ export default function QuestionBankManagement() {
                               <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                                 {formatUpdatedAt(question.updatedAt)}
                               </TableCell>
-                              <TableCell className="text-sm line-clamp-2">
-                                {question.content}
-                              </TableCell>
                               <TableCell className="text-sm">
+                                <span className="line-clamp-2">{question.content}</span>
+                              </TableCell>
+                              <TableCell className="text-sm whitespace-nowrap">
                                 {typeLabels[question.type] || question.type}
                               </TableCell>
                               <TableCell className="text-center">
@@ -1219,6 +1285,67 @@ export default function QuestionBankManagement() {
             })()}
           </>
         )}
+
+        {/* Copy Question Bank Dialog */}
+        <Dialog
+          open={copyDialogOpen}
+          onOpenChange={(open) => {
+            setCopyDialogOpen(open);
+            if (!open) setCopySourceCourseId("");
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Sao chép ngân hàng câu hỏi</DialogTitle>
+              <DialogDescription>
+                Sao chép các câu hỏi đã publish từ một khóa học khác vào{" "}
+                <strong>
+                  {courses.find((c) => c.code === selectedCourse)?.name ||
+                    selectedCourse}
+                </strong>
+                . Câu hỏi trùng nội dung sẽ được bỏ qua.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <Select
+                value={copySourceCourseId}
+                onValueChange={setCopySourceCourseId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn khóa học nguồn" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses
+                    .filter((c) => c.code !== selectedCourse)
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.code} — {c.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setCopyDialogOpen(false)}
+                disabled={copyLoading}
+              >
+                Hủy
+              </Button>
+              <Button
+                onClick={handleCopyQuestionBank}
+                disabled={!copySourceCourseId || copyLoading}
+              >
+                {copyLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Sao chép"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Preview Dialog */}
         <Dialog

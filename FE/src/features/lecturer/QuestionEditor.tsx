@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { api, unwrapPaginatedData } from "@/lib/api";
+import { api, ApiRequestError, unwrapPaginatedData } from "@/lib/api";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { HelpedTitle } from "@/components/common/ContextHelp";
 import {
@@ -78,10 +78,12 @@ export default function QuestionEditor() {
   const basePath = pathname.startsWith("/admin")
     ? "/admin"
     : "/lecturer";
-  const questionBankPath = `${basePath}/question-bank`;
   const searchParams = useSearchParams();
   const questionId = searchParams.get("id");
   const courseCodeParam = searchParams.get("courseCode");
+  const questionBankPath = courseCodeParam
+    ? `${basePath}/question-bank?courseCode=${encodeURIComponent(courseCodeParam)}`
+    : `${basePath}/question-bank`;
   const restoreDraftParam = searchParams.get("restoreDraft") === "1";
 
   const [loading, setLoading] = useState(false);
@@ -687,11 +689,13 @@ export default function QuestionEditor() {
 
       router.push(questionBankPath);
     } catch (error) {
-      console.error("Failed to save question:", error);
-      console.error("Question data that failed:", questionData);
+      console.warn("Failed to save question:", (error as Error)?.message ?? error);
+      console.warn("Question data that failed:", questionData);
       // Show user-friendly error message
       toast.error(
-        "Failed to save question. Please check the console for details.",
+        error instanceof ApiRequestError
+          ? error.message
+          : "Failed to save question. Please check the console for details.",
       );
     } finally {
       setSaving(false);

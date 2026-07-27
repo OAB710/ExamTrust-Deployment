@@ -1266,6 +1266,49 @@ export class ExamsService {
     });
   }
 
+  async getScheduleForStudent(studentId: string) {
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: {
+        studentId,
+        status: 'active',
+      },
+      select: {
+        courseId: true,
+      },
+    });
+
+    const courseIds = enrollments.map((e) => e.courseId);
+
+    return this.prisma.exam.findMany({
+      where: {
+        courseId: { in: courseIds },
+        deletedAt: null,
+        course: { status: { not: 'archived' } },
+        status: { in: ['PUBLISHED', 'ONGOING', 'COMPLETED'] },
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        startTime: true,
+        endTime: true,
+        duration: true,
+        totalPoints: true,
+        passingScore: true,
+        maxAttempts: true,
+        settings: true,
+        course: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ startTime: 'asc' }, { title: 'asc' }],
+    });
+  }
+
   async getExamStats(examId: string) {
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId },
