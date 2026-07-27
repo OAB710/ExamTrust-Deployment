@@ -246,7 +246,7 @@ export default function GradingBreakdown() {
   const mappedQuestions = (submission?.answers || []).map(
     (a: any, idx: number) => {
       const q = a.question || {};
-      const autoTypes = ["MULTIPLE_CHOICE", "MULTI_SELECT", "TRUE_FALSE"];
+      const autoTypes = ["MULTIPLE_CHOICE", "MULTI_SELECT", "TRUE_FALSE", "FIND_ERROR"];
       const type = autoTypes.includes(q.type) ? "auto" : "manual";
       return {
         id: idx + 1,

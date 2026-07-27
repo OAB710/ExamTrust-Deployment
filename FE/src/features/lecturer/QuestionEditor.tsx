@@ -40,6 +40,8 @@ import {
   CheckCircle2,
   Tag,
   GripVertical,
+  ChevronUp,
+  ChevronDown,
   Image,
   Music,
   Loader2,
@@ -56,6 +58,7 @@ interface Option {
   id: string;
   text: string;
   isCorrect: boolean;
+  match?: string;
 }
 
 interface Question {
@@ -233,19 +236,27 @@ export default function QuestionEditor() {
       errors.push("Course is required");
     }
 
-    if (questionType === "multiple_choice") {
+    if (questionType === "multiple_choice" || questionType === "find_error") {
       // Check minimum options
       const filledOptions = options.filter(o => o.text.trim());
       if (filledOptions.length < 2) {
-        errors.push("At least 2 answer options are required");
+        errors.push(
+          questionType === "find_error"
+            ? "At least 2 lines of code are required"
+            : "At least 2 answer options are required",
+        );
       }
       // Check for correct answer(s)
       const correctOptions = filledOptions.filter(o => o.isCorrect);
       if (correctOptions.length === 0) {
-        errors.push("Please select at least one correct answer");
+        errors.push(
+          questionType === "find_error"
+            ? "Please mark which line contains the error"
+            : "Please select at least one correct answer",
+        );
       }
       // If not allowing multiple answers, ensure only one is correct
-      if (!multipleAnswers && correctOptions.length > 1) {
+      if (questionType === "multiple_choice" && !multipleAnswers && correctOptions.length > 1) {
         errors.push("Only one answer can be correct when 'Allow Multiple Answers' is disabled");
       }
     }
@@ -261,9 +272,16 @@ export default function QuestionEditor() {
     }
 
     if (questionType === "matching") {
-      const filledPairs = options.filter(o => o.text.trim());
+      const filledPairs = options.filter(o => o.text.trim() && o.match?.trim());
       if (filledPairs.length < 2) {
-        errors.push("At least 2 matching pairs are required");
+        errors.push("At least 2 complete matching pairs (both sides filled) are required");
+      }
+    }
+
+    if (questionType === "ordering") {
+      const filledItems = options.filter(o => o.text.trim());
+      if (filledItems.length < 2) {
+        errors.push("At least 2 sequence items are required");
       }
     }
 
@@ -412,6 +430,7 @@ export default function QuestionEditor() {
       FILL_IN_BLANK: "fill_blank",
       MATCHING: "matching",
       ORDERING: "ordering",
+      FIND_ERROR: "find_error",
     };
 
     const frontendType =
@@ -435,7 +454,8 @@ export default function QuestionEditor() {
     if (
       questionData.type === "MULTIPLE_CHOICE" ||
       questionData.type === "MULTI_SELECT" ||
-      questionData.type === "SINGLE_CHOICE"
+      questionData.type === "SINGLE_CHOICE" ||
+      questionData.type === "FIND_ERROR"
     ) {
       console.log("Question options from backend:", questionData.options);
       console.log(
@@ -529,6 +549,36 @@ export default function QuestionEditor() {
         // Fallback for other formats
         setTfAnswer(questionData.correctAnswer ? "true" : "false");
       }
+    } else if (questionData.type === "MATCHING") {
+      const pairs = questionData.correctAnswer?.pairs;
+      if (Array.isArray(pairs)) {
+        setOptions(
+          pairs.map((pair: any, idx: number) => ({
+            id: String.fromCharCode(65 + idx),
+            text: pair?.left || "",
+            match: pair?.right || "",
+            isCorrect: false,
+          })),
+        );
+      }
+    } else if (questionData.type === "ORDERING") {
+      const items = questionData.correctAnswer?.items;
+      if (Array.isArray(items)) {
+        setOptions(
+          items.map((item: any, idx: number) => ({
+            id: String.fromCharCode(65 + idx),
+            text: String(item || ""),
+            isCorrect: false,
+          })),
+        );
+      }
+    } else if (
+      questionData.type === "ESSAY" ||
+      questionData.type === "SHORT_ANSWER"
+    ) {
+      const answer = questionData.correctAnswer?.answer;
+      setEssayRubric(typeof answer === "string" ? answer : "");
+      setEssayMaxScore(String(questionData.points || 10));
     }
 
     setLearningObjective(questionData.learningObjectives || "");
@@ -546,6 +596,22 @@ export default function QuestionEditor() {
 
   const updateOption = (id: string, text: string) => {
     setOptions(options.map((o) => (o.id === id ? { ...o, text } : o)));
+  };
+
+  const updateOptionMatch = (id: string, match: string) => {
+    setOptions(options.map((o) => (o.id === id ? { ...o, match } : o)));
+  };
+
+  const moveOption = (id: string, direction: "up" | "down") => {
+    setOptions((prev) => {
+      const idx = prev.findIndex((o) => o.id === id);
+      if (idx === -1) return prev;
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+      return next;
+    });
   };
 
   const setCorrectOption = (id: string) => {
@@ -624,6 +690,8 @@ export default function QuestionEditor() {
         backendType = "MATCHING";
       } else if (questionType === "ordering") {
         backendType = "ORDERING";
+      } else if (questionType === "find_error") {
+        backendType = "FIND_ERROR";
       } else {
         backendType = "MULTIPLE_CHOICE";
       }
@@ -633,9 +701,12 @@ export default function QuestionEditor() {
         content,
         explanation,
         difficulty: backendDifficulty,
-        points: 10, // Default points
+        points:
+          questionType === "essay"
+            ? parseInt(essayMaxScore, 10) || 10
+            : 10, // Default points
         options:
-          questionType === "multiple_choice"
+          questionType === "multiple_choice" || questionType === "find_error"
             ? options
                 .filter((opt) => opt.text.trim())
                 .reduce((acc, opt, idx) => {
@@ -649,7 +720,7 @@ export default function QuestionEditor() {
                 }
               : {},
         correctAnswer:
-          questionType === "multiple_choice"
+          questionType === "multiple_choice" || questionType === "find_error"
             ? {
                   answer: options
                     .filter((opt) => opt.isCorrect)
@@ -658,7 +729,21 @@ export default function QuestionEditor() {
                 } // Format: {answer: "A,C"}
               : questionType === "true_false"
                 ? { answer: tfAnswer === "true" ? "A" : "B" }
-                : {},
+                : questionType === "matching"
+                  ? {
+                      pairs: options
+                        .filter((opt) => opt.text.trim() && opt.match?.trim())
+                        .map((opt) => ({ left: opt.text, right: opt.match })),
+                    }
+                  : questionType === "ordering"
+                    ? {
+                        items: options
+                          .filter((opt) => opt.text.trim())
+                          .map((opt) => opt.text),
+                      }
+                    : questionType === "essay"
+                      ? { answer: essayRubric }
+                      : {},
       };
 
       if (questionId) {
@@ -723,6 +808,7 @@ export default function QuestionEditor() {
         fill_blank: "FILL_IN_BLANK",
         matching: "MATCHING",
         ordering: "ORDERING",
+        find_error: "FIND_ERROR",
       };
       const mappedType = backendTypeMap[questionType] || "MULTIPLE_CHOICE";
 
@@ -774,7 +860,8 @@ export default function QuestionEditor() {
       if (
         result.options &&
         (questionType === "multiple_choice" ||
-          questionType === "true_false")
+          questionType === "true_false" ||
+          questionType === "find_error")
       ) {
         const newOptions = Object.entries(result.options).map(
           ([key, text]) => ({
@@ -783,6 +870,33 @@ export default function QuestionEditor() {
             isCorrect: result.correctAnswer?.answer === key,
           }),
         );
+        if (newOptions.length > 0) setOptions(newOptions);
+      }
+
+      // Fill in grading rubric for essay/short answer
+      if (questionType === "essay" && result.correctAnswer?.answer) {
+        setEssayRubric(result.correctAnswer.answer);
+        if (result.points) setEssayMaxScore(String(result.points));
+      }
+
+      // Fill in matching pairs
+      if (questionType === "matching" && Array.isArray(result.pairs)) {
+        const newOptions = result.pairs.map((pair, idx) => ({
+          id: String.fromCharCode(65 + idx),
+          text: pair.left || "",
+          match: pair.right || "",
+          isCorrect: false,
+        }));
+        if (newOptions.length > 0) setOptions(newOptions);
+      }
+
+      // Fill in ordering sequence
+      if (questionType === "ordering" && Array.isArray(result.items)) {
+        const newOptions = result.items.map((item, idx) => ({
+          id: String.fromCharCode(65 + idx),
+          text: item || "",
+          isCorrect: false,
+        }));
         if (newOptions.length > 0) setOptions(newOptions);
       }
 
@@ -1375,13 +1489,14 @@ export default function QuestionEditor() {
                           {questionType === "essay" && "Grading Rubric"}
                           {/* Removed Blank Configurations label for fill_blank as helper now lives in Question Content */}
                           {questionType === "matching" && "Matching Pairs"}
-                          {questionType === "find_error" && "Code Segments"}
+                          {questionType === "find_error" && "Code Lines"}
                           {questionType === "ordering" && "Sequence Items"}
                         </CardTitle>
                         <div className="flex items-center gap-2">
                           {(questionType === "multiple_choice" ||
                             questionType === "ordering" ||
-                            questionType === "matching") &&
+                            questionType === "matching" ||
+                            questionType === "find_error") &&
                             options.length < 8 && (
                               <Button
                                 variant="outline"
@@ -1417,22 +1532,65 @@ export default function QuestionEditor() {
                         </div>
                       )}
 
+                      {questionType === "find_error" && (
+                        <div className="mb-2 p-2 sm:p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <p className="text-xs sm:text-sm text-amber-800 font-medium mb-0.5 sm:mb-1">
+                            💡 How this works:
+                          </p>
+                          <p className="text-[11px] sm:text-xs text-amber-700">
+                            Put a short intro/prompt in "Question Content" above (e.g. "Find the
+                            bug in this function:"). Below, type each line of code as a separate
+                            row, in order, and click the circle next to the line that contains
+                            the error.
+                          </p>
+                        </div>
+                      )}
+
                       {(questionType === "multiple_choice" ||
                         questionType === "ordering" ||
-                        questionType === "matching") &&
+                        questionType === "matching" ||
+                        questionType === "find_error") &&
                         options.map((opt, idx) => (
                           <div
                             key={opt.id}
                             className="flex items-center gap-2 sm:gap-3"
                           >
                             {/* Drag handle - only for draggable types */}
-                            {(questionType === "ordering" ||
-                              questionType === "matching") && (
+                            {questionType === "matching" && (
                               <GripVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground cursor-move flex-shrink-0" />
                             )}
 
-                            {/* Correct/Incorrect toggle - only for multiple choice */}
-                            {questionType === "multiple_choice" && (
+                            {/* Reorder buttons - only for ordering (sequence matters) */}
+                            {questionType === "ordering" && (
+                              <div className="flex flex-col gap-0.5 flex-shrink-0">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-4 w-6 p-0"
+                                  disabled={idx === 0}
+                                  onClick={() => moveOption(opt.id, "up")}
+                                  title="Move up"
+                                >
+                                  <ChevronUp className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-4 w-6 p-0"
+                                  disabled={idx === options.length - 1}
+                                  onClick={() => moveOption(opt.id, "down")}
+                                  title="Move down"
+                                >
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Correct/Incorrect toggle - multiple choice and find-the-error */}
+                            {(questionType === "multiple_choice" ||
+                              questionType === "find_error") && (
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -1440,13 +1598,21 @@ export default function QuestionEditor() {
                                       onClick={() => setCorrectOption(opt.id)}
                                       className={`flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full border-2 text-xs sm:text-sm font-medium transition-all duration-200 flex-shrink-0 ${
                                         opt.isCorrect
-                                          ? "border-green-500 bg-green-100 text-green-700 shadow-lg scale-110"
-                                          : "border-gray-300 hover:border-green-400 text-muted-foreground hover:bg-green-50 hover:scale-105"
+                                          ? questionType === "find_error"
+                                            ? "border-destructive bg-destructive/10 text-destructive shadow-lg scale-110"
+                                            : "border-green-500 bg-green-100 text-green-700 shadow-lg scale-110"
+                                          : questionType === "find_error"
+                                            ? "border-gray-300 hover:border-destructive text-muted-foreground hover:bg-destructive/5 hover:scale-105"
+                                            : "border-gray-300 hover:border-green-400 text-muted-foreground hover:bg-green-50 hover:scale-105"
                                       }`}
                                       title={
-                                        opt.isCorrect
-                                          ? "Correct answer"
-                                          : "Click to mark as correct"
+                                        questionType === "find_error"
+                                          ? opt.isCorrect
+                                            ? "This line contains the error"
+                                            : "Click to mark as the buggy line"
+                                          : opt.isCorrect
+                                            ? "Correct answer"
+                                            : "Click to mark as correct"
                                       }
                                     >
                                       {opt.isCorrect ? (
@@ -1458,9 +1624,13 @@ export default function QuestionEditor() {
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     <p>
-                                      {opt.isCorrect
-                                        ? "✅ Correct answer"
-                                        : "⭕ Click to mark as correct"}
+                                      {questionType === "find_error"
+                                        ? opt.isCorrect
+                                          ? "🐛 This line contains the error"
+                                          : "Click to mark as the buggy line"
+                                        : opt.isCorrect
+                                          ? "✅ Correct answer"
+                                          : "⭕ Click to mark as correct"}
                                     </p>
                                   </TooltipContent>
                                 </Tooltip>
@@ -1479,13 +1649,17 @@ export default function QuestionEditor() {
                               placeholder={
                                 questionType === "matching"
                                   ? "Concept..."
-                                  : `Option ${opt.id}`
+                                  : questionType === "find_error"
+                                    ? `Line of code...`
+                                    : `Option ${opt.id}`
                               }
                               value={opt.text}
                               onChange={(e) =>
                                 updateOption(opt.id, e.target.value)
                               }
-                              className="flex-1 text-sm min-w-0"
+                              className={`flex-1 text-sm min-w-0 ${
+                                questionType === "find_error" ? "font-mono" : ""
+                              }`}
                             />
 
                             {/* Matching pair input */}
@@ -1496,6 +1670,10 @@ export default function QuestionEditor() {
                                 </span>
                                 <Input
                                   placeholder="Match..."
+                                  value={opt.match || ""}
+                                  onChange={(e) =>
+                                    updateOptionMatch(opt.id, e.target.value)
+                                  }
                                   className="flex-1 text-sm min-w-0"
                                 />
                               </>
@@ -1579,27 +1757,6 @@ export default function QuestionEditor() {
                       )}
 
                       {/* Removed duplicate Blank Configuration box — helper now lives in Question Content above */}
-
-                      {questionType === "find_error" && (
-                        <div className="space-y-4">
-                          <div className="p-4 border rounded-lg bg-secondary/20 font-mono text-sm">
-                            <p className="text-muted-foreground mb-2">
-                              Select the line or phrase that contains the error.
-                            </p>
-                            <div className="p-3 bg-card border rounded space-y-1">
-                              <div className="hover:bg-destructive/10 p-1 cursor-pointer rounded">
-                                1. function calculate(a, b) {"{"}{" "}
-                              </div>
-                              <div className="hover:bg-destructive/10 p-1 cursor-pointer rounded">
-                                2. return a + c; // Click to mark as error{" "}
-                              </div>
-                              <div className="hover:bg-destructive/10 p-1 cursor-pointer rounded">
-                                3. {"}"}{" "}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
 
                       {questionType === "essay" && (
                         <div className="space-y-3 sm:space-y-4">

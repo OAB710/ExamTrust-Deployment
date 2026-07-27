@@ -144,8 +144,7 @@ You MUST respond with a valid JSON object (no markdown, no code fences, just pur
   "difficulty": ${difficulty},
   "points": <appropriate points 1-10>,
   "topic": "specific topic name",
-  "learningObjective": "Action verb + what students should be able to do",
-  ${this.getOptionsInstruction(questionType)}
+  "learningObjective": "Action verb + what students should be able to do"${this.getOptionsInstruction(questionType) ? `,\n  ${this.getOptionsInstruction(questionType)}` : ''}
 }
 
 Rules:
@@ -153,6 +152,10 @@ Rules:
 - For multiple choice: provide exactly 4 options (A, B, C, D), only one correct
 - For true/false: options should be {"A": "True", "B": "False"}
 - For essay/short answer: omit options, set correctAnswer to {"answer": "sample answer guideline"}
+- For fill in the blank: do NOT include "options" or "correctAnswer". Instead, embed every blank directly inside "content" using double square brackets around the correct answer, e.g. "The capital of France is [[Paris]]." or "What is the sum of 7 and 5? [[12]]." Every blank must have its answer inside the brackets.
+- For matching: do NOT include "options" or "correctAnswer". Instead provide exactly 4 "pairs", each a {"left", "right"} object; "content" should be the matching instructions/prompt, not the pairs themselves.
+- For ordering: do NOT include "options" or "correctAnswer". Instead provide exactly 4 "items" as an array of strings already sorted in the single correct order; "content" should be the instructions asking the student to arrange them, not the items themselves.
+- For find the error: "content" should be a short intro/prompt only (e.g. "Find the bug in this function:"), NOT the code itself. Split the code/text snippet into exactly 4 lines and put each line as one option (A-D), in the same order as the original snippet, preserving exact whitespace/syntax of that line. Set "correctAnswer" to the letter of the ONE line that contains the bug.
 - Tags should be relevant academic topics (2-4 tags)
 // Tags removed from schema - do not request tags
 - Points should reflect difficulty (easy: 1-3, medium: 3-5, hard: 5-10)
@@ -187,8 +190,8 @@ Rules:
           explanation: 'This is a mocked explanation for development.',
           difficulty: Math.round(difficulty * 4) / 4,
           points: 1,
-          options: questionType === 'MULTIPLE_CHOICE' ? { A: 'Option A', B: 'Option B', C: 'Option C', D: 'Option D' } : null,
-          correctAnswer: questionType === 'MULTIPLE_CHOICE' ? { answer: 'A' } : null,
+          options: questionType === 'MULTIPLE_CHOICE' || questionType === 'FIND_ERROR' ? { A: 'Option A', B: 'Option B', C: 'Option C', D: 'Option D' } : null,
+          correctAnswer: questionType === 'MULTIPLE_CHOICE' || questionType === 'FIND_ERROR' ? { answer: 'A' } : null,
         });
       } else {
         const result = await this.model.generateContent(systemPrompt);
@@ -224,6 +227,8 @@ Rules:
         learningObjective: parsed.learningObjective || '',
         options: parsed.options || null,
         correctAnswer: parsed.correctAnswer || null,
+        pairs: Array.isArray(parsed.pairs) ? parsed.pairs : null,
+        items: Array.isArray(parsed.items) ? parsed.items : null,
       };
     } catch (error: any) {
       this.logger.error('Failed to generate question:', error);
@@ -1130,8 +1135,9 @@ Rules:
       SHORT_ANSWER: 'short answer',
       ESSAY: 'essay',
       FILL_IN_BLANK: 'fill in the blank',
-      MATCHING: 'matching',
-      ORDERING: 'ordering',
+      MATCHING: 'matching (4 left-right pairs to match)',
+      ORDERING: 'ordering (4 items to arrange in the correct sequence)',
+      FIND_ERROR: 'find the error (identify the bug in a short code/text snippet)',
     };
     return labels[type] || 'multiple choice';
   }
@@ -1139,12 +1145,19 @@ Rules:
   private getOptionsInstruction(type: string): string {
     switch (type) {
       case 'MULTIPLE_CHOICE':
+      case 'FIND_ERROR':
         return '"options": {"A": "option text", "B": "option text", "C": "option text", "D": "option text"},\n  "correctAnswer": {"answer": "B"}';
       case 'TRUE_FALSE':
         return '"options": {"A": "True", "B": "False"},\n  "correctAnswer": {"answer": "A"}';
       case 'ESSAY':
       case 'SHORT_ANSWER':
         return '"correctAnswer": {"answer": "expected answer guideline"}';
+      case 'FILL_IN_BLANK':
+        return '';
+      case 'MATCHING':
+        return '"pairs": [{"left": "term or item", "right": "matching definition or counterpart"}, {"left": "...", "right": "..."}, {"left": "...", "right": "..."}, {"left": "...", "right": "..."}]';
+      case 'ORDERING':
+        return '"items": ["first step or item, in the correct order", "second step or item", "third step or item", "fourth step or item"]';
       default:
         return '"options": {"A": "option text", "B": "option text", "C": "option text", "D": "option text"},\n  "correctAnswer": {"answer": "B"}';
     }
@@ -1166,11 +1179,13 @@ Rules:
       FILL_IN_BLANK: 'FILL_IN_BLANK',
       MATCHING: 'MATCHING',
       ORDERING: 'ORDERING',
+      FIND_ERROR: 'FIND_ERROR',
       'SINGLE-CHOICE': 'MULTIPLE_CHOICE',
       'MULTIPLE-CHOICE': 'MULTIPLE_CHOICE',
       'TRUE-FALSE': 'TRUE_FALSE',
       'SHORT-ANSWER': 'SHORT_ANSWER',
       'FILL-BLANK': 'FILL_IN_BLANK',
+      'FIND-ERROR': 'FIND_ERROR',
     };
 
     return map[normalized] || 'MIXED';

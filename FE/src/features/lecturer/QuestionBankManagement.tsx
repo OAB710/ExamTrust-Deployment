@@ -255,6 +255,7 @@ const typeLabels: Record<string, string> = {
   FILL_IN_BLANK: "Fill in Blank",
   MATCHING: "Matching",
   ORDERING: "Ordering",
+  FIND_ERROR: "Find the Error",
 };
 
 // Backend stores difficulty as an integer 1..10 (see QuestionEditor's Easy/Medium/Hard

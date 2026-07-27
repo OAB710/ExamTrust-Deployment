@@ -423,6 +423,7 @@ class ApiClient {
       'FILL_IN_BLANK',
       'MATCHING',
       'ORDERING',
+      'FIND_ERROR',
     ]);
     return allowed.has(normalized) ? normalized : 'MULTIPLE_CHOICE';
   }
@@ -1179,6 +1180,8 @@ class ApiClient {
       learningObjective?: string;
       options?: Record<string, string> | null;
       correctAnswer?: Record<string, string> | null;
+      pairs?: { left: string; right: string }[] | null;
+      items?: string[] | null;
     }>('/ai/generate-question', {
       method: 'POST',
       body: data,
@@ -1195,6 +1198,8 @@ class ApiClient {
         learningObjective?: string;
         options: Record<string, string> | null;
         correctAnswer: Record<string, string> | null;
+        pairs?: { left: string; right: string }[] | null;
+        items?: string[] | null;
       }>(response.jobId);
     }
 

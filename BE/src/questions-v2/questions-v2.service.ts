@@ -83,6 +83,7 @@ export class QuestionsService {
       'FILL_IN_BLANK',
       'MATCHING',
       'ORDERING',
+      'FIND_ERROR',
     ]);
     if (allowed.has(type)) return type;
     if (type === 'SINGLE_CHOICE') return 'MULTIPLE_CHOICE';
@@ -1140,7 +1141,7 @@ export class QuestionsService {
     const options = state?.answers?.options || {};
     const correctAnswer = state?.answers?.correctAnswer || {};
 
-    if (['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE'].includes(type)) {
+    if (['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'FIND_ERROR'].includes(type)) {
       const optionList = Array.isArray(options) ? options : Object.values(options || {});
       const filled = optionList.filter((x: any) => String(x || '').trim());
       if (filled.length < 2) {

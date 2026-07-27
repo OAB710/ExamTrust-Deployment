@@ -37,7 +37,7 @@ export class GradingProcessor {
       }
 
       // Check if there are manual-grade questions
-      const autoGradedTypes = ['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE'];
+      const autoGradedTypes = ['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'FIND_ERROR'];
       const hasManualGrading = submission.exam.examQuestions.some(
         (eq) => !autoGradedTypes.includes(eq.question.type),
       );
