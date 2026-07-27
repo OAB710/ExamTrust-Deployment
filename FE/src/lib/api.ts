@@ -919,10 +919,10 @@ class ApiClient {
     return this.request<any>(`/submissions${query}`);
   }
 
-  async startExam(examId: string) {
+  async startExam(examId: string, options?: { isMobileOrTablet?: boolean }) {
     return this.request<any>('/submissions/start', {
       method: 'POST',
-      body: { examId },
+      body: { examId, ...options },
     });
   }
 

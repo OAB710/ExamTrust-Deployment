@@ -101,6 +101,7 @@ interface ExamForm {
   course: string;
   description: string;
   duration: string;
+  unlimitedTime: boolean;
   maxAttempts: string;
   gradingStrategy: "HIGHEST" | "AVERAGE" | "FIRST_ATTEMPT" | "LAST_ATTEMPT";
   passingScore: string;
@@ -220,6 +221,7 @@ const createDefaultForm = (): ExamForm => {
     course: "",
     description: "",
     duration: "60",
+    unlimitedTime: false,
     maxAttempts: "1",
     gradingStrategy: "HIGHEST",
     passingScore: "50",
@@ -418,6 +420,15 @@ export default function CreateExam() {
     () => getCurrentCourseTerm(),
   );
   const isSingleAttempt = form.maxAttempts === "1";
+  const hasUnlimitedAttempts = form.maxAttempts === "unlimited";
+  const proctoringForcedOff = hasUnlimitedAttempts || form.unlimitedTime;
+  const effectiveProctoring = form.requiresProctoring && !proctoringForcedOff;
+
+  useEffect(() => {
+    if (proctoringForcedOff && form.requiresProctoring) {
+      setForm((current) => ({ ...current, requiresProctoring: false }));
+    }
+  }, [form.requiresProctoring, proctoringForcedOff]);
 
   useEffect(() => {
     if (isSingleAttempt && form.allowLateSubmission) {
@@ -891,7 +902,7 @@ export default function CreateExam() {
     if (step === "info") return form.title.trim() !== "" && form.course !== "";
     if (step === "settings")
       return (
-        form.duration !== "" && form.startDate !== "" && form.endDate !== ""
+        (form.unlimitedTime || form.duration !== "") && form.startDate !== "" && form.endDate !== ""
       );
     return true;
   };
@@ -905,7 +916,7 @@ export default function CreateExam() {
       : undefined;
 
     try {
-      const durationError = getNumericInputError(form.duration, { min: 5, integer: true });
+      const durationError = form.unlimitedTime ? "" : getNumericInputError(form.duration, { min: 5, integer: true });
       const passingScoreError = getNumericInputError(form.passingScore, {
         min: 0,
         max: 100,
@@ -981,7 +992,8 @@ export default function CreateExam() {
         title: form.title.trim(),
         description: form.description.trim() || undefined,
         courseId: form.course,
-        duration: parseNumericInput(form.duration, { min: 5, integer: true })!,
+        duration: parseNumericInput(form.duration, { min: 5, integer: true }) || 60,
+        timeLimitMinutes: form.unlimitedTime ? null : parseNumericInput(form.duration, { min: 5, integer: true }),
         passingScore: parseNumericInput(form.passingScore, {
           min: 0,
           max: 100,
@@ -990,7 +1002,7 @@ export default function CreateExam() {
         startTime,
         endTime,
         maxAttempts:
-          form.maxAttempts.trim() === ""
+          form.maxAttempts === "unlimited"
             ? null
             : parseNumericInput(form.maxAttempts, { min: 1, integer: true }),
         gradingStrategy: form.gradingStrategy,
@@ -1023,11 +1035,14 @@ export default function CreateExam() {
         },
         questionIds,
         settings: {
-          maxAttempts: parseNumericInput(form.maxAttempts, {
+          maxAttempts: form.maxAttempts === "unlimited" ? null : parseNumericInput(form.maxAttempts, {
             min: 1,
             integer: true,
-          }) || 1,
-          requiresProctoring: form.requiresProctoring,
+          }),
+          timeLimitMinutes: form.unlimitedTime ? null : parseNumericInput(form.duration, { min: 5, integer: true }),
+          requiresProctoring: effectiveProctoring,
+          proctoringEnabled: effectiveProctoring,
+          devicePolicy: effectiveProctoring ? "DESKTOP_ONLY" : "ANY",
           allowLateSubmission: form.allowLateSubmission,
           shuffleQuestions: form.shuffleQuestions,
           showResultImmediately: form.showResultImmediately,
@@ -1491,6 +1506,7 @@ export default function CreateExam() {
                     <Input
                       type="number"
                       value={form.duration}
+                      disabled={form.unlimitedTime}
                       onChange={(e) =>
                         set(
                           "duration",
@@ -1515,6 +1531,10 @@ export default function CreateExam() {
                         {numberErrors.duration}
                       </p>
                     ) : null}
+                    <div className="mt-2 flex items-center gap-2 text-xs">
+                      <Switch checked={form.unlimitedTime} onCheckedChange={(v) => set("unlimitedTime", v)} />
+                      <span>Không giới hạn thời gian</span>
+                    </div>
                   </div>
                   <div>
                     <Label>Điểm đạt (%)</Label>
@@ -1561,6 +1581,7 @@ export default function CreateExam() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="unlimited">Không giới hạn</SelectItem>
                         {MAX_ATTEMPT_OPTIONS.map((option) => (
                           <SelectItem key={option} value={option}>
                             {option}
@@ -1685,7 +1706,7 @@ export default function CreateExam() {
                       <Switch
                         checked={form[key] as boolean}
                         onCheckedChange={(v) => set(key, v)}
-                        disabled={key === "allowLateSubmission" && isSingleAttempt}
+                        disabled={(key === "allowLateSubmission" && isSingleAttempt) || (key === "requiresProctoring" && proctoringForcedOff)}
                       />
                     </div>
                   ))}
@@ -1695,6 +1716,7 @@ export default function CreateExam() {
                     Late submission is locked because max attempts is set to 1.
                   </p>
                 ) : null}
+                {proctoringForcedOff ? <p className="text-xs text-muted-foreground">Giám sát AI được tự động tắt vì bài kiểm tra không giới hạn thời gian hoặc lượt làm.</p> : null}
 
                 <Separator />
                 <div className="space-y-4">
