@@ -765,7 +765,9 @@ export class SubmissionsService {
           answer: answerDto.answer,
           timeTaken: answerDto.timeTaken,
           isCorrect,
-          pointsAwarded,
+          // A zero point is a legitimate manual score. Leave it null until an
+          // instructor explicitly grades the response.
+          pointsAwarded: AUTO_GRADED_TYPES.has(examQuestion.type) ? pointsAwarded : null,
         };
       });
 
@@ -1598,6 +1600,7 @@ export class SubmissionsService {
           id: true,
           submissionId: true,
           pointsAwarded: true,
+          manualGradedAt: true,
           feedback: true,
           question: {
             select: {
@@ -1631,6 +1634,7 @@ export class SubmissionsService {
         where: { id: gradeDto.submissionAnswerId },
         data: {
           pointsAwarded: gradeDto.pointsAwarded,
+          manualGradedAt: new Date(),
           feedback: gradeDto.feedback,
         },
       });
@@ -1809,7 +1813,7 @@ export class SubmissionsService {
       const manualAnswers = submission.answers.filter(
         (answer) => !AUTO_GRADED_TYPES.has(String(answer.question?.type || '').toUpperCase()),
       );
-      const graded = manualAnswers.filter((answer) => answer.pointsAwarded !== null && answer.pointsAwarded !== undefined);
+      const graded = manualAnswers.filter((answer) => answer.manualGradedAt !== null && answer.manualGradedAt !== undefined);
       return {
         submissionId: submission.id,
         student: submission.student,
@@ -1912,6 +1916,7 @@ export class SubmissionsService {
         questionText: answer.questionVersion?.stem || answer.question?.content || 'Question text unavailable',
         answer: answer.answer,
         pointsAwarded: answer.pointsAwarded,
+        manualGradedAt: answer.manualGradedAt,
         maxPoints: Number(answer.questionVersion?.points ?? answer.question?.points ?? answer.question?.defaultPoints ?? 1),
         feedback: answer.feedback || '',
         updatedAt: answer.updatedAt,
@@ -1921,7 +1926,7 @@ export class SubmissionsService {
       ...submission,
       manualAnswers,
       manualTotal: manualAnswers.length,
-      manualGraded: manualAnswers.filter((answer) => answer.pointsAwarded !== null && answer.pointsAwarded !== undefined).length,
+      manualGraded: manualAnswers.filter((answer) => answer.manualGradedAt !== null && answer.manualGradedAt !== undefined).length,
     };
   }
 

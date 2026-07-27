@@ -65,8 +65,43 @@ function formatTimeSpent(start?: string | null, end?: string | null) {
   const mins = Math.round(diffMs / 60000);
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  if (h > 0) return `${h} giờ ${m} phút`;
+  return `${m} phút`;
+}
+
+function getEventTypeLabel(eventType?: string) {
+  const labels: Record<string, string> = {
+    tab_switch: "Chuyển tab", window_blur: "Mất tiêu điểm cửa sổ",
+    focus_lost: "Mất tiêu điểm", fullscreen_exit: "Thoát chế độ toàn màn hình",
+  };
+  return labels[String(eventType || "").toLowerCase()] || "Sự kiện giám sát";
+}
+
+function getAnomalyDescription(eventType?: string, details?: string) {
+  const event = String(eventType || "").toLowerCase();
+  const detailText = String(details || "");
+  const detectedCount = detailText.match(/detected\s+(\d+)\s+(mouse anomalies|tab switches)/i);
+
+  if (detectedCount) {
+    const [, count, kind] = detectedCount;
+    return kind.toLowerCase().includes("mouse")
+      ? `Hệ thống ghi nhận ${count} tương tác chuột cần được đối chiếu.`
+      : `Hệ thống ghi nhận ${count} lần chuyển tab trong phiên thi.`;
+  }
+
+  if (event === "tab_switch" || /"kind"\s*:\s*"tab_switch"/i.test(detailText)) {
+    return "Hệ thống ghi nhận sinh viên đã chuyển sang một tab hoặc cửa sổ khác.";
+  }
+  if (event === "window_blur" || /"kind"\s*:\s*"window_blur"/i.test(detailText)) {
+    return "Hệ thống ghi nhận cửa sổ làm bài tạm thời mất tiêu điểm.";
+  }
+  if (event === "fullscreen_exit") {
+    return "Hệ thống ghi nhận sinh viên đã thoát chế độ toàn màn hình.";
+  }
+  if (event.includes("mouse")) {
+    return "Hệ thống ghi nhận tương tác chuột cần được đối chiếu.";
+  }
+  return "Hệ thống đã lưu sự kiện này để giảng viên đối chiếu khi cần.";
 }
 
 export default function ExamResultsList() {
@@ -78,7 +113,7 @@ export default function ExamResultsList() {
   const pathname = usePathname();
   const basePath = pathname.startsWith("/admin") ? "/admin" : "/lecturer";
 
-  const [examTitle, setExamTitle] = useState("Exam Results");
+  const [examTitle, setExamTitle] = useState("Kết quả bài thi");
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [overview, setOverview] = useState<ExamOverview | null>(null);
   const [manualStatus, setManualStatus] = useState<any | null>(null);
@@ -115,13 +150,13 @@ export default function ExamResultsList() {
 
         if (!mounted) return;
 
-        setExamTitle(examRes?.title || "Exam Results");
+        setExamTitle(examRes?.title || "Kết quả bài thi");
         setSubmissions(unwrapPaginatedData(subsRes));
         setTotalPages(subsRes?.totalPages ?? 1);
         setOverview(overviewRes || null);
         setManualStatus(manualStatusRes || null);
       } catch (err) {
-        console.error("Failed to load exam results", err);
+        console.error("Không thể tải kết quả bài thi", err);
       } finally {
         if (!mounted) return;
         if (silent) {
@@ -164,7 +199,7 @@ export default function ExamResultsList() {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         },
       );
-      if (!res.ok) throw new Error("Export failed");
+      if (!res.ok) throw new Error("Xuất dữ liệu không thành công");
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -175,7 +210,7 @@ export default function ExamResultsList() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("Export error", err);
+      console.error("Không thể xuất dữ liệu", err);
     }
   };
 
@@ -187,9 +222,9 @@ export default function ExamResultsList() {
       setManualStatus(nextStatus);
       const subsRes = await api.getExamSubmissions(examId, page, ITEMS_PER_PAGE);
       setSubmissions(unwrapPaginatedData(subsRes));
-      toast.success("Results published to students.");
+      toast.success("Đã công bố kết quả cho sinh viên.");
     } catch (err: any) {
-      toast.error(err?.message || "Unable to publish results.");
+      toast.error(err?.message || "Không thể công bố kết quả.");
     } finally {
       setIsPublishing(false);
     }
@@ -211,36 +246,36 @@ export default function ExamResultsList() {
         <div className="flex flex-col gap-4 rounded-3xl border border-border/70 bg-card/90 p-5 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-600">
-              Exam analytics
+              Phân tích bài thi
             </div>
             {overview?.analyticsScope ? (
               <StatusBadge
                 status={overview.analyticsScope === "OFFICIAL" ? "published" : "available"}
                 domain="exam"
               >
-                {overview.analyticsScope === "OFFICIAL" ? "Official analytics" : "Practice analytics"}
+                {overview.analyticsScope === "OFFICIAL" ? "Phân tích chính thức" : "Phân tích bài luyện tập"}
               </StatusBadge>
             ) : null}
             <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-[1.75rem]">
-              Student Exam Results List - {examTitle}
+              Danh sách kết quả sinh viên — {examTitle}
             </h1>
             <p className="flex items-center gap-1 text-xs text-muted-foreground">
               <Activity className="h-3.5 w-3.5" />
               {isRefreshing
-                ? "Updating live data..."
-                : `Last update: ${overview?.updatedAt ? new Date(overview.updatedAt).toLocaleTimeString() : "N/A"}`}
+                ? "Đang cập nhật dữ liệu..."
+                : `Cập nhật lần cuối: ${overview?.updatedAt ? new Date(overview.updatedAt).toLocaleTimeString("vi-VN") : "Chưa có dữ liệu"}`}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button onClick={() => handleExport("csv")} className="shadow-sm">
-              Export CSV
+              Xuất CSV
             </Button>
             <Button
               variant="outline"
               onClick={() => handleExport("pdf")}
               className="border-slate-300 bg-background/80 shadow-sm"
             >
-              Export PDF
+              Xuất PDF
             </Button>
           </div>
         </div>
@@ -273,10 +308,10 @@ export default function ExamResultsList() {
                     }
                   >
                     {manualStatus.manualPending > 0
-                      ? "Manual grading required"
+                      ? "Cần chấm thủ công"
                       : manualStatus.published
-                        ? "Results published"
-                        : "Manual grading completed"}
+                        ? "Đã công bố kết quả"
+                        : "Đã hoàn tất chấm thủ công"}
                   </h2>
                   <p
                     className={
@@ -285,12 +320,12 @@ export default function ExamResultsList() {
                         : "mt-1 text-sm text-emerald-800"
                     }
                   >
-                    {manualStatus.manualGraded}/{manualStatus.manualTotal} subjective answers graded.
+                    Đã chấm {manualStatus.manualGraded}/{manualStatus.manualTotal} câu trả lời tự luận.
                     {manualStatus.published
-                      ? " Results have been published to students."
+                      ? " Kết quả đã được công bố cho sinh viên."
                       : manualStatus.manualPending > 0
-                      ? ` ${manualStatus.manualPending} answers still need points and feedback review.`
-                      : " All subjective answers are ready to publish."}
+                      ? ` Còn ${manualStatus.manualPending} câu cần nhập điểm và nhận xét.`
+                      : " Tất cả câu tự luận đã sẵn sàng để công bố."}
                   </p>
                 </div>
               </div>
@@ -304,28 +339,28 @@ export default function ExamResultsList() {
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-                Publish Results
+                Công bố kết quả
               </Button>
             </CardContent>
           </Card>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card className="lg:col-span-2 border-slate-200/80 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)]">
+        <div className="grid grid-cols-1 gap-4">
+          <Card className="border-slate-200/80 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)]">
             <CardContent className="pt-5">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="font-semibold tracking-tight">Score Distribution (Live)</h2>
+                  <h2 className="font-semibold tracking-tight">Phân bố điểm (trực tiếp)</h2>
                   <p className="text-xs text-muted-foreground">
-                    A compact read on how the cohort is spreading out.
+                    Tổng quan nhanh về sự phân bố điểm của lớp.
                   </p>
                 </div>
                 <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-muted-foreground">
-                  Avg:{" "}
+                  Trung bình:{" "}
                   <span className="font-semibold text-foreground">
                     {overview?.summary?.avgScorePct ?? 0}%
                   </span>{" "}
-                  | High:{" "}
+                  | Cao nhất:{" "}
                   <span className="font-semibold text-foreground">
                     {overview?.summary?.highestScorePct ?? 0}%
                   </span>
@@ -369,19 +404,19 @@ export default function ExamResultsList() {
 
               <div className="mt-4 grid grid-cols-3 gap-3 text-center text-sm">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
-                  <p className="text-muted-foreground">Completed</p>
+                  <p className="text-muted-foreground">Đã hoàn thành</p>
                   <p className="mt-1 font-semibold text-emerald-700">
                     {overview?.summary?.completed ?? 0}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
-                  <p className="text-muted-foreground">In Progress</p>
+                  <p className="text-muted-foreground">Đang làm bài</p>
                   <p className="mt-1 font-semibold text-amber-700">
                     {overview?.summary?.inProgress ?? 0}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
-                  <p className="text-muted-foreground">Total</p>
+                  <p className="text-muted-foreground">Tổng số</p>
                   <p className="mt-1 font-semibold text-slate-800">
                     {overview?.summary?.totalSubmissions ?? 0}
                   </p>
@@ -391,24 +426,26 @@ export default function ExamResultsList() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200/80 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)]">
+        </div>
+
+        <Card className="border-slate-200/80 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)]">
             <CardContent className="pt-5">
               <div className="mb-3 flex items-center gap-2">
                 <div className="rounded-full bg-amber-100 p-1.5 text-amber-700">
                   <AlertTriangle className="h-4 w-4" />
                 </div>
                 <div>
-                  <h2 className="font-semibold tracking-tight">Suspicious Activities</h2>
+                  <h2 className="font-semibold tracking-tight">Dữ liệu giám sát cần xem xét</h2>
                   <p className="text-xs text-muted-foreground">
-                    Signals only, no automatic cheating verdict.
+                    Chỉ là tín hiệu tham khảo, không phải kết luận gian lận tự động.
                   </p>
                 </div>
               </div>
 
-              <div className="max-h-[320px] space-y-2 overflow-auto pr-1">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {(overview?.anomalies?.length || 0) === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    No suspicious actions detected yet.
+                    Chưa có dữ liệu giám sát cần xem xét.
                   </p>
                 ) : (
                   overview?.anomalies?.map((item) => (
@@ -418,24 +455,23 @@ export default function ExamResultsList() {
                     >
                       <div className="mb-1 flex items-center justify-between gap-2">
                         <p className="truncate text-sm font-medium">
-                          {item.student?.fullName || "Unknown student"}
+                          {item.student?.fullName || "Không xác định sinh viên"}
                         </p>
                         <StatusBadge domain="severity" status={item.severity} />
                       </div>
-                      <p className="text-xs font-medium text-slate-700">{item.eventType}</p>
-                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                        {item.details || "-"}
+                      <p className="text-sm font-medium text-slate-700">{getEventTypeLabel(item.eventType)}</p>
+                      <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                        {getAnomalyDescription(item.eventType, item.details)}
                       </p>
                       <p className="mt-2 text-[11px] text-muted-foreground">
-                        {new Date(item.timestamp).toLocaleString()}
+                        {new Date(item.timestamp).toLocaleString("vi-VN")}
                       </p>
                     </div>
                   ))
                 )}
               </div>
             </CardContent>
-          </Card>
-        </div>
+        </Card>
 
         <Card className="overflow-hidden border-slate-200/80 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)]">
           <CardContent className="p-0">
@@ -443,7 +479,7 @@ export default function ExamResultsList() {
               <div className="relative max-w-xl">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Search by Name or ID"
+                  placeholder="Tìm theo tên hoặc mã sinh viên"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="min-w-0 bg-background/90 pl-9 shadow-sm"
@@ -455,22 +491,22 @@ export default function ExamResultsList() {
                 <TableHeader className="bg-slate-50/80">
                   <TableRow className="border-b border-slate-200">
                     <TableHead className="bg-slate-50/80 font-semibold text-slate-600">
-                      Student Name
+                      Tên sinh viên
                     </TableHead>
                     <TableHead className="bg-slate-50/80 font-semibold text-slate-600">
                       ID
                     </TableHead>
                     <TableHead className="bg-slate-50/80 font-semibold text-slate-600">
-                      Score (Points)
+                      Điểm
                     </TableHead>
                     <TableHead className="bg-slate-50/80 font-semibold text-slate-600">
-                      Time Spent
+                      Thời gian làm bài
                     </TableHead>
                     <TableHead className="bg-slate-50/80 font-semibold text-slate-600">
-                      Status
+                      Trạng thái
                     </TableHead>
                     <TableHead className="bg-slate-50/80 text-right font-semibold text-slate-600">
-                      Manual Grading
+                      Chấm thủ công
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -518,6 +554,11 @@ export default function ExamResultsList() {
                             <Button
                               size="sm"
                               variant={isManualCompleted ? "outline" : "default"}
+                              className={
+                                isManualCompleted
+                                  ? "border-emerald-600 bg-emerald-600 text-white shadow-sm hover:border-emerald-700 hover:bg-emerald-700"
+                                  : "shadow-sm"
+                              }
                               onClick={() =>
                                 router.push(`${basePath}/exam/${examId}/submissions/${s.id}/manual-grading`)
                               }
@@ -526,10 +567,10 @@ export default function ExamResultsList() {
                                 ? isPublished
                                   ? "Xem điểm"
                                   : "Đã chấm - sửa lại"
-                                : `Chấm ${manualRow.manualPending}/${manualRow.manualTotal}`}
+                                : `Chấm còn ${manualRow.manualPending}/${manualRow.manualTotal}`}
                             </Button>
                           ) : (
-                            <span className="text-xs text-muted-foreground">Auto only</span>
+                            <span className="text-xs text-muted-foreground">Chỉ chấm tự động</span>
                           )}
                         </TableCell>
                       </TableRow>

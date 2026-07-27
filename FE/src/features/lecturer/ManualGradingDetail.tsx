@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
 
 function toDisplayText(value: any): string {
-  if (value == null) return "No answer submitted";
+  if (value == null) return "Chưa nộp câu trả lời";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     return String(value);
   }
@@ -63,7 +63,7 @@ export default function ManualGradingDetail() {
     const load = async () => {
       if (!submissionId) {
         setLoading(false);
-        toast.error("Missing submission id.");
+        toast.error("Thiếu mã bài nộp.");
         return;
       }
       try {
@@ -83,7 +83,7 @@ export default function ManualGradingDetail() {
         });
         setDrafts(nextDrafts);
       } catch (err: any) {
-        toast.error(err?.message || "Unable to load manual grading detail.");
+        toast.error(err?.message || "Không thể tải chi tiết chấm thủ công.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -96,11 +96,8 @@ export default function ManualGradingDetail() {
 
   const gradedCount = useMemo(
     () =>
-      (submission?.manualAnswers || []).filter((answer: any) => {
-        const draft = drafts[answer.id];
-        return draft?.pointsAwarded !== "" && !Number.isNaN(Number(draft?.pointsAwarded));
-      }).length,
-    [drafts, submission?.manualAnswers],
+      (submission?.manualAnswers || []).filter((answer: any) => Boolean(answer.manualGradedAt)).length,
+    [submission?.manualAnswers],
   );
   const manualTotal = Number(submission?.manualTotal || 0);
   const isAllManualGraded = manualTotal > 0 && gradedCount === manualTotal;
@@ -109,7 +106,7 @@ export default function ManualGradingDetail() {
     const draft = drafts[answer.id];
     const points = Number(draft?.pointsAwarded);
     if (!Number.isFinite(points) || points < 0 || points > Number(answer.maxPoints)) {
-      toast.error(`Score must be between 0 and ${answer.maxPoints}.`);
+      toast.error(`Điểm phải nằm trong khoảng từ 0 đến ${answer.maxPoints}.`);
       return;
     }
 
@@ -127,6 +124,7 @@ export default function ManualGradingDetail() {
             ? {
                 ...item,
                 pointsAwarded: updated.pointsAwarded,
+                manualGradedAt: updated.manualGradedAt,
                 feedback: updated.feedback || "",
               }
             : item,
@@ -136,9 +134,9 @@ export default function ManualGradingDetail() {
         ...current,
         [answer.id]: savedDraft,
       }));
-      toast.success("Manual grade saved.");
+      toast.success("Đã lưu điểm chấm thủ công.");
     } catch (err: any) {
-      toast.error(err?.message || "Unable to save grade.");
+      toast.error(err?.message || "Không thể lưu điểm.");
     } finally {
       setSavingId(null);
     }
@@ -153,7 +151,7 @@ export default function ManualGradingDetail() {
           onClick={() => router.push(`${basePath}/exam/${examId}/results`)}
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to results
+          Quay lại kết quả
         </Button>
 
         {loading ? (
@@ -168,10 +166,10 @@ export default function ManualGradingDetail() {
                   <div>
                     <CardTitle className="flex items-center gap-2 text-2xl">
                       <UserCheck className="h-6 w-6 text-primary" />
-                      Manual Grading
+                      Chấm thủ công
                     </CardTitle>
                     <CardDescription className="mt-2">
-                      {submission?.student?.fullName || "Student"} - {submission?.exam?.title || "Exam"}
+                      {submission?.student?.fullName || "Sinh viên"} - {submission?.exam?.title || "Bài thi"}
                     </CardDescription>
                   </div>
                   <Badge
@@ -183,8 +181,8 @@ export default function ManualGradingDetail() {
                     }
                   >
                     {isAllManualGraded
-                      ? "Xem điểm"
-                      : `${gradedCount}/${manualTotal} graded`}
+                      ? "Đã hoàn tất chấm"
+                      : `Đã chấm ${gradedCount}/${manualTotal} câu`}
                   </Badge>
                 </div>
               </CardHeader>
@@ -193,7 +191,7 @@ export default function ManualGradingDetail() {
             {(submission?.manualAnswers || []).length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center text-muted-foreground">
-                  This submission has no manually graded answers.
+                  Bài nộp này không có câu hỏi cần chấm thủ công.
                 </CardContent>
               </Card>
             ) : (
@@ -202,7 +200,7 @@ export default function ManualGradingDetail() {
                   const draft = drafts[answer.id] || { pointsAwarded: "", feedback: "" };
                   const savedPoints = toSavedPoints(answer.pointsAwarded);
                   const savedFeedback = normalizeFeedback(answer.feedback);
-                  const isSaved = savedPoints !== "";
+                  const isSaved = Boolean(answer.manualGradedAt);
                   const isDirty =
                     draft.pointsAwarded !== savedPoints ||
                     draft.feedback !== savedFeedback;
@@ -213,19 +211,19 @@ export default function ManualGradingDetail() {
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <CardTitle className="text-base">
-                              Q{index + 1}. {answer.questionText}
+                              Câu {index + 1}. {answer.questionText}
                             </CardTitle>
                             <CardDescription className="mt-1">
-                              {answer.questionType} - max {answer.maxPoints} points
+                              {answer.questionType} · tối đa {answer.maxPoints} điểm
                             </CardDescription>
                           </div>
-                          {answer.pointsAwarded !== null && answer.pointsAwarded !== undefined ? (
+                          {answer.manualGradedAt ? (
                             <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
-                              Saved: {answer.pointsAwarded}/{answer.maxPoints}
+                              Đã chấm: {answer.pointsAwarded}/{answer.maxPoints} điểm
                             </Badge>
                           ) : (
                             <Badge className="border-amber-200 bg-amber-50 text-amber-700" variant="outline">
-                              Pending
+                              Chờ chấm
                             </Badge>
                           )}
                         </div>
@@ -233,7 +231,7 @@ export default function ManualGradingDetail() {
                       <CardContent className="space-y-4 pt-5">
                         <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
                           <p className="text-xs font-semibold uppercase text-muted-foreground">
-                            Student answer
+                            Câu trả lời của sinh viên
                           </p>
                           <p className="mt-2 whitespace-pre-wrap text-sm text-slate-900">
                             {toDisplayText(answer.answer)}
@@ -242,7 +240,7 @@ export default function ManualGradingDetail() {
 
                         <div className="grid gap-4 md:grid-cols-[180px_1fr]">
                           <div>
-                            <label className="text-sm font-medium">Score</label>
+                            <label className="text-sm font-medium">Điểm</label>
                             <div className="mt-2 flex items-center gap-2">
                               <Input
                                 type="number"
@@ -263,10 +261,10 @@ export default function ManualGradingDetail() {
                             </div>
                           </div>
                           <div>
-                            <label className="text-sm font-medium">Feedback</label>
+                            <label className="text-sm font-medium">Nhận xét</label>
                             <Textarea
                               className="mt-2 min-h-[96px]"
-                              placeholder="Add feedback for the student..."
+                              placeholder="Nhập nhận xét cho sinh viên..."
                               value={draft.feedback}
                               onChange={(event) =>
                                 setDrafts((prev) => ({

@@ -732,6 +732,7 @@ model SubmissionAnswer {
   answer             Json
   isCorrect          Boolean?
   pointsAwarded      Int?
+  manualGradedAt     DateTime?
   feedback           String?                    @db.Text
   timeTaken          Int? // in seconds
   updatedAt          DateTime                   @updatedAt
