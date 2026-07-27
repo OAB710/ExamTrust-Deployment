@@ -51,6 +51,8 @@ import {
   getFilterChips,
 } from "@/components/common/list/filter-utils";
 import api from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 
 export interface FlaggedSubmission {
   id: string;
@@ -124,7 +126,9 @@ const EMPTY_FILTERS: FilterValues = {
 
 const INTEGRITY_ROWS_PER_VIEW = 10;
 
-export default function IntegrityOverview() {
+export default function IntegrityOverview({ lecturerScope = false }: { lecturerScope?: boolean }) {
+  const { user } = useAuth();
+  const router = useRouter();
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [draftFilters, setDraftFilters] = useState<FilterValues>(EMPTY_FILTERS);
@@ -142,6 +146,26 @@ export default function IntegrityOverview() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savingReview, setSavingReview] = useState(false);
+
+  useEffect(() => {
+    if (!lecturerScope && String(user?.role || '').toUpperCase() === 'LECTURER') router.replace('/lecturer/integrity');
+  }, [lecturerScope, router, user?.role]);
+
+  const reviewCase = async (status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED', notes: string) => {
+    if (!selectedCase?.submissionId) return;
+    setSavingReview(true);
+    try {
+      await api.reviewIntegrityCase(selectedCase.submissionId, { status, notes: notes || undefined });
+      const nextStatus = status.toLowerCase() as FlaggedSubmission['status'];
+      setSubmissions((items) => items.map((item) => item.id === selectedCase.id ? { ...item, status: nextStatus } : item));
+      setSelectedCase(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể lưu kết quả xem xét');
+    } finally {
+      setSavingReview(false);
+    }
+  };
 
   const integrityFilters: FilterDefinition[] = [
     {
@@ -324,6 +348,8 @@ export default function IntegrityOverview() {
       <IntegrityCaseDetail
         submission={selectedCase}
         onBack={() => setSelectedCase(null)}
+        onReview={reviewCase}
+        isSaving={savingReview}
       />
     );
   }
@@ -331,6 +357,7 @@ export default function IntegrityOverview() {
   return (
     <DashboardLayout>
       <AdminPageShell>
+        {lecturerScope ? <p className="mb-2 text-sm text-muted-foreground">Chỉ hiển thị tín hiệu của bài thi và khóa học do bạn phụ trách.</p> : null}
         <ListPageHeader title="Toàn vẹn học thuật" className="mb-4" />
 
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

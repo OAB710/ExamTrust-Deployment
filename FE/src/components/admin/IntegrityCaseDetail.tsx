@@ -25,9 +25,11 @@ import { useState } from 'react';
 interface IntegrityCaseDetailProps {
   submission: FlaggedSubmission;
   onBack: () => void;
+  onReview: (status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED', notes: string) => Promise<void>;
+  isSaving?: boolean;
 }
 
-export function IntegrityCaseDetail({ submission, onBack }: IntegrityCaseDetailProps) {
+export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = false }: IntegrityCaseDetailProps) {
   const [reviewNotes, setReviewNotes] = useState('');
 
   const getReasonIcon = (type: IntegrityReason['type']) => {
@@ -213,57 +215,11 @@ export function IntegrityCaseDetail({ submission, onBack }: IntegrityCaseDetailP
               </CardContent>
             </Card>
 
-            {/* Timeline Visualization */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Behavioral Timeline</CardTitle>
-                <CardDescription>
-                  Key events during the examination session
-                </CardDescription>
+                <CardTitle className="text-lg">Phạm vi evidence</CardTitle>
+                <CardDescription>Chỉ các tín hiệu đã được ghi nhận ở trên mới được dùng để hỗ trợ quyết định. Timeline chi tiết chưa được API cung cấp.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="relative pl-6 space-y-4">
-                  <div className="absolute left-2 top-2 bottom-2 w-px bg-border" />
-                  
-                  <div className="relative flex items-start gap-4">
-                    <div className="absolute left-[-18px] h-3 w-3 rounded-full bg-success border-2 border-background" />
-                    <div>
-                      <p className="text-sm font-medium">Exam Started</p>
-                      <p className="text-xs text-muted-foreground">Normal behavior observed</p>
-                    </div>
-                    <span className="ml-auto text-xs text-muted-foreground">0:00</span>
-                  </div>
-
-                  <div className="relative flex items-start gap-4">
-                    <div className="absolute left-[-18px] h-3 w-3 rounded-full bg-warning border-2 border-background" />
-                    <div>
-                      <p className="text-sm font-medium">Response Pattern Changed</p>
-                      <p className="text-xs text-muted-foreground">Average response time decreased significantly</p>
-                    </div>
-                    <span className="ml-auto text-xs text-muted-foreground">15:32</span>
-                  </div>
-
-                  {submission.timeAnomaly && (
-                    <div className="relative flex items-start gap-4">
-                      <div className="absolute left-[-18px] h-3 w-3 rounded-full bg-destructive border-2 border-background" />
-                      <div>
-                        <p className="text-sm font-medium">Timing Anomaly Detected</p>
-                        <p className="text-xs text-muted-foreground">Rapid sequential answers flagged</p>
-                      </div>
-                      <span className="ml-auto text-xs text-muted-foreground">18:45</span>
-                    </div>
-                  )}
-
-                  <div className="relative flex items-start gap-4">
-                    <div className="absolute left-[-18px] h-3 w-3 rounded-full bg-info border-2 border-background" />
-                    <div>
-                      <p className="text-sm font-medium">Exam Submitted</p>
-                      <p className="text-xs text-muted-foreground">Submission received and processed</p>
-                    </div>
-                    <span className="ml-auto text-xs text-muted-foreground">42:18</span>
-                  </div>
-                </div>
-              </CardContent>
             </Card>
           </div>
 
@@ -285,7 +241,7 @@ export function IntegrityCaseDetail({ submission, onBack }: IntegrityCaseDetailP
                   }`}>
                     <AlertTriangle className="h-10 w-10" />
                   </div>
-                  <p className="mt-3 text-lg font-semibold">{submission.confidence} Risk</p>
+                  <p className="mt-3 text-lg font-semibold">Mức tín hiệu {submission.confidence}</p>
                   <p className="text-sm text-muted-foreground">
                     {submission.reasons.length} detection signals
                   </p>
@@ -293,16 +249,16 @@ export function IntegrityCaseDetail({ submission, onBack }: IntegrityCaseDetailP
                 <Separator />
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Similarity Score</span>
-                    <span className="font-medium">{submission.similarityScore ?? 'N/A'}%</span>
+                    <span className="text-muted-foreground">Điểm tương đồng</span>
+                    <span className="font-medium">{submission.similarityScore ?? 'Chưa có dữ liệu'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Time Anomaly</span>
-                    <span className="font-medium">{submission.timeAnomaly ? 'Yes' : 'No'}</span>
+                    <span className="text-muted-foreground">Tín hiệu thời gian</span>
+                    <span className="font-medium">{submission.timeAnomaly ? 'Có tín hiệu' : 'Không ghi nhận'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Pattern Matches</span>
-                    <span className="font-medium">{submission.patternMatch?.length ?? 0}</span>
+                    <span className="text-muted-foreground">Mẫu hành vi</span>
+                    <span className="font-medium">{submission.patternMatch?.length ? submission.patternMatch.length : 'Chưa có dữ liệu'}</span>
                   </div>
                 </div>
               </CardContent>
@@ -328,17 +284,17 @@ export function IntegrityCaseDetail({ submission, onBack }: IntegrityCaseDetailP
                   />
                 </div>
                 <div className="space-y-2">
-                  <Button className="w-full" variant="destructive">
+                  <Button className="w-full" variant="destructive" disabled={isSaving} onClick={() => onReview('CONFIRMED', reviewNotes)}>
                     <XCircle className="h-4 w-4 mr-2" />
-                    Confirm Violation
+                    Xác nhận cần xử lý
                   </Button>
-                  <Button className="w-full" variant="outline">
+                  <Button className="w-full" variant="outline" disabled={isSaving} onClick={() => onReview('DISMISSED', reviewNotes)}>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Dismiss Case
+                    Loại trừ tín hiệu
                   </Button>
-                  <Button className="w-full" variant="ghost">
+                  <Button className="w-full" variant="ghost" disabled={isSaving} onClick={() => onReview('REVIEWED', reviewNotes)}>
                     <MessageSquare className="h-4 w-4 mr-2" />
-                    Request More Info
+                    Đánh dấu đã xem xét
                   </Button>
                 </div>
               </CardContent>
@@ -351,21 +307,8 @@ export function IntegrityCaseDetail({ submission, onBack }: IntegrityCaseDetailP
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Previous Flags</span>
-                    <span className="font-medium">0</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Exams Taken</span>
-                    <span className="font-medium">12</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Average Score</span>
-                    <span className="font-medium">78%</span>
-                  </div>
-                  <Separator />
                   <p className="text-xs text-muted-foreground">
-                    No previous integrity issues on record
+                    Lịch sử tổng hợp chưa được cung cấp bởi API và không được suy diễn từ tín hiệu hiện tại.
                   </p>
                 </div>
               </CardContent>
