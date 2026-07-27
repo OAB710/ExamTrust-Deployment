@@ -76,6 +76,18 @@ export default function ExamReadyCheck() {
   const [allChecksPassed, setAllChecksPassed] = useState(false);
   const [isRunningChecks, setIsRunningChecks] = useState(false);
   const [checkingAttempt, setCheckingAttempt] = useState(false);
+  const [proctoringEnabled, setProctoringEnabled] = useState(false);
+  const [deviceBlocked, setDeviceBlocked] = useState(false);
+
+  useEffect(() => {
+    if (!examId) return;
+    api.getExam(examId).then((exam) => {
+      const settings = exam?.settings || {};
+      const enabled = settings.proctoringEnabled === undefined ? Boolean(settings.requiresProctoring) : Boolean(settings.proctoringEnabled);
+      setProctoringEnabled(enabled);
+      setDeviceBlocked(enabled && /android|iphone|ipad|ipod|mobile|tablet|silk|kindle/i.test(navigator.userAgent || ""));
+    }).catch(() => {});
+  }, [examId]);
 
   useEffect(() => {
     if (!examId) return;
@@ -146,7 +158,7 @@ export default function ExamReadyCheck() {
     }
 
     try {
-      const res = await api.startExam(examId);
+    const res = await api.startExam(examId, { isMobileOrTablet: deviceBlocked });
       if (!res?.id) {
         toast.error("Không thể bắt đầu lượt thi. Vui lòng thử lại.");
         return;
@@ -162,11 +174,11 @@ export default function ExamReadyCheck() {
       return;
     }
 
-    router.push(`/student/exam-taking?examId=${encodeURIComponent(examId)}`);
+    router.push(`/student/exam-taking?examId=${encodeURIComponent(examId)}&proctoring=${proctoringEnabled ? "1" : "0"}`);
   };
 
   const handleProceed = () => {
-    if (!allChecksPassed) return;
+    if (!allChecksPassed || deviceBlocked) return;
     if (!agreed) return;
     setCurrentStep("ready");
   };
@@ -275,6 +287,11 @@ export default function ExamReadyCheck() {
                 </p>
               </CardHeader>
               <CardContent>
+                {deviceBlocked ? (
+                  <Alert className="mb-4" variant="destructive">
+                    <AlertDescription>Bài kiểm tra có giám sát chỉ cho phép laptop hoặc PC. Vui lòng đổi thiết bị để tiếp tục.</AlertDescription>
+                  </Alert>
+                ) : null}
                 <div className="space-y-3">
                   {checks.map((check) => (
                     <div
@@ -354,7 +371,7 @@ export default function ExamReadyCheck() {
             </Card>
 
             <div className="flex gap-3">
-              <Button onClick={handleProceed} disabled={!allChecksPassed || !agreed} className="flex-1 h-11 gap-2" size="lg">
+              <Button onClick={handleProceed} disabled={!allChecksPassed || !agreed || deviceBlocked} className="flex-1 h-11 gap-2" size="lg">
                 {!allChecksPassed ? (
                   <>
                     <AlertTriangle className="h-4 w-4" />

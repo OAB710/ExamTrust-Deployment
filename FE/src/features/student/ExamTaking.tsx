@@ -410,6 +410,7 @@ export default function ExamTaking() {
   const searchParams = useSearchParams();
   const examId = searchParams.get("examId") || undefined;
   const isPreviewMode = searchParams.get("mode") === "preview";
+  const proctoringEnabled = searchParams.get("proctoring") !== "0";
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [examTitle, setExamTitle] = useState("Phiên thi");
@@ -628,6 +629,7 @@ export default function ExamTaking() {
 
   const handleViolation = useCallback(
     (entry: ViolationLog) => {
+      if (!proctoringEnabled) return;
       log(entry.type, entry.detail);
       try {
         const activeSubmissionId =
@@ -647,7 +649,7 @@ export default function ExamTaking() {
         console.error("Failed to send violation log", e);
       }
     },
-    [log, submissionId],
+    [log, submissionId, proctoringEnabled],
   );
 
   const {
@@ -658,7 +660,7 @@ export default function ExamTaking() {
     returnToExam,
     canFullscreen,
   } = useExamSecurity({
-    enabled: !isPreviewMode && !isLoadingExam && examSessionStatus === "IN_PROGRESS",
+    enabled: proctoringEnabled && !isPreviewMode && !isLoadingExam && examSessionStatus === "IN_PROGRESS",
     maxViolations: MAX_VIOLATIONS,
     sessionStatus: examSessionStatus,
     isSubmitting,

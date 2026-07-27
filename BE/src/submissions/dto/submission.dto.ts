@@ -1,8 +1,13 @@
-import { IsString, IsOptional, IsObject, IsArray, IsInt, Min, Max, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsArray, IsInt, Min, Max, IsEnum, IsBoolean } from 'class-validator';
 
 export class StartExamDto {
   @IsString()
   examId: string;
+
+  // Client-side classification is advisory; the server also validates the UA.
+  @IsOptional()
+  @IsBoolean()
+  isMobileOrTablet?: boolean;
 }
 
 export class SubmitAnswerDto {

@@ -235,6 +235,20 @@ export class SubmissionsService {
       throw new NotFoundException('Exam not found');
     }
 
+    const settings: any = exam.settings || {};
+    const configuredAttempts = exam.maxAttempts ?? settings.maxAttempts ?? null;
+    const configuredTimeLimit = exam.timeLimitMinutes ?? settings.timeLimitMinutes ?? exam.duration;
+    // Old exams retain their settings. New exams persist this value explicitly.
+    const proctoringEnabled = settings.proctoringEnabled === undefined
+      ? Boolean(settings.requiresProctoring)
+      : Boolean(settings.proctoringEnabled);
+    const requiresDesktop = proctoringEnabled && configuredAttempts !== null && configuredTimeLimit !== null;
+    const ua = String(context?.userAgent || '');
+    const isMobileOrTablet = Boolean(startExamDto.isMobileOrTablet) || /android|iphone|ipad|ipod|mobile|tablet|silk|kindle/i.test(ua);
+    if (requiresDesktop && isMobileOrTablet) {
+      throw new ForbiddenException('This proctored exam requires a laptop or desktop computer.');
+    }
+
     // Check if student is enrolled
     const enrollment = await this.prisma.enrollment.findFirst({
       where: {
@@ -376,6 +390,7 @@ export class SubmissionsService {
           : null),
       gradingStrategy: exam.gradingStrategy ?? examSettings?.gradingStrategy ?? 'HIGHEST',
       reviewSettings: exam.reviewSettings ?? examSettings?.reviewSettings ?? null,
+      proctoringEnabled: requiresDesktop,
       questionSelectionConfig:
         exam.questionSelectionConfig ?? examSettings?.questionSelectionConfig ?? null,
       questions: mappedSnapshotQuestions.map((item) => ({
@@ -508,21 +523,18 @@ export class SubmissionsService {
       throw new ConflictException('Failed to create exam submission');
     }
 
-    // Create an initial proctoring session
-    try {
-      await this.prisma.proctoringSession.create({
-        data: {
-          submissionId: startedSubmission.id,
-        },
-      });
-    } catch (e) {
-      // Non-fatal: proctoring session failure should not block exam start
-      // Log warning if needed in future
+    // Practice/unlimited exams do not create integrity records.
+    if (requiresDesktop) {
+      try {
+        await this.prisma.proctoringSession.create({ data: { submissionId: startedSubmission.id } });
+      } catch (e) {
+        // Non-fatal: proctoring session failure should not block exam start
+      }
     }
 
 
 
-    return startedSubmission;
+    return { ...startedSubmission, proctoringEnabled: requiresDesktop, devicePolicy: requiresDesktop ? 'DESKTOP_ONLY' : 'ANY' };
   }
 
   async submitExam(
@@ -562,6 +574,10 @@ export class SubmissionsService {
             id: true,
             title: true,
             totalPoints: true,
+            settings: true,
+            maxAttempts: true,
+            timeLimitMinutes: true,
+            duration: true,
           },
         },
       },
@@ -586,7 +602,14 @@ export class SubmissionsService {
       throw new ConflictException('Submission is being finalized');
     }
 
-    const logs = submitExamDto.logs || [];
+    const submitSettings: any = submission.exam.settings || {};
+    const submitProctoringEnabled = (submitSettings.proctoringEnabled === undefined
+      ? Boolean(submitSettings.requiresProctoring)
+      : Boolean(submitSettings.proctoringEnabled)) &&
+      (submission.exam.maxAttempts ?? submitSettings.maxAttempts ?? null) !== null &&
+      (submission.exam.timeLimitMinutes ?? submitSettings.timeLimitMinutes ?? submission.exam.duration) !== null;
+    // Ignore integrity payloads for practice/unlimited attempts rather than creating audit rows.
+    const logs = submitProctoringEnabled ? (submitExamDto.logs || []) : [];
     if (logs.length > 1000) {
       throw new BadRequestException('Too many log entries');
     }
@@ -1161,6 +1184,7 @@ export class SubmissionsService {
     const submission = await this.prisma.examSubmission.findUnique({
       where: { id: submissionId },
       include: {
+        exam: { select: { settings: true, maxAttempts: true, timeLimitMinutes: true } },
         student: {
           select: {
             id: true,
@@ -1177,6 +1201,14 @@ export class SubmissionsService {
     if (submission.studentId !== studentId) {
       throw new ForbiddenException('Not authorized');
     }
+
+    const integritySettings: any = submission.exam.settings || {};
+    const integrityEnabled = (integritySettings.proctoringEnabled === undefined
+      ? Boolean(integritySettings.requiresProctoring)
+      : Boolean(integritySettings.proctoringEnabled)) &&
+      (submission.exam.maxAttempts ?? integritySettings.maxAttempts ?? null) !== null &&
+      (submission.exam.timeLimitMinutes ?? integritySettings.timeLimitMinutes ?? null) !== null;
+    if (!integrityEnabled) return;
 
     // Validate logs payload (reuse same limits as submitExam)
     const entries = logs || [];
