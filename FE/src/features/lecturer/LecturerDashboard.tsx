@@ -82,6 +82,8 @@ const questionTypeLabels: Record<string, string> = {
   ESSAY: "Tự luận",
   FILL_BLANK: "Điền khuyết",
   MATCHING: "Ghép đôi",
+  ORDERING: "Sắp xếp thứ tự",
+  FIND_ERROR: "Tìm lỗi sai",
 };
 
 const formatDifficulty = (value: number) => {

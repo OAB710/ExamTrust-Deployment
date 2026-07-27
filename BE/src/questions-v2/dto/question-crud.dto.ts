@@ -14,7 +14,7 @@ export class CopyQuestionBankDto {
 }
 
 export class CreateQuestionCrudDto {
-  @IsEnum(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY', 'FILL_IN_BLANK', 'MATCHING', 'ORDERING'])
+  @IsEnum(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY', 'FILL_IN_BLANK', 'MATCHING', 'ORDERING', 'FIND_ERROR'])
   type: string;
 
   @IsString()
@@ -59,7 +59,7 @@ export class CreateQuestionCrudDto {
 
 export class UpdateQuestionCrudDto {
   @IsOptional()
-  @IsEnum(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY', 'FILL_IN_BLANK', 'MATCHING', 'ORDERING'])
+  @IsEnum(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY', 'FILL_IN_BLANK', 'MATCHING', 'ORDERING', 'FIND_ERROR'])
   type?: string;
 
   @IsOptional()

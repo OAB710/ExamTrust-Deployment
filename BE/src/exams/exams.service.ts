@@ -13,7 +13,7 @@ import { AccessPolicyService } from '../common/services/access-policy.service';
 import { CreateExamDto, UpdateExamDto, AddQuestionsToExamDto, UpdateExamQuestionDto, RescheduleExamDto } from './dto/exam.dto';
 import { PaginationDto, buildPaginatedResult } from '../common/dto/pagination.dto';
 
-const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE']);
+const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'FIND_ERROR']);
 
 @Injectable()
 export class ExamsService {
@@ -1395,6 +1395,8 @@ export class ExamsService {
       'FILL-BLANK': 'FILL_IN_BLANK',
       MATCHING: 'MATCHING',
       ORDERING: 'ORDERING',
+      FIND_ERROR: 'FIND_ERROR',
+      'FIND-ERROR': 'FIND_ERROR',
     };
 
     const normalized = map[String(rawType).trim().toUpperCase()];

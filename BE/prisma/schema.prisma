@@ -308,7 +308,7 @@ model ExamLinkUsage {
 
 model Question {
   id              String                  @id @default(uuid())
-  type            String // MULTIPLE_CHOICE, MULTI_SELECT, TRUE_FALSE, SHORT_ANSWER, ESSAY, FILL_IN_BLANK, MATCHING, ORDERING
+  type            String // MULTIPLE_CHOICE, MULTI_SELECT, TRUE_FALSE, SHORT_ANSWER, ESSAY, FILL_IN_BLANK, MATCHING, ORDERING, FIND_ERROR
   content         String                  @db.Text
   options         Json? // array of options or structured JSON
   correctAnswer   Json?

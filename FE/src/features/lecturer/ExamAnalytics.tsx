@@ -133,6 +133,7 @@ const QUESTION_TYPE_LABELS: Record<string, string> = {
   FILL_IN_BLANK: "Điền khuyết",
   MATCHING: "Ghép đôi",
   ORDERING: "Sắp xếp",
+  FIND_ERROR: "Tìm lỗi sai",
 };
 
 function getCourseLabel(course?: QuestionCourseInfo | null) {
