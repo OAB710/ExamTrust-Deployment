@@ -17,18 +17,14 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Users,
   Shield,
-  Settings,
-  BarChart3,
   Activity,
   Database,
   ArrowRight,
   Loader2,
-  BookOpen,
 } from "lucide-react";
 import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
 import api, { unwrapPaginatedData } from "@/lib/api";
-import { FileText } from "@/components/layout/DashboardLayout";
 
 interface User {
   id: string;
@@ -285,78 +281,6 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Tác vụ quản trị</CardTitle>
-            <CardDescription>Các lựa chọn quản lý hệ thống</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex-col gap-2"
-                asChild
-              >
-                <Link href="/admin/users">
-                  <Users className="h-5 w-5" />
-                  <span>Quản lý người dùng</span>
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex-col gap-2"
-                asChild
-              >
-                <Link href="/admin/exams">
-                  <FileText className="h-5 w-5" />
-                  <span>Quản lý bài thi</span>
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex-col gap-2"
-                asChild
-              >
-                <Link href="/admin/integrity">
-                  <Shield className="h-5 w-5" />
-                  <span>Xem xét tính toàn vẹn</span>
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex-col gap-2"
-                asChild
-              >
-                <Link href="/admin/settings">
-                  <Settings className="h-5 w-5" />
-                  <span>Thiết lập hệ thống</span>
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex-col gap-2"
-                asChild
-              >
-                <Link href="/admin/courses">
-                  <BarChart3 className="h-5 w-5" />
-                  <span>Quản lý khóa học</span>
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto py-4 flex-col gap-2"
-                asChild
-              >
-                <Link href="/admin/question-bank">
-                  <BookOpen className="h-5 w-5" />
-                  <span>Ngân hàng câu hỏi</span>
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </AdminPageShell>
     </DashboardLayout>
   );

@@ -15,3 +15,13 @@ export class ReviewAnomalyFlagDto {
   @MaxLength(2000)
   notes?: string;
 }
+
+export class ReviewIntegrityCaseDto {
+  @IsEnum(RiskFlagDecision)
+  status: RiskFlagDecision;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
