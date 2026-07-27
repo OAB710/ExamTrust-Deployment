@@ -708,7 +708,7 @@ export default function CourseDetail() {
               router.push(
                 basePath === "/admin"
                   ? "/admin/courses"
-                  : "/lecturer/courses",
+                  : "/lecturer/create-course",
               )
             }
           >

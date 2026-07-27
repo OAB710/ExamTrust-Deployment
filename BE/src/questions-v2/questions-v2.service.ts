@@ -206,6 +206,110 @@ export class QuestionsService {
     return created;
   }
 
+  async copyQuestionBank(
+    dto: { sourceCourseId: string; targetCourseId: string; topicIds?: string[] },
+    user: AuthUser,
+  ) {
+    const { sourceCourseId, targetCourseId, topicIds } = dto;
+
+    if (sourceCourseId === targetCourseId) {
+      throw new BadRequestException('Source and target course must be different');
+    }
+
+    await this.assertCourseAccessible(sourceCourseId, user);
+    await this.assertCourseAccessible(targetCourseId, user);
+
+    const sourceQuestions = await this.prisma.question.findMany({
+      where: { courseId: sourceCourseId, status: 'PUBLISHED' },
+      include: { topicLinks: { include: { topic: true } } },
+    });
+
+    const filtered = topicIds?.length
+      ? sourceQuestions.filter((q) =>
+          q.topicLinks.some((link) => topicIds.includes(link.topicId)),
+        )
+      : sourceQuestions;
+
+    const topicIdMap = new Map<string, string>();
+    let copied = 0;
+    let skipped = 0;
+
+    for (const question of filtered) {
+      const existing = await this.prisma.question.findFirst({
+        where: { courseId: targetCourseId, type: question.type, content: question.content },
+        select: { id: true },
+      });
+      if (existing) {
+        skipped += 1;
+        continue;
+      }
+
+      const sourceTopic = question.topicLinks[0]?.topic ?? null;
+      let targetTopicId: string | null = null;
+
+      if (sourceTopic) {
+        targetTopicId = topicIdMap.get(sourceTopic.id) ?? null;
+        if (!targetTopicId) {
+          const targetTopic = await this.prisma.topic.upsert({
+            where: { courseId_code: { courseId: targetCourseId, code: sourceTopic.code } },
+            create: { code: sourceTopic.code, name: sourceTopic.name, courseId: targetCourseId },
+            update: {},
+          });
+          await this.prisma.courseTopic.upsert({
+            where: { courseId_topicId: { courseId: targetCourseId, topicId: targetTopic.id } },
+            create: { courseId: targetCourseId, topicId: targetTopic.id },
+            update: {},
+          });
+          targetTopicId = targetTopic.id;
+          topicIdMap.set(sourceTopic.id, targetTopic.id);
+        }
+      }
+
+      const created = await this.prisma.question.create({
+        data: {
+          type: question.type,
+          content: question.content,
+          options: question.options as any,
+          correctAnswer: question.correctAnswer as any,
+          explanation: question.explanation,
+          difficulty: question.difficulty,
+          points: question.points,
+          defaultPoints: question.defaultPoints,
+          courseId: targetCourseId,
+          creatorId: user.id,
+          status: 'PUBLISHED',
+          isReusable: true,
+        },
+      });
+
+      if (targetTopicId) {
+        await this.syncSingleQuestionTopic(created.id, targetTopicId);
+      }
+
+      const versionId = randomUUID();
+      await this.prisma.$executeRawUnsafe(
+        `
+        INSERT INTO question_versions (id, questionId, versionNo, stem, payload, answerKey, explanation, difficulty, points, metadata, aiGenerated, createdBy, createdAt)
+        VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 0, ?, NOW(3))
+        `,
+        versionId,
+        created.id,
+        question.content,
+        JSON.stringify(question.options || {}),
+        JSON.stringify(question.correctAnswer || {}),
+        question.explanation,
+        question.difficulty,
+        question.points,
+        JSON.stringify({ copiedFromQuestionId: question.id, copiedFromCourseId: sourceCourseId }),
+        user.id,
+      );
+
+      copied += 1;
+    }
+
+    return { copied, skipped, total: filtered.length };
+  }
+
   async findQuestionById(id: string, user: AuthUser) {
     const question = await this.prisma.question.findUnique({
       where: { id },

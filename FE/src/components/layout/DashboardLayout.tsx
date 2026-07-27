@@ -84,7 +84,7 @@ const lecturerNavItems: NavItem[] = [
   },
   {
     title: "Khóa học",
-    href: "/lecturer/courses",
+    href: "/lecturer/create-course",
     icon: <GraduationCap className="h-[18px] w-[18px]" />,
   },
   {

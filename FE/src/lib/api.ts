@@ -427,6 +427,14 @@ class ApiClient {
     return allowed.has(normalized) ? normalized : 'MULTIPLE_CHOICE';
   }
 
+  async copyQuestionBank(data: {
+    sourceCourseId: string;
+    targetCourseId: string;
+    topicIds?: string[];
+  }): Promise<{ copied: number; skipped: number; total: number }> {
+    return this.request('/questions/copy-bank', { method: 'POST', body: data });
+  }
+
   async saveQuestion(data: {
     sourceQuestionId?: string;
     type?: string;
@@ -726,6 +734,10 @@ class ApiClient {
 
   async getAvailableExams() {
     return this.request<any[]>('/exams/available');
+  }
+
+  async getStudentSchedule() {
+    return this.request<any[]>('/exams/schedule');
   }
 
   async getExam(id: string) {

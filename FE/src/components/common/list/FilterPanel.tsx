@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Filter } from "lucide-react";
+import { ChevronDown, Filter, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -191,23 +191,42 @@ export function FilterPanel({
   const content = (
     <div
       className={cn(
-        "flex min-h-0 gap-2.5",
+        "flex min-h-0 flex-col gap-2.5",
         inline
-          ? "flex-wrap items-end rounded-lg border border-border bg-card p-3"
-          : "max-h-[min(50vh,20rem)] flex-col",
+          ? "rounded-xl border border-border bg-card p-3 shadow-sm"
+          : "max-h-[min(50vh,20rem)]",
       )}
     >
-      <div className={cn("flex items-center gap-2", inline && "w-full")}>
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-          {!inline ? <p className="text-xs text-muted-foreground">{description}</p> : null}
-        </div>
+      <div className={cn("flex items-center gap-3", title ? "justify-between" : "justify-end")}>
+        {title ? (
+          <div>
+            <h3 className="text-base font-semibold leading-6 text-foreground">{title}</h3>
+            {!inline ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+          </div>
+        ) : null}
+        {inline ? (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleClearWithReset}
+            className="h-8 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+            Xóa bộ lọc
+          </Button>
+        ) : null}
       </div>
 
       {!inline ? <Separator /> : null}
 
-      <div className={cn(inline ? "w-full" : "max-h-[16rem] min-h-[6rem] overflow-y-auto pr-2")}>
-        <div className={cn(inline ? "flex flex-wrap items-end gap-3" : "space-y-3")}>
+      <div className={cn(inline ? "" : "max-h-[16rem] min-h-[6rem] overflow-y-auto pr-2")}>
+        <div
+          className={cn(
+            inline
+              ? "grid grid-cols-1 items-end gap-x-4 gap-y-3 sm:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]"
+              : "space-y-3",
+          )}
+        >
           {filters.map((filter) => {
             const current = value[filter.key];
 
@@ -219,9 +238,7 @@ export function FilterPanel({
                   key={filter.key}
                   className={cn(
                     "space-y-1.5",
-                    inline
-                      ? "min-w-[12rem] flex-1"
-                      : "mx-auto w-full max-w-[26rem]",
+                    inline ? "" : "mx-auto w-full max-w-[26rem]",
                   )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
@@ -264,9 +281,7 @@ export function FilterPanel({
                   key={filter.key}
                   className={cn(
                     "space-y-1.5",
-                    inline
-                      ? "min-w-[16rem] flex-1"
-                      : "mx-auto w-full max-w-[26rem]",
+                    inline ? "sm:col-span-2" : "mx-auto w-full max-w-[26rem]",
                   )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
@@ -318,29 +333,18 @@ export function FilterPanel({
                   key={filter.key}
                   className={cn(
                     "space-y-1.5",
-                    inline
-                      ? "min-w-[16rem] flex-1"
-                      : "mx-auto w-full max-w-[26rem]",
+                    inline ? "" : "mx-auto w-full max-w-[26rem]",
                   )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
-                  <div className="flex items-center justify-between rounded-lg border border-border/80 px-2.5 py-2">
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-medium text-foreground">
-                        {typeof current === "boolean"
-                          ? current
-                            ? filter.trueLabel || "Đã bật"
-                            : filter.falseLabel || "Đã tắt"
-                          : `Bật hoặc tắt ${filter.label.toLowerCase()}`}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {typeof current === "boolean"
-                          ? current
-                            ? filter.trueLabel || "Có"
-                            : filter.falseLabel || "Không"
-                          : "Bộ lọc tùy chọn"}
-                      </p>
-                    </div>
+                  <div className="flex h-9 items-center justify-between rounded-lg px-1">
+                    <p className="text-xs font-medium text-foreground">
+                      {typeof current === "boolean"
+                        ? current
+                          ? filter.trueLabel || "Đã bật"
+                          : filter.falseLabel || "Đã tắt"
+                        : `Bật hoặc tắt ${filter.label.toLowerCase()}`}
+                    </p>
                     <Switch
                       checked={typeof current === "boolean" ? current : false}
                       onCheckedChange={(checked) =>
@@ -371,9 +375,7 @@ export function FilterPanel({
                   key={filter.key}
                   className={cn(
                     "space-y-1.5",
-                    inline
-                      ? "min-w-[18rem] flex-1"
-                      : "mx-auto w-full max-w-[26rem]",
+                    inline ? "" : "mx-auto w-full max-w-[26rem]",
                   )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
@@ -464,7 +466,7 @@ export function FilterPanel({
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-2 rounded-lg border border-border/80 p-2.5 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <div className="space-y-1">
                         <Input
                           type="number"
@@ -545,13 +547,13 @@ export function FilterPanel({
                   key={filter.key}
                   className={cn(
                     "space-y-1.5",
-                    inline
-                      ? "min-w-[18rem] flex-1"
-                      : "mx-auto w-full max-w-[26rem]",
+                    inline ? "" : "mx-auto w-full max-w-[26rem]",
                   )}
                 >
-                  <Label className="text-xs font-medium">{filter.label}</Label>
-                  <div className="grid gap-2 rounded-lg border border-border/80 p-2.5 md:grid-cols-2">
+                  {!filter.hideLabel ? (
+                    <Label className="text-xs font-medium">{filter.label}</Label>
+                  ) : null}
+                  <div className="grid gap-2 md:grid-cols-2">
                     <div className="space-y-1.5">
                       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         Từ ngày
@@ -594,16 +596,18 @@ export function FilterPanel({
         </div>
       </div>
 
-      <div className={cn("flex flex-col gap-1.5 sm:flex-row", inline ? "sm:ml-auto" : "sm:justify-end")}>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleClearWithReset}
-          className="h-8 rounded-lg px-3 text-xs"
-        >
-          Xóa bộ lọc
-        </Button>
-      </div>
+      {!inline ? (
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleClearWithReset}
+            className="h-8 rounded-lg px-3 text-xs"
+          >
+            Xóa bộ lọc
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 

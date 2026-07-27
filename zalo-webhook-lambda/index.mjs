@@ -71,6 +71,27 @@ async function setFeSubdomainEnabled(enabled) {
   return true;
 }
 
+async function cfGraphQL(query, variables) {
+  const resp = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!resp.ok) {
+    console.error("Cloudflare GraphQL HTTP error", resp.status, await resp.text());
+    return null;
+  }
+  const data = await resp.json();
+  if (data.errors) {
+    console.error("Cloudflare GraphQL errors", JSON.stringify(data.errors));
+    return null;
+  }
+  return data;
+}
+
 async function getTodayRequestCount() {
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
@@ -88,33 +109,86 @@ async function getTodayRequestCount() {
       }
     }
   `;
-  const resp = await fetch("https://api.cloudflare.com/client/v4/graphql", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      query,
-      variables: {
-        accountTag: CLOUDFLARE_ACCOUNT_ID,
-        start: startOfDay.toISOString(),
-        end: new Date().toISOString(),
-        scriptName: CLOUDFLARE_WORKER_NAME,
-      },
-    }),
+  const data = await cfGraphQL(query, {
+    accountTag: CLOUDFLARE_ACCOUNT_ID,
+    start: startOfDay.toISOString(),
+    end: new Date().toISOString(),
+    scriptName: CLOUDFLARE_WORKER_NAME,
   });
+  if (!data) return null;
+  const groups = data?.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive ?? [];
+  return groups.reduce((total, g) => total + (g.sum?.requests ?? 0), 0);
+}
+
+async function getTodayObservabilityEventCount() {
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const resp = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/observability/telemetry/query`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        timeframe: { from: startOfDay.getTime(), to: Date.now() },
+        view: "calculations",
+        parameters: {
+          calculations: [{ operator: "count", alias: "total" }],
+          datasets: [],
+          filterCombination: "and",
+          filters: [],
+        },
+      }),
+    },
+  );
   if (!resp.ok) {
-    console.error("Cloudflare GraphQL failed", resp.status, await resp.text());
+    console.error("Observability query failed", resp.status, await resp.text());
     return null;
   }
   const data = await resp.json();
-  if (data.errors) {
-    console.error("Cloudflare GraphQL errors", JSON.stringify(data.errors));
-    return null;
+  // result may be in data.result.data[0].total or data.result.rows[0]
+  const result = data?.result;
+  if (result?.data?.[0]?.total !== undefined) return result.data[0].total;
+  if (result?.rows?.[0]?.total !== undefined) return result.rows[0].total;
+  // fallback: sum all count-like fields
+  const rows = result?.data ?? result?.rows ?? [];
+  if (rows.length > 0) {
+    const first = rows[0];
+    const val = first.total ?? first.count ?? first["count()"] ?? Object.values(first)[0];
+    return typeof val === "number" ? val : null;
   }
-  const groups = data?.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive ?? [];
-  return groups.reduce((total, g) => total + (g.sum?.requests ?? 0), 0);
+  return null;
+}
+
+async function getThisMonthBuildMinutes() {
+  const startOfMonth = new Date();
+  startOfMonth.setUTCDate(1);
+  startOfMonth.setUTCHours(0, 0, 0, 0);
+  const query = `
+    query ($accountTag: string!, $start: Time!, $end: Time!) {
+      viewer {
+        accounts(filter: { accountTag: $accountTag }) {
+          workersBuildsBuildMinutesAdaptiveGroups(
+            limit: 1
+            filter: { datetime_geq: $start, datetime_leq: $end }
+          ) {
+            sum { buildTimeMs }
+          }
+        }
+      }
+    }
+  `;
+  const data = await cfGraphQL(query, {
+    accountTag: CLOUDFLARE_ACCOUNT_ID,
+    start: startOfMonth.toISOString(),
+    end: new Date().toISOString(),
+  });
+  if (!data) return null;
+  const groups = data?.data?.viewer?.accounts?.[0]?.workersBuildsBuildMinutesAdaptiveGroups ?? [];
+  const totalMs = groups.reduce((total, g) => total + (g.sum?.buildTimeMs ?? 0), 0);
+  return Math.round(totalMs / 60000);
 }
 
 async function replyToZalo(chatId, text) {
@@ -173,12 +247,19 @@ export const handler = async (event) => {
       const done = await setFeSubdomainEnabled(true);
       await replyToZalo(chatId, done ? "🟢 Đã bật FE" : "❌ Bật lỗi rồi");
     } else if (text === ZALO_USAGE_FE_COMMAND.toLowerCase()) {
-      const requests = await getTodayRequestCount();
+      const [requests, obsEvents, buildMinutes] = await Promise.all([
+        getTodayRequestCount(),
+        getTodayObservabilityEventCount(),
+        getThisMonthBuildMinutes(),
+      ]);
+      const fmt = (n, fallback = "?") =>
+        n === null ? fallback : n.toLocaleString("vi-VN");
       await replyToZalo(
         chatId,
-        requests === null
-          ? "❌ Lấy usage lỗi rồi"
-          : `📊 Requests hôm nay: ${requests.toLocaleString("vi-VN")}`,
+        `📊 Cloudflare Usage\n` +
+        `• Requests hôm nay: ${fmt(requests)} / 100.000\n` +
+        `• Observability events hôm nay: ${fmt(obsEvents)} / 200.000\n` +
+        `• Build minutes tháng này: ${fmt(buildMinutes)} / 3.000`,
       );
     } else {
       await replyToZalo(

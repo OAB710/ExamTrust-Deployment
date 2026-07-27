@@ -318,13 +318,15 @@ const difficultyOptionToBankValue = (option: string): string => {
   return String(difficultyOptionToValue(option));
 };
 
+// Bank questions store difficulty as an integer 1..10 (see QuestionEditor's
+// Easy/Medium/Hard buttons: 0.3/0.5/0.7 slider values * 10 => ~3/5/7).
 const difficultyLabelFromValue = (
   value: unknown,
 ): "Easy" | "Medium" | "Hard" => {
   const n = Number(value);
   if (!Number.isFinite(n)) return "Medium";
-  if (n <= 0.3) return "Easy";
-  if (n <= 0.5) return "Medium";
+  if (n <= 4) return "Easy";
+  if (n <= 5) return "Medium";
   return "Hard";
 };
 
