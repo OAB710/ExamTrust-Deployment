@@ -1328,7 +1328,7 @@ export class SubmissionsService {
     return submitted === correct;
   }
 
-  async getIntegrityCases(query: IntegrityCasesQuery = {}) {
+  async getIntegrityCases(query: IntegrityCasesQuery = {}, user?: RequestUser) {
     const page = Math.max(1, Number(query.page || 1) || 1);
     const limit = Math.max(1, Math.min(100, Number(query.limit || 10) || 10));
     const search = String(query.search || '').trim().toLowerCase();
@@ -1347,8 +1347,12 @@ export class SubmissionsService {
       submittedTo.setHours(23, 59, 59, 999);
     }
 
+    const lecturerScope = String(user?.role || '').toUpperCase() === 'LECTURER'
+      ? { submission: { exam: { OR: [{ creatorId: user!.id }, { course: { lecturerId: user!.id } }] } } }
+      : {};
     const sessions = await this.prisma.proctoringSession.findMany({
       where: {
+        ...lecturerScope,
         OR: [
           { tabSwitchCount: { gt: 0 } },
           { mouseAnomalies: { gt: 0 } },
@@ -1380,6 +1384,9 @@ export class SubmissionsService {
                 id: true,
                 title: true,
               },
+            },
+            integrityReview: {
+              select: { status: true, reviewerId: true, reviewerNote: true, decidedAt: true },
             },
           },
         },
@@ -1450,7 +1457,7 @@ export class SubmissionsService {
         examTitle: session.submission?.exam?.title || 'Unknown exam',
         submittedAt: submittedAt ? new Date(submittedAt).toISOString() : new Date().toISOString(),
         confidence,
-        status: 'pending',
+        status: String(session.submission?.integrityReview?.status || 'PENDING').toLowerCase() as IntegrityCaseStatus,
         reasons: reasons.length
           ? reasons
           : [{
@@ -1519,10 +1526,40 @@ export class SubmissionsService {
         totalFlagged: total,
         pendingReview: filteredCases.filter((item) => item.status === 'pending').length,
         highConfidence: filteredCases.filter((item) => item.confidence === 'High').length,
-        confirmedCases: 0,
+        confirmedCases: filteredCases.filter((item) => item.status === 'confirmed').length,
       },
       patterns,
     };
+  }
+
+  async reviewIntegrityCase(
+    submissionId: string,
+    dto: { status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED'; notes?: string },
+    user: RequestUser,
+  ) {
+    const submission = await this.prisma.examSubmission.findUnique({
+      where: { id: submissionId },
+      select: { id: true, examId: true },
+    });
+    if (!submission) throw new NotFoundException('Submission not found');
+    await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
+
+    return this.prisma.integrityReview.upsert({
+      where: { submissionId },
+      create: {
+        submissionId,
+        status: dto.status,
+        reviewerId: user.id,
+        reviewerNote: dto.notes?.trim() || null,
+        decidedAt: new Date(),
+      },
+      update: {
+        status: dto.status,
+        reviewerId: user.id,
+        reviewerNote: dto.notes?.trim() || null,
+        decidedAt: new Date(),
+      },
+    });
   }
 
   private buildSubmitResponse(

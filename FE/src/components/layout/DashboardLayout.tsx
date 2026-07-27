@@ -102,6 +102,11 @@ const lecturerNavItems: NavItem[] = [
     href: "/lecturer/analytics",
     icon: <BarChart3 className="h-[18px] w-[18px]" />,
   },
+  {
+    title: "Rà soát toàn vẹn",
+    href: "/lecturer/integrity",
+    icon: <Shield className="h-[18px] w-[18px]" />,
+  },
 ];
 
 const adminNavItems: NavItem[] = [

@@ -19,7 +19,7 @@ import { Response } from 'express';
 import { SubmissionsService } from './submissions.service';
 import { ExamRiskAssessmentService } from './exam-risk-assessment.service';
 import { StartExamDto, SubmitExamDto, GradeAnswerDto, UpdateSubmissionStatusDto, AddLogsDto, AutosaveExamDto } from './dto/submission.dto';
-import { ReviewAnomalyFlagDto } from './dto/risk-assessment.dto';
+import { ReviewAnomalyFlagDto, ReviewIntegrityCaseDto } from './dto/risk-assessment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RateLimit } from '../common/rate-limit.decorator';
@@ -123,7 +123,7 @@ export class SubmissionsController {
 
   @Get('integrity/cases')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'LECTURER')
   getIntegrityCases(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -134,6 +134,7 @@ export class SubmissionsController {
     @Query('submittedTo') submittedTo?: string,
     @Query('timeAnomaly') timeAnomaly?: string,
     @Query('status') status?: string,
+    @Request() req?: any,
   ) {
     return this.submissionsService.getIntegrityCases({
       page,
@@ -145,7 +146,18 @@ export class SubmissionsController {
       submittedTo,
       timeAnomaly,
       status,
-    });
+    }, req.user);
+  }
+
+  @Patch('integrity/cases/:submissionId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'LECTURER')
+  reviewIntegrityCase(
+    @Param('submissionId') submissionId: string,
+    @Body() dto: ReviewIntegrityCaseDto,
+    @Request() req,
+  ) {
+    return this.submissionsService.reviewIntegrityCase(submissionId, dto, req.user);
   }
 
   @Get(':id/timeline')

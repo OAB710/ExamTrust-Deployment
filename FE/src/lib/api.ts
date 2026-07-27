@@ -860,6 +860,13 @@ class ApiClient {
     return this.request<any>(`/exams/${id}`, { method: 'DELETE' });
   }
 
+  async getAdminDashboardAnalytics(from?: string, to?: string) {
+    const query = new URLSearchParams();
+    if (from) query.append('from', from);
+    if (to) query.append('to', to);
+    return this.request<any>(`/admin/dashboard/analytics${query.size ? `?${query}` : ''}`);
+  }
+
   async archiveExam(id: string) {
     return this.request<any>(`/exams/${id}/archive`, { method: 'PATCH' });
   }
@@ -1006,6 +1013,16 @@ class ApiClient {
     if (params?.status && params.status !== 'all') query.append('status', params.status);
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return this.request<any>(`/submissions/integrity/cases${suffix}`);
+  }
+
+  async reviewIntegrityCase(submissionId: string, data: {
+    status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED';
+    notes?: string;
+  }) {
+    return this.request<any>(`/submissions/integrity/cases/${submissionId}`, {
+      method: 'PATCH',
+      body: data,
+    });
   }
 
   async getExamIntelligence(examId: string) {

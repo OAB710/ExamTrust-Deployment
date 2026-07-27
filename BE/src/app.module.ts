@@ -17,6 +17,7 @@ import { CacheModule } from './cache/cache.module';
 import { EventsModule } from './events/events.module';
 import { AuditModule } from './audit/audit.module';
 import { LecturerDashboardModule } from './lecturer-dashboard/lecturer-dashboard.module';
+import { AdminDashboardModule } from './admin-dashboard/admin-dashboard.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { LecturerDashboardModule } from './lecturer-dashboard/lecturer-dashboard
     QuestionsContractsModule,
     AuditModule,
     LecturerDashboardModule,
+    AdminDashboardModule,
   ],
 })
 export class AppModule {}
