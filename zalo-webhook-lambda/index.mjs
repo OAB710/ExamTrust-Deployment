@@ -3,14 +3,20 @@ import crypto from "node:crypto";
 const {
   ZALO_WEBHOOK_SECRET,
   ZALO_ALLOWED_USER_ID,
-  ZALO_BUILD_FE_COMMAND = "Build fe",
+  ZALO_BUILD_FE_COMMAND = "Build FE",
   ZALO_STOP_FE_COMMAND = "Off FE",
   ZALO_START_FE_COMMAND = "On FE",
-  ZALO_USAGE_FE_COMMAND = "Usage FE",
+  ZALO_USAGE_FE_COMMAND = "FE Info",
+  ZALO_USAGE_BE_COMMAND = "BE Info",
+  ZALO_PUBLIC_INFO_COMMAND = "Info",
+  ZALO_BUILD_BE_COMMAND = "Build BE",
+  ZALO_FE_URL = "https://examtrust-deployment-final-thesis.examtrust.workers.dev",
+  ZALO_AWS_CONSOLE_URL = "https://ap-southeast-2.console.aws.amazon.com/",
   ZALO_BOT_TOKEN,
   GITHUB_PAT,
   GITHUB_REPO = "OAB710/ExamTrust-Deployment",
   GITHUB_WORKFLOW_FILE = "deploy-fe.yml",
+  GITHUB_WORKFLOW_FILE_BE = "deploy-be.yml",
   CLOUDFLARE_API_TOKEN,
   CLOUDFLARE_ACCOUNT_ID,
   CLOUDFLARE_WORKER_NAME = "examtrust-deployment-final-thesis",
@@ -23,14 +29,22 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+function normalizeCommand(s) {
+  return String(s ?? "")
+    .normalize("NFC")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 const COOLDOWN_MS = 3 * 60 * 1000;
 const githubHeaders = {
   Authorization: `Bearer ${GITHUB_PAT}`,
   Accept: "application/vnd.github+json",
 };
 
-async function getLastRunAgeMs() {
-  const url = `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW_FILE}/runs?per_page=1`;
+async function getLastRunAgeMs(workflowFile = GITHUB_WORKFLOW_FILE) {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${workflowFile}/runs?per_page=1`;
   const resp = await fetch(url, { headers: githubHeaders });
   if (!resp.ok) return null;
   const data = await resp.json();
@@ -39,8 +53,8 @@ async function getLastRunAgeMs() {
   return Date.now() - new Date(lastRun.created_at).getTime();
 }
 
-async function triggerFeDeploy() {
-  const url = `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW_FILE}/dispatches`;
+async function triggerDeploy(workflowFile = GITHUB_WORKFLOW_FILE) {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${workflowFile}/dispatches`;
   const resp = await fetch(url, {
     method: "POST",
     headers: { ...githubHeaders, "Content-Type": "application/json" },
@@ -52,6 +66,31 @@ async function triggerFeDeploy() {
     return false;
   }
   return true;
+}
+
+async function getLatestWorkflowRun(workflowFile) {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${workflowFile}/runs?per_page=1`;
+  const resp = await fetch(url, { headers: githubHeaders });
+  if (!resp.ok) {
+    console.error("Get workflow run failed", resp.status, await resp.text());
+    return null;
+  }
+  const data = await resp.json();
+  const run = data.workflow_runs?.[0];
+  if (!run) return null;
+  return { status: run.status, conclusion: run.conclusion };
+}
+
+function formatBuildStatus(run) {
+  if (!run) return "❔ No builds yet";
+  if (run.status === "in_progress" || run.status === "queued") return "🔄 Building...";
+  if (run.status === "completed") {
+    if (run.conclusion === "success") return "✅ Done";
+    if (run.conclusion === "failure") return "❌ Failed";
+    if (run.conclusion === "cancelled") return "⚠️ Cancelled";
+    return `⚪ ${run.conclusion}`;
+  }
+  return `⚪ ${run.status}`;
 }
 
 async function setFeSubdomainEnabled(enabled) {
@@ -69,6 +108,19 @@ async function setFeSubdomainEnabled(enabled) {
     return false;
   }
   return true;
+}
+
+async function getFeSubdomainEnabled() {
+  const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${CLOUDFLARE_WORKER_NAME}/subdomain`;
+  const resp = await fetch(url, {
+    headers: { Authorization: `Bearer ${CLOUDFLARE_API_TOKEN}` },
+  });
+  if (!resp.ok) {
+    console.error("Cloudflare subdomain status check failed", resp.status, await resp.text());
+    return null;
+  }
+  const data = await resp.json();
+  return typeof data?.result?.enabled === "boolean" ? data.result.enabled : null;
 }
 
 async function cfGraphQL(query, variables) {
@@ -132,6 +184,7 @@ async function getTodayObservabilityEventCount() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        queryId: crypto.randomUUID(),
         timeframe: { from: startOfDay.getTime(), to: Date.now() },
         view: "calculations",
         parameters: {
@@ -148,17 +201,26 @@ async function getTodayObservabilityEventCount() {
     return null;
   }
   const data = await resp.json();
-  // result may be in data.result.data[0].total or data.result.rows[0]
   const result = data?.result;
-  if (result?.data?.[0]?.total !== undefined) return result.data[0].total;
-  if (result?.rows?.[0]?.total !== undefined) return result.rows[0].total;
-  // fallback: sum all count-like fields
+  // For view: "calculations", Cloudflare returns:
+  // result.calculations[i].aggregates[0].value (confirmed from live response).
+  const calculations = result?.calculations ?? [];
+  for (const calc of calculations) {
+    const agg = calc?.aggregates?.[0];
+    const val = agg?.value ?? agg?.count ?? calc?.total ?? calc?.count ?? calc?.value;
+    if (typeof val === "number") return val;
+  }
+  // Fallback: older/alternate shapes seen in other Cloudflare Analytics endpoints.
   const rows = result?.data ?? result?.rows ?? [];
   if (rows.length > 0) {
     const first = rows[0];
     const val = first.total ?? first.count ?? first["count()"] ?? Object.values(first)[0];
-    return typeof val === "number" ? val : null;
+    if (typeof val === "number") return val;
   }
+  console.error(
+    "Observability query: could not find a numeric count in response",
+    JSON.stringify(data).slice(0, 1000),
+  );
   return null;
 }
 
@@ -174,7 +236,7 @@ async function getThisMonthBuildMinutes() {
             limit: 1
             filter: { datetime_geq: $start, datetime_leq: $end }
           ) {
-            sum { buildTimeMs }
+            sum { buildMinutes }
           }
         }
       }
@@ -187,8 +249,55 @@ async function getThisMonthBuildMinutes() {
   });
   if (!data) return null;
   const groups = data?.data?.viewer?.accounts?.[0]?.workersBuildsBuildMinutesAdaptiveGroups ?? [];
-  const totalMs = groups.reduce((total, g) => total + (g.sum?.buildTimeMs ?? 0), 0);
-  return Math.round(totalMs / 60000);
+  const totalMinutes = groups.reduce((total, g) => total + (g.sum?.buildMinutes ?? 0), 0);
+  return Math.round(totalMinutes);
+}
+
+async function buildFeInfoText() {
+  const [enabled, requests, obsEvents, buildMinutes, feRun] = await Promise.all([
+    getFeSubdomainEnabled(),
+    getTodayRequestCount(),
+    getTodayObservabilityEventCount(),
+    getThisMonthBuildMinutes(),
+    getLatestWorkflowRun(GITHUB_WORKFLOW_FILE),
+  ]);
+  const fmt = (n, fallback = "?") => (n === null ? fallback : n.toLocaleString("en-US"));
+  const statusLabel = enabled === null ? "?" : enabled ? "On" : "Off";
+  return (
+    `🖥️ FE Info\n` +
+    `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
+    `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
+    `📊 Cloudflare Usage\n` +
+    `• Requests today: ${fmt(requests)} / 100,000\n` +
+    `• Observability events today: ${fmt(obsEvents)} / 200,000\n` +
+    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000`
+  );
+}
+
+async function buildBeInfoText() {
+  const beRun = await getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE);
+  return (
+    `🖥️ BE Info\n` +
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +
+    `💰 AWS Console: ${ZALO_AWS_CONSOLE_URL}`
+  );
+}
+
+async function buildPublicInfoText() {
+  const [enabled, feRun, beRun] = await Promise.all([
+    getFeSubdomainEnabled(),
+    getLatestWorkflowRun(GITHUB_WORKFLOW_FILE),
+    getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE),
+  ]);
+  const statusLabel = enabled === null ? "?" : enabled ? "On" : "Off";
+  return (
+    `🖥️ FE Info\n` +
+    `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
+    `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
+    `--------------------\n\n` +
+    `🖥️ BE Info\n` +
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}`
+  );
 }
 
 async function replyToZalo(chatId, text) {
@@ -222,49 +331,83 @@ export const handler = async (event) => {
   }
 
   const senderId = body?.message?.from?.id;
-  if (senderId !== ZALO_ALLOWED_USER_ID) {
-    console.warn("Rejected: unknown sender", senderId);
+  const text = normalizeCommand(body?.message?.text);
+  const chatId = body?.message?.chat?.id;
+
+  console.log(
+    "Incoming text:",
+    JSON.stringify(body?.message?.text ?? ""),
+    "-> normalized:",
+    JSON.stringify(text),
+    "from:",
+    senderId,
+  );
+
+  // "Info" is available to everyone, no owner check required — but the
+  // owner gets the full FE+BE detail (Cloudflare usage, AWS console link),
+  // while anyone else only gets the stripped-down public status.
+  if (
+    body?.event_name === "message.text.received" &&
+    text === normalizeCommand(ZALO_PUBLIC_INFO_COMMAND)
+  ) {
+    if (senderId === ZALO_ALLOWED_USER_ID) {
+      const [feText, beText] = await Promise.all([buildFeInfoText(), buildBeInfoText()]);
+      await replyToZalo(chatId, `${feText}\n\n--------------------\n\n${beText}`);
+    } else {
+      await replyToZalo(chatId, await buildPublicInfoText());
+    }
     return ok;
   }
 
-  const text = (body?.message?.text ?? "").trim().toLowerCase();
-  const chatId = body?.message?.chat?.id;
+  if (senderId !== ZALO_ALLOWED_USER_ID) {
+    console.warn("Rejected: unknown sender", senderId);
+    if (body?.event_name === "message.text.received") {
+      await replyToZalo(
+        chatId,
+        `🤖 Vui lòng chọn một trong các lệnh sau:\n` + `• ${ZALO_PUBLIC_INFO_COMMAND}`,
+      );
+    }
+    return ok;
+  }
 
   if (body?.event_name === "message.text.received") {
-    if (text === ZALO_BUILD_FE_COMMAND.toLowerCase()) {
+    if (text === normalizeCommand(ZALO_BUILD_FE_COMMAND)) {
       const lastRunAgeMs = await getLastRunAgeMs();
       if (lastRunAgeMs !== null && lastRunAgeMs < COOLDOWN_MS) {
         const waitSec = Math.ceil((COOLDOWN_MS - lastRunAgeMs) / 1000);
         await replyToZalo(chatId, `⏳ Vừa build xong, đợi ${waitSec}s rồi thử lại nhé`);
       } else {
-        const dispatched = await triggerFeDeploy();
+        const dispatched = await triggerDeploy(GITHUB_WORKFLOW_FILE);
         await replyToZalo(chatId, dispatched ? "🚀 Đang build FE..." : "❌ Trigger lỗi rồi");
       }
-    } else if (text === ZALO_STOP_FE_COMMAND.toLowerCase()) {
+    } else if (text === normalizeCommand(ZALO_BUILD_BE_COMMAND)) {
+      const lastRunAgeMs = await getLastRunAgeMs(GITHUB_WORKFLOW_FILE_BE);
+      if (lastRunAgeMs !== null && lastRunAgeMs < COOLDOWN_MS) {
+        const waitSec = Math.ceil((COOLDOWN_MS - lastRunAgeMs) / 1000);
+        await replyToZalo(chatId, `⏳ Vừa build xong, đợi ${waitSec}s rồi thử lại nhé`);
+      } else {
+        const dispatched = await triggerDeploy(GITHUB_WORKFLOW_FILE_BE);
+        await replyToZalo(chatId, dispatched ? "🚀 Đang build BE..." : "❌ Trigger lỗi rồi");
+      }
+    } else if (text === normalizeCommand(ZALO_STOP_FE_COMMAND)) {
       const done = await setFeSubdomainEnabled(false);
       await replyToZalo(chatId, done ? "🔴 Đã tắt FE" : "❌ Tắt lỗi rồi");
-    } else if (text === ZALO_START_FE_COMMAND.toLowerCase()) {
+    } else if (text === normalizeCommand(ZALO_START_FE_COMMAND)) {
       const done = await setFeSubdomainEnabled(true);
       await replyToZalo(chatId, done ? "🟢 Đã bật FE" : "❌ Bật lỗi rồi");
-    } else if (text === ZALO_USAGE_FE_COMMAND.toLowerCase()) {
-      const [requests, obsEvents, buildMinutes] = await Promise.all([
-        getTodayRequestCount(),
-        getTodayObservabilityEventCount(),
-        getThisMonthBuildMinutes(),
-      ]);
-      const fmt = (n, fallback = "?") =>
-        n === null ? fallback : n.toLocaleString("vi-VN");
-      await replyToZalo(
-        chatId,
-        `📊 Cloudflare Usage\n` +
-        `• Requests hôm nay: ${fmt(requests)} / 100.000\n` +
-        `• Observability events hôm nay: ${fmt(obsEvents)} / 200.000\n` +
-        `• Build minutes tháng này: ${fmt(buildMinutes)} / 3.000`,
-      );
+    } else if (text === normalizeCommand(ZALO_USAGE_FE_COMMAND)) {
+      await replyToZalo(chatId, await buildFeInfoText());
+    } else if (text === normalizeCommand(ZALO_USAGE_BE_COMMAND)) {
+      await replyToZalo(chatId, await buildBeInfoText());
     } else {
       await replyToZalo(
         chatId,
-        `🤖 Lệnh không hợp lệ. Các lệnh:\n- "${ZALO_BUILD_FE_COMMAND}"\n- "${ZALO_STOP_FE_COMMAND}"\n- "${ZALO_START_FE_COMMAND}"\n- "${ZALO_USAGE_FE_COMMAND}"`,
+        `🤖 Vui lòng chọn một trong các lệnh sau:\n` +
+        `• ${ZALO_BUILD_FE_COMMAND}\n` +
+        `• ${ZALO_BUILD_BE_COMMAND}\n` +
+        `• On / Off FE\n` +
+        `• ${ZALO_USAGE_FE_COMMAND} / ${ZALO_USAGE_BE_COMMAND}\n` +
+        `• ${ZALO_PUBLIC_INFO_COMMAND}`,
       );
     }
   }
