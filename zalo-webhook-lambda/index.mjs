@@ -7,8 +7,11 @@ const {
   ZALO_STOP_FE_COMMAND = "Off FE",
   ZALO_START_FE_COMMAND = "On FE",
   ZALO_USAGE_FE_COMMAND = "FE Info",
+  ZALO_USAGE_BE_COMMAND = "BE Info",
+  ZALO_PUBLIC_INFO_COMMAND = "Info",
   ZALO_BUILD_BE_COMMAND = "Build BE",
   ZALO_FE_URL = "https://examtrust-deployment-final-thesis.examtrust.workers.dev",
+  ZALO_AWS_CONSOLE_URL = "https://ap-southeast-2.console.aws.amazon.com/",
   ZALO_BOT_TOKEN,
   GITHUB_PAT,
   GITHUB_REPO = "OAB710/ExamTrust-Deployment",
@@ -63,6 +66,31 @@ async function triggerDeploy(workflowFile = GITHUB_WORKFLOW_FILE) {
     return false;
   }
   return true;
+}
+
+async function getLatestWorkflowRun(workflowFile) {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${workflowFile}/runs?per_page=1`;
+  const resp = await fetch(url, { headers: githubHeaders });
+  if (!resp.ok) {
+    console.error("Get workflow run failed", resp.status, await resp.text());
+    return null;
+  }
+  const data = await resp.json();
+  const run = data.workflow_runs?.[0];
+  if (!run) return null;
+  return { status: run.status, conclusion: run.conclusion };
+}
+
+function formatBuildStatus(run) {
+  if (!run) return "❔ No builds yet";
+  if (run.status === "in_progress" || run.status === "queued") return "🔄 Building...";
+  if (run.status === "completed") {
+    if (run.conclusion === "success") return "✅ Done";
+    if (run.conclusion === "failure") return "❌ Failed";
+    if (run.conclusion === "cancelled") return "⚠️ Cancelled";
+    return `⚪ ${run.conclusion}`;
+  }
+  return `⚪ ${run.status}`;
 }
 
 async function setFeSubdomainEnabled(enabled) {
@@ -225,6 +253,53 @@ async function getThisMonthBuildMinutes() {
   return Math.round(totalMinutes);
 }
 
+async function buildFeInfoText() {
+  const [enabled, requests, obsEvents, buildMinutes, feRun] = await Promise.all([
+    getFeSubdomainEnabled(),
+    getTodayRequestCount(),
+    getTodayObservabilityEventCount(),
+    getThisMonthBuildMinutes(),
+    getLatestWorkflowRun(GITHUB_WORKFLOW_FILE),
+  ]);
+  const fmt = (n, fallback = "?") => (n === null ? fallback : n.toLocaleString("en-US"));
+  const statusLabel = enabled === null ? "?" : enabled ? "On" : "Off";
+  return (
+    `🖥️ FE Info\n` +
+    `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
+    `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
+    `📊 Cloudflare Usage\n` +
+    `• Requests today: ${fmt(requests)} / 100,000\n` +
+    `• Observability events today: ${fmt(obsEvents)} / 200,000\n` +
+    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000`
+  );
+}
+
+async function buildBeInfoText() {
+  const beRun = await getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE);
+  return (
+    `🖥️ BE Info\n` +
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +
+    `💰 AWS Console: ${ZALO_AWS_CONSOLE_URL}`
+  );
+}
+
+async function buildPublicInfoText() {
+  const [enabled, feRun, beRun] = await Promise.all([
+    getFeSubdomainEnabled(),
+    getLatestWorkflowRun(GITHUB_WORKFLOW_FILE),
+    getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE),
+  ]);
+  const statusLabel = enabled === null ? "?" : enabled ? "On" : "Off";
+  return (
+    `🖥️ FE Info\n` +
+    `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
+    `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
+    `--------------------\n\n` +
+    `🖥️ BE Info\n` +
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}`
+  );
+}
+
 async function replyToZalo(chatId, text) {
   if (!ZALO_BOT_TOKEN) return;
   const resp = await fetch(`https://bot-api.zaloplatforms.com/bot${ZALO_BOT_TOKEN}/sendMessage`, {
@@ -256,11 +331,6 @@ export const handler = async (event) => {
   }
 
   const senderId = body?.message?.from?.id;
-  if (senderId !== ZALO_ALLOWED_USER_ID) {
-    console.warn("Rejected: unknown sender", senderId);
-    return ok;
-  }
-
   const text = normalizeCommand(body?.message?.text);
   const chatId = body?.message?.chat?.id;
 
@@ -269,7 +339,36 @@ export const handler = async (event) => {
     JSON.stringify(body?.message?.text ?? ""),
     "-> normalized:",
     JSON.stringify(text),
+    "from:",
+    senderId,
   );
+
+  // "Info" is available to everyone, no owner check required — but the
+  // owner gets the full FE+BE detail (Cloudflare usage, AWS console link),
+  // while anyone else only gets the stripped-down public status.
+  if (
+    body?.event_name === "message.text.received" &&
+    text === normalizeCommand(ZALO_PUBLIC_INFO_COMMAND)
+  ) {
+    if (senderId === ZALO_ALLOWED_USER_ID) {
+      const [feText, beText] = await Promise.all([buildFeInfoText(), buildBeInfoText()]);
+      await replyToZalo(chatId, `${feText}\n\n--------------------\n\n${beText}`);
+    } else {
+      await replyToZalo(chatId, await buildPublicInfoText());
+    }
+    return ok;
+  }
+
+  if (senderId !== ZALO_ALLOWED_USER_ID) {
+    console.warn("Rejected: unknown sender", senderId);
+    if (body?.event_name === "message.text.received") {
+      await replyToZalo(
+        chatId,
+        `🤖 Vui lòng chọn một trong các lệnh sau:\n` + `• ${ZALO_PUBLIC_INFO_COMMAND}`,
+      );
+    }
+    return ok;
+  }
 
   if (body?.event_name === "message.text.received") {
     if (text === normalizeCommand(ZALO_BUILD_FE_COMMAND)) {
@@ -297,23 +396,9 @@ export const handler = async (event) => {
       const done = await setFeSubdomainEnabled(true);
       await replyToZalo(chatId, done ? "🟢 Đã bật FE" : "❌ Bật lỗi rồi");
     } else if (text === normalizeCommand(ZALO_USAGE_FE_COMMAND)) {
-      const [enabled, requests, obsEvents, buildMinutes] = await Promise.all([
-        getFeSubdomainEnabled(),
-        getTodayRequestCount(),
-        getTodayObservabilityEventCount(),
-        getThisMonthBuildMinutes(),
-      ]);
-      const fmt = (n, fallback = "?") =>
-        n === null ? fallback : n.toLocaleString("en-US");
-      const statusLabel = enabled === null ? "?" : enabled ? "On" : "Off";
-      await replyToZalo(
-        chatId,
-        `🔗 Link FE: ${ZALO_FE_URL} (${statusLabel})\n\n` +
-        `📊 Cloudflare Usage\n` +
-        `• Requests today: ${fmt(requests)} / 100,000\n` +
-        `• Observability events today: ${fmt(obsEvents)} / 200,000\n` +
-        `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000`,
-      );
+      await replyToZalo(chatId, await buildFeInfoText());
+    } else if (text === normalizeCommand(ZALO_USAGE_BE_COMMAND)) {
+      await replyToZalo(chatId, await buildBeInfoText());
     } else {
       await replyToZalo(
         chatId,
@@ -321,7 +406,8 @@ export const handler = async (event) => {
         `• ${ZALO_BUILD_FE_COMMAND}\n` +
         `• ${ZALO_BUILD_BE_COMMAND}\n` +
         `• On / Off FE\n` +
-        `• ${ZALO_USAGE_FE_COMMAND}`,
+        `• ${ZALO_USAGE_FE_COMMAND} / ${ZALO_USAGE_BE_COMMAND}\n` +
+        `• ${ZALO_PUBLIC_INFO_COMMAND}`,
       );
     }
   }
