@@ -18,6 +18,10 @@ export class CreateQuestionAiImprovementDto {
   @IsOptional()
   @IsObject()
   analytics?: Record<string, any>;
+
+  @IsOptional()
+  @IsString()
+  instruction?: string;
 }
 
 export class UpdateQuestionAiImprovementDraftDto {

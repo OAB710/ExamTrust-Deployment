@@ -361,7 +361,7 @@ export default function LecturerDashboard() {
                       const shouldShowResults =
                         exam.status === "COMPLETED" || isExpired;
                       const actionLabel = shouldMonitor
-                        ? "Monitor"
+                        ? "Giám sát"
                         : shouldShowResults
                           ? "Xem kết quả"
                           : "Xem trước và chỉnh sửa";
@@ -382,7 +382,7 @@ export default function LecturerDashboard() {
                               </h4>
                               {isExpired ? (
                                 <StatusBadge tone="danger" className="shrink-0">
-                                  Expired
+                                  Đã hết hạn
                                 </StatusBadge>
                               ) : (
                                 <StatusBadge status={exam.status} domain="exam" className="shrink-0" />
@@ -409,7 +409,7 @@ export default function LecturerDashboard() {
                                   {exam._count?.submissions || 0}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  Submissions
+                                  Lượt nộp
                                 </p>
                               </div>
                             )}
@@ -421,7 +421,7 @@ export default function LecturerDashboard() {
                                     {format(new Date(exam.startTime), "MMM d")}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    Scheduled
+                                    Đã lên lịch
                                   </p>
                                 </div>
                               )}

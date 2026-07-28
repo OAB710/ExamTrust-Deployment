@@ -2088,9 +2088,7 @@ export default function CreateCourse() {
                       <span className="mb-1 block text-xs text-muted-foreground md:hidden">
                         Trạng thái
                       </span>
-                      <StatusBadge status={course.status} domain="course">
-                        {course.status}
-                      </StatusBadge>
+                      <StatusBadge status={course.status} domain="course" />
                     </div>
                     <div
                       className="flex items-center justify-end gap-1"
@@ -2235,9 +2233,7 @@ export default function CreateCourse() {
                                       {formatExamSchedule(exam)}
                                     </div>
                                     <div>
-                                      <StatusBadge status={exam.status} domain="exam">
-                                        {exam.status}
-                                      </StatusBadge>
+                                      <StatusBadge status={exam.status} domain="exam" />
                                     </div>
                                     <div className="text-sm">
                                       <span className="font-semibold tabular-nums text-foreground">

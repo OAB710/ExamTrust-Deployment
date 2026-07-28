@@ -139,13 +139,13 @@ type ReviewSettingsDraft = {
 const REVIEW_PHASE_META: { key: ReviewPhaseKey; title: string; description: string }[] = [
   {
     key: "during",
-    title: "During review window",
-    description: "Optional partial review access while the exam is still active.",
+    title: "Trong thời gian xem lại",
+    description: "Cho phép xem lại một phần khi bài thi vẫn đang diễn ra.",
   },
   {
     key: "after",
-    title: "After submission",
-    description: "What students can see once the attempt is submitted or graded.",
+    title: "Sau khi nộp bài",
+    description: "Những gì sinh viên được xem sau khi đã nộp hoặc chấm bài.",
   },
 ];
 
@@ -173,12 +173,12 @@ const buildReviewSettingsPayload = (draft: ReviewSettingsDraft) => ({
 
 const reviewPhaseSummary = (phase: ReviewPhaseConfig) => {
   const items = [
-    phase.showScore ? "Score" : null,
-    phase.showAnswers ? "Answers" : null,
-    phase.showFeedback ? "Feedback" : null,
+    phase.showScore ? "Điểm" : null,
+    phase.showAnswers ? "Đáp án" : null,
+    phase.showFeedback ? "Phản hồi" : null,
   ].filter(Boolean);
 
-  return items.length ? items.join(", ") : "Hidden";
+  return items.length ? items.join(", ") : "Ẩn";
 };
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
@@ -1255,9 +1255,9 @@ export default function CreateExam() {
       >
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold">Create New Exam</h1>
+          <h1 className="text-2xl font-bold">Tạo bài thi mới</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Set up a new exam in 4 steps
+            Thiết lập bài thi mới trong 4 bước
           </p>
         </div>
 
@@ -1293,21 +1293,21 @@ export default function CreateExam() {
           {step === "info" && (
             <>
               <CardHeader>
-                <CardTitle>Basic Information</CardTitle>
+                <CardTitle>Thông tin cơ bản</CardTitle>
                 <CardDescription>
-                  Enter the exam title, course, and a brief description.
+                  Nhập tên bài thi, học phần và mô tả ngắn.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
                   <Label htmlFor="title">
-                    Exam Title <span className="text-red-500">*</span>
+                    Tên bài thi <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="title"
                     value={form.title}
                     onChange={(e) => set("title", e.target.value)}
-                    placeholder="e.g. Midterm Exam – Database Systems"
+                    placeholder="Ví dụ: Kiểm tra giữa kỳ – Hệ quản trị cơ sở dữ liệu"
                     className="mt-1"
                   />
                 </div>
@@ -1376,7 +1376,7 @@ export default function CreateExam() {
                     </Button>
                   </div>
                   <Label htmlFor="course" className="mt-4 block">
-                    Course <span className="text-red-500">*</span>
+                    Học phần <span className="text-red-500">*</span>
                   </Label>
                   <Popover
                     open={courseComboboxOpen}
@@ -1405,7 +1405,7 @@ export default function CreateExam() {
                             }
                             setCourseComboboxOpen(true);
                           }}
-                        placeholder="Search by course code or name..."
+                        placeholder="Tìm theo mã hoặc tên học phần..."
                         className="mt-1 h-12 rounded-xl text-base"
                       />
                     </PopoverTrigger>
@@ -1417,7 +1417,7 @@ export default function CreateExam() {
                         <CommandList className="max-h-80">
                           {filteredCourses.length === 0 ? (
                             <CommandEmpty>
-                              No course found for the selected filters.
+                              Không tìm thấy học phần theo bộ lọc đã chọn.
                             </CommandEmpty>
                           ) : (
                             <CommandGroup>
@@ -1474,17 +1474,17 @@ export default function CreateExam() {
                   </Popover>
                   {courses.length === 0 ? (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      No courses available yet.
+                      Chưa có học phần nào.
                     </p>
                   ) : null}
                 </div>
                 <div>
-                  <Label htmlFor="desc">Description</Label>
+                  <Label htmlFor="desc">Mô tả</Label>
                   <Textarea
                     id="desc"
                     value={form.description}
                     onChange={(e) => set("description", e.target.value)}
-                    placeholder="Briefly describe the scope and objectives of this exam…"
+                    placeholder="Mô tả ngắn phạm vi và mục tiêu của bài thi…"
                     className="mt-1 resize-none"
                     rows={3}
                   />
@@ -1674,20 +1674,20 @@ export default function CreateExam() {
                       },
                       {
                         key: "allowLateSubmission",
-                        label: "Allow Late Submission",
-                        desc: "Students can submit after the end time",
+                        label: "Cho phép nộp bài muộn",
+                        desc: "Sinh viên có thể nộp bài sau thời gian kết thúc",
                         icon: <FileCheck className="h-4 w-4 text-primary" />,
                       },
                       {
                         key: "shuffleQuestions",
-                        label: "Shuffle Questions",
-                        desc: "Randomize question order for each student",
+                        label: "Xáo trộn câu hỏi",
+                        desc: "Ngẫu nhiên thứ tự câu hỏi cho từng sinh viên",
                         icon: <Users className="h-4 w-4 text-primary" />,
                       },
                       {
                         key: "showResultImmediately",
-                        label: "Show Results Immediately",
-                        desc: "Students see scores right after submission",
+                        label: "Hiển thị kết quả ngay",
+                        desc: "Sinh viên xem điểm ngay sau khi nộp bài",
                         icon: <Eye className="h-4 w-4 text-primary" />,
                       },
                     ] as const
@@ -1715,7 +1715,7 @@ export default function CreateExam() {
                 </div>
                 {isSingleAttempt ? (
                   <p className="text-xs text-muted-foreground">
-                    Late submission is locked because max attempts is set to 1.
+                    Không thể nộp muộn vì số lượt làm tối đa được đặt là 1.
                   </p>
                 ) : null}
                 {proctoringForcedOff ? <p className="text-xs text-muted-foreground">Giám sát AI được tự động tắt vì bài kiểm tra không giới hạn thời gian hoặc lượt làm.</p> : null}
@@ -1725,17 +1725,17 @@ export default function CreateExam() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <Label className="text-base font-semibold">
-                        Review / Feedback Settings
+                        Cài đặt xem lại và phản hồi
                       </Label>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Phase-based review controls are saved into the existing JSON field, so older review data stays intact.
+                        Các thiết lập xem lại theo giai đoạn được lưu trong trường JSON hiện có, nên dữ liệu cũ vẫn được giữ nguyên.
                       </p>
                     </div>
                     <div className="flex items-center gap-3 rounded-lg border px-3 py-2">
                       <div>
-                        <p className="text-sm font-medium">Enable review config</p>
+                        <p className="text-sm font-medium">Bật cấu hình xem lại</p>
                         <p className="text-xs text-muted-foreground">
-                          Save phase-based review rules for this exam.
+                          Lưu quy tắc xem lại theo giai đoạn cho bài thi này.
                         </p>
                       </div>
                       <Switch
@@ -1777,18 +1777,18 @@ export default function CreateExam() {
                             {([
                               {
                                 key: "showScore",
-                                label: "Show score",
-                                desc: "Reveal numeric score to students.",
+                                label: "Hiển thị điểm",
+                                desc: "Cho phép sinh viên xem điểm số.",
                               },
                               {
                                 key: "showAnswers",
-                                label: "Show answers",
-                                desc: "Reveal the correct answers or key responses.",
+                                label: "Hiển thị đáp án",
+                                desc: "Cho phép sinh viên xem đáp án hoặc đáp án mẫu.",
                               },
                               {
                                 key: "showFeedback",
-                                label: "Show feedback",
-                                desc: "Display lecturer feedback and explanations.",
+                                label: "Hiển thị phản hồi",
+                                desc: "Hiển thị nhận xét và giải thích của giảng viên.",
                               },
                             ] as const).map((item) => (
                               <div
@@ -1833,9 +1833,9 @@ export default function CreateExam() {
           {step === "questions" && (
             <>
               <CardHeader>
-                <CardTitle>Question Sourcing</CardTitle>
+                <CardTitle>Nguồn câu hỏi</CardTitle>
                 <CardDescription>
-                  Combine questions from any source. Switching tabs keeps everything already added.
+                  Kết hợp câu hỏi từ nhiều nguồn. Đổi tab không làm mất câu hỏi đã thêm.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -1857,9 +1857,9 @@ export default function CreateExam() {
                   <div className="space-y-5">
                     <div className="grid gap-1 rounded-xl bg-muted p-1 md:grid-cols-3">
                       {([
-                        ["manual", "Enter directly", "Write fixed questions for this exam.", FileText],
-                        ["bank-select", "Select from bank", "Choose topic, filter, then tick exact questions.", Database],
-                        ["bank-random", "Random by topic", "Set topic quotas for randomized student instances.", Sparkles],
+                        ["manual", "Nhập trực tiếp", "Soạn câu hỏi cố định cho bài thi này.", FileText],
+                        ["bank-select", "Chọn từ ngân hàng", "Chọn chủ đề, lọc rồi đánh dấu câu hỏi cần dùng.", Database],
+                        ["bank-random", "Ngẫu nhiên theo chủ đề", "Đặt số lượng theo chủ đề cho từng lượt thi ngẫu nhiên.", Sparkles],
                       ] as const).map(([key, title, description, Icon]) => (
                         <button
                           key={key}
@@ -1888,19 +1888,19 @@ export default function CreateExam() {
 
                     <div className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-4">
                       <div>
-                        <p className="text-xs text-muted-foreground">Exam total</p>
+                        <p className="text-xs text-muted-foreground">Tổng số câu hỏi</p>
                         <p className="text-2xl font-bold">{composedQuestionCount}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Entered directly</p>
+                        <p className="text-xs text-muted-foreground">Nhập trực tiếp</p>
                         <p className="text-lg font-semibold">{aiGeneratedQuestions.length}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Selected from bank</p>
+                        <p className="text-xs text-muted-foreground">Chọn từ ngân hàng</p>
                         <p className="text-lg font-semibold">{selectedBankQuestionIds.length}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Random by topic</p>
+                        <p className="text-xs text-muted-foreground">Ngẫu nhiên theo chủ đề</p>
                         <p className="text-lg font-semibold">{randomQuestionCount}</p>
                       </div>
                     </div>
@@ -1914,14 +1914,14 @@ export default function CreateExam() {
                                 <Sparkles className="h-5 w-5 text-primary" />
                                 <CardTitle className="text-base text-primary">AI Assistant</CardTitle>
                               </div>
-                              <CardDescription>Generate a draft, then review and edit before adding it to the exam.</CardDescription>
+                              <CardDescription>Tạo bản nháp, sau đó xem lại và chỉnh sửa trước khi thêm vào bài thi.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-3">
                               <div className="flex flex-col gap-2 sm:flex-row">
                                 <Input
                                   value={manualAiPrompt}
                                   onChange={(event) => setManualAiPrompt(event.target.value)}
-                                  placeholder="e.g. Database indexing, transaction isolation..."
+                                  placeholder="Ví dụ: Lập chỉ mục cơ sở dữ liệu, cô lập giao dịch..."
                                   className="bg-background"
                                   onKeyDown={(event) => {
                                     if (event.key === "Enter") handleManualAiGenerate();
@@ -1934,11 +1934,11 @@ export default function CreateExam() {
                                   className="gap-2"
                                 >
                                   {isManualAiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                                  Generate
+                                  Tạo
                                 </Button>
                               </div>
                               {!form.course && (
-                                <p className="text-xs text-amber-600">Select a course in Basic Info to enable AI generation.</p>
+                                <p className="text-xs text-amber-600">Chọn học phần ở phần Thông tin cơ bản để bật tạo câu hỏi bằng AI.</p>
                               )}
                             </CardContent>
                           </Card>
@@ -1951,7 +1951,7 @@ export default function CreateExam() {
                                   usedBy: "Giảng viên chọn trước khi nhập nội dung để hệ thống hiển thị đúng vùng đáp án, ghép đôi, sắp xếp hoặc tự luận.",
                                   note: "Khi đổi dạng câu hỏi, hãy kiểm tra lại đáp án và giải thích trước khi thêm vào đề.",
                                 }}>
-                                  Question Type
+                                  Loại câu hỏi
                                 </HelpedTitle>
                               </CardTitle>
                             </CardHeader>
@@ -1965,12 +1965,12 @@ export default function CreateExam() {
                               >
                                 <SelectTrigger className="w-full sm:w-[280px]"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
-                                  <SelectItem value="true_false">True / False</SelectItem>
-                                  <SelectItem value="fill_blank">Fill in the Blank</SelectItem>
-                                  <SelectItem value="matching">Matching</SelectItem>
-                                  <SelectItem value="ordering">Ordering / Sequencing</SelectItem>
-                                  <SelectItem value="essay">Short Answer / Essay</SelectItem>
+                                  <SelectItem value="multiple_choice">Trắc nghiệm nhiều lựa chọn</SelectItem>
+                                  <SelectItem value="true_false">Đúng / Sai</SelectItem>
+                                  <SelectItem value="fill_blank">Điền vào chỗ trống</SelectItem>
+                                  <SelectItem value="matching">Ghép đôi</SelectItem>
+                                  <SelectItem value="ordering">Sắp xếp theo thứ tự</SelectItem>
+                                  <SelectItem value="essay">Trả lời ngắn / Tự luận</SelectItem>
                                 </SelectContent>
                               </Select>
                             </CardContent>
@@ -1978,20 +1978,20 @@ export default function CreateExam() {
 
                           <Card>
                             <CardHeader className="pb-3">
-                              <CardTitle className="text-base">Question Content</CardTitle>
-                              <CardDescription>Enter the text shown to students.</CardDescription>
+                              <CardTitle className="text-base">Nội dung câu hỏi</CardTitle>
+                              <CardDescription>Nhập nội dung hiển thị cho sinh viên.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-3">
                               {manualQuestionType === "fill_blank" && (
                                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
-                                  Mark answers with double brackets, for example: The capital of France is [[Paris]].
+                                  Đánh dấu đáp án bằng hai dấu ngoặc vuông, ví dụ: Thủ đô của Pháp là [[Paris]].
                                 </div>
                               )}
                               <Textarea
                                 className="min-h-32 text-base"
                                 value={manualQuestionContent}
                                 onChange={(event) => setManualQuestionContent(event.target.value)}
-                                placeholder="Enter your question here..."
+                                placeholder="Nhập nội dung câu hỏi tại đây..."
                               />
                             </CardContent>
                           </Card>
@@ -2001,11 +2001,11 @@ export default function CreateExam() {
                               <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between gap-3">
                                   <CardTitle className="text-base">
-                                    {manualQuestionType === "multiple_choice" && "Answer Options"}
-                                    {manualQuestionType === "true_false" && "Correct Answer"}
-                                    {manualQuestionType === "matching" && "Matching Pairs"}
-                                    {manualQuestionType === "ordering" && "Sequence Items"}
-                                    {manualQuestionType === "essay" && "Grading Rubric"}
+                                    {manualQuestionType === "multiple_choice" && "Các phương án trả lời"}
+                                    {manualQuestionType === "true_false" && "Đáp án đúng"}
+                                    {manualQuestionType === "matching" && "Các cặp ghép đôi"}
+                                    {manualQuestionType === "ordering" && "Các mục cần sắp xếp"}
+                                    {manualQuestionType === "essay" && "Tiêu chí chấm điểm"}
                                   </CardTitle>
                                   {["multiple_choice", "matching", "ordering"].includes(manualQuestionType) && manualOptions.length < 8 && (
                                     <Button
@@ -2023,7 +2023,7 @@ export default function CreateExam() {
                                         ])
                                       }
                                     >
-                                      <Plus className="mr-1 h-4 w-4" /> Add
+                                      <Plus className="mr-1 h-4 w-4" /> Thêm
                                     </Button>
                                   )}
                                 </div>
@@ -2031,7 +2031,7 @@ export default function CreateExam() {
                               <CardContent className="space-y-3">
                                 {manualQuestionType === "multiple_choice" && (
                                   <div className="flex items-center gap-3">
-                                    <Label>Allow multiple correct answers</Label>
+                                    <Label>Cho phép nhiều đáp án đúng</Label>
                                     <Switch checked={manualMultipleAnswers} onCheckedChange={setManualMultipleAnswers} />
                                   </div>
                                 )}
@@ -2067,7 +2067,7 @@ export default function CreateExam() {
                                       )}
                                       <Input
                                         value={option.text}
-                                        placeholder={manualQuestionType === "matching" ? "Concept" : `Item ${option.id}`}
+                                        placeholder={manualQuestionType === "matching" ? "Khái niệm" : `Phương án ${option.id}`}
                                         onChange={(event) =>
                                           setManualOptions((options) =>
                                             options.map((item) => item.id === option.id ? { ...item, text: event.target.value } : item),
@@ -2077,7 +2077,7 @@ export default function CreateExam() {
                                       {manualQuestionType === "matching" && (
                                         <Input
                                           value={option.match || ""}
-                                          placeholder="Matching value"
+                                          placeholder="Giá trị tương ứng"
                                           onChange={(event) =>
                                             setManualOptions((options) =>
                                               options.map((item) => item.id === option.id ? { ...item, match: event.target.value } : item),
@@ -2106,7 +2106,7 @@ export default function CreateExam() {
                                         variant={manualTrueFalseAnswer === value ? "default" : "outline"}
                                         onClick={() => setManualTrueFalseAnswer(value)}
                                       >
-                                        {value === "true" ? "True" : "False"}
+                                        {value === "true" ? "Đúng" : "Sai"}
                                       </Button>
                                     ))}
                                   </div>
@@ -2116,7 +2116,7 @@ export default function CreateExam() {
                                   <Textarea
                                     value={manualEssayRubric}
                                     onChange={(event) => setManualEssayRubric(event.target.value)}
-                                    placeholder="Describe grading criteria and expected key points..."
+                                    placeholder="Mô tả tiêu chí chấm điểm và các ý chính cần có..."
                                   />
                                 )}
                               </CardContent>
@@ -2125,13 +2125,13 @@ export default function CreateExam() {
 
                           <Card>
                             <CardHeader className="pb-3">
-                              <CardTitle className="text-base">Explanation (optional)</CardTitle>
+                              <CardTitle className="text-base">Giải thích (không bắt buộc)</CardTitle>
                             </CardHeader>
                             <CardContent>
                               <Textarea
                                 value={manualExplanation}
                                 onChange={(event) => setManualExplanation(event.target.value)}
-                                placeholder="Explain why the answer is correct..."
+                                placeholder="Giải thích vì sao đáp án này đúng..."
                               />
                             </CardContent>
                           </Card>
@@ -2139,14 +2139,14 @@ export default function CreateExam() {
 
                         <div className="grid items-stretch gap-4 md:grid-cols-[1fr_1fr_auto]">
                           <Card>
-                            <CardHeader className="pb-3"><CardTitle className="text-sm">Course</CardTitle></CardHeader>
+                            <CardHeader className="pb-3"><CardTitle className="text-sm">Học phần</CardTitle></CardHeader>
                             <CardContent className="space-y-3">
                               <p className="text-sm font-medium">
-                                {courses.find((course) => course.id === form.course)?.name || "Select a course in Basic Info"}
+                                {courses.find((course) => course.id === form.course)?.name || "Chọn học phần ở phần Thông tin cơ bản"}
                               </p>
                               <div className="space-y-1.5">
                                 <div className="inline-flex items-center gap-1.5">
-                                  <Label className="text-xs text-muted-foreground">Topic</Label>
+                                  <Label className="text-xs text-muted-foreground">Chủ đề</Label>
                                   <ContextHelp content={{
                                     description: "Gắn câu hỏi vào chủ đề kiến thức trong khóa học.",
                                     usedBy: "Dùng khi tạo câu hỏi thủ công, lọc ngân hàng câu hỏi và phân tích điểm yếu theo chủ đề.",
@@ -2156,7 +2156,7 @@ export default function CreateExam() {
                                 <Select value={manualTopicId || "__none__"} onValueChange={(value) => setManualTopicId(value === "__none__" ? "" : value)}>
                                   <SelectTrigger><SelectValue /></SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="__none__">Untagged</SelectItem>
+                                    <SelectItem value="__none__">Chưa gắn chủ đề</SelectItem>
                                     {bankTopics.filter((topic) => topic.topicId).map((topic) => (
                                       <SelectItem key={topic.topicId} value={topic.topicId}>
                                         {topic.topic}
@@ -2166,11 +2166,11 @@ export default function CreateExam() {
                                 </Select>
                               </div>
                               <div className="space-y-1.5">
-                                <Label className="text-xs text-muted-foreground">Learning Objective</Label>
+                                <Label className="text-xs text-muted-foreground">Mục tiêu học tập</Label>
                                 <Input
                                   value={manualLearningObjective}
                                   onChange={(event) => setManualLearningObjective(event.target.value)}
-                                  placeholder="e.g. Apply Dijkstra's algorithm"
+                                  placeholder="Ví dụ: Áp dụng thuật toán Dijkstra"
                                 />
                               </div>
                             </CardContent>
@@ -2180,7 +2180,7 @@ export default function CreateExam() {
                               description: "Mức độ khó dự kiến của câu hỏi thủ công.",
                               usedBy: "Dùng để cân bằng đề và hỗ trợ phân tích chất lượng câu hỏi sau khi có bài làm.",
                               note: "Độ khó là nhãn ban đầu, có thể khác với độ khó thực tế khi sinh viên làm bài.",
-                            }}>Difficulty</HelpedTitle></CardTitle></CardHeader>
+                            }}>Độ khó</HelpedTitle></CardTitle></CardHeader>
                             <CardContent className="grid grid-cols-3 gap-2">
                               {(["easy", "medium", "hard"] as const).map((difficulty) => (
                                 <Button
@@ -2191,13 +2191,13 @@ export default function CreateExam() {
                                   onClick={() => setManualDifficulty(difficulty)}
                                   className="capitalize"
                                 >
-                                  {difficulty}
+                                  {difficulty === "easy" ? "Dễ" : difficulty === "medium" ? "Trung bình" : "Khó"}
                                 </Button>
                               ))}
                             </CardContent>
                           </Card>
                           <Button type="button" className="h-full min-h-20 px-8" onClick={addManualQuestion}>
-                            <Plus className="mr-2 h-4 w-4" /> Add to exam
+                            <Plus className="mr-2 h-4 w-4" /> Thêm vào bài thi
                           </Button>
                         </div>
 

@@ -387,6 +387,7 @@ export class AIGenerationProcessor {
       if (task === 'question-improvement') {
         const result = await this.aiService.generateQuestionImprovement({
           language: payload.language,
+          instruction: payload.instruction,
           context: {
             ...context,
             ...(payload.context || {}),

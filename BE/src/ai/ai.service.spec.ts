@@ -22,6 +22,19 @@ describe('AiService.generateExamQualityReview', () => {
     get: (key: string) => values[key],
   });
 
+  describe('question generation language policy', () => {
+    it('defaults question output to Vietnamese even when a caller locale is English', () => {
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any);
+      expect((service as any).resolveQuestionOutputLanguage('Create a database indexing question')).toBe('vi');
+    });
+
+    it('uses English only when the lecturer explicitly requests it in the prompt', () => {
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any);
+      expect((service as any).resolveQuestionOutputLanguage('Tạo 3 câu hỏi bằng tiếng Anh về SQL')).toBe('en');
+      expect((service as any).resolveQuestionOutputLanguage('Generate two questions in English about SQL')).toBe('en');
+    });
+  });
+
   describe('success flow (mock provider)', () => {
     it('returns a well-formed overallSummary and suggestions array', async () => {
       const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any);
