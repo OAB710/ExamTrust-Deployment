@@ -432,8 +432,17 @@ class ApiClient {
       'FILL_IN_BLANK',
       'MATCHING',
       'ORDERING',
+      'FIND_ERROR',
     ]);
     return allowed.has(normalized) ? normalized : 'MULTIPLE_CHOICE';
+  }
+
+  async copyQuestionBank(data: {
+    sourceCourseId: string;
+    targetCourseId: string;
+    topicIds?: string[];
+  }): Promise<{ copied: number; skipped: number; total: number }> {
+    return this.request('/questions/copy-bank', { method: 'POST', body: data });
   }
 
   async saveQuestion(data: {
@@ -735,6 +744,10 @@ class ApiClient {
 
   async getAvailableExams() {
     return this.request<any[]>('/exams/available');
+  }
+
+  async getStudentSchedule() {
+    return this.request<any[]>('/exams/schedule');
   }
 
   async getExam(id: string) {
@@ -1176,6 +1189,8 @@ class ApiClient {
       learningObjective?: string;
       options?: Record<string, string> | null;
       correctAnswer?: Record<string, string> | null;
+      pairs?: { left: string; right: string }[] | null;
+      items?: string[] | null;
     }>('/ai/generate-question', {
       method: 'POST',
       body: data,
@@ -1192,6 +1207,8 @@ class ApiClient {
         learningObjective?: string;
         options: Record<string, string> | null;
         correctAnswer: Record<string, string> | null;
+        pairs?: { left: string; right: string }[] | null;
+        items?: string[] | null;
       }>(response.jobId);
     }
 

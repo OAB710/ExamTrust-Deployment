@@ -1,7 +1,20 @@
 import { IsString, IsEnum, IsOptional, IsObject, IsInt, Min, Max, IsArray, IsNumber } from 'class-validator';
 
+export class CopyQuestionBankDto {
+  @IsString()
+  sourceCourseId: string;
+
+  @IsString()
+  targetCourseId: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  topicIds?: string[];
+}
+
 export class CreateQuestionCrudDto {
-  @IsEnum(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY', 'FILL_IN_BLANK', 'MATCHING', 'ORDERING'])
+  @IsEnum(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY', 'FILL_IN_BLANK', 'MATCHING', 'ORDERING', 'FIND_ERROR'])
   type: string;
 
   @IsString()
@@ -46,7 +59,7 @@ export class CreateQuestionCrudDto {
 
 export class UpdateQuestionCrudDto {
   @IsOptional()
-  @IsEnum(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY', 'FILL_IN_BLANK', 'MATCHING', 'ORDERING'])
+  @IsEnum(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY', 'FILL_IN_BLANK', 'MATCHING', 'ORDERING', 'FIND_ERROR'])
   type?: string;
 
   @IsOptional()

@@ -286,6 +286,18 @@ function mapBackendToUiQuestion(q: any, index: number): Question {
       options: parseOptions(q?.options),
     } as SingleChoiceQ;
   }
+  if (type === "FIND_ERROR") {
+    const codeLines = parseOptions(q?.options);
+    return {
+      ...base,
+      type: "find-error",
+      content: String(q?.content || "Find the line that contains the error:"),
+      segments: codeLines.map((code, idx) => ({
+        label: String.fromCharCode(65 + idx),
+        code,
+      })),
+    } as FindErrorQ;
+  }
   if (type === "FILL_IN_BLANK") {
     const text = String(q?.content || "Fill in the blank");
     return {
@@ -343,6 +355,10 @@ function normalizeSubmissionAnswer(
   }
 
   if (question.type === "true-false" && typeof answer === "boolean") {
+    return { answer };
+  }
+
+  if (question.type === "find-error" && typeof answer === "string") {
     return { answer };
   }
 

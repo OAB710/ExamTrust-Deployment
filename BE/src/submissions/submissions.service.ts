@@ -74,7 +74,7 @@ type RequestUser = {
   role: 'ADMIN' | 'LECTURER' | 'STUDENT';
 };
 
-const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE']);
+const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'FIND_ERROR']);
 
 @Injectable()
 export class SubmissionsService {

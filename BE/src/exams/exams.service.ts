@@ -13,7 +13,7 @@ import { AccessPolicyService } from '../common/services/access-policy.service';
 import { CreateExamDto, UpdateExamDto, AddQuestionsToExamDto, UpdateExamQuestionDto, RescheduleExamDto } from './dto/exam.dto';
 import { PaginationDto, buildPaginatedResult } from '../common/dto/pagination.dto';
 
-const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE']);
+const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'FIND_ERROR']);
 
 @Injectable()
 export class ExamsService {
@@ -1266,6 +1266,49 @@ export class ExamsService {
     });
   }
 
+  async getScheduleForStudent(studentId: string) {
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: {
+        studentId,
+        status: 'active',
+      },
+      select: {
+        courseId: true,
+      },
+    });
+
+    const courseIds = enrollments.map((e) => e.courseId);
+
+    return this.prisma.exam.findMany({
+      where: {
+        courseId: { in: courseIds },
+        deletedAt: null,
+        course: { status: { not: 'archived' } },
+        status: { in: ['PUBLISHED', 'ONGOING', 'COMPLETED'] },
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        startTime: true,
+        endTime: true,
+        duration: true,
+        totalPoints: true,
+        passingScore: true,
+        maxAttempts: true,
+        settings: true,
+        course: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ startTime: 'asc' }, { title: 'asc' }],
+    });
+  }
+
   async getExamStats(examId: string) {
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId },
@@ -1352,6 +1395,8 @@ export class ExamsService {
       'FILL-BLANK': 'FILL_IN_BLANK',
       MATCHING: 'MATCHING',
       ORDERING: 'ORDERING',
+      FIND_ERROR: 'FIND_ERROR',
+      'FIND-ERROR': 'FIND_ERROR',
     };
 
     const normalized = map[String(rawType).trim().toUpperCase()];

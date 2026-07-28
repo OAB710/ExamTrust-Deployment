@@ -127,6 +127,13 @@ export class ExamsController {
     return this.examsService.getAvailableExamsForStudent(req.user.id);
   }
 
+  @Get('schedule')
+  @UseGuards(RolesGuard)
+  @Roles('STUDENT')
+  getSchedule(@Request() req) {
+    return this.examsService.getScheduleForStudent(req.user.id);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req) {
     if (req.user.role === 'STUDENT') {

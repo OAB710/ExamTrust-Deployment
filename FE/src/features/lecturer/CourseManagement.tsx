@@ -378,7 +378,7 @@ export default function CourseManagement() {
                 </SelectContent>
               </Select>
               <Button asChild className="gap-2">
-                <Link href="/lecturer/courses">
+                <Link href="/lecturer/create-course">
                   <Plus className="h-4 w-4" />
                   Thêm khóa học
                 </Link>

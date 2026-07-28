@@ -73,6 +73,9 @@ function normalizeType(rawType?: string) {
     MATCHING: "Ghép nối",
     SHORT_ANSWER: "Trả lời ngắn",
     ESSAY: "Tự luận",
+    FILL_IN_BLANK: "Điền khuyết",
+    ORDERING: "Sắp xếp thứ tự",
+    FIND_ERROR: "Tìm lỗi sai",
   };
   if (!rawType) return "Không rõ";
   return labels[rawType.toUpperCase()] || rawType.replace(/_/g, " ");

@@ -101,7 +101,7 @@ export default function Login() {
           <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-medium sm:p-8">
             <div>
               <p className="text-sm font-semibold text-primary">Chào mừng trở lại</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">Login ExamTrust</h2>
+              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">Đăng Nhập ExamTrust</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">Sử dụng tài khoản được nhà trường cấp.</p>
             </div>
 
