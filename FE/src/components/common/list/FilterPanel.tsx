@@ -53,6 +53,7 @@ type FilterPanelProps = {
   activeCount?: number;
   className?: string;
   inline?: boolean;
+  compact?: boolean;
 };
 
 const getNumberFieldKey = (filterKey: string, bound: "min" | "max") =>
@@ -70,6 +71,7 @@ export function FilterPanel({
   activeCount = 0,
   className,
   inline = true,
+  compact = false,
 }: FilterPanelProps) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -193,7 +195,12 @@ export function FilterPanel({
       className={cn(
         "flex min-h-0 flex-col gap-2.5",
         inline
-          ? "rounded-xl border border-border bg-card p-3 shadow-sm"
+          ? cn(
+              "rounded-xl border border-border bg-card shadow-sm",
+              compact
+                ? "gap-2 p-2.5 [&_input]:h-8 [&_[role=combobox]]:h-8"
+                : "p-3",
+            )
           : "max-h-[min(50vh,20rem)]",
       )}
     >
@@ -223,7 +230,10 @@ export function FilterPanel({
         <div
           className={cn(
             inline
-              ? "grid grid-cols-1 items-end gap-x-4 gap-y-3 sm:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]"
+              ? cn(
+                  "grid grid-cols-1 items-end sm:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]",
+                  compact ? "gap-x-3 gap-y-2" : "gap-x-4 gap-y-3",
+                )
               : "space-y-3",
           )}
         >
@@ -339,7 +349,9 @@ export function FilterPanel({
                   <Label className="text-xs font-medium">{filter.label}</Label>
                   <div className="flex h-9 items-center justify-between rounded-lg px-1">
                     <p className="text-xs font-medium text-foreground">
-                      {typeof current === "boolean"
+                      {compact && inline
+                        ? filter.toggleLabel || `Only show ${filter.label.toLowerCase()}`
+                        : typeof current === "boolean"
                         ? current
                           ? filter.trueLabel || "Enabled"
                           : filter.falseLabel || "Disabled"

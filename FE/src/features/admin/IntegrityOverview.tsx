@@ -174,7 +174,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
       type: "select",
       allLabel: "All confidence levels",
       options: [
-        { label: "Cao", value: "High" },
+        { label: "High", value: "High" },
         { label: "Medium", value: "Medium" }, { label: "Low", value: "Low" },
       ],
     },
@@ -190,12 +190,14 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
       key: "submittedAt",
       label: "Submission time",
       type: "date-range",
+      hideLabel: true,
     },
     {
       key: "timeAnomaly",
       label: "Time anomaly",
       type: "boolean",
       trueLabel: "Signal detected", falseLabel: "No signal",
+      toggleLabel: "Only show anomalies",
     },
   ];
 
@@ -405,6 +407,9 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              inline
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips

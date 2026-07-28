@@ -406,6 +406,7 @@ export default function ExamManagement() {
         key: "createdAt",
         label: "Created date",
         type: "date-range",
+        hideLabel: true,
       },
     ],
     [courses],
@@ -533,10 +534,7 @@ export default function ExamManagement() {
 
   const ITEMS_PER_PAGE = 10;
   const totalPages = Math.max(1, Math.ceil(filteredExams.length / ITEMS_PER_PAGE));
-  const EXAM_ROW_HEIGHT = 60;
-  const EXAM_TABLE_HEADER_HEIGHT = 48;
-  const EXAM_TABLE_MIN_HEIGHT =
-    ITEMS_PER_PAGE * EXAM_ROW_HEIGHT + EXAM_TABLE_HEADER_HEIGHT;
+  const EXAM_TABLE_MIN_HEIGHT = 360;
 
   useEffect(() => {
     setPage((p) => Math.min(p, totalPages));
@@ -643,6 +641,7 @@ export default function ExamManagement() {
               onClear={clearFilters}
               activeCount={activeFilterCount}
               inline
+              compact
               className="w-full xl:basis-full"
             />
           </div>
