@@ -66,6 +66,7 @@ export type FilterDefinition =
       type: "boolean";
       trueLabel?: string;
       falseLabel?: string;
+      toggleLabel?: string;
     }
   | {
       key: string;

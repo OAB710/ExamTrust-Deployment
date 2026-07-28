@@ -138,7 +138,7 @@ export default function CourseManagement() {
         id: c.id,
         code: c.code,
         name: c.name,
-        faculty: c.faculty ?? c.department ?? "Chung",
+        faculty: c.faculty ?? c.department ?? "General",
         department: c.department,
         academicYear: c.academicYear,
         term: c.term,
@@ -165,8 +165,8 @@ export default function CourseManagement() {
     const restoring = archiveScope === "archived";
     const confirmed = window.confirm(
       restoring
-        ? `Khôi phục khóa học "${course.name}"?`
-        : `Lưu trữ khóa học "${course.name}"? Dữ liệu bài thi và kết quả vẫn được giữ lại.`,
+        ? `Restore course "${course.name}"?`
+        : `Archive course "${course.name}"? Exam and result data will be retained.`,
     );
     if (!confirmed) return;
     try {
@@ -200,11 +200,11 @@ export default function CourseManagement() {
     () => [
       {
         key: "faculty",
-        label: "Khoa",
+        label: "Faculty",
         type: "select",
-        allLabel: "Tất cả khoa",
+        allLabel: "All faculties",
         options: Array.from(
-          new Set(courses.map((course) => course.faculty || "Chung")),
+          new Set(courses.map((course) => course.faculty || "General")),
         ).map((faculty) => ({
           label: faculty,
           value: faculty,
@@ -212,26 +212,26 @@ export default function CourseManagement() {
       },
       {
         key: "examState",
-        label: "Trạng thái bài thi",
+        label: "Exam status",
         type: "select",
-        allLabel: "Tất cả bài thi",
+        allLabel: "All exams",
         options: [
-          { label: "Có bài thi", value: "hasExams" },
-          { label: "Chưa có bài thi", value: "noExams" },
+          { label: "Has exams", value: "hasExams" },
+          { label: "No exams", value: "noExams" },
         ],
       },
       {
         key: "academicYear",
-        label: "Năm học",
+        label: "Academic year",
         type: "text",
         operators: ["contains", "startsWith", "equals"],
-        placeholder: "Lọc theo năm học",
+        placeholder: "Filter by academic year",
       },
       {
         key: "term",
-        label: "Học kỳ",
+        label: "Term",
         type: "select",
-        allLabel: "Tất cả học kỳ",
+        allLabel: "All terms",
         options: COURSE_TERM_OPTIONS.map((option) => ({
           label: option.label,
           value: option.value,
@@ -275,7 +275,7 @@ export default function CourseManagement() {
       if (
         facultyFilter &&
         facultyFilter !== "all" &&
-        (course.faculty || "Chung") !== facultyFilter
+        (course.faculty || "General") !== facultyFilter
       ) {
         return false;
       }
@@ -336,9 +336,9 @@ export default function CourseManagement() {
   const activeFilterChips = getFilterChips(appliedFilters, courseFilterDefinitions);
 
   const courseSortOptions = [
-    { field: "name", label: "Tên khóa học" },
-    { field: "_count.enrollments", label: "Sinh viên" },
-    { field: "_count.exams", label: "Bài thi" },
+    { field: "name", label: "Course name" },
+    { field: "_count.enrollments", label: "Students" },
+    { field: "_count.exams", label: "Exams" },
   ];
 
   const runSearch = () => setAppliedSearch(searchInput.trim());
@@ -359,10 +359,10 @@ export default function CourseManagement() {
   };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell backTo="/lecturer">
         <ListPageHeader
-          title="Quản lý khóa học"
+          title="Course management"
           actions={
             <div className="flex items-center gap-3">
               <Select
@@ -373,14 +373,14 @@ export default function CourseManagement() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="card">Thẻ</SelectItem>
-                  <SelectItem value="list">Danh sách</SelectItem>
+                  <SelectItem value="card">Cards</SelectItem>
+                  <SelectItem value="list">List</SelectItem>
                 </SelectContent>
               </Select>
               <Button asChild className="gap-2">
                 <Link href="/lecturer/create-course">
                   <Plus className="h-4 w-4" />
-                  Thêm khóa học
+                  Add course
                 </Link>
               </Button>
             </div>
@@ -390,13 +390,13 @@ export default function CourseManagement() {
         {/* Quick stats */}
         <section>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <AdminStatCard icon={BookOpen} value={courses.length} label="Tổng khóa học" />
-            <AdminStatCard icon={Users} value={totalStudents} label="Tổng sinh viên" />
-            <AdminStatCard icon={Clock} value={totalExams} label="Tổng bài thi" />
+            <AdminStatCard icon={BookOpen} value={courses.length} label="Total courses" />
+            <AdminStatCard icon={Users} value={totalStudents} label="Total students" />
+            <AdminStatCard icon={Clock} value={totalExams} label="Total exams" />
             <AdminStatCard
               icon={Filter}
               value={facultiesCount}
-              label="Khoa"
+              label="Faculty"
             />
           </div>
         </section>
@@ -407,7 +407,7 @@ export default function CourseManagement() {
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Tìm theo mã, tên, khoa, năm học hoặc học kỳ"
+              placeholder="Search by code, name, faculty, academic year, or term"
               className="flex-1"
             />
             <SortButton
@@ -420,8 +420,8 @@ export default function CourseManagement() {
               }}
             />
             <FilterPanel
-              title="Bộ lọc khóa học"
-              description="Tìm kiếm và lọc các khóa học theo các tiêu chí khác nhau."
+              title="Course filters"
+              description="Search and filter courses by different criteria."
               filters={courseFilterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -430,6 +430,8 @@ export default function CourseManagement() {
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips
@@ -442,7 +444,7 @@ export default function CourseManagement() {
         {/* Recently Accessed Courses */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Khóa học truy cập gần đây</h2>
+            <h2 className="text-lg font-semibold">Recently accessed courses</h2>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm">
                 <ChevronLeft className="h-4 w-4" />
@@ -482,7 +484,7 @@ export default function CourseManagement() {
                           {course._count?.enrollments || 0}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Sinh viên
+                          Students
                         </div>
                       </div>
                       <div className="flex flex-col items-center justify-center">
@@ -490,7 +492,7 @@ export default function CourseManagement() {
                           {course._count?.exams || 0}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Bài thi
+                          Exams
                         </div>
                       </div>
                       <div className="flex flex-col items-center justify-center">
@@ -498,7 +500,7 @@ export default function CourseManagement() {
                           {course.lastAccessed}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Đã truy cập
+                          Accessed
                         </div>
                       </div>
                     </div>
@@ -506,7 +508,7 @@ export default function CourseManagement() {
                     {course.progress && (
                       <div className="space-y-1">
                         <div className="flex justify-between text-sm">
-                          <span>Hoàn thành {course.progress}%</span>
+                          <span>{course.progress}% complete</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
@@ -526,27 +528,27 @@ export default function CourseManagement() {
         {/* Course Overview */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Tổng quan khóa học</h2>
+            <h2 className="text-lg font-semibold">Course overview</h2>
             <div className="flex items-center gap-2">
               <Select value={archiveScope} onValueChange={(value) => setArchiveScope(value as "active" | "archived")}>
                 <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Các khóa học đang hoạt động</SelectItem>
-                  <SelectItem value="archived">Các khóa học đã được lưu trữ</SelectItem>
+                  <SelectItem value="active">Active courses</SelectItem>
+                  <SelectItem value="archived">Archived courses</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" size="sm" className="gap-2">
                 <Filter className="h-4 w-4" />
-                Tất cả khóa học
+                All courses
               </Button>
               <Select defaultValue="name">
                 <SelectTrigger className="w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="name">Tên khóa học</SelectItem>
-                  <SelectItem value="code">Mã khóa học</SelectItem>
-                  <SelectItem value="faculty">Khoa</SelectItem>
+                  <SelectItem value="name">Course name</SelectItem>
+                  <SelectItem value="code">Course code</SelectItem>
+                  <SelectItem value="faculty">Faculty</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={viewMode} onValueChange={(value: "card" | "list") => setViewMode(value)}>
@@ -554,8 +556,8 @@ export default function CourseManagement() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="card">Thẻ</SelectItem>
-                  <SelectItem value="list">Danh sách</SelectItem>
+                  <SelectItem value="card">Cards</SelectItem>
+                  <SelectItem value="list">List</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -572,14 +574,14 @@ export default function CourseManagement() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
-                        <TableHead className="w-36">Mã khóa học</TableHead>
-                        <TableHead>Tên khóa học</TableHead>
-                        <TableHead className="w-40">Khoa</TableHead>
-                        <TableHead className="w-32">Học kỳ</TableHead>
-                        <TableHead className="w-24 text-center">Sinh viên</TableHead>
-                        <TableHead className="w-20 text-center">Bài thi</TableHead>
-                        <TableHead className="w-40">Truy cập gần nhất</TableHead>
-                        <TableHead className="w-32 text-right">Thao tác</TableHead>
+                        <TableHead className="w-36">Course code</TableHead>
+                        <TableHead>Course name</TableHead>
+                        <TableHead className="w-40">Faculty</TableHead>
+                        <TableHead className="w-32">Term</TableHead>
+                        <TableHead className="w-24 text-center">Students</TableHead>
+                        <TableHead className="w-20 text-center">Exams</TableHead>
+                        <TableHead className="w-40">Last accessed</TableHead>
+                        <TableHead className="w-32 text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -593,10 +595,10 @@ export default function CourseManagement() {
                           <TableCell>{formatCourseTerm(course.academicYear, course.term)}</TableCell>
                           <TableCell className="text-center">{course._count?.enrollments || 0}</TableCell>
                           <TableCell className="text-center">{course._count?.exams || 0}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{course.lastAccessed || "Chưa truy cập"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{course.lastAccessed || "Not accessed"}</TableCell>
                           <TableCell className="text-right">
                             <Button asChild variant="outline" size="sm">
-                              <Link href={`/lecturer/course/${course.id}`}>Xem chi tiết</Link>
+                              <Link href={`/lecturer/course/${course.id}`}>View details</Link>
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -628,7 +630,7 @@ export default function CourseManagement() {
                                 className="text-white hover:bg-white/20"
                                 onClick={() => handleArchiveToggle(course)}
                                 disabled={courseActionId === course.id}
-                                title={archiveScope === "archived" ? "Khôi phục khóa học" : "Lưu trữ khóa học"}
+                                title={archiveScope === "archived" ? "Restore course" : "Archive course"}
                               >
                                 {courseActionId === course.id ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : archiveScope === "archived" ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
                               </Button>
@@ -653,7 +655,7 @@ export default function CourseManagement() {
                                   </div>
                                   <div className="text-xs text-muted-foreground flex items-center gap-0.5">
                                     <Users className="h-3 w-3" />
-                                    <span>Sinh viên</span>
+                                    <span>Students</span>
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-center justify-center">
@@ -662,7 +664,7 @@ export default function CourseManagement() {
                                   </div>
                                   <div className="text-xs text-muted-foreground flex items-center gap-0.5">
                                     <BookOpen className="h-3 w-3" />
-                                    <span>Bài thi</span>
+                                    <span>Exams</span>
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-center justify-center">
@@ -671,7 +673,7 @@ export default function CourseManagement() {
                                   </div>
                                   <div className="text-xs text-muted-foreground flex items-center gap-0.5">
                                     <Clock className="h-3 w-3" />
-                                    <span>Đã truy cập</span>
+                                    <span>Accessed</span>
                                   </div>
                                 </div>
                               </div>
@@ -679,7 +681,7 @@ export default function CourseManagement() {
                               {course.progress && (
                                 <div className="space-y-1">
                                   <div className="flex justify-between text-xs">
-                                    <span>Hoàn thành {course.progress}%</span>
+                                    <span>{course.progress}% complete</span>
                                   </div>
                                   <div className="w-full bg-gray-200 rounded-full h-1.5">
                                     <div
@@ -697,7 +699,7 @@ export default function CourseManagement() {
                                 className="w-full"
                               >
                                 <Link href={`/lecturer/course/${course.id}`}>
-                                  Xem chi tiết
+                                  View details
                                 </Link>
                               </Button>
                             </div>
@@ -711,7 +713,7 @@ export default function CourseManagement() {
               {filteredCourses.length === 0 && (
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground">
-                    Không có khóa học phù hợp với tìm kiếm hoặc bộ lọc hiện tại.
+                    No courses match your current search or filters.
                   </CardContent>
                 </Card>
               )}
@@ -722,7 +724,7 @@ export default function CourseManagement() {
             totalPages={totalPages}
             totalItems={filteredCourses.length}
             onPageChange={setPage}
-            itemLabel="khóa học"
+            itemLabel="courses"
             className="border-t-0 px-0"
             syncUrl={false}
           />

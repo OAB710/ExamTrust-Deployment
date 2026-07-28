@@ -45,7 +45,7 @@ export class ExamRiskAssessmentService {
     });
 
     if (!submission) {
-      throw new NotFoundException({ code: 'SUBMISSION_NOT_FOUND', message: 'Không tìm thấy lượt làm bài của sinh viên.' });
+      throw new NotFoundException({ code: 'SUBMISSION_NOT_FOUND', message: 'The student submission was not found.' });
     }
 
     await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
@@ -61,7 +61,7 @@ export class ExamRiskAssessmentService {
       return {
         eligible: false,
         reasonCode: 'INSUFFICIENT_RISK_DATA',
-        reason: 'Chưa đủ dữ liệu hành vi để đánh giá. Sinh viên cần có câu trả lời hoặc sự kiện giám sát được ghi nhận.',
+        reason: 'There is not enough behavioral data to assess risk. The student needs recorded answers or monitoring events.',
         signals: { totalAnswers: 0, totalIntegrityEvents: 0 },
       };
     }
@@ -180,7 +180,7 @@ export class ExamRiskAssessmentService {
       where: { id: jobId, submissionId },
     });
     if (!job) {
-      throw new NotFoundException({ code: 'RISK_JOB_NOT_FOUND', message: 'Không tìm thấy kết quả đánh giá rủi ro.' });
+      throw new NotFoundException({ code: 'RISK_JOB_NOT_FOUND', message: 'The risk assessment result was not found.' });
     }
 
     const flag = await this.prisma.anomalyFlag.findFirst({ where: { jobId: job.id } });

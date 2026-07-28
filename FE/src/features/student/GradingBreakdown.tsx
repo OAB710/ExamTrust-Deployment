@@ -79,9 +79,9 @@ const severityOrder: Record<SeverityLevel, number> = {
 };
 
 const severityLabels: Record<SeverityLevel, string> = {
-  none: "Không có vấn đề",
-  low: "Thấp",
-  medium: "Trung bình",
+  none: "No issues",
+  low: "Low",
+  medium: "Medium",
   high: "Cao",
 };
 
@@ -232,7 +232,7 @@ export default function GradingBreakdown() {
         if (!mounted) return;
         setSubmission(res);
       } catch (err) {
-        console.error("Không thể tải bài nộp:", err);
+        console.error("Unable to load submission:", err);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -250,7 +250,7 @@ export default function GradingBreakdown() {
       const type = autoTypes.includes(q.type) ? "auto" : "manual";
       return {
         id: idx + 1,
-        question: toDisplayText(q.content || q.text || "Nội dung câu hỏi"),
+        question: toDisplayText(q.content || q.text || "Question content"),
         type,
         yourAnswer: toDisplayText(a.answer),
         correctAnswer: toDisplayText(q.correctAnswer),
@@ -292,9 +292,9 @@ export default function GradingBreakdown() {
   const attemptLabel =
     attemptNo > 0
       ? maxAttempts === null
-        ? `Lượt ${attemptNo} / Không giới hạn`
-        : `Lượt ${attemptNo} / ${maxAttempts}`
-      : "Lượt làm";
+        ? `Attempt ${attemptNo} / Unlimited`
+        : `Attempt ${attemptNo} / ${maxAttempts}`
+      : "Submission";
 
   const proctoring = submission?.proctoring;
   const tabSwitchCount = Number(proctoring?.tabSwitchCount ?? 0);
@@ -315,9 +315,9 @@ export default function GradingBreakdown() {
     return (
       <DashboardLayout>
         <div className="max-w-5xl mx-auto text-center py-20">
-          <h2 className="text-lg font-medium">Chưa chọn bài thi</h2>
+          <h2 className="text-lg font-medium">No exam selected</h2>
           <p className="text-sm text-muted-foreground mt-2">
-            Mở một bài thi đã được đánh giá từ trang tổng quan để xem chi tiết chấm điểm.
+            Open a graded exam from the dashboard to view its grading details.
           </p>
           <div className="mt-6">
             <BackToDashboardButton
@@ -342,14 +342,14 @@ export default function GradingBreakdown() {
           <BackToDashboardButton to="/student/results" className="mb-4 -ml-2" />
           <Card className="border-amber-200 bg-amber-50/70">
             <CardHeader>
-              <CardTitle>Đang chờ giảng viên chấm điểm</CardTitle>
+              <CardTitle>Awaiting lecturer grading</CardTitle>
               <CardDescription>
-                Bài thi này có câu hỏi cần chấm thủ công. Điểm cuối cùng sẽ hiển thị sau khi giảng viên công bố kết quả.
+                This exam has questions that require manual grading. Your final score will appear after the lecturer publishes the results.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button onClick={() => router.push("/student/results")}>
-                Quay lại kết quả
+                Back to results
               </Button>
             </CardContent>
           </Card>
@@ -359,15 +359,15 @@ export default function GradingBreakdown() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="max-w-5xl mx-auto">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full">
         <BackToDashboardButton to="/student" className="mb-4 -ml-2" />
 
         <h1 className="text-2xl font-semibold text-foreground mb-1">
-          Chi tiết chấm điểm
+          Grading details
         </h1>
         <p className="text-muted-foreground mb-6">
-          Minh bạch cách tính điểm bài thi, bao gồm câu hỏi chấm tự động và câu hỏi được giảng viên chấm.
+          A transparent breakdown of your exam score, including automatically and manually graded questions.
         </p>
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -390,15 +390,15 @@ export default function GradingBreakdown() {
             <CardTitle className="text-lg flex items-center gap-2">
               <Calculator className="h-5 w-5 text-primary" />
               <HelpedTitle help={{
-                description: "Cho biết điểm cuối cùng được ghép từ phần hệ thống chấm tự động và phần giảng viên chấm thủ công.",
-                usedBy: "Sinh viên dùng để hiểu vì sao tổng điểm hiện tại có thể khác giữa các loại câu hỏi.",
-                note: "Điểm có thể thay đổi nếu vẫn còn câu hỏi đang chờ giảng viên chấm.",
+                description: "Shows how the final score is combined from automatically graded and manually graded work.",
+                usedBy: "Students use this to understand why their current total may differ across question types.",
+                note: "The score may change while questions are still awaiting lecturer grading.",
               }}>
-                Cách tính điểm
+                Score calculation
               </HelpedTitle>
             </CardTitle>
             <CardDescription>
-              Tổng điểm = Điểm chấm tự động + Điểm chấm thủ công
+              Total score = Automatically graded score + Manually graded score
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -409,7 +409,7 @@ export default function GradingBreakdown() {
                   {autoScore}/{autoMax}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Chấm tự động ({autoQuestions.length} câu hỏi)
+                  Automatically graded ({autoQuestions.length} questions)
                 </p>
                 <Progress
                   value={autoMax > 0 ? (autoScore / autoMax) * 100 : 0}
@@ -422,7 +422,7 @@ export default function GradingBreakdown() {
                   {manualScore}/{manualMax}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Chấm thủ công ({manualQuestions.length} câu hỏi)
+                  Manually graded ({manualQuestions.length} questions)
                 </p>
                 <Progress
                   value={manualMax > 0 ? (manualScore / manualMax) * 100 : 0}
@@ -435,7 +435,7 @@ export default function GradingBreakdown() {
                   {totalScore}/{totalMax}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Tổng điểm (
+                  Total score (
                   {Math.round(totalMax > 0 ? (totalScore / totalMax) * 100 : 0)}
                   %)
                 </p>
@@ -455,24 +455,24 @@ export default function GradingBreakdown() {
               <CardTitle className="text-lg flex items-center gap-2">
                 <History className="h-5 w-5 text-primary" />
                 <HelpedTitle help={{
-                  description: "Tổng hợp các sự kiện toàn vẹn được ghi nhận trong phiên thi.",
-                  usedBy: "Sinh viên dùng để hiểu những tín hiệu như chuyển tab, mất focus hoặc sự kiện bất thường nếu có.",
-                  note: "Các tín hiệu này không tự kết luận gian lận; giảng viên hoặc quản trị viên sẽ xem xét bối cảnh.",
+                  description: "A summary of integrity events recorded during the exam session.",
+                  usedBy: "Students use this to understand recorded events such as tab switches, lost focus, or other unusual activity.",
+                  note: "These events do not automatically determine misconduct; a lecturer or administrator reviews the context.",
                 }}>
-                  Tóm tắt giám sát
+                  Monitoring summary
                 </HelpedTitle>
               </CardTitle>
               <CardDescription>
-                Tổng hợp các sự kiện toàn vẹn được ghi nhận trong phiên thi
+                A summary of integrity events recorded during the exam session
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 <StatusBadge status={overallSeverity} domain="severity">
-                  Mức độ: {severityLabels[overallSeverity]}
+                  Severity: {severityLabels[overallSeverity]}
                 </StatusBadge>
                 <span className="text-xs text-muted-foreground">
-                  Dựa trên chuyển tab, bất thường chuột và các sự kiện đã ghi nhận.
+                  Based on tab switches, mouse anomalies, and recorded events.
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -481,7 +481,7 @@ export default function GradingBreakdown() {
                 >
                   <div className="flex items-center justify-center gap-2 mb-1">
                     <p className="text-xs text-muted-foreground">
-                      Chuyển tab
+                      Tab switches
                     </p>
                     <StatusBadge status={tabSeverity} domain="severity">
                       {severityLabels[tabSeverity]}
@@ -498,7 +498,7 @@ export default function GradingBreakdown() {
                 >
                   <div className="flex items-center justify-center gap-2 mb-1">
                     <p className="text-xs text-muted-foreground">
-                      Bất thường chuột
+                      Mouse anomalies
                     </p>
                     <StatusBadge status={mouseSeverity} domain="severity">
                       {severityLabels[mouseSeverity]}
@@ -515,7 +515,7 @@ export default function GradingBreakdown() {
                 >
                   <div className="flex items-center justify-center gap-2 mb-1">
                     <p className="text-xs text-muted-foreground">
-                      Sự kiện ghi nhận
+                      Recorded events
                     </p>
                     <StatusBadge status={logSeverity} domain="severity">
                       {severityLabels[logSeverity]}
@@ -530,7 +530,7 @@ export default function GradingBreakdown() {
               </div>
               {logsCount > 0 && (
                 <p className="text-sm text-muted-foreground mt-3">
-                  Một số sự kiện đã được ghi nhận trong phiên thi và sẽ được cung cấp cho giảng viên xem xét.
+                  Some events were recorded during the exam session and will be provided to the lecturer for review.
                 </p>
               )}
             </CardContent>
@@ -544,19 +544,19 @@ export default function GradingBreakdown() {
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                 <Cpu className="h-5 w-5" />
               </span>
-              <HelpedTitle help="Các câu hỏi khách quan được hệ thống chấm ngay theo đáp án đã cấu hình.">
-                Câu hỏi chấm tự động
+              <HelpedTitle help="Objective questions are automatically graded against the configured answer key.">
+                Automatically graded questions
               </HelpedTitle>
             </CardTitle>
             <CardDescription>
-              Các câu hỏi khách quan được hệ thống chấm tự động
+              Objective questions graded automatically by the system
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-5">
             <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3">
                 <p className="text-xs font-medium text-blue-700">
-                  Điểm chấm tự động
+                  Automatically graded score
                 </p>
                 <p className="mt-1 text-lg font-bold text-blue-800">
                   {autoScore}/{autoMax}
@@ -564,7 +564,7 @@ export default function GradingBreakdown() {
               </div>
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3">
                 <p className="text-xs font-medium text-emerald-700">
-                  Đúng
+                  Correct
                 </p>
                 <p className="mt-1 text-lg font-bold text-emerald-800">
                   {autoCorrectCount}
@@ -584,11 +584,11 @@ export default function GradingBreakdown() {
                 <TableHeader className="bg-slate-50">
                   <TableRow className="border-slate-200 hover:bg-slate-50">
                     <TableHead className="w-12">#</TableHead>
-                    <TableHead>Câu hỏi</TableHead>
-                    <TableHead>Câu trả lời của bạn</TableHead>
-                    <TableHead>Đáp án đúng</TableHead>
-                    <TableHead className="w-20 text-center">Điểm</TableHead>
-                    <TableHead className="w-20 text-center">Kết quả</TableHead>
+                    <TableHead>Question</TableHead>
+                    <TableHead>Your answer</TableHead>
+                    <TableHead>Correct answer</TableHead>
+                    <TableHead className="w-20 text-center">Score</TableHead>
+                    <TableHead className="w-20 text-center">Result</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -615,12 +615,12 @@ export default function GradingBreakdown() {
                               : "inline-flex rounded-full border border-red-200 bg-white px-2.5 py-1 text-xs font-semibold text-red-700"
                           }
                         >
-                          {q.yourAnswer || "Chưa trả lời"}
+                          {q.yourAnswer || "Unanswered"}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
-                          {q.correctAnswer || "Chưa cập nhật"}
+                          {q.correctAnswer || "Not available"}
                         </span>
                       </TableCell>
                       <TableCell
@@ -656,12 +656,12 @@ export default function GradingBreakdown() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <User className="h-5 w-5 text-purple-600" />
-              <HelpedTitle help="Các câu hỏi cần giảng viên xem xét, ví dụ tự luận hoặc câu trả lời mở.">
-                Câu hỏi chấm thủ công
+              <HelpedTitle help="Questions that require lecturer review, such as essays or open-ended answers.">
+                Manually graded questions
               </HelpedTitle>
             </CardTitle>
             <CardDescription>
-              Các câu hỏi tự luận được giảng viên xem xét
+              Essay questions reviewed by the lecturer
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -671,7 +671,7 @@ export default function GradingBreakdown() {
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <span className="text-sm font-mono text-muted-foreground">
-                        Câu {q.id}.
+                        Question {q.id}.
                       </span>
                       <span className="text-sm font-medium ml-2">
                         {q.question}
@@ -692,14 +692,14 @@ export default function GradingBreakdown() {
                     </div>
                   </div>
                   <div className="bg-secondary/50 rounded p-3 text-sm text-muted-foreground mb-2">
-                    <strong>Câu trả lời của bạn:</strong> {q.yourAnswer}
+                    <strong>Your answer:</strong> {q.yourAnswer}
                   </div>
                   {q.feedback && (
                     <div className="flex items-start gap-2 text-sm">
                       <MessageSquare className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                       <div>
                         <span className="font-medium text-foreground">
-                          Nhận xét của giảng viên:{" "}
+                          Lecturer feedback:{" "}
                         </span>
                         <span className="text-muted-foreground">
                           {q.feedback}
@@ -718,10 +718,10 @@ export default function GradingBreakdown() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <History className="h-5 w-5 text-primary" />
-              Lịch sử chấm điểm
+              Grading history
             </CardTitle>
             <CardDescription>
-              Dòng thời gian các thao tác chấm, chỉnh sửa và điều chỉnh điểm
+              A timeline of grading, edits, and score adjustments
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -737,7 +737,7 @@ export default function GradingBreakdown() {
                   <div className="flex-1">
                     <p className="text-sm font-medium">{entry.action}</p>
                     <p className="text-xs text-muted-foreground">
-                      Bởi: {entry.by} · {entry.detail}
+                      By: {entry.by} · {entry.detail}
                     </p>
                   </div>
                 </div>

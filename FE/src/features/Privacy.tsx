@@ -10,43 +10,43 @@ export default function Privacy() {
       <Header />
       <main id="main-content" className="container py-14 sm:py-20">
         <article className="mx-auto max-w-3xl rounded-2xl border border-border/80 bg-card p-6 shadow-soft sm:p-10">
-          <h1 className="text-3xl font-semibold tracking-[-0.04em]">Quyền riêng tư và thời hạn lưu dữ liệu</h1>
+          <h1 className="text-3xl font-semibold tracking-[-0.04em]">Privacy and data retention</h1>
           <p className="mt-5 leading-7 text-muted-foreground">
-            ExamTrust chỉ ghi nhận dữ liệu giám sát cần thiết để hỗ trợ toàn vẹn kỳ thi và audit. Dữ liệu được lưu có thời hạn, sau đó được ẩn danh hoặc xóa theo chính sách của đơn vị.
+            ExamTrust records only the monitoring data needed to support exam integrity and auditing. Data is retained for a limited period, then anonymized or deleted under the institution's policy.
           </p>
 
           <div className="mt-9 space-y-8">
             <section>
-              <h2 className="text-xl font-semibold">Dữ liệu được ghi nhận</h2>
+              <h2 className="text-xl font-semibold">Recorded data</h2>
               <ul className="mt-3 list-disc space-y-2 pl-6 text-muted-foreground">
-                <li>Địa chỉ IP và metadata vị trí suy ra để audit hoặc kiểm tra whitelist.</li>
-                <li>Thông tin trình duyệt và thiết bị.</li>
-                <li>Sự kiện chuyển tab, tiêu điểm và các tín hiệu toàn vẹn trong phiên thi.</li>
+                <li>IP address and inferred location metadata for auditing or whitelist checks.</li>
+                <li>Browser and device information.</li>
+                <li>Tab-switch, focus, and integrity events during an exam session.</li>
               </ul>
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold">Thời hạn lưu</h2>
-              <p className="mt-3 text-muted-foreground">Mặc định lưu trong 90 ngày. Sau thời hạn này, địa chỉ IP được ẩn danh hoặc xóa.</p>
+              <h2 className="text-xl font-semibold">Retention period</h2>
+              <p className="mt-3 text-muted-foreground">Data is retained for 90 days by default. After that, IP addresses are anonymized or deleted.</p>
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold">Quyền của bạn</h2>
-              <p className="mt-3 text-muted-foreground">Sinh viên có thể yêu cầu xóa dữ liệu hoặc gửi thắc mắc qua privacy@example.com.</p>
+              <h2 className="text-xl font-semibold">Your rights</h2>
+              <p className="mt-3 text-muted-foreground">Students may request data deletion or send questions to privacy@example.com.</p>
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold">Thông tin vận hành</h2>
+              <h2 className="text-xl font-semibold">Operational information</h2>
               <p className="mt-3 text-muted-foreground">
-                Quản trị viên có thể xem chi tiết trong bảng điều khiển. Nhân sự vận hành xem{" "}
-                <Link href="/admin/system-policy" className="font-medium text-primary hover:underline">chính sách hệ thống</Link>
-                {" "}và tài liệu lưu trữ nội bộ của dự án.
+                Administrators can view details in the dashboard. Operations staff can consult the{" "}
+                <Link href="/admin/system-policy" className="font-medium text-primary hover:underline">system policy</Link>
+                {" "}and the project's internal retention documentation.
               </p>
             </section>
           </div>
 
           <div className="mt-10 border-t border-border pt-6">
-            <Link href="/" className="font-medium text-primary hover:underline">Quay lại trang chủ</Link>
+            <Link href="/" className="font-medium text-primary hover:underline">Back to home</Link>
           </div>
         </article>
       </main>

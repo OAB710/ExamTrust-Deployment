@@ -206,8 +206,8 @@ export default function ExamResultsList() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="mx-auto max-w-7xl space-y-5 rounded-3xl bg-gradient-to-b from-slate-50/90 via-background to-background px-4 py-5 sm:px-6 lg:px-8">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full space-y-5 rounded-3xl bg-gradient-to-b from-slate-50/90 via-background to-background px-4 py-5 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-4 rounded-3xl border border-border/70 bg-card/90 p-5 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-600">
@@ -481,7 +481,7 @@ export default function ExamResultsList() {
                         colSpan={6}
                         className="py-10 text-center text-muted-foreground"
                       >
-                        Chưa có lượt nộp bài nào cho kỳ thi này.
+                        There are no submissions for this exam yet.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -524,9 +524,9 @@ export default function ExamResultsList() {
                             >
                               {isManualCompleted
                                 ? isPublished
-                                  ? "Xem điểm"
-                                  : "Đã chấm - sửa lại"
-                                : `Chấm ${manualRow.manualPending}/${manualRow.manualTotal}`}
+                                  ? "View grade"
+                                  : "Graded - edit"
+                                : `Grade ${manualRow.manualPending}/${manualRow.manualTotal}`}
                             </Button>
                           ) : (
                             <span className="text-xs text-muted-foreground">Auto only</span>
@@ -547,7 +547,7 @@ export default function ExamResultsList() {
           totalPages={totalPages}
           totalItems={submissions.length}
           onPageChange={setPage}
-          itemLabel="lượt nộp"
+          itemLabel="submissions"
           className="border-t-0 px-0"
         />
       </div>

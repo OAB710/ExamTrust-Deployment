@@ -25,7 +25,7 @@ export default function ResetPassword() {
       await resetPassword(email);
       setIsSubmitted(true);
     } catch (err) {
-      setError('Không tìm thấy địa chỉ email. Vui lòng kiểm tra và thử lại.');
+      setError('Email address not found. Please check and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -46,22 +46,22 @@ export default function ResetPassword() {
             <div className="mx-auto w-12 h-12 rounded-full bg-success/10 flex items-center justify-center mb-4">
               <CheckCircle2 className="h-6 w-6 text-success" />
             </div>
-            <h1 className="text-2xl font-semibold text-foreground">Kiểm tra email của bạn</h1>
+            <h1 className="text-2xl font-semibold text-foreground">Check your email</h1>
             <p className="text-muted-foreground mt-2 mb-6">
-              Liên kết đặt lại mật khẩu đã được gửi đến <strong>{email}</strong>.
+              A password-reset link has been sent to <strong>{email}</strong>.
             </p>
             <Button asChild variant="outline" className="w-full">
               <Link href="/login">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Quay lại đăng nhập
+                Back to sign in
               </Link>
             </Button>
           </div>
         ) : (
           <>
-            <h1 className="text-2xl font-semibold text-foreground mt-8">Đặt lại mật khẩu</h1>
+            <h1 className="text-2xl font-semibold text-foreground mt-8">Reset password</h1>
             <p className="text-muted-foreground mt-2 mb-6">
-              Nhập địa chỉ email để nhận liên kết đặt lại mật khẩu.
+              Enter your email address to receive a password-reset link.
             </p>
 
             {error && (
@@ -72,11 +72,11 @@ export default function ResetPassword() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Địa chỉ email</Label>
+                <Label htmlFor="email">Email address</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="tenban@truong.edu.vn"
+                  placeholder="email@tdtu.edu.vn"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -85,7 +85,7 @@ export default function ResetPassword() {
               </div>
               <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Gửi liên kết đặt lại
+                Send reset link
               </Button>
             </form>
 
@@ -95,7 +95,7 @@ export default function ResetPassword() {
                 className="text-sm text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1"
               >
                 <ArrowLeft className="h-3 w-3" />
-                Quay lại đăng nhập
+                Back to sign in
               </Link>
             </div>
           </>

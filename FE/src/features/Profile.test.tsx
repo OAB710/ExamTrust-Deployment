@@ -32,7 +32,7 @@ describe("Profile authentication guard", () => {
 
     render(<Profile />);
 
-    expect(screen.getByText("Đang tải hồ sơ...")).toBeInTheDocument();
+    expect(screen.getByText("Loading profile...")).toBeInTheDocument();
     expect(mocks.replace).not.toHaveBeenCalled();
   });
 

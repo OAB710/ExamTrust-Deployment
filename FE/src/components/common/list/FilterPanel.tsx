@@ -53,23 +53,25 @@ type FilterPanelProps = {
   activeCount?: number;
   className?: string;
   inline?: boolean;
+  compact?: boolean;
 };
 
 const getNumberFieldKey = (filterKey: string, bound: "min" | "max") =>
   `${filterKey}::${bound}`;
 
 export function FilterPanel({
-  title = "Bộ lọc",
-  description = "Thu hẹp kết quả trước khi áp dụng.",
+  title = "Filters",
+  description = "Narrow the results before applying.",
   filters,
   value,
   onValueChange,
   onApply,
   onClear,
-  triggerLabel = "Lọc",
+  triggerLabel = "Filter",
   activeCount = 0,
   className,
   inline = true,
+  compact = false,
 }: FilterPanelProps) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -193,15 +195,25 @@ export function FilterPanel({
       className={cn(
         "flex min-h-0 flex-col gap-2.5",
         inline
-          ? "rounded-xl border border-border bg-card p-3 shadow-sm"
+          ? cn(
+              "rounded-xl border border-border bg-card shadow-sm",
+              compact
+                ? "gap-2 p-2.5 [&_input]:h-8 [&_[role=combobox]]:h-8"
+                : "p-3",
+            )
           : "max-h-[min(50vh,20rem)]",
       )}
     >
       <div className={cn("flex items-center gap-3", title ? "justify-between" : "justify-end")}>
         {title ? (
           <div>
-            <h3 className="text-base font-semibold leading-6 text-foreground">{title}</h3>
-            {!inline ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+            <div className="flex items-center gap-2">
+              {inline ? <Filter className="h-4 w-4 text-primary" aria-hidden="true" /> : null}
+              <h3 className="text-base font-semibold leading-6 text-foreground">{title}</h3>
+            </div>
+            {!isMobile || !inline ? (
+              <p className="text-xs text-muted-foreground">{description}</p>
+            ) : null}
           </div>
         ) : null}
         {inline ? (
@@ -212,7 +224,7 @@ export function FilterPanel({
             className="h-8 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
-            Xóa bộ lọc
+            Clear filters
           </Button>
         ) : null}
       </div>
@@ -223,7 +235,10 @@ export function FilterPanel({
         <div
           className={cn(
             inline
-              ? "grid grid-cols-1 items-end gap-x-4 gap-y-3 sm:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]"
+              ? cn(
+                  "grid grid-cols-1 items-end sm:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]",
+                  compact ? "gap-x-3 gap-y-2" : "gap-x-4 gap-y-3",
+                )
               : "space-y-3",
           )}
         >
@@ -252,14 +267,14 @@ export function FilterPanel({
                       <SelectValue
                         placeholder={
                           filter.placeholder ||
-                          `Chọn ${filter.label.toLowerCase()}`
+                          `Select ${filter.label.toLowerCase()}`
                         }
                       />
                     </SelectTrigger>
                     <SelectContent>
                       {filter.allowAll !== false && (
                         <SelectItem value="all">
-                          {filter.allLabel || `Tất cả ${filter.label}`}
+                          {filter.allLabel || `All ${filter.label}`}
                         </SelectItem>
                       )}
                       {filter.options.map((option) => (
@@ -339,11 +354,13 @@ export function FilterPanel({
                   <Label className="text-xs font-medium">{filter.label}</Label>
                   <div className="flex h-9 items-center justify-between rounded-lg px-1">
                     <p className="text-xs font-medium text-foreground">
-                      {typeof current === "boolean"
+                      {compact && inline
+                        ? filter.toggleLabel || `Only show ${filter.label.toLowerCase()}`
+                        : typeof current === "boolean"
                         ? current
-                          ? filter.trueLabel || "Đã bật"
-                          : filter.falseLabel || "Đã tắt"
-                        : `Bật hoặc tắt ${filter.label.toLowerCase()}`}
+                          ? filter.trueLabel || "Enabled"
+                          : filter.falseLabel || "Disabled"
+                        : `Enable or disable ${filter.label.toLowerCase()}`}
                     </p>
                     <Switch
                       checked={typeof current === "boolean" ? current : false}
@@ -456,7 +473,7 @@ export function FilterPanel({
                                 },
                               )
                             }
-                            placeholder="Tối đa"
+                            placeholder="Maximum"
                             className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
                           />
                           {maxError ? (
@@ -488,7 +505,7 @@ export function FilterPanel({
                               range,
                             )
                           }
-                          placeholder="Tối thiểu"
+                          placeholder="Minimum"
                           className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
                         />
                         {minError ? (
@@ -523,7 +540,7 @@ export function FilterPanel({
                               },
                             )
                           }
-                          placeholder="Tối đa"
+                          placeholder="Maximum"
                           className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
                         />
                         {maxError ? (
@@ -556,7 +573,7 @@ export function FilterPanel({
                   <div className="grid gap-2 md:grid-cols-2">
                     <div className="space-y-1.5">
                       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Từ ngày
+                        From date
                       </span>
                       <Input
                         type={filter.showTime ? "datetime-local" : "date"}
@@ -572,7 +589,7 @@ export function FilterPanel({
                     </div>
                     <div className="space-y-1.5">
                       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Đến ngày
+                        To date
                       </span>
                       <Input
                         type={filter.showTime ? "datetime-local" : "date"}
@@ -604,7 +621,7 @@ export function FilterPanel({
             onClick={handleClearWithReset}
             className="h-8 rounded-lg px-3 text-xs"
           >
-            Xóa bộ lọc
+            Clear filters
           </Button>
         </div>
       ) : null}

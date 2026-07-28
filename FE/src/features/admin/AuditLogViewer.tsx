@@ -67,8 +67,8 @@ export default function AuditLogViewer() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="max-w-7xl mx-auto">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full">
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-foreground mb-1">Audit Log Viewer</h1>
@@ -93,9 +93,9 @@ export default function AuditLogViewer() {
             <CardTitle className="text-lg flex items-center gap-2">
               <FileText className="h-5 w-5" />
               <HelpedTitle help={{
-                description: "Nhật ký các hành động và sự kiện hệ thống đã được ghi nhận.",
-                usedBy: "Quản trị viên dùng để truy vết thao tác, kiểm tra trách nhiệm và hỗ trợ điều tra sự cố.",
-                note: "Chỉ các sự kiện đã được lưu mới xuất hiện tại đây; không nên suy luận ngoài dữ liệu ghi nhận.",
+                description: "A log of recorded system actions and events.",
+                usedBy: "Administrators use it to trace operations, review accountability, and support incident investigations.",
+                note: "Only saved events appear here; do not infer facts beyond the recorded data.",
               }}>
                 Audit Events
               </HelpedTitle>

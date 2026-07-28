@@ -79,7 +79,7 @@ class ApiClient {
       }
       const message = Array.isArray(error?.message)
         ? error.message.filter(Boolean).join('. ')
-        : error?.message || `Yêu cầu thất bại (HTTP ${response.status}).`;
+        : error?.message || `Request failed (HTTP ${response.status}).`;
       if (isPerfLogEnabled()) {
         logPerf(`${method} ${endpoint} failed network=${responseReceivedMs}ms status=${response.status}`);
       }

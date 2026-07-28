@@ -50,7 +50,7 @@ type StudentCourse = {
   };
 };
 
-const safeLabel = (value?: string | null) => (value ? value : "Chưa cập nhật");
+const safeLabel = (value?: string | null) => (value ? value : "Not available");
 
 export default function StudentCourses() {
   const [courses, setCourses] = useState<StudentCourse[]>([]);
@@ -108,14 +108,14 @@ export default function StudentCourses() {
     return [
       {
         key: "term",
-        label: "Học kỳ",
+        label: "Term",
         type: "select",
-        allLabel: "Tất cả học kỳ",
+        allLabel: "All terms",
         options: termOptions,
       },
       {
         key: "credits",
-        label: "Tín chỉ",
+        label: "Credits",
         type: "number-range",
         min: 0,
         max: 10,
@@ -123,7 +123,7 @@ export default function StudentCourses() {
       },
       {
         key: "progress",
-        label: "Tiến độ",
+        label: "Progress",
         type: "number-range",
         min: 0,
         max: 100,
@@ -241,24 +241,24 @@ export default function StudentCourses() {
   const activeFilterChips = getFilterChips(appliedFilters, filterDefinitions);
 
   const sortOptions = [
-    { field: "name", label: "Tên khóa học" },
-    { field: "code", label: "Mã khóa học" },
-    { field: "progress", label: "Tiến độ" },
+    { field: "name", label: "Course name" },
+    { field: "code", label: "Course code" },
+    { field: "progress", label: "Progress" },
   ];
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div className="space-y-6">
         <BackToDashboardButton to="/student" className="-ml-2" />
 
         <div className="space-y-3">
-          <ListPageHeader title="Khóa học của tôi" />
+          <ListPageHeader title="My courses" />
           <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Tìm theo mã, tên khóa học hoặc giảng viên"
+              placeholder="Search by course code, name, or lecturer"
               className="flex-1"
             />
             <SortButton
@@ -271,8 +271,8 @@ export default function StudentCourses() {
               }}
             />
             <FilterPanel
-              title="Bộ lọc khóa học"
-              description="Lọc theo học kỳ, số tín chỉ và tiến độ."
+              title="Course filters"
+              description="Filter by term, credits, and progress."
               filters={filterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -281,6 +281,8 @@ export default function StudentCourses() {
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips
@@ -292,9 +294,9 @@ export default function StudentCourses() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Khóa học đã tham gia</CardTitle>
+            <CardTitle>Enrolled courses</CardTitle>
             <CardDescription>
-              Xem các khóa học đã tham gia và truy cập danh sách bài thi của từng khóa học.
+              View your enrolled courses and each course's exam list.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -308,7 +310,7 @@ export default function StudentCourses() {
                   <div className="rounded-xl border border-dashed border-border p-10 text-center">
                     <BookOpen className="mx-auto h-6 w-6 text-muted-foreground" />
                     <p className="mt-2 text-muted-foreground">
-                      Không có khóa học phù hợp với tìm kiếm hoặc bộ lọc.
+                      No courses match your search or filters.
                     </p>
                   </div>
                 ) : (
@@ -336,7 +338,7 @@ export default function StudentCourses() {
                               <Badge variant="secondary">{safeLabel(course.code)}</Badge>
                             </div>
                             <p className="text-sm text-muted-foreground">
-                              {course.description || "Khóa học chưa có mô tả."}
+                              {course.description || "This course has no description."}
                             </p>
                             <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                               <span className="inline-flex items-center gap-1">
@@ -345,23 +347,23 @@ export default function StudentCourses() {
                               </span>
                               <span className="inline-flex items-center gap-1">
                                 <UserRound className="h-3.5 w-3.5" />
-                                Giảng viên: {safeLabel(course.lecturer?.fullName)}
+                                Lecturer: {safeLabel(course.lecturer?.fullName)}
                               </span>
-                              <span>Tín chỉ: {course.credits ?? "Chưa cập nhật"}</span>
+                              <span>Credits: {course.credits ?? "Not available"}</span>
                             </div>
                           </div>
 
                           <div className="min-w-[220px] space-y-2">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">Tiến độ</span>
+                              <span className="text-muted-foreground">Progress</span>
                               <span className="font-medium text-foreground">{progressValue}%</span>
                             </div>
                             <Progress value={progressValue} className="h-2" />
                             <p className="text-xs text-muted-foreground">
-                              Hoạt động gần nhất: {safeLabel(course.lastAccessed)}
+                              Last activity: {safeLabel(course.lastAccessed)}
                             </p>
                             <Button asChild className="w-full" size="sm">
-                              <Link href={`/student/courses/${course.id}`}>Xem chi tiết khóa học</Link>
+                              <Link href={`/student/courses/${course.id}`}>View course details</Link>
                             </Button>
                           </div>
                         </div>
@@ -377,7 +379,7 @@ export default function StudentCourses() {
               totalPages={totalPages}
               totalItems={filteredCourses.length}
               onPageChange={setPage}
-              itemLabel="khóa học"
+              itemLabel="courses"
               syncUrl={false}
             />
           </CardContent>

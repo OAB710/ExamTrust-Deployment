@@ -135,8 +135,8 @@ export default function ExamEventTimeline() {
     }).format(new Date(value));
 
   return (
-    <DashboardLayout>
-      <div className="max-w-4xl mx-auto">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full">
         <BackToDashboardButton to="/student" className="mb-4 -ml-2" />
 
         <div className="flex items-start justify-between mb-6">

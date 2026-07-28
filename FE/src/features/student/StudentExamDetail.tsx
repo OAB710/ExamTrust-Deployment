@@ -102,7 +102,7 @@ export default function StudentExamDetail() {
 
     const fetchData = async () => {
       if (!id) {
-        setError("Thiếu mã bài thi.");
+        setError("The exam ID is missing.");
         setLoading(false);
         return;
       }
@@ -133,7 +133,7 @@ export default function StudentExamDetail() {
         setCompletedSubmission(latestCompleted || null);
       } catch (err: any) {
         if (!mounted) return;
-        setError(err?.message || "Không thể tải chi tiết bài thi.");
+        setError(err?.message || "Unable to load exam details.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -175,9 +175,9 @@ export default function StudentExamDetail() {
   const shouldViewResult = hasCompletedSubmission;
 
   return (
-    <DashboardLayout>
-      <div className="mx-auto max-w-5xl space-y-6 rounded-2xl bg-[linear-gradient(180deg,hsl(200_40%_97%)_0%,hsl(0_0%_100%)_48%)] p-4 sm:p-5 lg:p-6">
-        <BackToDashboardButton to="/student/exams" label="Quay lại bài thi của tôi" className="-ml-2" />
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full space-y-6 rounded-2xl bg-[linear-gradient(180deg,hsl(200_40%_97%)_0%,hsl(0_0%_100%)_48%)] p-4 sm:p-5 lg:p-6">
+        <BackToDashboardButton to="/student/exams" label="Back to my exams" className="-ml-2" />
 
         {loading ? (
           <Card className="border-slate-200 bg-white/95 shadow-medium">
@@ -188,7 +188,7 @@ export default function StudentExamDetail() {
         ) : error ? (
           <Card className="border-slate-200 bg-white/95 shadow-medium">
             <CardContent className="py-10 text-center">
-              <p className="font-medium text-foreground">Không thể tải chi tiết bài thi.</p>
+              <p className="font-medium text-foreground">Unable to load exam details.</p>
               <p className="mt-1 text-sm text-muted-foreground">{error}</p>
             </CardContent>
           </Card>
@@ -199,7 +199,7 @@ export default function StudentExamDetail() {
               <CardHeader className="bg-slate-50/70">
                 <div className="flex flex-wrap items-center gap-2">
                   <CardTitle className="text-2xl text-slate-900">
-                    {exam?.title || "Chi tiết bài thi"}
+                    {exam?.title || "Exam details"}
                   </CardTitle>
                   <Badge
                     variant="outline"
@@ -217,38 +217,38 @@ export default function StudentExamDetail() {
                   ) : null}
                 </div>
                 <CardDescription>
-                  {exam?.course?.name || "Chưa có thông tin khóa học"}
+                  {exam?.course?.name || "Course information unavailable"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 pt-5">
                 <p className="text-sm text-muted-foreground">
-                  {exam?.description || "Bài thi này chưa có mô tả bổ sung."}
+                  {exam?.description || "This exam has no additional description."}
                 </p>
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                    <p className="text-xs text-muted-foreground">Thời gian bắt đầu</p>
+                    <p className="text-xs text-muted-foreground">Start time</p>
                     <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                       <CalendarClock className="h-4 w-4 text-primary" />
                       {getScheduleLabel(exam?.startTime)}
                     </p>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                    <p className="text-xs text-muted-foreground">Thời gian kết thúc</p>
+                    <p className="text-xs text-muted-foreground">End time</p>
                     <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                       <AlarmClock className="h-4 w-4 text-primary" />
                       {getScheduleLabel(exam?.endTime)}
                     </p>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                    <p className="text-xs text-muted-foreground">Thời lượng</p>
+                    <p className="text-xs text-muted-foreground">Duration</p>
                     <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                       <Clock3 className="h-4 w-4 text-primary" />
                       {formatDurationVi(exam?.duration)}
                     </p>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                    <p className="text-xs text-muted-foreground">Điểm đạt</p>
+                    <p className="text-xs text-muted-foreground">Passing score</p>
                     <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                       <CheckCircle2 className="h-4 w-4 text-primary" />
                       {formatNumberVi(exam?.passingScore)}
@@ -258,21 +258,21 @@ export default function StudentExamDetail() {
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                    <p className="text-xs text-muted-foreground">Khóa học</p>
+                    <p className="text-xs text-muted-foreground">Course</p>
                     <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                       <BookOpen className="h-4 w-4 text-primary" />
-                      {exam?.course?.code || "Chưa cập nhật"} - {exam?.course?.name || "Chưa cập nhật"}
+                      {exam?.course?.code || "Not available"} - {exam?.course?.name || "Not available"}
                     </p>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                    <p className="text-xs text-muted-foreground">Tổng điểm</p>
+                    <p className="text-xs text-muted-foreground">Total points</p>
                     <p className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                       <FileText className="h-4 w-4 text-primary" />
                       {formatNumberVi(exam?.totalPoints)}
                     </p>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-                    <p className="text-xs text-muted-foreground">Số lần làm tối đa</p>
+                    <p className="text-xs text-muted-foreground">Maximum attempts</p>
                     <p className="mt-1 text-sm font-semibold text-slate-900">
                       {formatAttemptLimitVi(configuredMaxAttempts)}
                     </p>
@@ -287,31 +287,31 @@ export default function StudentExamDetail() {
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <CheckCircle2 className="h-5 w-5" />
                   </span>
-                  Quyền truy cập và lượt làm bài
+                  Access and submissions
                 </CardTitle>
                 <CardDescription>
-                  Kiểm tra trạng thái mở bài thi, lượt làm và thao tác tiếp theo của bạn.
+                  Check the exam availability, your submission, and next action.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className={accessBadgeClass(accessState)}>
-                    Trạng thái: {getExamWindowLabel(accessState)}
+                    Status: {getExamWindowLabel(accessState)}
                   </Badge>
                   <Badge
                     variant="outline"
                     className={statusBadgeClass(submissionStatus || "NOT_STARTED")}
                   >
-                    Lượt làm: {mySubmission ? getStatusBadgeLabel(submissionStatus || "IN_PROGRESS") : "Chưa bắt đầu"}
+                    Submission: {mySubmission ? getStatusBadgeLabel(submissionStatus || "IN_PROGRESS") : "Not started"}
                   </Badge>
                   {mySubmission?.attemptNo ? (
                     <Badge variant="secondary" className="border-slate-200 bg-slate-50 text-slate-700">
-                      Lượt {mySubmission.attemptNo}
+                      Attempt {mySubmission.attemptNo}
                     </Badge>
                   ) : null}
                   {typeof mySubmission?.score === "number" ? (
                     <Badge variant="secondary" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                      Điểm: {formatNumberVi(mySubmission.score)}
+                      Score: {formatNumberVi(mySubmission.score)}
                     </Badge>
                   ) : null}
                 </div>
@@ -319,25 +319,25 @@ export default function StudentExamDetail() {
                 <div className="flex flex-wrap gap-2">
                   {shouldViewResult ? (
                     <Button asChild>
-                      <Link href={`/student/grading?examId=${exam?.id}${completedSubmission?.id ? `&submissionId=${completedSubmission.id}` : ""}`}>Xem chi tiết kết quả</Link>
+                      <Link href={`/student/grading?examId=${exam?.id}${completedSubmission?.id ? `&submissionId=${completedSubmission.id}` : ""}`}>View result details</Link>
                     </Button>
                   ) : accessState === "open" && canStartNewAttempt ? (
                     <Button asChild>
-                      <Link href={`/student/exam-ready?examId=${exam?.id}`}>Bắt đầu làm bài</Link>
+                      <Link href={`/student/exam-ready?examId=${exam?.id}`}>Start exam</Link>
                     </Button>
                   ) : accessState === "open" ? (
                     <Button asChild>
-                      <Link href={`/student/exam-ready?examId=${exam?.id}`}>Bắt đầu làm bài</Link>
+                      <Link href={`/student/exam-ready?examId=${exam?.id}`}>Start exam</Link>
                     </Button>
                   ) : (
                     <Button variant="outline" disabled>
-                      {accessState === "upcoming" ? "Bài thi chưa mở" : "Bài thi đã đóng"}
+                      {accessState === "upcoming" ? "Exam not open yet" : "Exam closed"}
                     </Button>
                   )}
 
                   {exam?.course?.id ? (
                     <Button asChild variant="outline">
-                      <Link href={`/student/courses/${exam.course.id}`}>Đi đến khóa học</Link>
+                      <Link href={`/student/courses/${exam.course.id}`}>Go to course</Link>
                     </Button>
                   ) : null}
                 </div>

@@ -262,9 +262,9 @@ const typeLabels: Record<string, string> = {
 // buttons: 0.3/0.5/0.7 slider values * 10 => ~3/5/7).
 const difficultyLabel = (d: number) => {
   const normalized = Number.isFinite(d) ? Math.round(d) : 1;
-  if (normalized <= 4) return { text: "Dễ", color: "text-green-600" };
-  if (normalized === 5) return { text: "Trung bình", color: "text-yellow-600" };
-  return { text: "Khó", color: "text-red-600" };
+  if (normalized <= 4) return { text: "Easy", color: "text-green-600" };
+  if (normalized === 5) return { text: "Medium", color: "text-yellow-600" };
+  return { text: "Hard", color: "text-red-600" };
 };
 
 const formatUpdatedAt = (value?: string | Date | null) => {
@@ -449,23 +449,21 @@ export default function QuestionBankManagement() {
     () => [
       {
         key: "questionState",
-        label: "Trạng thái câu hỏi",
+        label: "Question status",
         type: "select",
-        allLabel: "Tất cả khóa học",
+        allLabel: "All courses",
         options: [
-          { label: "Có câu hỏi", value: "hasQuestions" },
-          { label: "Không có câu hỏi", value: "noQuestions" },
+          { label: "Has questions", value: "hasQuestions" },
+          { label: "No questions", value: "noQuestions" },
         ],
       },
       {
         key: "difficulty",
-        label: "Độ khó",
+        label: "Difficulty",
         type: "select",
-        allLabel: "Tất cả độ khó",
+        allLabel: "All difficulty levels",
         options: [
-          { label: "Dễ", value: "easy" },
-          { label: "Trung bình", value: "medium" },
-          { label: "Khó", value: "hard" },
+          { label: "Easy", value: "easy" }, { label: "Medium", value: "medium" }, { label: "Hard", value: "hard" },
         ],
       },
     ],
@@ -476,9 +474,9 @@ export default function QuestionBankManagement() {
     () => [
       {
         key: "type",
-        label: "Loại câu hỏi",
+        label: "Question type",
         type: "select",
-        allLabel: "Tất cả loại",
+        allLabel: "All types",
         options: Object.entries(typeLabels).map(([value, label]) => ({
           label,
           value,
@@ -486,18 +484,16 @@ export default function QuestionBankManagement() {
       },
       {
         key: "difficulty",
-        label: "Độ khó",
+        label: "Difficulty",
         type: "select",
-        allLabel: "Tất cả độ khó",
+        allLabel: "All difficulty levels",
         options: [
-          { label: "Dễ", value: "easy" },
-          { label: "Trung bình", value: "medium" },
-          { label: "Khó", value: "hard" },
+          { label: "Easy", value: "easy" }, { label: "Medium", value: "medium" }, { label: "Hard", value: "hard" },
         ],
       },
       {
         key: "points",
-        label: "Điểm",
+        label: "Points",
         type: "number-range",
         min: 0,
         max: 20,
@@ -604,8 +600,8 @@ export default function QuestionBankManagement() {
         targetCourseId: targetCourse.id,
       });
       toast.success(
-        `Đã sao chép ${result.copied} câu hỏi${
-          result.skipped > 0 ? `, bỏ qua ${result.skipped} câu trùng` : ""
+        `Copied ${result.copied} questions${
+          result.skipped > 0 ? `, skipped ${result.skipped} duplicates` : ""
         }.`,
       );
       setCopyDialogOpen(false);
@@ -631,7 +627,7 @@ export default function QuestionBankManagement() {
       }
     } catch (error) {
       console.warn("Failed to copy question bank:", (error as Error)?.message ?? error);
-      toast.error("Sao chép ngân hàng câu hỏi thất bại. Vui lòng thử lại.");
+      toast.error("Unable to copy the question bank. Please try again.");
     } finally {
       setCopyLoading(false);
     }
@@ -786,7 +782,7 @@ export default function QuestionBankManagement() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell backTo={basePath}>
         {questionDraft ? (
           <div className="mb-5 rounded-xl border border-warning/30 bg-warning/10 p-4 text-warning">
@@ -794,13 +790,13 @@ export default function QuestionBankManagement() {
               <div className="flex min-w-0 items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
                 <div className="min-w-0">
-                  <p className="font-semibold">Có bản nháp câu hỏi chưa lưu</p>
+                  <p className="font-semibold">There is an unsaved question draft</p>
                   <p className="mt-1 line-clamp-2 text-sm text-foreground">
-                    {questionDraft.content?.trim() || "Bản nháp chưa có nội dung câu hỏi."}
+                    {questionDraft.content?.trim() || "The draft has no question content yet."}
                   </p>
                   {questionDraft.savedAt ? (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Lưu tự động lúc {formatDateSafe(questionDraft.savedAt)}
+                      Auto-saved at {formatDateSafe(questionDraft.savedAt)}
                     </p>
                   ) : null}
                 </div>
@@ -818,14 +814,14 @@ export default function QuestionBankManagement() {
                     )
                   }
                 >
-                  Mở bản nháp
+                  Open draft
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={discardQuestionDraft}
                 >
-                  Xóa bản nháp
+                  Delete draft
                 </Button>
               </div>
             </div>
@@ -836,14 +832,14 @@ export default function QuestionBankManagement() {
         {!selectedCourse ? (
           <>
             <ListPageHeader
-              title="Ngân hàng câu hỏi"
+              title="Question bank"
               className="mb-6"
               actions={
                 <Button
                   className="gap-2"
                   onClick={() => router.push(questionEditorPath)}
                 >
-                  <Plus className="h-4 w-4" /> Câu hỏi mới
+                  <Plus className="h-4 w-4" /> New question
                 </Button>
               }
             />
@@ -853,19 +849,19 @@ export default function QuestionBankManagement() {
               <AdminStatCard
                 icon={Database}
                 value={questions.length}
-                label="Tổng số câu hỏi"
+                label="Total questions"
               />
               <AdminStatCard
                 icon={CheckCircle2}
                 value={courses.length}
-                label="Khóa học"
+                label="Courses"
                 iconWrapClassName="bg-green-100"
                 iconClassName="text-green-600"
               />
               <AdminStatCard
                 icon={BarChart3}
                 value={avgDifficulty}
-                label="Độ khó TB"
+                label="Average difficulty"
                 iconWrapClassName="bg-blue-100"
                 iconClassName="text-blue-600"
               />
@@ -876,7 +872,7 @@ export default function QuestionBankManagement() {
                     questions.some((q) => q.type === t),
                   ).length
                 }
-                label="Loại câu hỏi"
+                label="Question types"
                 iconWrapClassName="bg-purple-100"
                 iconClassName="text-purple-600"
               />
@@ -888,12 +884,12 @@ export default function QuestionBankManagement() {
                   value={courseSearchInput}
                   onChange={setCourseSearchInput}
                   onSearch={runCourseSearch}
-                  placeholder="Tìm khóa học theo mã, tên hoặc khoa"
+                  placeholder="Search courses by code, name, or faculty"
                   className="min-w-0 flex-1"
                 />
                 <FilterPanel
-                  title="Bộ lọc khóa học"
-                  description="Lọc khóa học theo trạng thái câu hỏi và độ khó trung bình."
+                  title="Course filters"
+                  description="Filter courses by question status and average difficulty."
                   filters={courseFilterDefinitions}
                   value={draftCourseFilters}
                   onValueChange={(key, nextValue) =>
@@ -905,7 +901,8 @@ export default function QuestionBankManagement() {
                   onApply={applyCourseFilters}
                   onClear={clearCourseFilters}
                   activeCount={activeCourseFilterCount}
-                  className="shrink-0"
+                  compact
+                  className="w-full lg:basis-full"
                 />
               </div>
               <ActiveFilterChips
@@ -929,10 +926,7 @@ export default function QuestionBankManagement() {
                 <>
                   <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
                     <div className="hidden border-b bg-muted/40 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid md:grid-cols-[minmax(240px,1.35fr)_120px_140px_minmax(220px,1fr)_24px] md:items-center md:gap-4">
-                      <span>Khóa học</span>
-                      <span>Câu hỏi</span>
-                      <span>Độ khó TB</span>
-                      <span>Loại câu hỏi</span>
+                      <span>Course</span><span>Questions</span><span>Average difficulty</span><span>Question types</span>
                       <span className="sr-only">Open</span>
                     </div>
                     <div className="divide-y">
@@ -977,7 +971,7 @@ export default function QuestionBankManagement() {
 
                           <div className="flex items-center justify-between gap-3 text-sm md:block">
                             <span className="text-muted-foreground md:hidden">
-                              Câu hỏi
+                              Questions
                             </span>
                             <span className="font-semibold tabular-nums text-foreground">
                               {courseQuestions.length}
@@ -986,7 +980,7 @@ export default function QuestionBankManagement() {
 
                           <div className="flex items-center justify-between gap-3 text-sm md:block">
                             <span className="text-muted-foreground md:hidden">
-                              Độ khó TB
+                              Average difficulty
                             </span>
                             <span className={`font-medium ${diffInfo.color}`}>
                               {courseQuestions.length > 0 ? diffInfo.text : "—"}
@@ -995,7 +989,7 @@ export default function QuestionBankManagement() {
 
                           <div className="flex min-w-0 items-start justify-between gap-3 md:block">
                             <span className="shrink-0 text-sm text-muted-foreground md:hidden">
-                              Loại câu hỏi
+                              Question types
                             </span>
                             <div className="flex flex-wrap justify-end gap-1.5 md:justify-start">
                               {questionTypes.length === 0 && (
@@ -1028,7 +1022,7 @@ export default function QuestionBankManagement() {
                     totalPages={courseTotalPages}
                     totalItems={visibleCourses.length}
                     onPageChange={setCoursePage}
-                    itemLabel="khóa học"
+                    itemLabel="courses"
                     className="border-t-0 px-0 pt-2"
                     syncUrl={false}
                   />
@@ -1039,9 +1033,9 @@ export default function QuestionBankManagement() {
             {courses.length === 0 && (
               <div className="text-center py-16 text-muted-foreground">
                 <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">Chưa có khóa học</p>
+                <p className="text-lg font-medium">No courses yet</p>
                 <p className="text-sm">
-                  Tạo khóa học trước để bắt đầu thêm câu hỏi.
+                  Create a course before adding questions.
                 </p>
               </div>
             )}
@@ -1049,9 +1043,9 @@ export default function QuestionBankManagement() {
             {courses.length > 0 && visibleCourses.length === 0 && (
               <div className="text-center py-16 text-muted-foreground">
                 <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">Không tìm thấy khóa học</p>
+                <p className="text-lg font-medium">No courses found</p>
                 <p className="text-sm">
-                  Thử từ khóa khác cho mã hoặc tên khóa học.
+                  Try another course code or name.
                 </p>
               </div>
             )}
@@ -1071,11 +1065,11 @@ export default function QuestionBankManagement() {
                 </Button>
                 <div>
                   <h1 className="text-2xl font-semibold text-foreground mb-0.5">
-                    {selectedCourse} — Ngân hàng câu hỏi
+                    {selectedCourse} — Question bank
                   </h1>
                   <p className="text-muted-foreground text-sm">
                     {courses.find((c) => c.code === selectedCourse)?.name || ""}{" "}
-                    • {filtered.length} câu hỏi
+                    • {filtered.length} questions
                   </p>
                 </div>
               </div>
@@ -1092,7 +1086,7 @@ export default function QuestionBankManagement() {
                   className="gap-2"
                   onClick={() => setCopyDialogOpen(true)}
                 >
-                  <FolderInput className="h-4 w-4" /> Sao chép từ khóa học khác
+                  <FolderInput className="h-4 w-4" /> Copy from another course
                 </Button>
                 <Button
                   className="gap-2"
@@ -1102,7 +1096,7 @@ export default function QuestionBankManagement() {
                     )
                   }
                 >
-                  <Plus className="h-4 w-4" /> Câu hỏi mới
+                  <Plus className="h-4 w-4" /> New question
                 </Button>
               </div>
             </div>
@@ -1113,7 +1107,7 @@ export default function QuestionBankManagement() {
                   value={questionSearchInput}
                   onChange={setQuestionSearchInput}
                   onSearch={runQuestionSearch}
-                  placeholder="Tìm câu hỏi hoặc ID..."
+                  placeholder="Search questions or ID..."
                   className="min-w-0 flex-1"
                 />
                 <FilterPanel
@@ -1130,7 +1124,8 @@ export default function QuestionBankManagement() {
                   onApply={applyQuestionFilters}
                   onClear={clearQuestionFilters}
                   activeCount={activeQuestionFilterCount}
-                  className="shrink-0"
+                  compact
+                  className="w-full lg:basis-full"
                 />
               </div>
               <ActiveFilterChips
@@ -1177,7 +1172,7 @@ export default function QuestionBankManagement() {
                                 Difficulty
                                 <ArrowUpDown className="h-3 w-3" />
                               </button>
-                              <ContextHelp content="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích." />
+                              <ContextHelp content="The question difficulty level, used for classification and analysis." />
                             </div>
                           </TableHead>
                           <TableHead className="w-32 text-center">Actions</TableHead>
@@ -1265,9 +1260,9 @@ export default function QuestionBankManagement() {
                   {filtered.length === 0 && (
                     <div className="text-center py-16 text-muted-foreground">
                       <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium">Không tìm thấy câu hỏi</p>
+                      <p className="text-lg font-medium">No questions found</p>
                       <p className="text-sm">
-                        Tạo câu hỏi đầu tiên cho khóa học này.
+                        Create the first question for this course.
                       </p>
                     </div>
                   )}
@@ -1277,7 +1272,7 @@ export default function QuestionBankManagement() {
                     totalPages={totalQuestionPages}
                     totalItems={filtered.length}
                     onPageChange={setQuestionPage}
-                    itemLabel="câu hỏi"
+                    itemLabel="questions"
                     className="border-t-0 px-0 pt-2"
                     syncUrl={false}
                   />
@@ -1297,14 +1292,14 @@ export default function QuestionBankManagement() {
         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Sao chép ngân hàng câu hỏi</DialogTitle>
+              <DialogTitle>Copy question bank</DialogTitle>
               <DialogDescription>
-                Sao chép các câu hỏi đã publish từ một khóa học khác vào{" "}
+                Copy published questions from another course into{" "}
                 <strong>
                   {courses.find((c) => c.code === selectedCourse)?.name ||
                     selectedCourse}
                 </strong>
-                . Câu hỏi trùng nội dung sẽ được bỏ qua.
+                . Questions with duplicate content will be skipped.
               </DialogDescription>
             </DialogHeader>
             <div className="py-2">
@@ -1313,7 +1308,7 @@ export default function QuestionBankManagement() {
                 onValueChange={setCopySourceCourseId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Chọn khóa học nguồn" />
+                  <SelectValue placeholder="Select source course" />
                 </SelectTrigger>
                 <SelectContent>
                   {courses
@@ -1332,7 +1327,7 @@ export default function QuestionBankManagement() {
                 onClick={() => setCopyDialogOpen(false)}
                 disabled={copyLoading}
               >
-                Hủy
+                Cancel
               </Button>
               <Button
                 onClick={handleCopyQuestionBank}
@@ -1341,7 +1336,7 @@ export default function QuestionBankManagement() {
                 {copyLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  "Sao chép"
+                  "Copy"
                 )}
               </Button>
             </DialogFooter>
@@ -1372,7 +1367,7 @@ export default function QuestionBankManagement() {
             {detailError && !detailLoading && (
               <div className="flex flex-col items-center justify-center h-64 gap-3 px-6">
                 <AlertTriangle className="h-10 w-10 text-destructive" />
-                <p className="text-lg font-medium">Không thể tải chi tiết câu hỏi</p>
+                <p className="text-lg font-medium">Unable to load question details</p>
                 <p className="text-sm text-muted-foreground text-center">
                   An error occurred while fetching the full question data.
                 </p>
@@ -1557,17 +1552,17 @@ export default function QuestionBankManagement() {
                     {/* 5. Difficulty, Points, Type */}
                     <div className="grid grid-cols-3 gap-4">
                       <InfoCard
-                        label="Độ khó"
-                        help="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích."
+                        label="Difficulty"
+                        help="The question difficulty level, used for classification and analysis."
                         value={diff.text}
                         valueClassName={diff.color}
                       />
                       <InfoCard
-                        label="Điểm"
+                        label="Points"
                         value={String(q.points ?? 1)}
                       />
                       <InfoCard
-                        label="Loại"
+                        label="Type"
                         value={typeLabel}
                       />
                     </div>
@@ -1575,15 +1570,15 @@ export default function QuestionBankManagement() {
                     {/* 6. Metadata */}
                     <div className="rounded-lg border bg-muted/30 p-4 space-y-2 text-sm">
                       <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground font-medium min-w-[100px]">Khóa học:</span>
+                        <span className="text-muted-foreground font-medium min-w-[100px]">Course:</span>
                         <span>{q.course?.code || q.course?.name || "—"}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground font-medium min-w-[100px]">Tạo lúc:</span>
+                        <span className="text-muted-foreground font-medium min-w-[100px]">Created:</span>
                         <span>{formatDateSafe(q.createdAt)}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground font-medium min-w-[100px]">Cập nhật:</span>
+                        <span className="text-muted-foreground font-medium min-w-[100px]">Updated:</span>
                         <span>{formatDateSafe(q.updatedAt)}</span>
                       </div>
                     </div>

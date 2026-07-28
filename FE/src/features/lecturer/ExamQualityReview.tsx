@@ -43,17 +43,17 @@ type Suggestion = {
 };
 
 const REVIEW_COPY: Record<Suggestion["reviewStatus"], string> = {
-  PENDING: "Chờ xem xét",
-  APPROVED: "Đã duyệt",
-  REJECTED: "Đã từ chối",
-  NEEDS_CHANGES: "Cần chỉnh sửa",
+  PENDING: "Pending review",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  NEEDS_CHANGES: "Changes needed",
 };
 
 const SEVERITY_COPY: Record<string, string> = {
-  low: "Thấp",
-  medium: "Trung bình",
+  low: "Low",
+  medium: "Medium",
   high: "Cao",
-  critical: "Nghiêm trọng",
+  critical: "Critical",
 };
 
 function formatPercent(value: unknown) {
@@ -129,9 +129,9 @@ export default function ExamQualityReview() {
       const job = await api.generateExamQualityReview(examId);
       setOverallSummary(job?.output?.overallSummary || null);
       setSuggestions(job?.qualityReviewItems || []);
-      toast.success("Đã tạo rà soát chất lượng bằng AI.");
+      toast.success("AI quality review created.");
     } catch (err: any) {
-      toast.error(err?.message || "Không thể tạo rà soát chất lượng bằng AI.");
+      toast.error(err?.message || "Unable to create an AI quality review.");
     } finally {
       setGenerating(false);
     }
@@ -164,13 +164,13 @@ export default function ExamQualityReview() {
 
       toast.success(
         decision === "APPROVED"
-          ? "Đã duyệt gợi ý."
+          ? "Suggestion approved."
           : decision === "REJECTED"
-            ? "Đã từ chối gợi ý."
-            : "Đã đánh dấu cần chỉnh sửa.",
+            ? "Suggestion rejected."
+            : "Marked as changes needed.",
       );
     } catch (err: any) {
-      toast.error(err?.message || "Không thể cập nhật trạng thái rà soát.");
+      toast.error(err?.message || "Unable to update review status.");
     }
   };
 
@@ -181,7 +181,7 @@ export default function ExamQualityReview() {
           <div className="grid min-h-[420px] place-items-center rounded-xl border border-border bg-card">
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              Đang tải dữ liệu rà soát chất lượng...
+              Loading quality-review data...
             </div>
           </div>
         </AdminPageShell>
@@ -190,7 +190,7 @@ export default function ExamQualityReview() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell showBackButton={false}>
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-3">
@@ -200,16 +200,16 @@ export default function ExamQualityReview() {
               onClick={() => router.push(`${basePath}/exam/${examId}/results`)}
             >
               <ArrowLeft className="h-4 w-4" />
-              Quay lại kết quả bài thi
+              Back to exam results
             </Button>
 
             <div>
               <h1 className="flex items-center gap-2 text-2xl font-bold">
                 <Sparkles className="h-5 w-5 text-primary" />
-                Cải tiến chất lượng đề thi
+                Improve exam quality
               </h1>
               <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-                AI phân tích thống kê thật của bài thi và đề xuất điểm cần kiểm tra. Giảng viên là người duyệt, chỉnh sửa hoặc từ chối từng gợi ý.
+                AI analyzes actual exam statistics and suggests items to inspect. Lecturers approve, revise, or reject each suggestion.
               </p>
             </div>
           </div>
@@ -224,7 +224,7 @@ export default function ExamQualityReview() {
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            {generating ? "Đang phân tích..." : "Tạo rà soát AI"}
+            {generating ? "Analyzing..." : "Create AI review"}
           </Button>
         </div>
 
@@ -237,12 +237,12 @@ export default function ExamQualityReview() {
                   <CardTitle className="text-base text-primary">AI Assistant</CardTitle>
                 </div>
                 <CardDescription>
-                  Tạo đề xuất cải tiến từ tỉ lệ sai, tỉ lệ bỏ qua, độ khó và độ phân biệt của câu hỏi.
+                  Create improvement suggestions from incorrect-answer rate, skip rate, difficulty, and question discrimination.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs italic text-muted-foreground">
-                  Nội dung AI chỉ là gợi ý rà soát. Hệ thống không tự thay đổi câu hỏi hoặc kết luận chất lượng cuối cùng.
+                  AI output is only a review suggestion. The system does not automatically change questions or determine final quality.
                 </p>
                 <Button
                   onClick={handleGenerate}
@@ -255,7 +255,7 @@ export default function ExamQualityReview() {
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}
-                  Chạy phân tích
+                  Run analysis
                 </Button>
               </CardContent>
             </Card>
@@ -263,9 +263,9 @@ export default function ExamQualityReview() {
             {overallSummary ? (
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Tóm tắt chất lượng tổng quan</CardTitle>
+                  <CardTitle className="text-base">Overall quality summary</CardTitle>
                   <CardDescription>
-                    Nhận định nhanh để ưu tiên các câu hỏi cần kiểm tra trước.
+                    A quick assessment to prioritize questions that need review first.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -287,18 +287,18 @@ export default function ExamQualityReview() {
                     </div>
                     <div>
                       <h2 className="text-base font-semibold">
-                        {generating ? "Đang phân tích dữ liệu bài thi" : "Chưa có rà soát chất lượng"}
+                        {generating ? "Analyzing exam data" : "No quality review yet"}
                       </h2>
                       <p className="mt-2 text-sm text-muted-foreground">
                         {generating
-                          ? "AI đang đọc thống kê câu hỏi và chuẩn bị danh sách gợi ý."
-                          : "Bấm tạo rà soát AI để phân tích các câu hỏi có tỉ lệ sai, bỏ qua hoặc độ phân biệt bất thường."}
+                          ? "AI is reading question statistics and preparing suggestions."
+                          : "Create an AI review to analyze questions with unusual incorrect-answer, skip, or discrimination rates."}
                       </p>
                     </div>
                     {!generating ? (
                       <Button onClick={handleGenerate} className="gap-2">
                         <Sparkles className="h-4 w-4" />
-                        Tạo rà soát bằng AI
+                        Create AI review
                       </Button>
                     ) : null}
                   </div>
@@ -318,13 +318,13 @@ export default function ExamQualityReview() {
                             <div className="flex flex-wrap items-center gap-2">
                               <StatusBadge domain="severity" status={severity} label={SEVERITY_COPY[severity]} />
                               <StatusBadge domain="approval" status={item.reviewStatus} label={REVIEW_COPY[item.reviewStatus]} />
-                              <span className="text-xs text-muted-foreground">Gợi ý #{index + 1}</span>
+                              <span className="text-xs text-muted-foreground">Suggestion #{index + 1}</span>
                             </div>
                             <CardTitle className="line-clamp-2 text-base">
-                              {item.question?.content || `Câu hỏi ${item.questionId}`}
+                              {item.question?.content || `Question ${item.questionId}`}
                             </CardTitle>
                             <CardDescription>
-                              {item.question?.type || "Chưa có loại câu hỏi"}
+                              {item.question?.type || "Question type unavailable"}
                             </CardDescription>
                           </div>
                           <Button
@@ -334,7 +334,7 @@ export default function ExamQualityReview() {
                             onClick={() => router.push(`${basePath}/question-editor?id=${item.questionId}`)}
                           >
                             <Edit3 className="h-4 w-4" />
-                            Mở editor
+                            Open editor
                           </Button>
                         </div>
                       </CardHeader>
@@ -342,9 +342,9 @@ export default function ExamQualityReview() {
                       <CardContent className="space-y-4">
                         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                           <Metric label="Sai" value={formatPercent(stats.incorrectRate)} />
-                          <Metric label="Bỏ qua" value={formatPercent(stats.skipRate)} />
-                          <Metric label="Độ khó" value={formatNumber(stats.difficultyIndex)} />
-                          <Metric label="Phân biệt" value={formatNumber(stats.discriminationIndex)} />
+                          <Metric label="Skipped" value={formatPercent(stats.skipRate)} />
+                          <Metric label="Difficulty" value={formatNumber(stats.difficultyIndex)} />
+                          <Metric label="Discrimination" value={formatNumber(stats.discriminationIndex)} />
                         </div>
 
                         <div className="rounded-lg border border-border bg-muted/30 p-3">
@@ -358,7 +358,7 @@ export default function ExamQualityReview() {
                         </div>
 
                         <Textarea
-                          placeholder="Ghi chú rà soát tùy chọn..."
+                          placeholder="Optional review note..."
                           value={notesDraft[item.id] ?? item.reviewNotes ?? ""}
                           onChange={(event) =>
                             setNotesDraft((prev) => ({
@@ -377,7 +377,7 @@ export default function ExamQualityReview() {
                             onClick={() => handleReview(item, "APPROVED")}
                           >
                             <CheckCircle2 className="h-4 w-4" />
-                            Duyệt
+                            Approve
                           </Button>
                           <Button
                             size="sm"
@@ -386,14 +386,14 @@ export default function ExamQualityReview() {
                             onClick={() => handleReview(item, "REJECTED")}
                           >
                             <XCircle className="h-4 w-4" />
-                            Từ chối
+                            Reject
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleReview(item, "NEEDS_CHANGES")}
                           >
-                            Cần chỉnh sửa
+                            Changes needed
                           </Button>
                         </div>
                       </CardContent>
@@ -407,34 +407,34 @@ export default function ExamQualityReview() {
           <aside className="space-y-6 lg:sticky lg:top-20">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Tiến độ rà soát</CardTitle>
-                <CardDescription>Theo dõi quyết định của giảng viên</CardDescription>
+                <CardTitle className="text-base">Review progress</CardTitle>
+                <CardDescription>Track lecturer decisions</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <SummaryRow label="Tổng gợi ý" value={reviewStats.total} />
-                <SummaryRow label="Chờ xem xét" value={reviewStats.pending} tone="warning" />
-                <SummaryRow label="Đã duyệt" value={reviewStats.approved} tone="success" />
-                <SummaryRow label="Cần chỉnh sửa" value={reviewStats.needsChanges} tone="info" />
-                <SummaryRow label="Đã từ chối" value={reviewStats.rejected} tone="danger" />
+                <SummaryRow label="Total suggestions" value={reviewStats.total} />
+                <SummaryRow label="Pending review" value={reviewStats.pending} tone="warning" />
+                <SummaryRow label="Approved" value={reviewStats.approved} tone="success" />
+                <SummaryRow label="Changes needed" value={reviewStats.needsChanges} tone="info" />
+                <SummaryRow label="Rejected" value={reviewStats.rejected} tone="danger" />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Ưu tiên kiểm tra</CardTitle>
-                <CardDescription>Các tín hiệu cần đọc kỹ trước khi chỉnh câu hỏi</CardDescription>
+                <CardTitle className="text-base">Review priorities</CardTitle>
+                <CardDescription>Signals to inspect carefully before revising questions</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="rounded-lg border border-warning/25 bg-warning/10 p-3">
                   <p className="text-sm font-semibold text-warning">
-                    {reviewStats.highSeverity} gợi ý mức cao
+                    {reviewStats.highSeverity} high-severity suggestions
                   </p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    Ưu tiên các câu có độ phân biệt thấp, tỉ lệ sai cao hoặc nhiều lượt bỏ qua.
+                    Prioritize questions with low discrimination, high incorrect-answer rates, or many skips.
                   </p>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
-                  AI chỉ hỗ trợ phát hiện tín hiệu. Mọi thay đổi nội dung câu hỏi vẫn cần được giảng viên mở editor, rà soát và lưu phiên bản mới.
+                  AI only helps identify signals. Lecturers must still open the editor, review, and save a new version for every content change.
                 </div>
               </CardContent>
             </Card>

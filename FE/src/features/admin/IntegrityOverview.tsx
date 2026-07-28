@@ -161,7 +161,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
       setSubmissions((items) => items.map((item) => item.id === selectedCase.id ? { ...item, status: nextStatus } : item));
       setSelectedCase(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể lưu kết quả xem xét');
+      setError(err instanceof Error ? err.message : 'Unable to save review result');
     } finally {
       setSavingReview(false);
     }
@@ -170,34 +170,34 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
   const integrityFilters: FilterDefinition[] = [
     {
       key: "confidence",
-      label: "Mức tín hiệu",
+      label: "Confidence level",
       type: "select",
-      allLabel: "Tất cả mức tín hiệu",
+      allLabel: "All confidence levels",
       options: [
-        { label: "Cao", value: "High" },
-        { label: "Trung bình", value: "Medium" },
-        { label: "Thấp", value: "Low" },
+        { label: "High", value: "High" },
+        { label: "Medium", value: "Medium" }, { label: "Low", value: "Low" },
       ],
     },
     {
       key: "examTitle",
-      label: "Tên bài thi",
+      label: "Exam title",
       type: "text",
-      placeholder: "Lọc theo tên bài thi",
+      placeholder: "Filter by exam title",
       operators: ["contains", "startsWith", "equals"],
       defaultOperator: "contains",
     },
     {
       key: "submittedAt",
-      label: "Thời gian nộp",
+      label: "Submission time",
       type: "date-range",
+      hideLabel: true,
     },
     {
       key: "timeAnomaly",
-      label: "Bất thường thời gian",
+      label: "Time anomaly",
       type: "boolean",
-      trueLabel: "Có tín hiệu",
-      falseLabel: "Không có tín hiệu",
+      trueLabel: "Signal detected", falseLabel: "No signal",
+      toggleLabel: "Only show anomalies",
     },
   ];
 
@@ -240,7 +240,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
         setTotalItems(0);
         setTotalPages(1);
         setError(
-          err instanceof Error ? err.message : "Không thể tải các trường hợp cần xem xét",
+          err instanceof Error ? err.message : "Unable to load cases requiring review",
         );
       } finally {
         if (mounted) setLoading(false);
@@ -314,29 +314,25 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
 
   const detectionPatterns = [
     {
-      label: "Chuyển tab",
-      description: "Sinh viên rời hoặc chuyển tab trong phiên thi",
+      label: "Tab switches", description: "The student left or switched tabs during the exam session",
       value: patterns.tabSwitch,
       icon: Shield,
       className: "bg-warning/10 text-warning",
     },
     {
-      label: "Tín hiệu con trỏ",
-      description: "Con trỏ không hoạt động hoặc có hành vi bất thường",
+      label: "Pointer signals", description: "The pointer was inactive or showed unusual behavior",
       value: patterns.mouseAnomaly,
       icon: MousePointerClick,
       className: "bg-destructive/10 text-destructive",
     },
     {
-      label: "Sự kiện sao chép/dán",
-      description: "Tương tác bộ nhớ tạm trong phiên thi",
+      label: "Copy/paste events", description: "Clipboard interaction during the exam session",
       value: patterns.copyPaste,
       icon: Copy,
       className: "bg-info/10 text-info",
     },
     {
-      label: "Tín hiệu hành vi khác",
-      description: "Sự kiện tiêu điểm, toàn màn hình hoặc giám sát",
+      label: "Other behavior signals", description: "Focus, full-screen, or monitoring events",
       value: patterns.otherBehavior,
       icon: TrendingUp,
       className: "bg-muted text-muted-foreground",
@@ -355,37 +351,37 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell>
-        {lecturerScope ? <p className="mb-2 text-sm text-muted-foreground">Chỉ hiển thị tín hiệu của bài thi và khóa học do bạn phụ trách.</p> : null}
-        <ListPageHeader title="Toàn vẹn học thuật" className="mb-4" />
+        {lecturerScope ? <p className="mb-2 text-sm text-muted-foreground">Only signals from exams and courses you oversee are shown.</p> : null}
+        <ListPageHeader title="Academic integrity" className="mb-4" />
 
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <AdminStatCard
             icon={Shield}
             value={stats.totalFlagged}
-            label="Tổng tín hiệu"
+            label="Total signals"
             iconWrapClassName="bg-warning/10"
             iconClassName="text-warning"
           />
           <AdminStatCard
             icon={Clock}
             value={stats.pendingReview}
-            label="Chờ xem xét"
+            label="Pending review"
             iconWrapClassName="bg-info/10"
             iconClassName="text-info"
           />
           <AdminStatCard
             icon={AlertTriangle}
             value={stats.highConfidence}
-            label="Mức tín hiệu cao"
+            label="High-confidence signals"
             iconWrapClassName="bg-destructive/10"
             iconClassName="text-destructive"
           />
           <AdminStatCard
             icon={XCircle}
             value={stats.confirmedCases}
-            label="Đã xác nhận"
+            label="Confirmed"
             iconWrapClassName="bg-destructive/10"
             iconClassName="text-destructive"
           />
@@ -397,12 +393,12 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Tìm theo sinh viên hoặc bài thi"
+              placeholder="Search by student or exam"
               className="flex-1"
             />
             <FilterPanel
-              title="Bộ lọc tính toàn vẹn"
-              description="Lọc theo mức tín hiệu, bài thi, ngày nộp và dấu hiệu bất thường."
+              title="Integrity filters"
+              description="Filter by confidence level, exam, submission date, and anomaly indicators."
               filters={integrityFilters}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -411,6 +407,9 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              inline
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips
@@ -430,11 +429,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
               }}
             >
               <TabsList className="mb-4">
-                <TabsTrigger value="all">Tất cả</TabsTrigger>
-                <TabsTrigger value="pending">Chờ xem xét</TabsTrigger>
-                <TabsTrigger value="reviewed">Đã xem xét</TabsTrigger>
-                <TabsTrigger value="confirmed">Đã xác nhận</TabsTrigger>
-                <TabsTrigger value="dismissed">Đã loại trừ</TabsTrigger>
+                <TabsTrigger value="all">All</TabsTrigger><TabsTrigger value="pending">Pending review</TabsTrigger><TabsTrigger value="reviewed">Reviewed</TabsTrigger><TabsTrigger value="confirmed">Confirmed</TabsTrigger><TabsTrigger value="dismissed">Dismissed</TabsTrigger>
               </TabsList>
 
               <TabsContent value={activeTab} className="mt-0">
@@ -446,13 +441,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Sinh viên</TableHead>
-                          <TableHead>Bài thi</TableHead>
-                          <TableHead>Thời gian nộp</TableHead>
-                          <TableHead>Mức tín hiệu</TableHead>
-                          <TableHead>Trạng thái</TableHead>
-                          <TableHead>Tín hiệu chính</TableHead>
-                          <TableHead className="text-right">Thao tác</TableHead>
+                          <TableHead>Student</TableHead><TableHead>Exam</TableHead><TableHead>Submitted at</TableHead><TableHead>Confidence level</TableHead><TableHead>Status</TableHead><TableHead>Primary signals</TableHead><TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -464,7 +453,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                             >
                               <div className="inline-flex items-center gap-2">
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                Đang tải các trường hợp cần xem xét...
+                                Loading cases requiring review...
                               </div>
                             </TableCell>
                           </TableRow>
@@ -483,7 +472,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                               colSpan={7}
                               className="text-center py-8 text-muted-foreground"
                             >
-                              Không tìm thấy bài nộp có tín hiệu cần xem xét
+                              No submissions with signals requiring review were found
                             </TableCell>
                           </TableRow>
                         ) : (
@@ -514,7 +503,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                                   status={submission.confidence}
                                   domain="confidence"
                                 >
-                                  {submission.confidence === "High" ? "Cao" : submission.confidence === "Medium" ? "Trung bình" : "Thấp"}
+                                  {submission.confidence === "High" ? "High" : submission.confidence === "Medium" ? "Medium" : "Low"}
                                 </StatusBadge>
                               </TableCell>
                               <TableCell>
@@ -522,7 +511,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                                   status={submission.status}
                                   domain="integrity"
                                 >
-                                  {submission.status === "pending" ? "Chờ xem xét" : submission.status === "reviewed" ? "Đã xem xét" : submission.status === "confirmed" ? "Đã xác nhận" : "Đã loại trừ"}
+                                  {submission.status === "pending" ? "Pending review" : submission.status === "reviewed" ? "Reviewed" : submission.status === "confirmed" ? "Confirmed" : "Dismissed"}
                                 </StatusBadge>
                               </TableCell>
                               <TableCell>
@@ -537,7 +526,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                                   onClick={() => setSelectedCase(submission)}
                                 >
                                   <Eye className="h-4 w-4 mr-1" />
-                                  Xem xét
+                                  Review
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -554,7 +543,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
               totalPages={totalPages}
               totalItems={totalItems}
               onPageChange={setPage}
-              itemLabel="bài nộp cần xem xét"
+              itemLabel="submissions requiring review"
             />
           </CardContent>
         </Card>
@@ -564,15 +553,15 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
             <CardHeader>
               <CardTitle className="text-lg">
                 <HelpedTitle help={{
-                  description: "Tổng hợp các nhóm tín hiệu toàn vẹn thường gặp từ dữ liệu phiên thi.",
-                  usedBy: "Quản trị viên và giảng viên dùng để nhận biết loại tín hiệu nào xuất hiện nhiều nhất.",
-                  note: "Đây chỉ là dữ liệu hỗ trợ rà soát, không phải kết luận gian lận.",
+                  description: "A summary of common integrity-signal groups from exam-session data.",
+                  usedBy: "Administrators and lecturers use it to identify which signal types occur most often.",
+                  note: "This data supports review only; it is not a finding of misconduct.",
                 }}>
-                  Nhóm tín hiệu ghi nhận
+                  Recorded signal groups
                 </HelpedTitle>
               </CardTitle>
               <CardDescription>
-                Các nhóm tín hiệu thường gặp từ dữ liệu phiên thi; đây không phải kết luận gian lận
+                Common signal groups from exam-session data; this is not a finding of misconduct
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -609,15 +598,15 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
             <CardHeader>
               <CardTitle className="text-lg">
                 <HelpedTitle help={{
-                  description: "Các nguyên tắc giúp xem xét bằng chứng toàn vẹn học thuật một cách công bằng.",
-                  usedBy: "Dùng trước khi xác nhận, loại trừ hoặc chuyển tiếp một trường hợp cần xem xét.",
-                  note: "Luôn cân nhắc bối cảnh bài thi, thiết bị, mạng và ghi chú của giảng viên.",
+                  description: "Guidelines for reviewing academic-integrity evidence fairly.",
+                  usedBy: "Use before confirming, dismissing, or escalating a case requiring review.",
+                  note: "Always consider the exam, device, network, and lecturer-note context.",
                 }}>
-                  Hướng dẫn xem xét
+                  Review guidance
                 </HelpedTitle>
               </CardTitle>
               <CardDescription>
-                Nguyên tắc xem xét tín hiệu toàn vẹn học thuật
+                Principles for reviewing academic-integrity signals
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -625,31 +614,31 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-success" />
                   <p className="text-sm font-medium">
-                    Xem xét đầy đủ bằng chứng trước khi quyết định
+                    Review all evidence before deciding
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground pl-6">
-                  Cân nhắc toàn bộ bối cảnh, bao gồm điều kiện thi và lịch sử của sinh viên
+                  Consider the full context, including exam conditions and the student's history
                 </p>
               </div>
               <div className="rounded-lg border border-border p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-success" />
-                  <p className="text-sm font-medium">Ghi lại căn cứ đánh giá</p>
+                  <p className="text-sm font-medium">Document the basis for the decision</p>
                 </div>
                 <p className="text-xs text-muted-foreground pl-6">
-                  Thêm ghi chú giải thích lý do xác nhận hoặc loại trừ trường hợp
+                  Add a note explaining why the case was confirmed or dismissed
                 </p>
               </div>
               <div className="rounded-lg border border-border p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-success" />
                   <p className="text-sm font-medium">
-                    Chuyển cấp các trường hợp chưa rõ ràng
+                    Escalate unclear cases
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground pl-6">
-                  Mời hội đồng học thuật tham gia với tình huống quan trọng hoặc còn mơ hồ
+                  Involve the academic committee in important or ambiguous cases
                 </p>
               </div>
             </CardContent>

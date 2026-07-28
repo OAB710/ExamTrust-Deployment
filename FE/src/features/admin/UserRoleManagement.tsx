@@ -152,6 +152,7 @@ const USER_FILTERS: FilterDefinition[] = [
     key: "createdAt",
     label: "Created At",
     type: "date-range",
+    hideLabel: true,
   },
 ];
 
@@ -490,7 +491,7 @@ export default function UserRoleManagement() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell>
         <ListPageHeader
           title="All Users"
@@ -695,6 +696,8 @@ export default function UserRoleManagement() {
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips

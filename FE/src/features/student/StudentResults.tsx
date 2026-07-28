@@ -97,21 +97,21 @@ export default function StudentResults() {
     () => [
       {
         key: "status",
-        label: "Trạng thái",
+        label: "Status",
         type: "select",
-        allLabel: "Tất cả trạng thái",
+        allLabel: "All statuses",
         options: [
-          { label: "Đã nộp", value: "SUBMITTED" },
-          { label: "Đã chấm", value: "GRADED" },
-          { label: "Cần xem xét", value: "FLAGGED" },
-          { label: "Đã hoàn tất", value: "FINALIZED" },
+          { label: "Submitted", value: "SUBMITTED" },
+          { label: "Graded", value: "GRADED" },
+          { label: "Requires review", value: "FLAGGED" },
+          { label: "Finalized", value: "FINALIZED" },
         ],
       },
       {
         key: "courseCode",
-        label: "Khóa học",
+        label: "Course",
         type: "select",
-        allLabel: "Tất cả khóa học",
+        allLabel: "All courses",
         options: Array.from(
           new Set(
             submissions
@@ -122,7 +122,7 @@ export default function StudentResults() {
       },
       {
         key: "score",
-        label: "Điểm",
+        label: "Score",
         type: "number-range",
         min: 0,
         max: 100,
@@ -232,24 +232,24 @@ export default function StudentResults() {
   const activeFilterChips = getFilterChips(appliedFilters, resultFilterDefinitions);
 
   const resultSortOptions = [
-    { field: "score", label: "Điểm" },
-    { field: "status", label: "Trạng thái" },
-    { field: "exam.title", label: "Tên bài thi" },
+    { field: "score", label: "Score" },
+    { field: "status", label: "Status" },
+    { field: "exam.title", label: "Exam title" },
   ];
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div className="space-y-6">
         <BackToDashboardButton to="/student" className="-ml-2" />
 
         <div className="space-y-3">
-          <ListPageHeader title="Kết quả" />
+          <ListPageHeader title="Results" />
           <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Tìm theo tên bài thi hoặc khóa học"
+              placeholder="Search by exam or course name"
               className="flex-1"
             />
             <SortButton
@@ -262,8 +262,8 @@ export default function StudentResults() {
               }}
             />
             <FilterPanel
-              title="Bộ lọc kết quả"
-              description="Lọc theo trạng thái, khóa học và khoảng điểm."
+              title="Result filters"
+              description="Filter by status, course, and score range."
               filters={resultFilterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -272,6 +272,8 @@ export default function StudentResults() {
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips
@@ -283,8 +285,8 @@ export default function StudentResults() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Kết quả của tôi</CardTitle>
-            <CardDescription>Các bài thi đã nộp và đã chấm</CardDescription>
+            <CardTitle>My results</CardTitle>
+            <CardDescription>Submitted and graded exams</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -300,7 +302,7 @@ export default function StudentResults() {
                   <div className="text-center py-12">
                     <Award className="h-6 w-6 mx-auto text-muted-foreground" />
                     <p className="text-muted-foreground mt-2">
-                      Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc
+                      No results match your search or filters
                     </p>
                   </div>
                 ) : (
@@ -315,7 +317,7 @@ export default function StudentResults() {
                             {s.exam?.title ?? s.title}
                           </h4>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {s.exam?.course?.code || "Chưa có thông tin khóa học"}
+                          {s.exam?.course?.code || "Course information unavailable"}
                         </p>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <Badge
@@ -333,34 +335,34 @@ export default function StudentResults() {
                           >
                             <Trophy className="mr-1 h-3.5 w-3.5" />
                             {String(s.status).toUpperCase() === "SUBMITTED"
-                              ? "Đang chờ chấm"
-                              : `Điểm: ${s.score !== null ? s.score : "Chưa chấm"}`}
+                              ? "Awaiting grading"
+                              : `Score: ${s.score !== null ? s.score : "Not graded"}`}
                           </Badge>
                           <Badge
                             variant="outline"
                             className="border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300"
                           >
                             <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                            Lượt {s.attemptNo ?? "Chưa cập nhật"}
+                            Attempt {s.attemptNo ?? "Not available"}
                           </Badge>
                         </div>
                         <p className="sr-only">
                           {getStatusBadgeLabel(s.status)} • {s.score !== null ? s.score : "—"}
                         </p>
                         <p className="sr-only">
-                          Lượt {s.attemptNo ?? "Chưa cập nhật"}
+                          Attempt {s.attemptNo ?? "Not available"}
                         </p>
                       </div>
                       </div>
                       <div className="flex items-center gap-2 md:justify-end">
                         {String(s.status).toUpperCase() === "SUBMITTED" ? (
                           <Button size="sm" variant="outline" disabled>
-                            Đang chờ chấm
+                            Awaiting grading
                           </Button>
                         ) : (
                           <Button asChild size="sm">
                             <Link href={`/student/grading?examId=${s.examId ?? s.exam?.id}&submissionId=${s.id}`}>
-                              Xem kết quả
+                              View results
                             </Link>
                           </Button>
                         )}
@@ -375,7 +377,7 @@ export default function StudentResults() {
               totalPages={totalPages}
               totalItems={filteredSubmissions.length}
               onPageChange={setPage}
-              itemLabel="kết quả"
+              itemLabel="results"
               syncUrl={false}
             />
           </CardContent>

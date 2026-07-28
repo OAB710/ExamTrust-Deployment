@@ -9,14 +9,14 @@ describe("shared UI foundation", () => {
     const onClick = vi.fn();
     render(
       <PageHeader
-        title="Ngân hàng câu hỏi"
-        description="Quản lý các phiên bản câu hỏi."
-        actions={[{ label: "Tạo câu hỏi", onClick }]}
+        title="Question bank"
+        description="Manage question versions."
+        actions={[{ label: "Create question", onClick }]}
       />,
     );
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ngân hàng câu hỏi");
-    fireEvent.click(screen.getByRole("button", { name: "Tạo câu hỏi" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Question bank");
+    fireEvent.click(screen.getByRole("button", { name: "Create question" }));
     expect(onClick).toHaveBeenCalledOnce();
   });
 
@@ -24,14 +24,14 @@ describe("shared UI foundation", () => {
     const onClick = vi.fn();
     render(
       <EmptyState
-        title="Chưa có bài thi"
-        description="Tạo bài thi đầu tiên để bắt đầu."
-        action={{ label: "Tạo bài thi", onClick }}
+        title="No exams yet"
+        description="Create your first exam to get started."
+        action={{ label: "Create exam", onClick }}
       />,
     );
 
-    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Chưa có bài thi");
-    fireEvent.click(screen.getByRole("button", { name: "Tạo bài thi" }));
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("No exams yet");
+    fireEvent.click(screen.getByRole("button", { name: "Create exam" }));
     expect(onClick).toHaveBeenCalledOnce();
   });
 });

@@ -814,14 +814,14 @@ Rules:
             content: String(original.content || original.stem || '').trim() || 'Improved question content',
             options: original.options || {},
             correctAnswer: original.correctAnswer || original.answerKey || {},
-            explanation: original.explanation || 'Giải thích được bổ sung để làm rõ đáp án đúng.',
+            explanation: original.explanation || 'An explanation was added to clarify the correct answer.',
             difficulty: Number(original.difficulty || 3),
           },
           changes: [
             {
               field: 'explanation',
               before: String(original.explanation || ''),
-              after: original.explanation || 'Giải thích được bổ sung để làm rõ đáp án đúng.',
+              after: original.explanation || 'An explanation was added to clarify the correct answer.',
               reason: 'Improve reviewability for lecturers and learners.',
             },
           ],

@@ -1,15 +1,15 @@
 export type CourseTerm = "TERM_1" | "TERM_2" | "SUMMER";
 
 export const COURSE_TERM_OPTIONS = [
-  { value: "TERM_1", label: "Học kỳ 1" },
-  { value: "TERM_2", label: "Học kỳ 2" },
-  { value: "SUMMER", label: "Học kỳ hè" },
+  { value: "TERM_1", label: "Semester 1" },
+  { value: "TERM_2", label: "Semester 2" },
+  { value: "SUMMER", label: "Summer term" },
 ] as const;
 
 const TERM_LABELS: Record<CourseTerm, string> = {
-  TERM_1: "Học kỳ 1",
-  TERM_2: "Học kỳ 2",
-  SUMMER: "Học kỳ hè",
+  TERM_1: "Semester 1",
+  TERM_2: "Semester 2",
+  SUMMER: "Summer term",
 };
 
 export const getTermLabel = (term?: CourseTerm | null) =>
@@ -47,7 +47,7 @@ export const formatCourseTerm = (
   if (legacyLabel) return legacyLabel;
   if (year) return year;
 
-  return "Chưa cập nhật";
+  return "Not available";
 };
 
 export const getDefaultAcademicYear = (date = new Date()) => {

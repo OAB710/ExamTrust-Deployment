@@ -125,7 +125,7 @@ export default function AdvancedExamRuleConfig() {
   };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div className="max-w-4xl mx-auto">
         <BackToDashboardButton to="/lecturer" className="mb-4 -ml-2" />
 
@@ -156,13 +156,13 @@ export default function AdvancedExamRuleConfig() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Settings2 className="h-4 w-4" /> Cài đặt cơ bản
+                <Settings2 className="h-4 w-4" /> Basic settings
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Thời lượng (phút)</Label>
+                  <Label>Duration (minutes)</Label>
                   <Input
                     type="number"
                     min={10}
@@ -186,7 +186,7 @@ export default function AdvancedExamRuleConfig() {
                   ) : null}
                 </div>
                 <div className="space-y-2">
-                  <Label>Tổng số câu hỏi</Label>
+                  <Label>Total questions</Label>
                   <Input
                     type="number"
                     min={1}
@@ -214,7 +214,7 @@ export default function AdvancedExamRuleConfig() {
                   ) : null}
                 </div>
                 <div className="space-y-2">
-                  <Label>Điểm đạt (%)</Label>
+                  <Label>Passing score (%)</Label>
                   <Input
                     type="number"
                     min={0}

@@ -893,7 +893,7 @@ export class ExamsService {
     }
     const submissionCount = await this.prisma.examSubmission.count({ where: { examId: id } });
     if (exam.status !== 'DRAFT' || submissionCount > 0) {
-      throw new ConflictException('Bài thi đã có dữ liệu làm bài và không thể xóa. Hãy lưu trữ bài thi thay thế.');
+      throw new ConflictException('This exam has submission data and cannot be deleted. Archive it instead.');
     }
     await this.prisma.exam.update({ where: { id }, data: { deletedAt: new Date(), deletedById: userId ?? null } });
     return { message: 'Draft exam deleted successfully' };
@@ -904,7 +904,7 @@ export class ExamsService {
     if (!exam) throw new NotFoundException('Exam not found');
     if (exam.status === 'ARCHIVED') throw new ConflictException('Exam is already archived');
     const inProgress = await this.prisma.examSubmission.count({ where: { examId: id, status: 'IN_PROGRESS' } });
-    if (inProgress > 0) throw new ConflictException('Không thể lưu trữ bài thi khi đang có lượt làm bài diễn ra.');
+    if (inProgress > 0) throw new ConflictException('An exam cannot be archived while a submission is in progress.');
     return this.prisma.exam.update({
       where: { id },
       data: { status: 'ARCHIVED', archivedAt: new Date(), archivedById: userId, archivedFromStatus: exam.status },

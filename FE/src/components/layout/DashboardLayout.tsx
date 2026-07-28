@@ -50,27 +50,27 @@ interface NavItem {
 
 const studentNavItems: NavItem[] = [
   {
-    title: "Tổng quan",
+    title: "Dashboard",
     href: "/student",
     icon: <LayoutDashboard className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Khóa học",
+    title: "Courses",
     href: "/student/courses",
     icon: <GraduationCap className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Bài thi",
+    title: "Exams",
     href: "/student/exams",
     icon: <FileText className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Lịch",
+    title: "Schedule",
     href: "/student/schedule",
     icon: <CalendarDays className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Kết quả",
+    title: "Results",
     href: "/student/results",
     icon: <BarChart3 className="h-[18px] w-[18px]" />,
   },
@@ -78,32 +78,32 @@ const studentNavItems: NavItem[] = [
 
 const lecturerNavItems: NavItem[] = [
   {
-    title: "Tổng quan",
+    title: "Dashboard",
     href: "/lecturer",
     icon: <LayoutDashboard className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Khóa học",
+    title: "Courses",
     href: "/lecturer/create-course",
     icon: <GraduationCap className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Bài thi",
+    title: "Exams",
     href: "/lecturer/exams",
     icon: <FileText className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Ngân hàng câu hỏi",
+    title: "Question Bank",
     href: "/lecturer/question-bank",
     icon: <BookOpen className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Phân tích",
+    title: "Analytics",
     href: "/lecturer/analytics",
     icon: <BarChart3 className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Rà soát toàn vẹn",
+    title: "Integrity Review",
     href: "/lecturer/integrity",
     icon: <Shield className="h-[18px] w-[18px]" />,
   },
@@ -111,37 +111,37 @@ const lecturerNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [
   {
-    title: "Tổng quan",
+    title: "Dashboard",
     href: "/admin",
     icon: <LayoutDashboard className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Khóa học",
+    title: "Courses",
     href: "/admin/courses",
     icon: <GraduationCap className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Bài thi",
+    title: "Exams",
     href: "/admin/exams",
     icon: <FileText className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Ngân hàng câu hỏi",
+    title: "Question Bank",
     href: "/admin/question-bank",
     icon: <BookOpen className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Người dùng",
+    title: "Users",
     href: "/admin/users",
     icon: <Users className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Toàn vẹn học thuật",
+    title: "Academic Integrity",
     href: "/admin/integrity",
     icon: <Shield className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Thiết lập",
+    title: "Settings",
     href: "/admin/settings",
     icon: <Settings className="h-[18px] w-[18px]" />,
   },
@@ -149,9 +149,10 @@ const adminNavItems: NavItem[] = [
 
 interface DashboardLayoutProps {
   children: ReactNode;
+  contentClassName?: string;
 }
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+export function DashboardLayout({ children, contentClassName }: DashboardLayoutProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -191,10 +192,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const roleLabel =
     user.role === "STUDENT"
-      ? "Sinh viên"
+      ? "Student"
       : user.role === "LECTURER"
-        ? "Giảng viên"
-        : "Quản trị viên";
+        ? "Lecturer"
+        : "Administrator";
 
   const sidebarWidth = collapsed ? "w-[72px]" : "w-[260px]";
 
@@ -218,7 +219,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {isMobile && (
           <button
             type="button"
-            aria-label="Đóng thanh điều hướng"
+            aria-label="Close navigation"
             onClick={() => setMobileOpen(false)}
             className="ml-auto text-sidebar-foreground/60 hover:text-sidebar-foreground"
           >
@@ -231,7 +232,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <nav className="flex-1 space-y-1 p-3 mt-2 overflow-y-auto">
         {(isMobile || !collapsed) && (
           <p className="px-3 mb-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-            Điều hướng
+            Navigation
           </p>
         )}
         {navItems.map((item) => {
@@ -278,7 +279,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="px-3 mb-2">
           <button
             type="button"
-            aria-label={collapsed ? "Mở rộng thanh điều hướng" : "Thu gọn thanh điều hướng"}
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
             onClick={() => setCollapsed(!collapsed)}
             className="flex w-full items-center justify-center rounded-lg p-2 text-sidebar-foreground/40 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
           >
@@ -325,7 +326,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               onClick={logout}
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Đăng xuất
+              Sign out
             </Button>
           </>
         )}
@@ -334,14 +335,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="Đăng xuất"
+                aria-label="Sign out"
                 onClick={logout}
                 className="flex w-full items-center justify-center rounded-md p-2 mt-2 text-sidebar-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <LogOut className="h-[18px] w-[18px]" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="right">Đăng xuất</TooltipContent>
+            <TooltipContent side="right">Sign out</TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -355,7 +356,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {mobileOpen && (
           <button
             type="button"
-            aria-label="Đóng thanh điều hướng"
+            aria-label="Close navigation"
             className="fixed inset-0 z-40 bg-foreground/20 lg:hidden"
             onClick={() => setMobileOpen(false)}
           />
@@ -415,7 +416,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       </AvatarFallback>
                     </Avatar>
                     <span className="text-sm hidden sm:block">
-                      <span className="text-muted-foreground">Xin chào, </span>
+                      <span className="text-muted-foreground">Hello, </span>
                       <span className="font-semibold text-foreground">
                         {user.fullName.split(" ")[0]}
                       </span>
@@ -435,7 +436,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   <DropdownMenuItem asChild>
                     <Link href="/profile" className="flex items-center">
                       <User className="mr-2 h-4 w-4" />
-                      Hồ sơ cá nhân
+                      Profile
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -444,7 +445,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     className="text-destructive focus:text-destructive"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
-                    Đăng xuất
+                    Sign out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -452,7 +453,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           <div className="page-surface min-h-[calc(100dvh-4rem)] p-4 sm:p-5 lg:p-7">
-            <div className="mx-auto min-w-0 max-w-7xl">{children}</div>
+            <div className={cn("mx-auto min-w-0 max-w-7xl", contentClassName)}>{children}</div>
           </div>
         </main>
       </div>

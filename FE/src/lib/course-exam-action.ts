@@ -108,15 +108,15 @@ export function getExamDisplayState(
 
 export function getExamStateLabel(state: ExamDisplayState) {
   const labels: Record<ExamDisplayState, string> = {
-    draft: "Chưa công bố",
-    unscheduled: "Chưa lên lịch",
-    upcoming: "Sắp diễn ra",
-    open: "Đang mở",
-    in_progress: "Đang làm",
-    submitted: "Đã hoàn thành",
-    graded: "Đã có kết quả",
-    grading: "Đang chấm điểm",
-    expired: "Đã hết hạn",
+    draft: "Not published",
+    unscheduled: "Not scheduled",
+    upcoming: "Upcoming",
+    open: "Open",
+    in_progress: "In progress",
+    submitted: "Completed",
+    graded: "Results available",
+    grading: "Grading in progress",
+    expired: "Expired",
   };
 
   return labels[state];
@@ -137,7 +137,7 @@ export function getExamAction(
 
   if (state === "in_progress") {
     return {
-      label: "Tiếp tục làm bài",
+      label: "Continue exam",
       href: `/student/exam-ready?examId=${exam.id}`,
       actionType: "continue_attempt",
       summary: getExamStateLabel(state),
@@ -146,7 +146,7 @@ export function getExamAction(
 
   if (state === "open") {
     return {
-      label: "Làm bài thi",
+      label: "Take exam",
       href: `/student/exam-ready?examId=${exam.id}`,
       actionType: "start_exam",
       summary: getExamStateLabel(state),
@@ -155,7 +155,7 @@ export function getExamAction(
 
   if (state === "upcoming") {
     return {
-      label: "Xem lịch thi",
+      label: "View schedule",
       href: detailHref,
       actionType: "view_schedule",
       summary: getExamStateLabel(state),
@@ -164,7 +164,7 @@ export function getExamAction(
 
   if (state === "graded") {
     return {
-      label: "Xem kết quả",
+      label: "View results",
       href: resultHref,
       actionType: "view_results",
       summary: getExamStateLabel(state),
@@ -173,7 +173,7 @@ export function getExamAction(
 
   if (state === "submitted") {
     return {
-      label: "Xem bài đã nộp",
+      label: "View submission",
       href: resultHref,
       actionType: "view_submitted",
       summary: getExamStateLabel(state),
@@ -182,7 +182,7 @@ export function getExamAction(
 
   if (state === "grading") {
     return {
-      label: "Đang chấm điểm",
+      label: "Grading in progress",
       href: resultHref,
       actionType: "grading",
       summary: getExamStateLabel(state),
@@ -192,7 +192,7 @@ export function getExamAction(
 
   if (state === "expired") {
     return {
-      label: "Đã hết hạn",
+      label: "Expired",
       href: detailHref,
       actionType: "expired",
       summary: getExamStateLabel(state),
@@ -201,7 +201,7 @@ export function getExamAction(
   }
 
   return {
-    label: "Chi tiết",
+    label: "View details",
     href: `/student/courses/${courseId}`,
     actionType: "view_exams",
     summary: getExamStateLabel(state),
@@ -220,10 +220,10 @@ export function getCourseExamAction(
 
   if (visibleExams.length === 0) {
     return {
-      label: "Xem khóa học",
+      label: "View course",
       href: `/student/courses/${course.id}`,
       actionType: "view_course",
-      summary: "Chưa có bài thi",
+      summary: "No exams yet",
     };
   }
 
@@ -243,14 +243,14 @@ export function getCourseExamAction(
 
   const summaryParts: string[] = [];
   if (completedCount === visibleExams.length) {
-    summaryParts.push("Đã hoàn thành tất cả bài thi");
+    summaryParts.push("All exams completed");
   } else if (completedCount > 0) {
-    summaryParts.push(`Đã hoàn thành ${completedCount}/${visibleExams.length} bài thi`);
+    summaryParts.push(`${completedCount}/${visibleExams.length} exams completed`);
   }
-  if (openRows.length > 0) summaryParts.push(`${openRows.length} bài thi đang mở`);
-  if (upcomingRows.length > 0) summaryParts.push(`${upcomingRows.length} bài thi sắp diễn ra`);
-  if (summaryParts.length === 0 && unscheduledRows.length > 0) summaryParts.push("Có bài thi chưa lên lịch");
-  if (summaryParts.length === 0) summaryParts.push("Xem danh sách bài thi");
+  if (openRows.length > 0) summaryParts.push(`${openRows.length} open exams`);
+  if (upcomingRows.length > 0) summaryParts.push(`${upcomingRows.length} upcoming exams`);
+  if (summaryParts.length === 0 && unscheduledRows.length > 0) summaryParts.push("Exams have not been scheduled");
+  if (summaryParts.length === 0) summaryParts.push("View exam list");
 
   const summary = summaryParts.join(" • ");
 
@@ -274,7 +274,7 @@ export function getCourseExamAction(
     }
 
     return {
-      label: "Xem bài thi",
+      label: "View exams",
       href: `/student/courses/${course.id}`,
       actionType: "view_exams",
       summary,
@@ -286,7 +286,7 @@ export function getCourseExamAction(
       (a, b) => (timestamp(a.exam.startTime) ?? Number.MAX_SAFE_INTEGER) - (timestamp(b.exam.startTime) ?? Number.MAX_SAFE_INTEGER),
     )[0];
     return {
-      label: "Xem lịch thi",
+      label: "View schedule",
       href: selected ? `/student/exams/${selected.exam.id}` : `/student/courses/${course.id}`,
       actionType: "view_schedule",
       summary,
@@ -295,7 +295,7 @@ export function getCourseExamAction(
 
   if (completedCount === visibleExams.length) {
     return {
-      label: "Xem kết quả",
+      label: "View results",
       href: "/student/results",
       actionType: "view_results",
       summary,
@@ -303,7 +303,7 @@ export function getCourseExamAction(
   }
 
   return {
-    label: "Xem bài thi",
+    label: "View exams",
     href: `/student/courses/${course.id}`,
     actionType: "view_exams",
     summary,

@@ -41,7 +41,7 @@ export function DataPagination({
   totalPages,
   totalItems,
   onPageChange,
-  itemLabel = "mục",
+  itemLabel = "items",
   className,
   syncUrl = true,
   urlParamKey = "page",
@@ -124,7 +124,7 @@ export function DataPagination({
     >
       {/* Left: page info */}
       <p className="text-sm text-muted-foreground whitespace-nowrap">
-        Trang {currentPage} / {effectiveTotalPages}
+        Page {currentPage} / {effectiveTotalPages}
         {totalItems !== undefined && (
           <span>
             {" "}
@@ -143,7 +143,7 @@ export function DataPagination({
           className="gap-1"
         >
           <ChevronLeft className="h-4 w-4" />
-          Trước
+          Previous
         </Button>
 
         {/* Page jump input */}
@@ -168,7 +168,7 @@ export function DataPagination({
           onClick={() => changePage(currentPage + 1)}
           className="gap-1"
         >
-          Sau
+          Next
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>

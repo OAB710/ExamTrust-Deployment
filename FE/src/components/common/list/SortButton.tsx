@@ -35,7 +35,7 @@ export function SortButton({
   order,
   onSortChange,
   className,
-  label = "Sắp xếp",
+  label = "Sort",
 }: SortButtonProps) {
   const [open, setOpen] = useState(false);
 
@@ -91,7 +91,7 @@ export function SortButton({
                 className="cursor-pointer rounded-md text-sm text-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus:bg-muted/40 focus:text-foreground data-[highlighted]:bg-muted/40 data-[highlighted]:text-foreground"
               >
                 <span className="flex-1">
-                  Thứ tự: {order === "asc" ? "Tăng dần" : "Giảm dần"}
+                  Order: {order === "asc" ? "Ascending" : "Descending"}
                 </span>
                 <span className="ml-2 text-xs">
                   {order === "asc" ? "↑" : "↓"}

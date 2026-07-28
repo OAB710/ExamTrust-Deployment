@@ -103,8 +103,8 @@ export default function FeedbackDetail() {
   const router = useRouter();
 
   return (
-    <DashboardLayout>
-      <div className="max-w-5xl mx-auto">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full">
         <BackToDashboardButton to="/student" className="mb-4 -ml-2" />
 
         {/* Header */}

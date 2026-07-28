@@ -108,7 +108,7 @@ export default function StudentCourseDetail() {
   useEffect(() => {
     const fetchData = async () => {
       if (!id) {
-        setError("Thiếu mã khóa học.");
+        setError("The course ID is missing.");
         setLoading(false);
         return;
       }
@@ -126,7 +126,7 @@ export default function StudentCourseDetail() {
         setExams(unwrapPaginatedData<Exam>(examsRes));
         setSubmissions(Array.isArray(submissionsRes) ? submissionsRes : []);
       } catch (err: any) {
-        const message = err?.message || "Không thể tải chi tiết khóa học.";
+        const message = err?.message || "Unable to load course details.";
         setError(message);
       } finally {
         setLoading(false);
@@ -149,20 +149,21 @@ export default function StudentCourseDetail() {
   const examFilterDefinitions: FilterDefinition[] = [
     {
       key: "status",
-      label: "Trạng thái",
+      label: "Status",
       type: "select",
-      allLabel: "Tất cả trạng thái",
+      allLabel: "All statuses",
       options: [
-        { label: "Bản nháp", value: "DRAFT" },
-        { label: "Đã công bố", value: "PUBLISHED" },
-        { label: "Đang diễn ra", value: "ONGOING" },
-        { label: "Đã hoàn thành", value: "COMPLETED" },
+        { label: "Draft", value: "DRAFT" },
+        { label: "Published", value: "PUBLISHED" },
+        { label: "Ongoing", value: "ONGOING" },
+        { label: "Completed", value: "COMPLETED" },
       ],
     },
     {
       key: "startTime",
-      label: "Thời gian bắt đầu",
+      label: "Start time",
       type: "date-range",
+      hideLabel: true,
     },
   ];
 
@@ -252,33 +253,33 @@ export default function StudentCourseDetail() {
   const activeFilterChips = getFilterChips(appliedFilters, examFilterDefinitions);
 
   return (
-    <DashboardLayout>
-      <div className="mx-auto max-w-6xl space-y-6">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full space-y-6">
         <div className="space-y-3">
           <BackToDashboardButton to="/student" className="-ml-2" />
 
           <div className="rounded-2xl border border-border/50 bg-card p-6">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-bold text-foreground">
-                {course?.name || "Chi tiết khóa học"}
+                {course?.name || "Course details"}
               </h1>
               {course?.code && <Badge variant="secondary">{course.code}</Badge>}
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
               {course?.description ||
-                "Khóa học này chưa có mô tả."}
+                "This course has no description."}
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <BookOpen className="h-4 w-4" />
-                Học kỳ: {formatCourseTerm(
+                Term: {formatCourseTerm(
                   course?.academicYear,
                   course?.term,
                 )}
               </span>
               <span className="flex items-center gap-1">
                 <FileText className="h-4 w-4" />
-                Tín chỉ: {formatNumberVi(course?.credits)}
+                Credits: {formatNumberVi(course?.credits)}
               </span>
             </div>
           </div>
@@ -287,7 +288,7 @@ export default function StudentCourseDetail() {
         {loading && (
           <Card>
             <CardContent className="py-10 text-center text-muted-foreground">
-              Đang tải dữ liệu khóa học...
+              Loading course data...
             </CardContent>
           </Card>
         )}
@@ -296,7 +297,7 @@ export default function StudentCourseDetail() {
           <Card>
             <CardContent className="py-10 text-center">
               <p className="font-medium text-foreground">
-                Không thể tải khóa học này.
+                Unable to load this course.
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{error}</p>
             </CardContent>
@@ -306,8 +307,8 @@ export default function StudentCourseDetail() {
         {!loading && !error && (
           <Card>
             <CardHeader>
-              <CardTitle>Bài thi trong khóa học</CardTitle>
-              <CardDescription>{filteredExams.length} bài thi</CardDescription>
+              <CardTitle>Course exams</CardTitle>
+              <CardDescription>{filteredExams.length} exams</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="mb-4 space-y-3">
@@ -316,12 +317,12 @@ export default function StudentCourseDetail() {
                     value={searchInput}
                     onChange={setSearchInput}
                     onSearch={runSearch}
-                    placeholder="Tìm theo tên bài thi"
+                    placeholder="Search by exam name"
                     className="flex-1"
                   />
                   <FilterPanel
-                    title="Bộ lọc bài thi"
-                    description="Lọc theo trạng thái và thời gian bắt đầu."
+                    title="Exam filters"
+                    description="Filter by status and start time."
                     filters={examFilterDefinitions}
                     value={draftFilters}
                     onValueChange={(key, nextValue) =>
@@ -341,7 +342,7 @@ export default function StudentCourseDetail() {
 
               {filteredExams.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
-                  Không có bài thi phù hợp với tìm kiếm hoặc bộ lọc hiện tại.
+                  No exams match your current search or filters.
                 </div>
               ) : (
                 <div
@@ -396,7 +397,7 @@ export default function StudentCourseDetail() {
                             </Button>
                           ) : null}
                           <Button asChild variant="outline">
-                            <Link href={`/student/exams/${exam.id}`}>Chi tiết</Link>
+                            <Link href={`/student/exams/${exam.id}`}>Details</Link>
                           </Button>
                         </div>
                       </div>
@@ -409,7 +410,7 @@ export default function StudentCourseDetail() {
                 totalPages={totalPages}
                 totalItems={filteredExams.length}
                 onPageChange={setPage}
-                itemLabel="bài thi"
+                itemLabel="exams"
                 syncUrl={false}
               />
             </CardContent>

@@ -329,27 +329,27 @@ export default function CreateCourse() {
     () => [
       {
         key: "status",
-        label: "Trạng thái",
+        label: "Status",
         type: "select",
-        allLabel: "Tất cả trạng thái",
+        allLabel: "All statuses",
         options: [
-          { label: "Bản nháp", value: "draft" },
-          { label: "Đang hoạt động", value: "active" },
-          { label: "Đã lưu trữ", value: "archived" },
+          { label: "Draft", value: "draft" },
+          { label: "Active", value: "active" },
+          { label: "Archived", value: "archived" },
         ],
       },
       {
         key: "academicYear",
-        label: "Năm học",
+        label: "Academic year",
         type: "text",
-        placeholder: "Lọc theo năm học",
+        placeholder: "Filter by academic year",
         operators: ["contains", "startsWith", "equals"],
       },
       {
         key: "term",
-        label: "Học kỳ",
+        label: "Term",
         type: "select",
-        allLabel: "Tất cả học kỳ",
+        allLabel: "All terms",
         options: COURSE_TERM_OPTIONS.map((option) => ({
           label: option.label,
           value: option.value,
@@ -357,7 +357,7 @@ export default function CreateCourse() {
       },
       {
         key: "students",
-        label: "Sinh viên",
+        label: "Students",
         type: "text",
       },
     ],
@@ -452,10 +452,10 @@ export default function CreateCourse() {
   const activeFilterChips = getFilterChips(appliedFilters, courseFilterDefinitions);
 
   const courseSortOptions = [
-    { field: "name", label: "Tên khóa học" },
-    { field: "credits", label: "Tín chỉ" },
-    { field: "students", label: "Sinh viên" },
-    { field: "status", label: "Trạng thái" },
+    { field: "name", label: "Course name" },
+    { field: "credits", label: "Credits" },
+    { field: "students", label: "Students" },
+    { field: "status", label: "Status" },
   ];
 
   const formatExamDateTime = (value?: string | null) => {
@@ -475,9 +475,9 @@ export default function CreateCourse() {
     const start = formatExamDateTime(exam.startTime);
     const end = formatExamDateTime(exam.endTime);
     if (start && end) return `${start} - ${end}`;
-    if (start) return `Từ ${start}`;
-    if (end) return `Đến ${end}`;
-    return "Chưa lên lịch";
+    if (start) return `From ${start}`;
+    if (end) return `Until ${end}`;
+    return "Unscheduled";
   };
 
   const loadCourseExams = useCallback(async (courseId: string, force = false) => {
@@ -782,14 +782,14 @@ export default function CreateCourse() {
             return isNaN(d.getTime())
               ? typeof created.createdAt === "string"
                 ? created.createdAt
-                : "Chưa có"
+                : "Not available"
               : d.toISOString().split("T")[0];
           })(),
         };
         setCourses((prev) => [mapped, ...prev]);
         setCreatedCourseId(created.id);
         setCreatedCourseCode(created.code);
-        toast.success("Tạo khóa học thành công");
+        toast.success("Course created successfully");
       }
 
       setStep(2);
@@ -1075,10 +1075,10 @@ export default function CreateCourse() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell backTo="/lecturer">
         <ListPageHeader
-          title="Quản lý khóa học"
+          title="Course management"
           className="mb-6"
           actions={
           <>
@@ -1092,7 +1092,7 @@ export default function CreateCourse() {
             <DialogTrigger asChild>
               <Button className="gap-2">
                 <Plus className="h-4 w-4" />
-                Tạo khóa học
+                Create course
               </Button>
             </DialogTrigger>
             <DialogContent
@@ -1914,22 +1914,22 @@ export default function CreateCourse() {
           <AdminStatCard
             icon={BookOpen}
             value={courses.length}
-            label="Tổng khóa học"
+            label="Total courses"
           />
           <AdminStatCard
             icon={Users}
             value={courses.reduce((s, c) => s + c.students, 0)}
-            label="Tổng sinh viên"
+            label="Total students"
           />
           <AdminStatCard
             icon={GraduationCap}
             value={courses.filter((c) => c.status === "active").length}
-            label="Khóa học hoạt động"
+            label="Active courses"
           />
           <AdminStatCard
             icon={FileSpreadsheet}
             value={courses.reduce((s, c) => s + c.exams, 0)}
-            label="Tổng bài thi"
+            label="Total exams"
           />
         </div>
 
@@ -1939,7 +1939,7 @@ export default function CreateCourse() {
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Tìm theo mã, tên khóa học, năm học hoặc học kỳ"
+              placeholder="Search by course code, name, academic year, or term"
               className="flex-1"
             />
             <SortButton
@@ -1952,8 +1952,8 @@ export default function CreateCourse() {
               }}
             />
             <FilterPanel
-              title="Bộ lọc khóa học"
-              description="Lọc theo trạng thái, năm học, học kỳ và số lượng sinh viên."
+              title="Course filters"
+              description="Filter by status, academic year, term, and student count."
               filters={courseFilterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -1974,9 +1974,9 @@ export default function CreateCourse() {
         {/* Course rows */}
         <section>
           <div className="mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Khóa học của bạn</h2>
+            <h2 className="text-lg font-semibold text-foreground">Your courses</h2>
             <p className="text-sm text-muted-foreground">
-              Quản lý khóa học và các bài thi liên quan
+              Manage courses and their related exams
             </p>
           </div>
 
@@ -1985,14 +1985,14 @@ export default function CreateCourse() {
             style={{ minHeight: COURSE_TABLE_MIN_HEIGHT }}
           >
             <div className="hidden border-b bg-muted/40 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid md:grid-cols-[minmax(260px,1.4fr)_80px_minmax(170px,.9fr)_90px_80px_110px_110px_24px] md:items-center md:gap-4">
-              <span>Khóa học</span>
-              <span>Tín chỉ</span>
-              <span>Học kỳ</span>
-              <span>Sinh viên</span>
-              <span>Bài thi</span>
-              <span>Trạng thái</span>
-              <span className="text-right">Thao tác</span>
-              <span className="sr-only">Mở</span>
+              <span>Course</span>
+              <span>Credits</span>
+              <span>Term</span>
+              <span>Students</span>
+              <span>Exams</span>
+              <span>Status</span>
+              <span className="text-right">Actions</span>
+              <span className="sr-only">Open</span>
             </div>
 
             <div className="divide-y">
@@ -2036,7 +2036,7 @@ export default function CreateCourse() {
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 md:contents">
                     <div>
                       <span className="block text-xs text-muted-foreground md:hidden">
-                        Tín chỉ
+                        Credits
                       </span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {course.credits ?? "—"}
@@ -2044,7 +2044,7 @@ export default function CreateCourse() {
                     </div>
                     <div className="min-w-0">
                       <span className="block text-xs text-muted-foreground md:hidden">
-                        Học kỳ
+                        Term
                       </span>
                       <span className="block truncate text-foreground">
                         {formatCourseTerm(course.academicYear, course.term)}
@@ -2052,7 +2052,7 @@ export default function CreateCourse() {
                     </div>
                     <div>
                       <span className="block text-xs text-muted-foreground md:hidden">
-                        Sinh viên
+                        Students
                       </span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {course.students}
@@ -2060,7 +2060,7 @@ export default function CreateCourse() {
                     </div>
                     <div>
                       <span className="block text-xs text-muted-foreground md:hidden">
-                        Bài thi
+                        Exams
                       </span>
                       <Button
                         type="button"
@@ -2069,7 +2069,7 @@ export default function CreateCourse() {
                         className="-ml-2 h-9 justify-start gap-1.5 px-2 font-semibold tabular-nums text-foreground"
                         aria-expanded={isExpanded}
                         aria-controls={`course-exams-${course.id}`}
-                        aria-label={`Mở danh sách bài kiểm tra của ${course.code}`}
+                        aria-label={`Open the exam list for ${course.code}`}
                         onClick={(event) => {
                           event.stopPropagation();
                           toggleCourseExams(course.id);
@@ -2086,7 +2086,7 @@ export default function CreateCourse() {
                     </div>
                     <div>
                       <span className="mb-1 block text-xs text-muted-foreground md:hidden">
-                        Trạng thái
+                        Status
                       </span>
                       <StatusBadge status={course.status} domain="course">
                         {course.status}
@@ -2101,14 +2101,14 @@ export default function CreateCourse() {
                         variant="ghost"
                         size="sm"
                         onClick={() => openEditDialog(course)}
-                        title="Sửa khóa học"
+                        title="Edit course"
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
                       <ConfirmActionDialog
-                        title="Xóa khóa học"
-                        description="Hành động này không thể hoàn tác. Khóa học sẽ bị xóa nếu không có dữ liệu phụ thuộc ngăn thao tác."
-                        confirmText="Xóa"
+                        title="Delete course"
+                        description="This action cannot be undone. The course will be deleted if no dependent data prevents it."
+                        confirmText="Delete"
                         destructive
                         onConfirm={() => handleDelete(course.id)}
                       >
@@ -2116,7 +2116,7 @@ export default function CreateCourse() {
                           variant="ghost"
                           size="sm"
                           className="text-destructive hover:text-destructive"
-                          title="Xóa khóa học"
+                          title="Delete course"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -2135,7 +2135,7 @@ export default function CreateCourse() {
                         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                           <div>
                             <h3 className="font-semibold text-foreground">
-                              Bài kiểm tra trong khóa học
+                              Course exams
                             </h3>
                             <p className="text-sm text-muted-foreground">
                               {course.code} · {course.name}
@@ -2152,12 +2152,12 @@ export default function CreateCourse() {
                             }
                           >
                             <Plus className="mr-2 h-4 w-4" />
-                            Tạo bài kiểm tra cho khóa này
+                            Create an exam for this course
                           </Button>
                         </div>
 
                         {isLoadingCourseExams && (
-                          <div className="space-y-2" aria-label="Đang tải bài kiểm tra">
+                          <div className="space-y-2" aria-label="Loading exams">
                             {[0, 1, 2].map((item) => (
                               <div
                                 key={item}
@@ -2171,7 +2171,7 @@ export default function CreateCourse() {
                           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
                             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                               <p className="text-sm text-destructive">
-                                Không tải được bài kiểm tra của khóa học này.
+                                Unable to load this course's exams.
                               </p>
                               <Button
                                 type="button"
@@ -2182,7 +2182,7 @@ export default function CreateCourse() {
                                   void loadCourseExams(course.id, true);
                                 }}
                               >
-                                Thử lại
+                                Try again
                               </Button>
                             </div>
                           </div>
@@ -2193,10 +2193,10 @@ export default function CreateCourse() {
                           courseExams.length === 0 && (
                             <div className="rounded-lg border border-dashed bg-background/70 p-6 text-center">
                               <p className="font-medium text-foreground">
-                                Khóa học này chưa có bài kiểm tra.
+                                This course has no exams yet.
                               </p>
                               <p className="mt-1 text-sm text-muted-foreground">
-                                Tạo bài kiểm tra đầu tiên và hệ thống sẽ tự gắn vào khóa học này.
+                                Create the first exam and the system will automatically attach it to this course.
                               </p>
                             </div>
                           )}
@@ -2222,13 +2222,13 @@ export default function CreateCourse() {
                                   >
                                     <div className="min-w-0">
                                       <p className="truncate font-semibold text-foreground">
-                                        {exam.title || "Bài kiểm tra chưa đặt tên"}
+                                        {exam.title || "Untitled exam"}
                                       </p>
                                       <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                                         <Clock className="h-3.5 w-3.5" />
                                         {exam.duration
-                                          ? `${exam.duration} phút`
-                                          : "Chưa đặt thời lượng"}
+                                          ? `${exam.duration} minutes`
+                                          : "Duration not set"}
                                       </p>
                                     </div>
                                     <div className="text-sm text-muted-foreground">
@@ -2244,7 +2244,7 @@ export default function CreateCourse() {
                                         {submissionCount}
                                       </span>{" "}
                                       <span className="text-muted-foreground">
-                                        Lượt nộp
+                                        Submissions
                                       </span>
                                     </div>
                                     <div className="flex flex-wrap gap-2 md:justify-end">
@@ -2260,7 +2260,7 @@ export default function CreateCourse() {
                                         }
                                       >
                                         <Eye className="mr-1.5 h-4 w-4" />
-                                        Xem trước
+                                        Preview
                                       </Button>
                                       {canMonitor && (
                                         <Button
@@ -2274,7 +2274,7 @@ export default function CreateCourse() {
                                             )
                                           }
                                         >
-                                          Theo dõi
+                                          Monitor
                                         </Button>
                                       )}
                                       {canViewResults && (
@@ -2290,7 +2290,7 @@ export default function CreateCourse() {
                                           }
                                         >
                                           <BarChart3 className="mr-1.5 h-4 w-4" />
-                                          Xem kết quả
+                                          View results
                                         </Button>
                                       )}
                                     </div>

@@ -82,18 +82,18 @@ import { cn } from "@/lib/utils";
 // ─── Steps ───────────────────────────────────────────────────────
 type Step = "info" | "settings" | "questions" | "preview";
 const STEPS: { key: Step; label: string; icon: React.ReactNode }[] = [
-  { key: "info", label: "Thông tin cơ bản", icon: <FileText className="h-4 w-4" /> },
+  { key: "info", label: "Basic information", icon: <FileText className="h-4 w-4" /> },
   {
     key: "settings",
-    label: "Cài đặt",
+    label: "Settings",
     icon: <Settings className="h-4 w-4" />,
   },
   {
     key: "questions",
-    label: "Câu hỏi",
+    label: "Questions",
     icon: <BookOpen className="h-4 w-4" />,
   },
-  { key: "preview", label: "Xem trước", icon: <Eye className="h-4 w-4" /> },
+  { key: "preview", label: "Preview", icon: <Eye className="h-4 w-4" /> },
 ];
 
 interface ExamForm {
@@ -1247,7 +1247,7 @@ export default function CreateExam() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div
         className={`mx-auto space-y-6 px-3 sm:px-0 transition-[max-width] duration-300 ${
           step === "questions" ? "max-w-6xl" : "max-w-3xl"
@@ -1318,7 +1318,7 @@ export default function CreateExam() {
                         htmlFor="course-academic-year-filter"
                         className="text-sm"
                       >
-                        Năm học
+                        Academic year
                       </Label>
                       <Select
                         value={courseAcademicYearFilter}
@@ -1328,7 +1328,7 @@ export default function CreateExam() {
                           id="course-academic-year-filter"
                           className="h-11 rounded-xl"
                         >
-                          <SelectValue placeholder="Năm học" />
+                          <SelectValue placeholder="Academic year" />
                         </SelectTrigger>
                         <SelectContent>
                           {courseAcademicYearOptions.map((year) => (
@@ -1341,7 +1341,7 @@ export default function CreateExam() {
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="course-term-filter" className="text-sm">
-                        Học kỳ
+                        Term
                       </Label>
                       <Select
                         value={courseTermFilter}
@@ -1353,10 +1353,10 @@ export default function CreateExam() {
                           id="course-term-filter"
                           className="h-11 rounded-xl"
                         >
-                          <SelectValue placeholder="Học kỳ" />
+                          <SelectValue placeholder="Term" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">Tất cả học kỳ</SelectItem>
+                          <SelectItem value="all">All terms</SelectItem>
                           {COURSE_TERM_OPTIONS.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
                               {option.label}
@@ -1372,7 +1372,7 @@ export default function CreateExam() {
                       className="self-end"
                       onClick={resetCourseFilters}
                     >
-                      Đặt lại
+                      Reset
                     </Button>
                   </div>
                   <Label htmlFor="course" className="mt-4 block">
@@ -1496,15 +1496,15 @@ export default function CreateExam() {
           {step === "settings" && (
             <>
               <CardHeader>
-                <CardTitle>Cài đặt bài thi</CardTitle>
+                <CardTitle>Exam settings</CardTitle>
                 <CardDescription>
-                  Cấu hình thời gian, cách tính điểm và quyền truy cập.
+                  Configure timing, grading, and access.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <Label>Thời lượng (phút)</Label>
+                    <Label>Duration (minutes)</Label>
                     <Input
                       type="number"
                       value={form.duration}
@@ -1535,11 +1535,11 @@ export default function CreateExam() {
                     ) : null}
                     <div className="mt-2 flex items-center gap-2 text-xs">
                       <Switch checked={form.unlimitedTime} onCheckedChange={(v) => set("unlimitedTime", v)} />
-                      <span>Không giới hạn thời gian</span>
+                      <span>Unlimited time</span>
                     </div>
                   </div>
                   <div>
-                    <Label>Điểm đạt (%)</Label>
+                    <Label>Passing score (%)</Label>
                     <Input
                       type="number"
                       value={form.passingScore}
@@ -1574,7 +1574,7 @@ export default function CreateExam() {
                     ) : null}
                   </div>
                   <div>
-                    <Label>Số lần làm tối đa</Label>
+                    <Label>Maximum attempts</Label>
                     <Select
                       value={form.maxAttempts}
                       onValueChange={(v) => set("maxAttempts", v)}
@@ -1583,7 +1583,7 @@ export default function CreateExam() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="unlimited">Không giới hạn</SelectItem>
+                        <SelectItem value="unlimited">Unlimited</SelectItem>
                         {MAX_ATTEMPT_OPTIONS.map((option) => (
                           <SelectItem key={option} value={option}>
                             {option}
@@ -1592,11 +1592,11 @@ export default function CreateExam() {
                       </SelectContent>
                     </Select>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Chọn giá trị từ 1 đến 10. Chọn 1 sẽ khóa nộp muộn.
+                      Choose a value from 1 to 10. Selecting 1 disables late submission.
                     </p>
                   </div>
                   <div>
-                    <Label>Cách tính điểm</Label>
+                    <Label>Grading method</Label>
                     <Select
                       value={form.gradingStrategy}
                       onValueChange={(v) =>
@@ -1607,21 +1607,21 @@ export default function CreateExam() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="HIGHEST">Lấy điểm cao nhất</SelectItem>
-                        <SelectItem value="AVERAGE">Lấy điểm trung bình</SelectItem>
-                        <SelectItem value="FIRST_ATTEMPT">Lượt làm đầu tiên</SelectItem>
-                        <SelectItem value="LAST_ATTEMPT">Lượt làm cuối cùng</SelectItem>
+                        <SelectItem value="HIGHEST">Highest score</SelectItem>
+                        <SelectItem value="AVERAGE">Average score</SelectItem>
+                        <SelectItem value="FIRST_ATTEMPT">First attempt</SelectItem>
+                        <SelectItem value="LAST_ATTEMPT">Last attempt</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
                 <Separator />
-                <p className="text-sm font-medium">Khung giờ thi</p>
+                <p className="text-sm font-medium">Exam window</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>
-                      Ngày bắt đầu <span className="text-red-500">*</span>
+                      Start date <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       type="date"
@@ -1631,7 +1631,7 @@ export default function CreateExam() {
                     />
                   </div>
                   <div>
-                    <Label>Giờ bắt đầu</Label>
+                    <Label>Start time</Label>
                     <Input
                       type="time"
                       value={form.startTime}
@@ -1641,7 +1641,7 @@ export default function CreateExam() {
                   </div>
                   <div>
                     <Label>
-                      Ngày kết thúc <span className="text-red-500">*</span>
+                      End date <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       type="date"
@@ -1651,7 +1651,7 @@ export default function CreateExam() {
                     />
                   </div>
                   <div>
-                    <Label>Giờ kết thúc</Label>
+                    <Label>End time</Label>
                     <Input
                       type="time"
                       value={form.endTime}
@@ -1662,14 +1662,14 @@ export default function CreateExam() {
                 </div>
 
                 <Separator />
-                <p className="text-sm font-medium">Tùy chọn</p>
+                <p className="text-sm font-medium">Options</p>
                 <div className="space-y-4">
                   {(
                     [
                       {
                         key: "requiresProctoring",
-                        label: "Bật giám sát AI",
-                        desc: "Theo dõi hoạt động của sinh viên trong bài thi",
+                        label: "Enable AI proctoring",
+                        desc: "Monitor student activity during the exam",
                         icon: <Shield className="h-4 w-4 text-primary" />,
                       },
                       {
@@ -1718,7 +1718,7 @@ export default function CreateExam() {
                     Late submission is locked because max attempts is set to 1.
                   </p>
                 ) : null}
-                {proctoringForcedOff ? <p className="text-xs text-muted-foreground">Giám sát AI được tự động tắt vì bài kiểm tra không giới hạn thời gian hoặc lượt làm.</p> : null}
+                {proctoringForcedOff ? <p className="text-xs text-muted-foreground">AI proctoring is automatically disabled because the exam has unlimited time or attempts.</p> : null}
 
                 <Separator />
                 <div className="space-y-4">
@@ -1947,9 +1947,9 @@ export default function CreateExam() {
                             <CardHeader className="pb-3">
                               <CardTitle className="text-base">
                                 <HelpedTitle help={{
-                                  description: "Xác định dạng trả lời của câu hỏi được thêm thủ công vào đề.",
-                                  usedBy: "Giảng viên chọn trước khi nhập nội dung để hệ thống hiển thị đúng vùng đáp án, ghép đôi, sắp xếp hoặc tự luận.",
-                                  note: "Khi đổi dạng câu hỏi, hãy kiểm tra lại đáp án và giải thích trước khi thêm vào đề.",
+                                  description: "Defines the answer format for a question added manually to the exam.",
+                                  usedBy: "Lecturers select it before entering content so the system displays the appropriate answer area, matching, ordering, or essay controls.",
+                                  note: "When changing the question type, verify the answer and explanation before adding it to the exam.",
                                 }}>
                                   Question Type
                                 </HelpedTitle>
@@ -2148,9 +2148,9 @@ export default function CreateExam() {
                                 <div className="inline-flex items-center gap-1.5">
                                   <Label className="text-xs text-muted-foreground">Topic</Label>
                                   <ContextHelp content={{
-                                    description: "Gắn câu hỏi vào chủ đề kiến thức trong khóa học.",
-                                    usedBy: "Dùng khi tạo câu hỏi thủ công, lọc ngân hàng câu hỏi và phân tích điểm yếu theo chủ đề.",
-                                    note: "Chủ đề càng rõ thì việc sinh đề và thống kê sau bài thi càng chính xác.",
+                                    description: "Assigns the question to a knowledge topic in the course.",
+                                    usedBy: "Used when creating questions manually, filtering the question bank, and analyzing topic weaknesses.",
+                                    note: "The clearer the topic, the more accurate exam generation and post-exam statistics become.",
                                   }} />
                                 </div>
                                 <Select value={manualTopicId || "__none__"} onValueChange={(value) => setManualTopicId(value === "__none__" ? "" : value)}>
@@ -2177,9 +2177,9 @@ export default function CreateExam() {
                           </Card>
                           <Card>
                             <CardHeader className="pb-3"><CardTitle className="text-sm"><HelpedTitle help={{
-                              description: "Mức độ khó dự kiến của câu hỏi thủ công.",
-                              usedBy: "Dùng để cân bằng đề và hỗ trợ phân tích chất lượng câu hỏi sau khi có bài làm.",
-                              note: "Độ khó là nhãn ban đầu, có thể khác với độ khó thực tế khi sinh viên làm bài.",
+                              description: "The intended difficulty level of a manually created question.",
+                              usedBy: "Used to balance the exam and support question-quality analysis after submissions are available.",
+                              note: "Difficulty is an initial label and may differ from actual difficulty when students take the exam.",
                             }}>Difficulty</HelpedTitle></CardTitle></CardHeader>
                             <CardContent className="grid grid-cols-3 gap-2">
                               {(["easy", "medium", "hard"] as const).map((difficulty) => (
@@ -2230,9 +2230,9 @@ export default function CreateExam() {
                           <div className="inline-flex items-center gap-1.5">
                             <Label>Select topic first</Label>
                             <ContextHelp content={{
-                              description: "Chọn chủ đề để giới hạn danh sách câu hỏi theo nhóm kiến thức cần đưa vào đề.",
-                              usedBy: "Dùng khi lấy câu hỏi từ ngân hàng thay vì tạo mới.",
-                              note: "Chọn đúng chủ đề giúp đề thi bám sát phạm vi ôn tập và mục tiêu đánh giá.",
+                              description: "Select a topic to limit the question list to the knowledge area needed in the exam.",
+                              usedBy: "Used when selecting questions from the bank instead of creating new ones.",
+                              note: "Choosing the right topic keeps the exam aligned with the review scope and assessment objectives.",
                             }} />
                           </div>
                           <Select value={selectedBankTopicId} onValueChange={setSelectedBankTopicId}>
@@ -2252,9 +2252,9 @@ export default function CreateExam() {
                                 <div className="inline-flex items-center gap-1.5">
                                   <Label>Question type</Label>
                                   <ContextHelp content={{
-                                    description: "Lọc ngân hàng theo dạng câu hỏi như trắc nghiệm, đúng/sai hoặc tự luận.",
-                                    usedBy: "Dùng khi muốn đề thi có đúng cấu trúc câu hỏi đã thiết kế.",
-                                    note: "Nếu chọn quá hẹp, số câu khả dụng có thể không đủ cho đề.",
+                                    description: "Filter the bank by question type, such as multiple choice, true/false, or essay.",
+                                    usedBy: "Used when the exam needs a specific question structure.",
+                                    note: "If the filter is too narrow, there may not be enough available questions for the exam.",
                                   }} />
                                 </div>
                                 <Select value={form.questionType} onValueChange={(value) => set("questionType", value)}>
@@ -2270,9 +2270,9 @@ export default function CreateExam() {
                                 <div className="inline-flex items-center gap-1.5">
                                   <Label>Difficulty</Label>
                                   <ContextHelp content={{
-                                    description: "Lọc câu hỏi theo mức độ khó đã gắn trong ngân hàng.",
-                                    usedBy: "Dùng để cân bằng đề hoặc tạo đề theo một mức độ cụ thể.",
-                                    note: "Số lượng câu mỗi mức phụ thuộc vào dữ liệu ngân hàng hiện có.",
+                                    description: "Filter questions by the difficulty level assigned in the bank.",
+                                    usedBy: "Used to balance an exam or create one at a specific difficulty level.",
+                                    note: "The number of questions per level depends on the current bank data.",
                                   }} />
                                 </div>
                                 <Select value={form.bankDifficulty} onValueChange={(value) => set("bankDifficulty", value)}>
@@ -2323,7 +2323,7 @@ export default function CreateExam() {
                           <div>
                             <div className="inline-flex items-center gap-1.5">
                               <Label>Question type</Label>
-                              <ContextHelp content="Phân loại cách trả lời của câu hỏi, dùng khi tạo đề và phân tích kết quả." />
+                              <ContextHelp content="Classifies how a question is answered, for exam creation and result analysis." />
                             </div>
                             <Select value={form.questionType} onValueChange={(value) => set("questionType", value)}>
                               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
@@ -2333,7 +2333,7 @@ export default function CreateExam() {
                           <div>
                             <div className="inline-flex items-center gap-1.5">
                               <Label>Difficulty</Label>
-                              <ContextHelp content="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích." />
+                              <ContextHelp content="The question difficulty level, used for classification and analysis." />
                             </div>
                             <Select value={form.bankDifficulty} onValueChange={(value) => set("bankDifficulty", value)}>
                               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
@@ -2415,7 +2415,7 @@ export default function CreateExam() {
                       <div>
                         <div className="inline-flex items-center gap-1.5">
                           <Label>Question Type Mix</Label>
-                          <ContextHelp content="Phân bổ dạng câu hỏi trong đề, dùng để kiểm soát cấu trúc đề thi." />
+                          <ContextHelp content="The distribution of question types in the exam, used to control its structure." />
                         </div>
                         <Select
                           value={form.questionType}
@@ -2436,7 +2436,7 @@ export default function CreateExam() {
                       <div>
                         <div className="inline-flex items-center gap-1.5">
                           <Label>Difficulty</Label>
-                          <ContextHelp content="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích." />
+                          <ContextHelp content="The question difficulty level, used for classification and analysis." />
                         </div>
                         <Select
                           value={form.bankDifficulty}
@@ -2490,7 +2490,7 @@ export default function CreateExam() {
 
                     <p className="inline-flex items-center gap-1.5 pt-2 text-sm font-medium text-muted-foreground">
                       Topics to include
-                      <ContextHelp content="Các chủ đề được đưa vào đề, giúp đề thi bám sát phạm vi kiến thức mong muốn." />
+                      <ContextHelp content="Topics included in the exam, keeping it aligned with the intended knowledge scope." />
                     </p>
                     {!form.course && (
                       <p className="text-sm text-muted-foreground">
@@ -2782,7 +2782,7 @@ export default function CreateExam() {
                         <div className="space-y-2">
                           <div className="inline-flex items-center gap-1.5">
                             <Label>Question Type Mix</Label>
-                            <ContextHelp content="Phân bổ dạng câu hỏi trong đề, dùng để kiểm soát cấu trúc đề thi." />
+                            <ContextHelp content="The distribution of question types in the exam, used to control its structure." />
                           </div>
                           <Select
                             value={form.questionType}
@@ -2899,65 +2899,65 @@ export default function CreateExam() {
           {step === "preview" && (
             <>
               <CardHeader>
-                <CardTitle>Xem trước bài thi</CardTitle>
+                <CardTitle>Exam preview</CardTitle>
                 <CardDescription>
-                  Kiểm tra toàn bộ cài đặt trước khi tạo bài thi.
+                  Review all settings before creating the exam.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 {[
-                  { label: "Tiêu đề", value: form.title || "—" },
+                  { label: "Title", value: form.title || "—" },
                   {
-                    label: "Khóa học",
+                    label: "Course",
                     value: courses.find((course) => course.id === form.course)
                       ?.code
                       ? `${courses.find((course) => course.id === form.course)?.code} - ${courses.find((course) => course.id === form.course)?.name}`
                       : "—",
                   },
-                  { label: "Mô tả", value: form.description || "—" },
-                  { label: "Thời lượng", value: `${form.duration} phút` },
+                  { label: "Description", value: form.description || "—" },
+                  { label: "Duration", value: `${form.duration} minutes` },
                   {
-                    label: "Số lần làm tối đa (1-10)",
+                    label: "Maximum attempts (1-10)",
                     value: form.maxAttempts || "1",
                   },
                   {
-                    label: "Cách tính điểm",
+                    label: "Grading method",
                     value: form.gradingStrategy,
                   },
-                  { label: "Điểm đạt", value: `${form.passingScore}%` },
+                  { label: "Passing score", value: `${form.passingScore}%` },
                   {
-                    label: "Khung giờ thi",
+                    label: "Exam window",
                     value: `${form.startDate} ${form.startTime} → ${form.endDate} ${form.endTime}`,
                   },
                   {
-                    label: "Câu hỏi",
-                    value: `${composedQuestionCount} câu (${aiGeneratedQuestions.length} trực tiếp + ${selectedBankQuestionIds.length} đã chọn + ${randomQuestionCount} ngẫu nhiên)`,
+                    label: "Questions",
+                    value: `${composedQuestionCount} questions (${aiGeneratedQuestions.length} direct + ${selectedBankQuestionIds.length} selected + ${randomQuestionCount} random)`,
                   },
                   {
-                    label: "Giám sát AI",
-                    value: form.requiresProctoring ? "Đã bật" : "Đã tắt",
+                    label: "AI proctoring",
+                    value: form.requiresProctoring ? "Enabled" : "Disabled",
                   },
                   {
-                    label: "Nộp muộn",
+                    label: "Late submission",
                     value: isSingleAttempt
-                      ? "Bị khóa khi số lần làm tối đa = 1"
+                      ? "Disabled when maximum attempts = 1"
                       : form.allowLateSubmission
-                        ? "Cho phép"
-                        : "Không cho phép",
+                        ? "Allowed"
+                        : "Not allowed",
                   },
                   {
-                    label: "Xáo trộn",
-                    value: form.shuffleQuestions ? "Có" : "Không",
+                    label: "Shuffle",
+                    value: form.shuffleQuestions ? "Yes" : "No",
                   },
                   {
-                    label: "Cài đặt xem lại",
-                    value: reviewSettingsDraft.enabled ? "Theo giai đoạn" : "Mặc định",
+                    label: "Review settings",
+                    value: reviewSettingsDraft.enabled ? "By phase" : "Default",
                   },
                   {
-                    label: "Hiển thị kết quả",
+                    label: "Result visibility",
                     value: form.showResultImmediately
-                      ? "Ngay lập tức"
-                      : "Sau khi xem lại",
+                      ? "Immediately"
+                      : "After review",
                   },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex gap-3">
@@ -2983,7 +2983,7 @@ export default function CreateExam() {
             className="gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
-            {stepIdx === 0 ? "Hủy" : "Quay lại"}
+            {stepIdx === 0 ? "Cancel" : "Back"}
           </Button>
 
           {step !== "preview" ? (
@@ -2992,7 +2992,7 @@ export default function CreateExam() {
               disabled={!canNext()}
               className="gap-2"
             >
-              Tiếp tục <ChevronRight className="h-4 w-4" />
+              Continue <ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
             <Button
@@ -3001,10 +3001,10 @@ export default function CreateExam() {
               className="gap-2"
             >
               {isCreating ? (
-                "Đang tạo…"
+                "Creating…"
               ) : (
                 <>
-                  <CheckCircle2 className="h-4 w-4" /> Tạo bài thi
+                  <CheckCircle2 className="h-4 w-4" /> Create exam
                 </>
               )}
             </Button>

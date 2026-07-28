@@ -241,30 +241,30 @@ export default function JoinExam() {
                     <p className="font-medium">{examInfo.title}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Khóa học</p>
+                    <p className="text-muted-foreground">Course</p>
                     <p className="font-medium">{examInfo.course}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Giảng viên</p>
+                    <p className="text-muted-foreground">Lecturer</p>
                     <p className="font-medium">{examInfo.instructor}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Lịch thi</p>
+                    <p className="text-muted-foreground">Exam schedule</p>
                     <p className="font-medium">
                       {new Date(examInfo.scheduledAt).toLocaleString("vi-VN")}
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Thời lượng</p>
+                    <p className="text-muted-foreground">Duration</p>
                     <p className="font-medium flex items-center gap-1">
                       <Clock className="h-3.5 w-3.5" /> {examInfo.duration}{" "}
-                      phút
+                      minutes
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Câu hỏi</p>
+                    <p className="text-muted-foreground">Questions</p>
                     <p className="font-medium">
-                      {examInfo.totalQuestions} câu
+                      {examInfo.totalQuestions} questions
                     </p>
                   </div>
                 </div>

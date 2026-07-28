@@ -52,13 +52,13 @@ function HelpBody({ content }: { content: React.ReactNode | HelpContent }) {
       <p>{content.description}</p>
       {content.usedBy ? (
         <p>
-          <span className="font-medium">Dùng khi: </span>
+          <span className="font-medium">Use when: </span>
           {content.usedBy}
         </p>
       ) : null}
       {content.note ? (
         <p>
-          <span className="font-medium">Lưu ý: </span>
+          <span className="font-medium">Note: </span>
           {content.note}
         </p>
       ) : null}
@@ -101,7 +101,7 @@ function useTouchHelpMode() {
 
 export function ContextHelp({
   content,
-  ariaLabel = "Xem giải thích",
+  ariaLabel = "View explanation",
   className,
   side = "top",
   align = "center",
