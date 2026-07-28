@@ -969,7 +969,7 @@ export default function ExamAnalytics() {
             ) : null}
             <h1 className="text-xl font-bold sm:text-2xl">Performance analytics</h1>
             <p className="text-sm text-muted-foreground">
-              Phan tich - Luyen tap - Cai thien theo tung bai thi.
+              Analyze, practice, and improve each exam.
             </p>
           </div>
         </div>
@@ -978,9 +978,9 @@ export default function ExamAnalytics() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 font-bold">
               <BarChart3 className="h-4 w-4 text-primary" />
-              Bo loc phan tich bai thi
+              Exam analytics filters
             </CardTitle>
-            <CardDescription>Chon bai thi de xem phan tich hieu suat</CardDescription>
+            <CardDescription>Select an exam to view performance analytics.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[220px_220px_minmax(320px,1fr)]">
@@ -1015,7 +1015,7 @@ export default function ExamAnalytics() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Bai thi</label>
+                <label className="text-xs font-medium text-muted-foreground">Exam</label>
                 <Select
                   value={selectedExamId}
                   onValueChange={setSelectedExamId}
@@ -1057,7 +1057,7 @@ export default function ExamAnalytics() {
               <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
                 <BarChart3 className="h-6 w-6 text-muted-foreground" />
               </div>
-              <p className="text-lg font-medium">Khong tim thay bai thi</p>
+              <p className="text-lg font-medium">No exams found</p>
               <p className="text-sm mt-1">
                 {selectedAcademicYear || selectedTerm
                   ? "There are no exams in the selected academic year and term."
@@ -1076,7 +1076,7 @@ export default function ExamAnalytics() {
                 <BarChart3 className="h-6 w-6 text-muted-foreground" />
               </div>
               <p className="text-lg font-medium">No performance data yet</p>
-              <p className="text-sm mt-1">Bai thi nay chua co du lieu hieu suat.</p>
+              <p className="text-sm mt-1">This exam has no performance data yet.</p>
             </CardContent>
           </Card>
         ) : (
@@ -1098,21 +1098,21 @@ export default function ExamAnalytics() {
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <Card className="min-h-[240px] border-border/70 bg-card shadow-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base font-semibold text-foreground">&#272;&#250;ng / Sai / B&#7887; qua</CardTitle>
-                  <CardDescription>T&#7893;ng quan nhanh k&#7871;t qu&#7843; tr&#7843; l&#7901;i.</CardDescription>
+                  <CardTitle className="text-base font-semibold text-foreground">Correct / Incorrect / Skipped</CardTitle>
+                  <CardDescription>A quick overview of answer outcomes.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
                     <div>
-                      <div className="mb-1 flex justify-between text-sm"><span>&#272;&#250;ng</span><span className="font-medium">{distribution.correctPct.toFixed(1)}%</span></div>
+                      <div className="mb-1 flex justify-between text-sm"><span>Correct</span><span className="font-medium">{distribution.correctPct.toFixed(1)}%</span></div>
                       <Progress value={distribution.correctPct} className="h-1.5 [&>div]:bg-emerald-500" />
                     </div>
                     <div>
-                      <div className="mb-1 flex justify-between text-sm"><span>Sai</span><span className="font-medium">{distribution.incorrectPct.toFixed(1)}%</span></div>
+                      <div className="mb-1 flex justify-between text-sm"><span>Incorrect</span><span className="font-medium">{distribution.incorrectPct.toFixed(1)}%</span></div>
                       <Progress value={distribution.incorrectPct} className="h-1.5 [&>div]:bg-rose-500" />
                     </div>
                     <div>
-                      <div className="mb-1 flex justify-between text-sm"><span>B&#7887; qua</span><span className="font-medium">{distribution.skippedPct.toFixed(1)}%</span></div>
+                      <div className="mb-1 flex justify-between text-sm"><span>Skipped</span><span className="font-medium">{distribution.skippedPct.toFixed(1)}%</span></div>
                       <Progress value={distribution.skippedPct} className="h-1.5 [&>div]:bg-amber-500" />
                     </div>
                   </div>
@@ -1121,12 +1121,12 @@ export default function ExamAnalytics() {
 
               <Card className="min-h-[240px] border-border/70 bg-card shadow-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base font-semibold text-foreground">Ti&#7871;n &#273;&#7897; theo th&#7901;i gian</CardTitle>
-                  <CardDescription>&#272;i&#7875;m trung b&#236;nh theo ng&#224;y n&#7897;p b&#224;i.</CardDescription>
+                  <CardTitle className="text-base font-semibold text-foreground">Progress over time</CardTitle>
+                  <CardDescription>Average score by submission date.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {(data.visualizations.trendSeries || []).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Ch&#432;a c&#243; d&#7919; li&#7879;u ti&#7871;n &#273;&#7897;.</p>
+                    <p className="text-sm text-muted-foreground">No progress data yet.</p>
                   ) : (data.visualizations.trendSeries || []).map((row) => (
                     <div key={row.date} className="flex items-center gap-3">
                       <span className="w-24 shrink-0 text-xs text-muted-foreground">{row.date}</span>
@@ -1151,7 +1151,7 @@ export default function ExamAnalytics() {
                           usedBy: "Lecturers use it to see trends quickly before examining individual questions or topics.",
                           note: "This is an analysis aid; compare it with detailed data before deciding to revise the exam.",
                         }}>
-                          T&#243;m t&#7855;t AI
+                          AI summary
                         </HelpedTitle>
                       </h2>
                     </div>
@@ -1171,34 +1171,34 @@ export default function ExamAnalytics() {
                     usedBy: "Use after the exam has submissions, especially when improving question quality or preparing revision activities.",
                     note: "A high incorrect-answer rate does not always mean a question is wrong; the topic may be difficult or students may not have mastered it.",
                   }}>
-                    &#272;i&#7875;m c&#7847;n ch&#250; &#253;
+                    Areas for attention
                   </HelpedTitle>
                 </CardTitle>
-                <CardDescription>Nh&#7919;ng ch&#7911; &#273;&#7873; v&#224; c&#226;u h&#7887;i c&#7847;n &#432;u ti&#234;n r&#224; so&#225;t.</CardDescription>
+                <CardDescription>Topics and questions prioritized for review.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
                   <section className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-sm font-semibold text-foreground">Ch&#7911; &#273;&#7873; y&#7871;u nh&#7845;t</h3>
+                      <h3 className="text-sm font-semibold text-foreground">Weakest topics</h3>
                       <Badge variant="outline" className="border-border bg-muted/40 text-xs">{data.weakestTopics.length}</Badge>
                     </div>
                     <div className="divide-y divide-border/70 rounded-md border border-border/70">
                       {data.weakestTopics.length === 0 ? (
-                        <p className="p-4 text-sm text-muted-foreground">Ch&#432;a c&#243; ch&#7911; &#273;&#7873; y&#7871;u n&#7893;i b&#7853;t.</p>
+                        <p className="p-4 text-sm text-muted-foreground">No notable weak topics yet.</p>
                       ) : data.weakestTopics.slice(0, 3).map((item) => (
                         <div key={`${item.topicId}-${item.topicName}`} className="p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-foreground">{item.topicName}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">B&#7887; qua {item.skipRate.toFixed(0)}%</p>
+                              <p className="mt-1 text-xs text-muted-foreground">Skipped {item.skipRate.toFixed(0)}%</p>
                             </div>
                             <Badge variant="outline" className="shrink-0 border-rose-200 bg-rose-50 text-rose-700">
-                              {item.incorrectRate.toFixed(0)}% sai
+                              {item.incorrectRate.toFixed(0)}% incorrect
                             </Badge>
                           </div>
                           <Button variant="ghost" size="sm" className="mt-2 h-8 px-0 text-primary hover:bg-transparent hover:text-primary/80" onClick={() => { trackAction("weakest_topic_open_practice"); openAction(item.action); }}>
-                            M&#7903; luy&#7879;n t&#7853;p <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                            Open practice <ExternalLink className="ml-1 h-3.5 w-3.5" />
                           </Button>
                         </div>
                       ))}
@@ -1213,17 +1213,17 @@ export default function ExamAnalytics() {
                           usedBy: "Lecturers use this to choose questions to inspect before editing or requesting an AI improvement.",
                           note: "A high incorrect-answer rate does not necessarily mean the question is defective; it is a review-priority signal, not an automated conclusion.",
                         }}>
-                          C&#226;u h&#7887;i c&#7847;n r&#224; so&#225;t
+                          Questions requiring review
                         </HelpedTitle>
                       </h3>
-                      {data.mostIncorrectQuestions.length > 8 ? <Badge variant="secondary" className="text-xs">Hi&#7875;n th&#7883; 8/{data.mostIncorrectQuestions.length}</Badge> : null}
+                      {data.mostIncorrectQuestions.length > 8 ? <Badge variant="secondary" className="text-xs">Showing 8/{data.mostIncorrectQuestions.length}</Badge> : null}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      C&#225;c c&#226;u h&#7887;i &#273;&#432;&#7907;c &#432;u ti&#234;n d&#7921;a tr&#234;n nhi&#7873;u t&#237;n hi&#7879;u; gi&#7843;ng vi&#234;n n&#234;n xem b&#7857;ng ch&#7913;ng tr&#432;&#7899;c khi k&#7871;t lu&#7853;n c&#226;u h&#7887;i c&#243; v&#7845;n &#273;&#7873;.
+                      Questions are prioritized using multiple signals. Review the evidence before concluding that a question has an issue.
                     </p>
                     <div className="divide-y divide-border/70 rounded-md border border-border/70">
                       {data.mostIncorrectQuestions.length === 0 ? (
-                        <p className="p-4 text-sm text-muted-foreground">Ch&#432;a c&#243; c&#226;u h&#7887;i n&#224;o c&#7847;n r&#224; so&#225;t.</p>
+                        <p className="p-4 text-sm text-muted-foreground">No questions require review yet.</p>
                       ) : data.mostIncorrectQuestions.slice(0, 8).map((item) => {
                         const improvement = getQuestionImprovement(item.questionId);
                         const status = improvement?.status || "IDLE";
@@ -1236,7 +1236,7 @@ export default function ExamAnalytics() {
                                 <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{translateMetricText(item.questionText)}</p>
                               </div>
                               <div className="flex shrink-0 flex-wrap gap-2">
-                                <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">{item.incorrectRate.toFixed(0)}% sai</Badge>
+                                <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">{item.incorrectRate.toFixed(0)}% incorrect</Badge>
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">Skipped {item.skipRate.toFixed(0)}%</Badge>
                                 {item.flaggedCount > 0 ? (
                                   <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">{item.flaggedCount} warnings</Badge>
@@ -1256,14 +1256,14 @@ export default function ExamAnalytics() {
                                 }} />
                                 {improvement?.id ? (
                                   <Button size="sm" className="h-8 gap-1" onClick={() => openAiReview(item.questionId, improvement.id)}>
-                                    <Sparkles className="h-3.5 w-3.5" /> Xem thay &#273;&#7893;i
+                                    <Sparkles className="h-3.5 w-3.5" /> View changes
                                   </Button>
                                 ) : null}
                               </div>
                             ) : (
                               <div className="mt-2 flex flex-wrap items-center gap-2">
                                 <Button variant="ghost" size="sm" className="h-8 px-0 text-primary hover:bg-transparent hover:text-primary/80" onClick={() => { trackAction("most_incorrect_open_preview"); openQuestionPreview(item); }}>
-                                  M&#7903; c&#226;u h&#7887;i <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                                  Open question <ExternalLink className="ml-1 h-3.5 w-3.5" />
                                 </Button>
 
                                 {status === "IDLE" || status === "REJECTED" || status === "FAILED" || status === "EXPIRED" ? (
@@ -1298,9 +1298,9 @@ export default function ExamAnalytics() {
 
                                 {status === "READY_FOR_REVIEW" && improvement?.id ? (
                                   <>
-                                    <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">C&#243; b&#7843;n c&#7843;i thi&#7879;n</Badge>
+                                    <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">Improvement available</Badge>
                                     <Button size="sm" className="h-8 gap-1" onClick={() => openAiReview(item.questionId, improvement.id)}>
-                                      <Sparkles className="h-3.5 w-3.5" /> Xem c&#7843;i thi&#7879;n
+                                      <Sparkles className="h-3.5 w-3.5" /> View improvement
                                     </Button>
                                   </>
                                 ) : null}
@@ -1324,7 +1324,7 @@ export default function ExamAnalytics() {
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <Card className="border-border/70 bg-card shadow-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base font-semibold text-foreground">Khuy&#7871;n ngh&#7883; AI</CardTitle>
+                  <CardTitle className="text-base font-semibold text-foreground">AI recommendations</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="divide-y divide-border/70">
@@ -1333,7 +1333,7 @@ export default function ExamAnalytics() {
                         <p className="text-sm font-semibold text-foreground">{translateMetricText(item.title)}</p>
                         <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{translateMetricText(item.detail)}</p>
                         <Button variant="ghost" size="sm" className="mt-2 h-8 px-0 text-primary hover:bg-transparent hover:text-primary/80" onClick={() => { trackAction("ai_recommendation_action"); openAction(item.action); }}>
-                          Th&#7921;c hi&#7879;n <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                          Take action <ExternalLink className="ml-1 h-3.5 w-3.5" />
                         </Button>
                       </div>
                     ))}
@@ -1344,16 +1344,16 @@ export default function ExamAnalytics() {
               <Card className="border-border/70 bg-card shadow-sm">
                 <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <CardTitle className="text-base font-semibold text-foreground">C&#7843;nh b&#225;o ch&#7845;t l&#432;&#7907;ng c&#226;u h&#7887;i</CardTitle>
-                    <CardDescription>H&#7895; tr&#7907; gi&#7843;ng vi&#234;n r&#224; so&#225;t n&#7897;i dung c&#226;u h&#7887;i.</CardDescription>
+                    <CardTitle className="text-base font-semibold text-foreground">Question quality alerts</CardTitle>
+                    <CardDescription>Helps lecturers review question content.</CardDescription>
                   </div>
                   <Button size="sm" variant="outline" className="h-8 gap-1 whitespace-nowrap" disabled={!selectedExamId} onClick={() => { trackAction("open_ai_quality_review"); router.push(`/lecturer/exam/${selectedExamId}/quality-review`); }}>
-                    <Sparkles className="h-3.5 w-3.5" /> R&#224; so&#225;t AI
+                    <Sparkles className="h-3.5 w-3.5" /> AI review
                   </Button>
                 </CardHeader>
                 <CardContent>
                   {(data.creatorQualityAlerts?.length ?? 0) === 0 ? (
-                    <p className="text-sm text-muted-foreground">Kh&#244;ng ph&#225;t hi&#7879;n c&#7843;nh b&#225;o ch&#7845;t l&#432;&#7907;ng c&#226;u h&#7887;i m&#7913;c r&#7911;i ro cao.</p>
+                    <p className="text-sm text-muted-foreground">No high-risk question quality alerts were found.</p>
                   ) : (
                     <div className="divide-y divide-border/70">
                       {data.creatorQualityAlerts.slice(0, 3).map((item) => (
@@ -1363,11 +1363,11 @@ export default function ExamAnalytics() {
                               <p className="text-sm font-semibold text-foreground">{translateMetricText(item.questionLabel)}</p>
                               <p className="mt-1 text-xs text-muted-foreground">{translateMetricText(item.signal)}</p>
                             </div>
-                            <Badge variant="outline" className="shrink-0 border-rose-200 bg-rose-50 text-rose-700">C&#7843;nh b&#225;o</Badge>
+                            <Badge variant="outline" className="shrink-0 border-rose-200 bg-rose-50 text-rose-700">Alert</Badge>
                           </div>
                           <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{translateMetricText(item.suggestion)}</p>
                           <Button variant="ghost" size="sm" className="mt-2 h-8 px-0 text-primary hover:bg-transparent hover:text-primary/80" onClick={() => { trackAction("quality_alert_open_question_bank"); openAction(item.action); }}>
-                            Xem c&#226;u h&#7887;i <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                            View question <ExternalLink className="ml-1 h-3.5 w-3.5" />
                           </Button>
                         </div>
                       ))}
@@ -1635,9 +1635,9 @@ export default function ExamAnalytics() {
 
                       {(reviewingImprovement.diagnosis?.reason || (reviewingImprovement.diagnosis?.issues || []).length > 0) ? (
                         <div className="rounded-lg border border-border bg-muted/30 p-4">
-                          <p className="text-sm font-medium text-foreground">Nh?n d?nh c?a AI</p>
+                          <p className="text-sm font-medium text-foreground">AI assessment</p>
                           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                            {translateAiAnalysisText(reviewingImprovement.diagnosis?.reason) || "AI chua cung c?p nh?n d?nh t?ng quan."}
+                            {translateAiAnalysisText(reviewingImprovement.diagnosis?.reason) || "AI did not provide an overall assessment."}
                           </p>
                           {(reviewingImprovement.diagnosis?.issues || []).length ? (
                             <div className="mt-3 space-y-2">
@@ -1796,11 +1796,11 @@ function QuestionComparisonCard({
           )}
         </ComparisonSection>
 
-        <ComparisonSection title="Th?" changed={isChanged("tags")}>
+        <ComparisonSection title="Tags" changed={isChanged("tags")}>
           <TagList values={snapshot.tags} emptyLabel="No tags." />
         </ComparisonSection>
 
-        <ComparisonSection title="Ch? d?" changed={isChanged("topics")}>
+        <ComparisonSection title="Topics" changed={isChanged("topics")}>
           <TagList values={snapshot.topics} emptyLabel="No topics." />
         </ComparisonSection>
       </CardContent>

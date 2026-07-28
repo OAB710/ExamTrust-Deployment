@@ -130,7 +130,7 @@ const buildQuestionBankSummaries = (
       (question.course?.code && courseByCode.get(question.course.code)) ||
       null;
     const courseId = course?.id || question.courseId || question.course?.id || "";
-    const courseCode = course?.code || question.course?.code || "Chung";
+    const courseCode = course?.code || question.course?.code || "General";
     const courseName = course?.name || question.course?.name || "No course assigned";
     const key = courseId || courseCode;
     const current =

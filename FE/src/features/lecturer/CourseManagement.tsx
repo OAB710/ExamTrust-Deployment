@@ -138,7 +138,7 @@ export default function CourseManagement() {
         id: c.id,
         code: c.code,
         name: c.name,
-        faculty: c.faculty ?? c.department ?? "Chung",
+        faculty: c.faculty ?? c.department ?? "General",
         department: c.department,
         academicYear: c.academicYear,
         term: c.term,
@@ -200,11 +200,11 @@ export default function CourseManagement() {
     () => [
       {
         key: "faculty",
-        label: "Khoa",
+        label: "Faculty",
         type: "select",
         allLabel: "All faculties",
         options: Array.from(
-          new Set(courses.map((course) => course.faculty || "Chung")),
+          new Set(courses.map((course) => course.faculty || "General")),
         ).map((faculty) => ({
           label: faculty,
           value: faculty,
@@ -275,7 +275,7 @@ export default function CourseManagement() {
       if (
         facultyFilter &&
         facultyFilter !== "all" &&
-        (course.faculty || "Chung") !== facultyFilter
+        (course.faculty || "General") !== facultyFilter
       ) {
         return false;
       }
@@ -396,7 +396,7 @@ export default function CourseManagement() {
             <AdminStatCard
               icon={Filter}
               value={facultiesCount}
-              label="Khoa"
+              label="Faculty"
             />
           </div>
         </section>
@@ -546,7 +546,7 @@ export default function CourseManagement() {
                 <SelectContent>
                   <SelectItem value="name">Course name</SelectItem>
                   <SelectItem value="code">Course code</SelectItem>
-                  <SelectItem value="faculty">Khoa</SelectItem>
+                  <SelectItem value="faculty">Faculty</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={viewMode} onValueChange={(value: "card" | "list") => setViewMode(value)}>
@@ -574,7 +574,7 @@ export default function CourseManagement() {
                       <TableRow className="bg-muted/50">
                         <TableHead className="w-36">Course code</TableHead>
                         <TableHead>Course name</TableHead>
-                        <TableHead className="w-40">Khoa</TableHead>
+                        <TableHead className="w-40">Faculty</TableHead>
                         <TableHead className="w-32">Term</TableHead>
                         <TableHead className="w-24 text-center">Students</TableHead>
                         <TableHead className="w-20 text-center">Exams</TableHead>

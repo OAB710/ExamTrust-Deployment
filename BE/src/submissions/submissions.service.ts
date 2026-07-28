@@ -2685,21 +2685,21 @@ export class SubmissionsService {
 
     const weakestTopic = weakestTopics[0];
     const slowestType = slowestQuestionTypes[0];
-    const aiSummary = `Hi\u1ec7u su\u1ea5t t\u1ed1t nh\u1ea5t \u1edf c\u00e1c c\u00e2u h\u1ecfi c\u01a1 b\u1ea3n, nh\u01b0ng \u0111i\u1ec3m y\u1ebfu t\u1eadp trung \u1edf ${weakestTopic ? `${weakestTopic.topicName} (${weakestTopic.incorrectRate.toFixed(0)}% sai)` : 'nhi\u1ec1u ch\u1ee7 \u0111\u1ec1'}. \u00c1p l\u1ef1c th\u1eddi gian cao nh\u1ea5t \u1edf ${slowestType ? `${slowestType.type} (${slowestType.avgTimeSeconds}s trung b\u00ecnh)` : 'c\u00e1c c\u00e2u h\u1ecfi t\u1ef1 lu\u1eadn'}. N\u00ean \u01b0u ti\u00ean luy\u1ec7n t\u1eadp c\u00f3 gi\u1edbi h\u1ea1n th\u1eddi gian tr\u01b0\u1edbc b\u00e0i ki\u1ec3m tra \u0111\u1ea7y \u0111\u1ee7 ti\u1ebfp theo.`;
+    const aiSummary = `Performance is strongest on foundational questions, while weaker areas are concentrated in ${weakestTopic ? `${weakestTopic.topicName} (${weakestTopic.incorrectRate.toFixed(0)}% incorrect)` : 'multiple topics'}. Time pressure is highest for ${slowestType ? `${slowestType.type} (${slowestType.avgTimeSeconds}s on average)` : 'essay questions'}. Prioritize short, timed practice before the next full exam.`;
 
     const aiRecommendations = [
       {
-        title: 'Luy\u1ec7n t\u1eadp l\u1ea1i ch\u1ee7 \u0111\u1ec1 y\u1ebfu',
+        title: 'Practice weak topics again',
         detail: weakestTopic
-          ? `T\u1ea1o b\u1ed9 luy\u1ec7n t\u1eadp t\u1eadp trung v\u00e0o ${weakestTopic.topicName} v\u1edbi \u0111\u1ed9 kh\u00f3 trung b\u00ecnh v\u00e0 gi\u1edbi h\u1ea1n th\u1eddi gian.`
-          : 'T\u1ea1o b\u1ed9 luy\u1ec7n t\u1eadp cho nh\u00f3m ch\u1ee7 \u0111\u1ec1 c\u00f3 hi\u1ec7u su\u1ea5t th\u1ea5p nh\u1ea5t.',
+          ? `Create a focused practice set for ${weakestTopic.topicName} with medium difficulty and a time limit.`
+          : 'Create a practice set for the lowest-performing group of topics.',
         action: weakestTopic?.action || { path: '/lecturer/question-bank', params: { courseId: exam.courseId } },
       },
       {
-        title: 'Gi\u1ea3m l\u1ed7i do \u00e1p l\u1ef1c th\u1eddi gian',
+        title: 'Reduce errors caused by time pressure',
         detail: slowestType
-          ? `Ng\u01b0\u1eddi h\u1ecdc m\u1ea5t nhi\u1ec1u th\u1eddi gian \u1edf d\u1ea1ng ${slowestType.type}. Th\u00eam b\u1ed9 luy\u1ec7n t\u1eadp ng\u1eafn 5-8 c\u00e2u c\u00f3 gi\u1edbi h\u1ea1n th\u1eddi gian tr\u01b0\u1edbc b\u00e0i thi \u0111\u1ea7y \u0111\u1ee7.`
-          : 'Th\u00eam b\u1ed9 luy\u1ec7n t\u1eadp ng\u1eafn c\u00f3 gi\u1edbi h\u1ea1n th\u1eddi gian cho c\u00e1c d\u1ea1ng c\u00e2u h\u1ecfi m\u1ea5t nhi\u1ec1u th\u1eddi gian.',
+          ? `Learners spend the most time on ${slowestType.type}. Add a short, timed set of 5–8 questions before the full exam.`
+          : 'Add a short, timed practice set for question types that take the longest.',
         action: slowestType?.action || { path: '/lecturer/question-bank', params: { courseId: exam.courseId } },
       },
     ];
@@ -2714,9 +2714,9 @@ export class SubmissionsService {
       .slice(0, 5)
       .map((q) => ({
         questionId: q.questionId,
-        questionLabel: `C\u00e2u ${q.orderIndex + 1}`,
-        signal: `${q.incorrectRate.toFixed(0)}% sai \u00b7 ${q.skipRate.toFixed(0)}% b\u1ecf qua \u00b7 ${q.flaggedCount} c\u1ea3nh b\u00e1o`,
-        suggestion: 'C\u00f3 d\u1ea5u hi\u1ec7u c\u00e2u h\u1ecfi d\u1ec5 g\u00e2y nh\u1ea7m l\u1eabn. H\u00e3y r\u00e0 so\u00e1t c\u00e1ch di\u1ec5n \u0111\u1ea1t, ph\u01b0\u01a1ng \u00e1n nhi\u1ec5u v\u00e0 m\u1ee9c \u0111\u1ed9 kh\u00f3.',
+        questionLabel: `Question ${q.orderIndex + 1}`,
+        signal: `${q.incorrectRate.toFixed(0)}% incorrect · ${q.skipRate.toFixed(0)}% skipped · ${q.flaggedCount} alerts`,
+        suggestion: 'This question may be confusing. Review its wording, distractors, and difficulty level.',
         action: q.action,
       }));
 
