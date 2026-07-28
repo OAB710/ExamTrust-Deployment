@@ -86,7 +86,16 @@ class ApiClient {
       throw new ApiRequestError(message, response.status, error?.code);
     }
 
-    const parsed = await response.json();
+    let parsed: T;
+    try {
+      parsed = await response.json();
+    } catch {
+      const text = await response.text().catch(() => '');
+      throw new ApiRequestError(
+        text || `Empty or non-JSON response (HTTP ${response.status})`,
+        response.status,
+      );
+    }
     if (isPerfLogEnabled()) {
       logPerf(
         `${method} ${endpoint} network=${responseReceivedMs}ms parse+total=${elapsedMs(startedAt)}ms`,
