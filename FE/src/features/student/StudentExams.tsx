@@ -353,7 +353,7 @@ export default function StudentExams() {
   const activeFilterChips = getFilterChips(appliedFilters, examFilterDefinitions);
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div className="space-y-6">
         <BackToDashboardButton to="/student" className="-ml-2" />
 
@@ -383,6 +383,8 @@ export default function StudentExams() {
               className="flex-1"
             />
             <FilterPanel
+              title="Exam filters"
+              description="Filter exams by status, course, and availability."
               filters={examFilterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -391,6 +393,8 @@ export default function StudentExams() {
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips

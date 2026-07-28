@@ -206,8 +206,8 @@ export default function ExamResultsList() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="mx-auto max-w-7xl space-y-5 rounded-3xl bg-gradient-to-b from-slate-50/90 via-background to-background px-4 py-5 sm:px-6 lg:px-8">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full space-y-5 rounded-3xl bg-gradient-to-b from-slate-50/90 via-background to-background px-4 py-5 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-4 rounded-3xl border border-border/70 bg-card/90 p-5 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-600">

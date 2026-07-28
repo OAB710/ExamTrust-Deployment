@@ -190,7 +190,7 @@ export default function ExamQualityReview() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell showBackButton={false}>
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-3">

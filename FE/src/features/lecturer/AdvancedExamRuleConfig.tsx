@@ -125,7 +125,7 @@ export default function AdvancedExamRuleConfig() {
   };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div className="max-w-4xl mx-auto">
         <BackToDashboardButton to="/lecturer" className="mb-4 -ml-2" />
 

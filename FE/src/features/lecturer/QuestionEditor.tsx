@@ -1121,8 +1121,8 @@ export default function QuestionEditor() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="max-w-6xl mx-auto px-3 sm:px-0">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full px-3 sm:px-0">
         {/* <BackToDashboardButton to={basePath} className="mb-2 -ml-2" /> */}
 
         <Button

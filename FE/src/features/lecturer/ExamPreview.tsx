@@ -254,8 +254,8 @@ export default function ExamPreview() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="max-w-5xl mx-auto space-y-6">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full space-y-6">
         {/* <BackToDashboardButton to="/lecturer" className="-ml-2" /> */}
 
         <div className="flex items-center justify-between gap-3 flex-wrap rounded-lg border bg-card px-6 py-5 shadow-sm">

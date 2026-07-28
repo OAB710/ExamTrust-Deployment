@@ -782,7 +782,7 @@ export default function QuestionBankManagement() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell backTo={basePath}>
         {questionDraft ? (
           <div className="mb-5 rounded-xl border border-warning/30 bg-warning/10 p-4 text-warning">
@@ -901,7 +901,8 @@ export default function QuestionBankManagement() {
                   onApply={applyCourseFilters}
                   onClear={clearCourseFilters}
                   activeCount={activeCourseFilterCount}
-                  className="shrink-0"
+                  compact
+                  className="w-full lg:basis-full"
                 />
               </div>
               <ActiveFilterChips
@@ -1123,7 +1124,8 @@ export default function QuestionBankManagement() {
                   onApply={applyQuestionFilters}
                   onClear={clearQuestionFilters}
                   activeCount={activeQuestionFilterCount}
-                  className="shrink-0"
+                  compact
+                  className="w-full lg:basis-full"
                 />
               </div>
               <ActiveFilterChips

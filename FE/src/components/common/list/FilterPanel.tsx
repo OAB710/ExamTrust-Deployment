@@ -207,8 +207,13 @@ export function FilterPanel({
       <div className={cn("flex items-center gap-3", title ? "justify-between" : "justify-end")}>
         {title ? (
           <div>
-            <h3 className="text-base font-semibold leading-6 text-foreground">{title}</h3>
-            {!inline ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+            <div className="flex items-center gap-2">
+              {inline ? <Filter className="h-4 w-4 text-primary" aria-hidden="true" /> : null}
+              <h3 className="text-base font-semibold leading-6 text-foreground">{title}</h3>
+            </div>
+            {!isMobile || !inline ? (
+              <p className="text-xs text-muted-foreground">{description}</p>
+            ) : null}
           </div>
         ) : null}
         {inline ? (

@@ -958,7 +958,7 @@ export default function ExamAnalytics() {
   const canApplyImprovement = reviewingImprovement?.status === "READY_FOR_REVIEW";
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell backTo="/lecturer">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
@@ -1052,10 +1052,10 @@ export default function ExamAnalytics() {
         </Card>
 
         {!selectedExamId && !loadingIntelligence ? (
-          <Card className="border-border/70 bg-card shadow-sm">
-            <CardContent className="py-12 text-center text-muted-foreground">
-              <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
-                <BarChart3 className="h-6 w-6 text-muted-foreground" />
+          <Card className="flex min-h-[calc(100vh-26rem)] flex-col border-border/70 bg-card shadow-sm">
+            <CardContent className="flex flex-1 flex-col items-center justify-center py-7 text-center text-muted-foreground sm:py-8">
+              <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+                <BarChart3 className="h-5 w-5 text-muted-foreground" />
               </div>
               <p className="text-lg font-medium">No exams found</p>
               <p className="text-sm mt-1">

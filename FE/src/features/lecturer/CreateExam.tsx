@@ -1247,7 +1247,7 @@ export default function CreateExam() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div
         className={`mx-auto space-y-6 px-3 sm:px-0 transition-[max-width] duration-300 ${
           step === "questions" ? "max-w-6xl" : "max-w-3xl"

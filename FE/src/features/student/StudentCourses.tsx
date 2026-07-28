@@ -247,7 +247,7 @@ export default function StudentCourses() {
   ];
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div className="space-y-6">
         <BackToDashboardButton to="/student" className="-ml-2" />
 
@@ -281,6 +281,8 @@ export default function StudentCourses() {
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips

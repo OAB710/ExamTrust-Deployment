@@ -175,8 +175,8 @@ export default function StudentExamDetail() {
   const shouldViewResult = hasCompletedSubmission;
 
   return (
-    <DashboardLayout>
-      <div className="mx-auto max-w-5xl space-y-6 rounded-2xl bg-[linear-gradient(180deg,hsl(200_40%_97%)_0%,hsl(0_0%_100%)_48%)] p-4 sm:p-5 lg:p-6">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full space-y-6 rounded-2xl bg-[linear-gradient(180deg,hsl(200_40%_97%)_0%,hsl(0_0%_100%)_48%)] p-4 sm:p-5 lg:p-6">
         <BackToDashboardButton to="/student/exams" label="Back to my exams" className="-ml-2" />
 
         {loading ? (

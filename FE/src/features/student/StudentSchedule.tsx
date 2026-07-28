@@ -278,7 +278,7 @@ export default function StudentSchedule() {
   const dateFilter = (draftFilters.startTime as { from?: string; to?: string }) || {};
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div className="space-y-6">
         <BackToDashboardButton to="/student" className="-ml-2" />
 

@@ -250,8 +250,8 @@ export default function GenerateExamLink() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="max-w-6xl mx-auto space-y-6">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full space-y-6">
         <BackToDashboardButton to="/lecturer" className="-ml-2" />
 
         <div>

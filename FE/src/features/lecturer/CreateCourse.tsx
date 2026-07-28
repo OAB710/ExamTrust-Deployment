@@ -1075,7 +1075,7 @@ export default function CreateCourse() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell backTo="/lecturer">
         <ListPageHeader
           title="Course management"

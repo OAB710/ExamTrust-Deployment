@@ -163,6 +163,7 @@ export default function StudentCourseDetail() {
       key: "startTime",
       label: "Start time",
       type: "date-range",
+      hideLabel: true,
     },
   ];
 
@@ -252,8 +253,8 @@ export default function StudentCourseDetail() {
   const activeFilterChips = getFilterChips(appliedFilters, examFilterDefinitions);
 
   return (
-    <DashboardLayout>
-      <div className="mx-auto max-w-6xl space-y-6">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full space-y-6">
         <div className="space-y-3">
           <BackToDashboardButton to="/student" className="-ml-2" />
 

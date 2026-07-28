@@ -149,9 +149,10 @@ const adminNavItems: NavItem[] = [
 
 interface DashboardLayoutProps {
   children: ReactNode;
+  contentClassName?: string;
 }
 
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+export function DashboardLayout({ children, contentClassName }: DashboardLayoutProps) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -452,7 +453,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           <div className="page-surface min-h-[calc(100dvh-4rem)] p-4 sm:p-5 lg:p-7">
-            <div className="mx-auto min-w-0 max-w-7xl">{children}</div>
+            <div className={cn("mx-auto min-w-0 max-w-7xl", contentClassName)}>{children}</div>
           </div>
         </main>
       </div>

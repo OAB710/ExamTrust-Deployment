@@ -145,8 +145,8 @@ export default function ManualGradingDetail() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="mx-auto max-w-5xl space-y-5 rounded-3xl bg-gradient-to-b from-slate-50/90 via-background to-background px-4 py-5 sm:px-6 lg:px-8">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full space-y-5 rounded-3xl bg-gradient-to-b from-slate-50/90 via-background to-background px-4 py-5 sm:px-6 lg:px-8">
         <Button
           variant="ghost"
           className="-ml-2 gap-2 text-muted-foreground"

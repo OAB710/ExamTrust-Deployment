@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 
 export default function MetricMethodologyReference() {
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div className="space-y-8">
         {/* <BackToDashboardButton to="/admin" className="-ml-2" /> */}
         <Card>

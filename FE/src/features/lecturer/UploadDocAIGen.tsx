@@ -243,8 +243,8 @@ export default function UploadDocAIGen() {
   const pendingCount = generated.filter((question) => question.approved === null).length;
 
   return (
-    <DashboardLayout>
-      <div className="max-w-4xl mx-auto">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full">
         <Button variant="ghost" size="sm" className="mb-4 gap-2 text-muted-foreground" onClick={() => router.push("/lecturer/question-bank")}>
           <ArrowLeft className="h-4 w-4" /> Back to Question Bank
         </Button>

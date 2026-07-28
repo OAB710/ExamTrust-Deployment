@@ -521,6 +521,7 @@ export default function CourseDetail() {
       key: "joinedAt",
       label: "Joined Date",
       type: "date-range",
+      hideLabel: true,
     },
     {
       key: "studentCode",
@@ -695,8 +696,8 @@ export default function CourseDetail() {
   }
 
   return (
-    <DashboardLayout>
-      <div className="max-w-6xl mx-auto space-y-6">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full space-y-6">
         {/* <BackToDashboardButton to={basePath} className="-ml-2" /> */}
 
         {/* Header */}
@@ -837,6 +838,8 @@ export default function CourseDetail() {
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips

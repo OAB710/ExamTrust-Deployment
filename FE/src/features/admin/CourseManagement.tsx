@@ -928,7 +928,7 @@ export default function AdminCourseManagement() {
   );
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell>
         <ListPageHeader
           title="All Courses"
@@ -1623,6 +1623,8 @@ export default function AdminCourseManagement() {
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips

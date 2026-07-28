@@ -226,6 +226,7 @@ export default function AdminExamManagement() {
         key: "createdAt",
         label: "Created date",
         type: "date-range",
+        hideLabel: true,
       },
     ],
     [courses, exams],
@@ -489,7 +490,7 @@ export default function AdminExamManagement() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell>
         <ListPageHeader title="All Exams" className="mb-4" />
 
@@ -552,6 +553,8 @@ export default function AdminExamManagement() {
               onApply={applyFilters}
               onClear={clearFilters}
               activeCount={activeFilterCount}
+              compact
+              className="w-full xl:basis-full"
             />
           </div>
           <ActiveFilterChips

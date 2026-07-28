@@ -67,8 +67,8 @@ export default function AuditLogViewer() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="max-w-7xl mx-auto">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full">
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-foreground mb-1">Audit Log Viewer</h1>

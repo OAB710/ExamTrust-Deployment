@@ -155,8 +155,8 @@ export default function Profile() {
         : "/student";
 
   return (
-    <DashboardLayout>
-      <div className="w-full max-w-6xl">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="w-full">
         <BackToDashboardButton to={dashboardPath} className="mb-4 -ml-2" />
 
         <h1 className="text-2xl font-semibold text-foreground mb-1">Profile</h1>

@@ -158,8 +158,8 @@ export default function QuestionHistoryAnalysis() {
   const firstMetric = (row: QuestionHistoryRow) => row.metrics.find((metric) => metric.attempts > 0) || row.metrics[0];
 
   return (
-    <DashboardLayout>
-      <div className="max-w-6xl mx-auto">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full">
         <Button variant="ghost" size="sm" className="mb-4 gap-2 text-muted-foreground" onClick={() => router.push(questionBankPath)}>
           <ArrowLeft className="h-4 w-4" /> Back to Question Bank
         </Button>

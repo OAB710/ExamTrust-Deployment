@@ -121,7 +121,7 @@ export default function SystemPolicyConfig() {
   };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell>
         <div className="flex items-start justify-between mb-6">
           <div>

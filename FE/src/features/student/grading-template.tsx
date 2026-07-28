@@ -183,8 +183,8 @@ export default function GradingTemplate() {
   const totalMax = autoMax + manualMax;
 
   return (
-    <DashboardLayout>
-      <div className="max-w-5xl mx-auto">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full">
         <BackToDashboardButton to="/student" className="mb-4 -ml-2" />
 
         <h1 className="text-2xl font-semibold text-foreground mb-1">

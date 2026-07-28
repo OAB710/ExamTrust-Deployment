@@ -566,7 +566,7 @@ export default function ExamManagement() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell backTo="/lecturer">
         <ListPageHeader
           title="Exam management"

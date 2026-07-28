@@ -137,7 +137,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell showBackButton={false}>
         {/* Header */}
         <div>

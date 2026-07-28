@@ -9,7 +9,7 @@ import { BackToDashboardButton } from "@/components/common/BackToDashboardButton
 
 export default function LearningFeedbackDetail() {
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div className="flex flex-col md:flex-row gap-8">
         <div className="w-full">
           <BackToDashboardButton to="/student" className="mb-4 -ml-2" />

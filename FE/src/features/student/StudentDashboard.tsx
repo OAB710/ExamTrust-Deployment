@@ -224,7 +224,7 @@ export default function StudentDashboard() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <div className="space-y-8">
         {/* Welcome Section */}
         <div className="animate-fade-in opacity-0">

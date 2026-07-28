@@ -741,8 +741,8 @@ export default function ExamMonitor() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="max-w-6xl mx-auto">
+    <DashboardLayout contentClassName="max-w-none">
+      <div className="mx-auto w-full">
         <BackToDashboardButton to={basePath} className="mb-4 -ml-2" />
 
         <div className="flex items-start justify-between mb-6">
@@ -970,6 +970,8 @@ export default function ExamMonitor() {
                     onApply={applyFilters}
                     onClear={clearFilters}
                     activeCount={activeFilterCount}
+                    compact
+                    className="w-full xl:basis-full"
                   />
                 </div>
                 <ActiveFilterChips

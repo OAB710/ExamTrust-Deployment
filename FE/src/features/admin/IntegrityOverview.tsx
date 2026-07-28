@@ -351,7 +351,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout contentClassName="max-w-none">
       <AdminPageShell>
         {lecturerScope ? <p className="mb-2 text-sm text-muted-foreground">Only signals from exams and courses you oversee are shown.</p> : null}
         <ListPageHeader title="Academic integrity" className="mb-4" />
