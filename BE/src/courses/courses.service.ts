@@ -289,7 +289,7 @@ export class CoursesService {
       },
     });
     if (activeWork > 0) {
-      throw new ConflictException('Không thể lưu trữ khóa học khi đang có bài thi hoặc lượt làm bài đang diễn ra.');
+      throw new ConflictException('A course cannot be archived while an exam or submission is in progress.');
     }
 
     return this.prisma.course.update({

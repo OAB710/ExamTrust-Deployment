@@ -2,6 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { TooltipProvider } from "@/components/ui/tooltip";
+
 const mocks = vi.hoisted(() => ({
   useAuth: vi.fn(),
   getExams: vi.fn(),
@@ -15,7 +17,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 
 vi.mock("@/components/layout/DashboardLayout", () => ({
   DashboardLayout: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
+    <TooltipProvider><div>{children}</div></TooltipProvider>
   ),
 }));
 
@@ -72,13 +74,13 @@ describe("LecturerDashboard question bank panel", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("Ngân hàng câu hỏi gần đây"),
+        screen.getByText("Recent question banks"),
       ).toBeInTheDocument(),
     );
     expect(screen.getByText("CLS001")).toBeInTheDocument();
     expect(screen.getByText("Academic Writing")).toBeInTheDocument();
-    expect(screen.getByText("Quản lý ngân hàng câu hỏi")).toBeInTheDocument();
-    expect(screen.queryByText("Quản lý khóa học")).not.toBeInTheDocument();
+    expect(screen.getByText("Manage question bank")).toBeInTheDocument();
+    expect(screen.queryByText("Manage courses")).not.toBeInTheDocument();
   });
 
   it("shows an empty state when the lecturer has no questions", async () => {
@@ -88,9 +90,9 @@ describe("LecturerDashboard question bank panel", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("Chưa có câu hỏi trong ngân hàng"),
+        screen.getByText("No questions in the question bank"),
       ).toBeInTheDocument(),
     );
-    expect(screen.getByText("Thêm câu hỏi")).toBeInTheDocument();
+    expect(screen.getByText("Add questions")).toBeInTheDocument();
   });
 });

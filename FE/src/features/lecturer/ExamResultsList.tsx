@@ -481,7 +481,7 @@ export default function ExamResultsList() {
                         colSpan={6}
                         className="py-10 text-center text-muted-foreground"
                       >
-                        Chưa có lượt nộp bài nào cho kỳ thi này.
+                        There are no submissions for this exam yet.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -524,9 +524,9 @@ export default function ExamResultsList() {
                             >
                               {isManualCompleted
                                 ? isPublished
-                                  ? "Xem điểm"
-                                  : "Đã chấm - sửa lại"
-                                : `Chấm ${manualRow.manualPending}/${manualRow.manualTotal}`}
+                                  ? "View grade"
+                                  : "Graded - edit"
+                                : `Grade ${manualRow.manualPending}/${manualRow.manualTotal}`}
                             </Button>
                           ) : (
                             <span className="text-xs text-muted-foreground">Auto only</span>
@@ -547,7 +547,7 @@ export default function ExamResultsList() {
           totalPages={totalPages}
           totalItems={submissions.length}
           onPageChange={setPage}
-          itemLabel="lượt nộp"
+          itemLabel="submissions"
           className="border-t-0 px-0"
         />
       </div>

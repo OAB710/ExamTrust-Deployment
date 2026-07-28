@@ -20,7 +20,7 @@ export default function LearningFeedbackDetail() {
           <Card className="mb-4">
             <CardHeader>
               <CardTitle className="text-base">
-                <HelpedTitle help="Feedback sau bài thi giúp bạn xem điểm, chủ đề yếu và gợi ý luyện tập.">
+                <HelpedTitle help="Post-exam feedback helps you review your score, weak topics, and practice suggestions.">
                   Exam Feedback
                 </HelpedTitle>
               </CardTitle>
@@ -85,7 +85,7 @@ export default function LearningFeedbackDetail() {
               <CardContent className="p-4 flex flex-col items-center">
                 <div className="text-3xl font-bold">78%</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  <HelpedTitle help="Ước lượng mức độ nắm vững chủ đề dựa trên kết quả trả lời và dạng lỗi thường gặp.">
+                  <HelpedTitle help="An estimate of topic mastery based on answers and common error patterns.">
                     Topic Mastery
                   </HelpedTitle>
                 </div>
@@ -103,7 +103,7 @@ export default function LearningFeedbackDetail() {
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>
-                <HelpedTitle help="Các lỗi lặp lại qua nhiều câu hỏi, dùng để ưu tiên phần cần ôn tập.">
+                <HelpedTitle help="Errors repeated across questions, used to prioritize what to review.">
                   Mistake Patterns
                 </HelpedTitle>
               </CardTitle>

@@ -21,34 +21,34 @@ import { Button } from "@/components/ui/button";
 const capabilityGroups = [
   {
     icon: Fingerprint,
-    title: "Đề riêng cho từng sinh viên",
+    title: "Individualized exams",
     description:
-      "Mỗi lượt thi có thứ tự câu hỏi và đáp án riêng, được lưu thành một phiên bản bất biến khi bắt đầu.",
+      "Each submission has its own question and answer order, saved as an immutable version when it begins.",
     className: "md:col-span-7 md:row-span-2 bg-primary text-primary-foreground",
     iconClassName: "bg-primary-foreground/12 text-primary-foreground",
   },
   {
     icon: FileClock,
-    title: "Lưu đúng lịch sử câu hỏi",
-    description: "Bài thi cũ luôn tham chiếu đúng phiên bản câu hỏi đã sử dụng.",
+    title: "Preserve question history",
+    description: "Older exams always refer to the exact question versions they used.",
     className: "md:col-span-5 bg-card",
   },
   {
     icon: ShieldCheck,
-    title: "Tín hiệu để con người xem xét",
-    description: "Hệ thống ghi nhận bất thường nhưng không tự kết luận gian lận.",
+    title: "Signals for human review",
+    description: "The system records anomalies but does not automatically determine misconduct.",
     className: "md:col-span-5 bg-accent/70",
   },
   {
     icon: Sparkles,
-    title: "AI có giảng viên kiểm duyệt",
-    description: "Câu hỏi do AI đề xuất phải được giảng viên xem và duyệt trước khi sử dụng.",
+    title: "Lecturer-reviewed AI",
+    description: "AI-proposed questions must be reviewed and approved by a lecturer before use.",
     className: "md:col-span-5 bg-card",
   },
   {
     icon: BarChart3,
-    title: "Phân tích có thể giải thích",
-    description: "Theo dõi độ khó, kết quả và chất lượng câu hỏi theo thời gian.",
+    title: "Explainable analytics",
+    description: "Track difficulty, outcomes, and question quality over time.",
     className: "md:col-span-7 bg-secondary/70",
   },
 ];
@@ -56,18 +56,18 @@ const capabilityGroups = [
 const operatingPrinciples = [
   {
     icon: BookOpenCheck,
-    title: "Chuẩn bị",
-    description: "Giảng viên xây đề từ ngân hàng câu hỏi có phiên bản và cấu hình quy tắc rõ ràng.",
+    title: "Prepare",
+    description: "Lecturers build exams from a versioned question bank with clear rule configuration.",
   },
   {
     icon: Laptop,
-    title: "Tổ chức thi",
-    description: "Sinh viên làm bài trong giao diện tập trung, có autosave và hỗ trợ khôi phục kết nối.",
+    title: "Deliver",
+    description: "Students take exams in a focused interface with autosave and connection-recovery support.",
   },
   {
     icon: BarChart3,
-    title: "Xem xét",
-    description: "Kết quả, sự kiện và tín hiệu toàn vẹn được trình bày để giảng viên ra quyết định.",
+    title: "Review",
+    description: "Results, events, and integrity signals are presented to support lecturer decisions.",
   },
 ];
 
@@ -80,22 +80,22 @@ export default function Landing() {
         <section className="page-surface overflow-hidden pb-16 pt-10 sm:pt-14 lg:pb-24 lg:pt-16">
           <div className="container grid items-center gap-10 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:gap-14">
             <div className="relative z-10 max-w-2xl">
-              <p className="mb-5 text-sm font-semibold text-primary">Đánh giá học thuật có thể kiểm chứng</p>
+              <p className="mb-5 text-sm font-semibold text-primary">Verifiable academic assessment</p>
               <h1 className="max-w-[13ch] text-4xl font-semibold leading-[1.08] tracking-[-0.055em] sm:text-5xl lg:text-6xl">
-                Mỗi bài thi rõ ràng từ lúc tạo đến khi chấm
+                Every exam is clear from creation through grading
               </h1>
               <p className="mt-6 max-w-[56ch] text-base leading-7 text-muted-foreground sm:text-lg">
-                Đề thi riêng, lịch sử bất biến và tín hiệu toàn vẹn để giảng viên xem xét công bằng.
+                Individualized exams, immutable history, and integrity signals for fair lecturer review.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button asChild size="lg" className="group">
                   <Link href="/login">
-                    Đăng nhập
+                    Sign in
                     <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
-                  <Link href="#nang-luc">Khám phá nền tảng</Link>
+                  <Link href="#nang-luc">Explore the platform</Link>
                 </Button>
               </div>
             </div>
@@ -105,7 +105,7 @@ export default function Landing() {
               <div className="overflow-hidden rounded-2xl border border-border/80 bg-card p-2 shadow-heavy">
                 <Image
                   src="/examtrust-hero.png"
-                  alt="Hồ sơ bài thi được lưu theo từng phiên bản để phục vụ kiểm tra và đối chiếu"
+                  alt="Exam records saved by version for review and comparison"
                   width={1456}
                   height={1118}
                   priority
@@ -120,9 +120,9 @@ export default function Landing() {
         <section id="nang-luc" className="py-20 sm:py-24">
           <div className="container">
             <div className="max-w-2xl">
-              <h2 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Nền tảng cho một kỳ thi đáng tin cậy</h2>
+              <h2 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">A platform for trustworthy exams</h2>
               <p className="mt-4 max-w-[60ch] text-base leading-7 text-muted-foreground">
-                Mỗi khả năng đều phục vụ một mục tiêu: bảo toàn bằng chứng, giảm thao tác thủ công và hỗ trợ quyết định có trách nhiệm.
+                Every capability serves one goal: preserve evidence, reduce manual work, and support responsible decisions.
               </p>
             </div>
 
@@ -152,7 +152,7 @@ export default function Landing() {
             <div className="overflow-hidden rounded-2xl border border-border/80 bg-muted shadow-medium">
               <Image
                 src="/examtrust-exam-experience.png"
-                alt="Sinh viên tập trung làm bài thi trên máy tính trong thư viện"
+                alt="Student focused on an exam on a computer in a library"
                 width={1536}
                 height={1024}
                 className="aspect-[3/2] w-full object-cover"
@@ -160,20 +160,20 @@ export default function Landing() {
               />
             </div>
             <div className="max-w-xl">
-              <h2 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Tập trung vào bài làm, không bị công cụ làm phiền</h2>
+              <h2 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Focus on the exam, not the tools</h2>
               <p className="mt-5 text-base leading-7 text-muted-foreground">
-                Giao diện thi ưu tiên câu hỏi, thời gian còn lại, trạng thái lưu bài và hướng dẫn khôi phục khi kết nối gián đoạn.
+                The exam interface prioritizes questions, time remaining, save status, and recovery guidance when the connection is interrupted.
               </p>
               <div className="mt-8 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl bg-secondary/70 p-5">
                   <WifiOff className="h-5 w-5 text-primary" aria-hidden="true" />
-                  <h3 className="mt-4 text-base font-semibold">Sẵn sàng khi mạng chập chờn</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">Câu trả lời được lưu và đồng bộ lại theo cơ chế hiện có của hệ thống.</p>
+                  <h3 className="mt-4 text-base font-semibold">Ready for unstable networks</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">Answers are saved and synchronized again through the system's existing mechanisms.</p>
                 </div>
                 <div className="rounded-xl bg-accent/70 p-5">
                   <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-                  <h3 className="mt-4 text-base font-semibold">Giám sát có giới hạn</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">Sự kiện được ghi nhận minh bạch để giảng viên xem xét trong ngữ cảnh.</p>
+                  <h3 className="mt-4 text-base font-semibold">Limited monitoring</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">Events are recorded transparently for lecturer review in context.</p>
                 </div>
               </div>
             </div>
@@ -182,7 +182,7 @@ export default function Landing() {
 
         <section className="py-20 sm:py-24">
           <div className="container">
-            <h2 className="max-w-xl text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">Một quy trình xuyên suốt cho ba vai trò</h2>
+            <h2 className="max-w-xl text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">One workflow for three roles</h2>
             <div className="mt-12 grid gap-8 md:grid-cols-3">
               {operatingPrinciples.map((principle, index) => (
                 <article key={principle.title} className="border-t border-primary/40 pt-6">
@@ -202,13 +202,13 @@ export default function Landing() {
           <div className="container">
             <div className="grid items-center gap-8 rounded-2xl bg-primary px-6 py-10 text-primary-foreground sm:px-10 lg:grid-cols-[1fr_auto] lg:px-14 lg:py-12">
               <div>
-                <h2 className="text-3xl font-semibold text-primary-foreground tracking-[-0.04em]">Bắt đầu từ vai trò của bạn</h2>
+                <h2 className="text-3xl font-semibold text-primary-foreground tracking-[-0.04em]">Start with your role</h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-primary-foreground/78 sm:text-base">
-                  Truy cập dữ liệu demo hiện có để trải nghiệm luồng sinh viên, giảng viên hoặc quản trị viên.
+                  Access the available demo data to experience the student, lecturer, or administrator workflow.
                 </p>
               </div>
               <Button asChild size="lg" variant="secondary" className="w-full bg-primary-foreground text-primary hover:bg-primary-foreground/90 lg:w-auto">
-                <Link href="/login">Mở trang đăng nhập</Link>
+                <Link href="/login">Open sign-in page</Link>
               </Button>
             </div>
           </div>
@@ -223,10 +223,10 @@ export default function Landing() {
             </span>
             ExamTrust
           </Link>
-          <nav aria-label="Liên kết cuối trang" className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-            <Link href="#nang-luc" className="hover:text-foreground">Năng lực</Link>
-            <Link href="/privacy" className="hover:text-foreground">Quyền riêng tư</Link>
-            <Link href="/login" className="hover:text-foreground">Đăng nhập</Link>
+          <nav aria-label="Footer links" className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
+            <Link href="#nang-luc" className="hover:text-foreground">Capabilities</Link>
+            <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
+            <Link href="/login" className="hover:text-foreground">Sign in</Link>
           </nav>
           <p className="text-sm text-muted-foreground">© 2026 ExamTrust</p>
         </div>

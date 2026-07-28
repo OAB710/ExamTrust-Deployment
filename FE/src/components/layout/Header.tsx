@@ -52,19 +52,19 @@ export function Header() {
                 <DropdownMenuItem asChild>
                   <Link href="/profile" className="flex items-center">
                     <User className="mr-2 h-4 w-4" />
-                  Hồ sơ cá nhân
+                  Profile
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
-                  Đăng xuất
+                  Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <Button asChild variant="outline" size="sm" className="px-5 text-sm">
-              <Link href="/login">Đăng nhập</Link>
+              <Link href="/login">Sign in</Link>
             </Button>
           )}
         </nav>

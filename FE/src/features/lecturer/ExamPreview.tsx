@@ -67,17 +67,17 @@ type ExamData = {
 
 function normalizeType(rawType?: string) {
   const labels: Record<string, string> = {
-    MULTIPLE_CHOICE: "Trắc nghiệm",
-    MULTI_SELECT: "Chọn nhiều",
-    TRUE_FALSE: "Đúng / Sai",
-    MATCHING: "Ghép nối",
-    SHORT_ANSWER: "Trả lời ngắn",
-    ESSAY: "Tự luận",
-    FILL_IN_BLANK: "Điền khuyết",
-    ORDERING: "Sắp xếp thứ tự",
-    FIND_ERROR: "Tìm lỗi sai",
+    MULTIPLE_CHOICE: "Multiple choice",
+    MULTI_SELECT: "Multiple select",
+    TRUE_FALSE: "True / False",
+    MATCHING: "Matching",
+    SHORT_ANSWER: "Short answer",
+    ESSAY: "Essay",
+    FILL_IN_BLANK: "Fill in the blank",
+    ORDERING: "Ordering",
+    FIND_ERROR: "Find the error",
   };
-  if (!rawType) return "Không rõ";
+  if (!rawType) return "Unknown";
   return labels[rawType.toUpperCase()] || rawType.replace(/_/g, " ");
 }
 
@@ -137,7 +137,7 @@ function getCorrectAnswerText(correctAnswer: any, options: ExamQuestion["questio
       .join("; ");
   }
 
-  if (answer == null || answer === "") return "Chưa có đáp án";
+  if (answer == null || answer === "") return "No answer provided";
   const key = String(answer);
   return optionMap.has(key) ? `${key}. ${optionMap.get(key)}` : key;
 }
@@ -391,19 +391,19 @@ export default function ExamPreview() {
 
         <Card>
           <CardHeader className="border-b bg-info/5">
-            <CardTitle>Xem trước bài thi</CardTitle>
+            <CardTitle>Exam preview</CardTitle>
             <CardDescription>
-              Rà soát câu hỏi, đáp án đúng và cấu hình trước khi sinh viên làm bài.
+              Review questions, correct answers, and settings before students take the exam.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3 flex-wrap text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1">
-                <Clock className="h-4 w-4" /> {exam.duration} phút
+                <Clock className="h-4 w-4" /> {exam.duration} minutes
               </span>
               <span className="inline-flex items-center gap-1">
                 <BookOpen className="h-4 w-4" />{" "}
-                {exam.examQuestions?.length || 0} câu hỏi
+                {exam.examQuestions?.length || 0} questions
               </span>
               {timeline.start && (
                 <Badge
@@ -434,17 +434,17 @@ export default function ExamPreview() {
 
         <Card>
           <CardHeader className="border-b bg-muted/30">
-            <CardTitle>Câu hỏi</CardTitle>
+            <CardTitle>Questions</CardTitle>
             <CardDescription>
               {timeline.isEnded
-                ? "Bài thi đã kết thúc. Không thể chỉnh sửa trong màn hình này."
-                : "Xem trước câu hỏi, đáp án đúng và chỉnh sửa từng câu nếu cần."}
+                ? "The exam has ended. It cannot be edited from this screen."
+                : "Preview questions and correct answers, and edit individual questions if needed."}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {!exam.examQuestions?.length ? (
               <div className="py-8 text-center text-muted-foreground">
-                Bài thi chưa có câu hỏi.
+                This exam has no questions yet.
               </div>
             ) : (
               <div className="space-y-4">
@@ -464,21 +464,21 @@ export default function ExamPreview() {
                       <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-4 py-3">
                         <div className="flex items-center gap-2">
                           <Badge className="bg-info text-info-foreground hover:bg-info">
-                            Câu {index + 1}
+                            Question {index + 1}
                           </Badge>
                           <Badge variant="secondary">
                             {normalizeType(eq.question?.type)}
                           </Badge>
                         </div>
                         <div className="text-xs font-medium text-muted-foreground">
-                          Độ khó: {eq.question?.difficulty ?? "-"} | Điểm:{" "}
+                          Difficulty: {eq.question?.difficulty ?? "-"} | Points:{" "}
                           {eq.question?.points ?? "-"}
                         </div>
                       </div>
 
                       <div className="space-y-4 p-4">
                         <p className="rounded-md border border-border/70 bg-background px-4 py-3 text-sm font-medium leading-6 whitespace-pre-wrap">
-                          {eq.question?.content || "Chưa có nội dung"}
+                          {eq.question?.content || "No content available"}
                         </p>
 
                         {options.length > 0 ? (
@@ -516,7 +516,7 @@ export default function ExamPreview() {
                         <div className="rounded-md border border-success/30 bg-success/10 px-4 py-3">
                           <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-success">
                             <CheckCircle2 className="h-4 w-4" />
-                            Đáp án đúng
+                            Correct answer
                           </div>
                           <p className="text-sm leading-6 text-foreground">
                             {correctAnswerText}
@@ -526,7 +526,7 @@ export default function ExamPreview() {
                         {eq.question?.explanation ? (
                           <div className="rounded-md border border-info/25 bg-info/5 px-4 py-3">
                             <p className="text-xs font-semibold uppercase text-info">
-                              Giải thích / rubric
+                              Explanation / rubric
                             </p>
                             <p className="mt-1 text-sm leading-6 text-foreground">
                               {eq.question.explanation}
@@ -547,7 +547,7 @@ export default function ExamPreview() {
                               href={`${basePath}/question-editor?id=${eq.question.id}`}
                             >
                               <PencilLine className="h-4 w-4 mr-1" />
-                              Sửa câu hỏi
+                              Edit question
                             </Link>
                           </Button>
                         </div>

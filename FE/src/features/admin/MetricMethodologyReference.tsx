@@ -14,7 +14,7 @@ export default function MetricMethodologyReference() {
         <Card>
           <CardHeader>
             <CardTitle>
-              <HelpedTitle help="Tài liệu tham chiếu cho công thức và ý nghĩa các chỉ số học thuật, giúp đánh giá minh bạch và nhất quán.">
+              <HelpedTitle help="Reference material for academic-metric formulas and meanings, supporting transparent and consistent assessment.">
                 Academic Metric Methodology Reference
               </HelpedTitle>
             </CardTitle>
@@ -27,7 +27,7 @@ export default function MetricMethodologyReference() {
             <Separator className="my-4" />
             <section>
               <h2 className="text-lg font-semibold mb-2">
-                <HelpedTitle help="Mức độ khó được tính từ tỷ lệ sinh viên trả lời đúng; dùng để đánh giá chất lượng và độ phù hợp của câu hỏi.">
+                <HelpedTitle help="Difficulty is calculated from the student correct-answer rate and is used to assess question quality and suitability.">
                   1. Difficulty Index
                 </HelpedTitle>
               </h2>

@@ -142,7 +142,7 @@ describe("CreateCourse expandable course exams", () => {
     fireEvent.click(screen.getByRole("button", { name: /CLS002/ }));
 
     expect(
-      await screen.findByText("Khóa học này chưa có bài kiểm tra."),
+      await screen.findByText("This course has no exams yet."),
     ).toBeInTheDocument();
   });
 
@@ -170,10 +170,10 @@ describe("CreateCourse expandable course exams", () => {
     fireEvent.click(screen.getByRole("button", { name: /CLS001/ }));
 
     expect(
-      await screen.findByText("Không tải được bài kiểm tra của khóa học này."),
+      await screen.findByText("Unable to load this course's exams."),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(await screen.findByText("Retry loaded exam")).toBeInTheDocument();
     expect(mocks.getExams).toHaveBeenCalledTimes(2);
@@ -203,7 +203,7 @@ describe("CreateCourse expandable course exams", () => {
     expect(mocks.push).not.toHaveBeenCalled();
 
     await screen.findByText("Published exam");
-    fireEvent.click(screen.getByRole("button", { name: "Xem trước" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(mocks.push).toHaveBeenCalledWith("/lecturer/exam/exam-1/preview");
 
     mocks.push.mockClear();

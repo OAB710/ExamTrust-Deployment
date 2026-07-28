@@ -157,9 +157,9 @@ export default function SystemPolicyConfig() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Shield className="h-4 w-4" />
                 <HelpedTitle help={{
-                  description: "Cấu hình ngưỡng cảnh báo toàn vẹn học thuật ở cấp hệ thống.",
-                  usedBy: "Quản trị viên dùng để điều chỉnh mức nhạy của các tín hiệu như tương đồng câu trả lời, chuyển tab hoặc bất thường thời gian.",
-                  note: "Các tín hiệu chỉ hỗ trợ xem xét, không tự kết luận gian lận.",
+                  description: "Configure system-wide academic-integrity warning thresholds.",
+                  usedBy: "Administrators adjust the sensitivity of signals such as answer similarity, tab switches, or time anomalies.",
+                  note: "Signals support review only; they do not automatically determine misconduct.",
                 }}>
                   Global Integrity Thresholds
                 </HelpedTitle>
@@ -251,9 +251,9 @@ export default function SystemPolicyConfig() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Eye className="h-4 w-4" />
                 <HelpedTitle help={{
-                  description: "Thiết lập mặc định cho cách tính điểm, ngưỡng đạt và quy đổi điểm.",
-                  usedBy: "Quản trị viên cấu hình chính sách chung để giảng viên có điểm khởi tạo nhất quán.",
-                  note: "Một số bài thi có thể có cấu hình riêng nếu được hỗ trợ ở cấp bài thi.",
+                  description: "Set defaults for grading method, passing thresholds, and score conversion.",
+                  usedBy: "Administrators configure common policies so lecturers start from consistent defaults.",
+                  note: "Some exams may have their own configuration if exam-level overrides are supported.",
                 }}>
                   Scoring Policies
                 </HelpedTitle>
@@ -346,9 +346,9 @@ export default function SystemPolicyConfig() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Lock className="h-4 w-4" />
                 <HelpedTitle help={{
-                  description: "Thiết lập bảo mật đăng nhập, phiên làm việc và giới hạn truy cập.",
-                  usedBy: "Quản trị viên dùng để giảm rủi ro truy cập trái phép và kiểm soát phiên đăng nhập.",
-                  note: "Thay đổi chính sách bảo mật có thể ảnh hưởng trực tiếp đến trải nghiệm đăng nhập của người dùng.",
+                  description: "Configure sign-in security, sessions, and access limits.",
+                  usedBy: "Administrators use this to reduce unauthorized-access risk and control sign-in sessions.",
+                  note: "Changing security policy can directly affect the user sign-in experience.",
                 }}>
                   Access & Security
                 </HelpedTitle>
@@ -461,9 +461,9 @@ export default function SystemPolicyConfig() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Database className="h-4 w-4" />
                 <HelpedTitle help={{
-                  description: "Quy định thời gian lưu trữ dữ liệu bài thi, nhật ký và bản ghi hệ thống.",
-                  usedBy: "Quản trị viên dùng để cân bằng giữa nhu cầu truy vết, tuân thủ và dung lượng lưu trữ.",
-                  note: "Không nên rút ngắn thời gian lưu trữ nếu vẫn cần phục vụ phúc khảo hoặc điều tra.",
+                  description: "Define retention periods for exam data, logs, and system records.",
+                  usedBy: "Administrators balance traceability, compliance, and storage needs.",
+                  note: "Do not shorten retention while data may still be needed for appeals or investigations.",
                 }}>
                   Data Retention
                 </HelpedTitle>
@@ -526,7 +526,7 @@ export default function SystemPolicyConfig() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
-                <HelpedTitle help="Dùng khi cần bảo trì hệ thống hoặc tạm hạn chế truy cập của người dùng không phải quản trị viên.">
+                <HelpedTitle help="Use when maintaining the system or temporarily restricting access for non-administrator users.">
                   System Maintenance
                 </HelpedTitle>
               </CardTitle>

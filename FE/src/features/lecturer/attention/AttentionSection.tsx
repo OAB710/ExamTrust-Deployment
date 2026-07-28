@@ -54,16 +54,16 @@ export function AttentionSection() {
             <div className="flex items-center gap-2">
               <CardTitle className="text-lg font-bold">
                 <HelpedTitle help={{
-                  description: "Hiển thị các công việc, cảnh báo hoặc yêu cầu đang cần bạn xử lý.",
-                  usedBy: "Giảng viên dùng để ưu tiên các việc như bài thi sắp diễn ra, bài cần giám sát hoặc câu hỏi cần rà soát.",
-                  note: "Mục này chỉ gom việc cần chú ý; quyết định xử lý vẫn do giảng viên thực hiện.",
+                  description: "Shows work items, warnings, or requests that need your attention.",
+                  usedBy: "Lecturers use it to prioritize upcoming exams, sessions needing monitoring, or questions needing review.",
+                  note: "This section groups items requiring attention; lecturers still make the handling decisions.",
                 }}>
-                  Cần bạn chú ý
+                  Needs your attention
                 </HelpedTitle>
               </CardTitle>
             </div>
             <CardDescription>
-              Các nhiệm vụ quan trọng và thời hạn sắp tới
+              Important tasks and upcoming deadlines
             </CardDescription>
           </div>
           {items.length > 0 && (
@@ -74,7 +74,7 @@ export function AttentionSection() {
               asChild
             >
               <Link href="/lecturer/exams">
-                Xem tất cả
+                View all
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </Button>
@@ -105,7 +105,7 @@ export function AttentionSection() {
         {!loading && error && (
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <p className="text-sm font-medium text-foreground">
-              Không thể tải danh sách
+              Unable to load the list
             </p>
             <Button
               type="button"
@@ -115,7 +115,7 @@ export function AttentionSection() {
               onClick={() => void retry()}
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Thử lại
+              Try again
             </Button>
           </div>
         )}
@@ -125,10 +125,10 @@ export function AttentionSection() {
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
             <p className="text-sm font-medium text-foreground">
-              Bạn đã xử lý xong mọi việc
+              You are all caught up
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Không có nhiệm vụ khẩn cấp nào cần bạn xử lý.
+              There are no urgent tasks requiring your attention.
             </p>
           </div>
         )}

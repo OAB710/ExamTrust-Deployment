@@ -125,15 +125,7 @@ type ComparisonFieldKey =
   | "topics";
 
 const QUESTION_TYPE_LABELS: Record<string, string> = {
-  MULTIPLE_CHOICE: "Trắc nghiệm",
-  MULTI_SELECT: "Nhiều đáp án",
-  TRUE_FALSE: "Đúng / Sai",
-  SHORT_ANSWER: "Trả lời ngắn",
-  ESSAY: "Tự luận",
-  FILL_IN_BLANK: "Điền khuyết",
-  MATCHING: "Ghép đôi",
-  ORDERING: "Sắp xếp",
-  FIND_ERROR: "Tìm lỗi sai",
+  MULTIPLE_CHOICE: "Multiple choice", MULTI_SELECT: "Multiple select", TRUE_FALSE: "True / False", SHORT_ANSWER: "Short answer", ESSAY: "Essay", FILL_IN_BLANK: "Fill in the blank", MATCHING: "Matching", ORDERING: "Ordering", FIND_ERROR: "Find the error",
 };
 
 function getCourseLabel(course?: QuestionCourseInfo | null) {
@@ -148,9 +140,9 @@ function getCourseLabel(course?: QuestionCourseInfo | null) {
 // Easy/Medium/Hard buttons: 0.3/0.5/0.7 slider values * 10 => ~3/5/7).
 function getDifficultyLabel(value?: number | null) {
   const normalized = Number.isFinite(Number(value)) ? Math.round(Number(value)) : 1;
-  if (normalized <= 4) return { text: "Dễ", className: "text-emerald-600" };
-  if (normalized === 5) return { text: "Trung bình", className: "text-amber-600" };
-  return { text: "Khó", className: "text-rose-600" };
+  if (normalized <= 4) return { text: "Easy", className: "text-emerald-600" };
+  if (normalized === 5) return { text: "Medium", className: "text-amber-600" };
+  return { text: "Hard", className: "text-rose-600" };
 }
 
 function formatPreviewDate(value?: string | null) {
@@ -168,11 +160,7 @@ function formatPreviewDate(value?: string | null) {
 }
 
 const ISSUE_LABELS: Record<string, string> = {
-  INCORRECT_ANSWER: "Sai đáp án",
-  POOR_EXPLANATION: "Giải thích chưa rõ",
-  AMBIGUOUS_QUESTION: "Câu hỏi mơ hồ",
-  INVALID_OPTIONS: "Phương án chưa hợp lệ",
-  POOR_CONTENT: "Nội dung chưa rõ",
+  INCORRECT_ANSWER: "Incorrect answer", POOR_EXPLANATION: "Unclear explanation", AMBIGUOUS_QUESTION: "Ambiguous question", INVALID_OPTIONS: "Invalid options", POOR_CONTENT: "Unclear content",
 };
 
 const safeJsonValue = (value: any) => {
@@ -241,15 +229,7 @@ const hasFieldChanged = (before: any, after: any) =>
   JSON.stringify(safeJsonValue(before) ?? "") !== JSON.stringify(safeJsonValue(after) ?? "");
 
 const COMPARISON_FIELDS: Array<{ key: ComparisonFieldKey; label: string }> = [
-  { key: "content", label: "Nội dung câu hỏi" },
-  { key: "type", label: "Loại câu hỏi" },
-  { key: "options", label: "Phương án" },
-  { key: "correctAnswer", label: "Đáp án đúng" },
-  { key: "explanation", label: "Giải thích" },
-  { key: "difficulty", label: "Độ khó" },
-  { key: "points", label: "Điểm" },
-  { key: "tags", label: "Thẻ" },
-  { key: "topics", label: "Chủ đề" },
+  { key: "content", label: "Question content" }, { key: "type", label: "Question type" }, { key: "options", label: "Options" }, { key: "correctAnswer", label: "Correct answer" }, { key: "explanation", label: "Explanation" }, { key: "difficulty", label: "Difficulty" }, { key: "points", label: "Points" }, { key: "tags", label: "Tags" }, { key: "topics", label: "Topics" },
 ];
 
 const normalizeStringList = (value: any): string[] => {
@@ -377,10 +357,10 @@ const formatAcademicYear = (year: string | null | undefined): string => {
 const translateAiAnalysisText = (value?: string) => {
   if (!value) return "";
   return value
-    .replace(/The question's current formulation lacks sufficient clarity regarding the application of WHERE and HAVING clauses when filtering aggregate results\./g, "Cách diễn đạt hiện tại chưa đủ rõ về việc sử dụng WHERE và HAVING khi lọc kết quả tổng hợp.")
-    .replace(/The explanation is also too brief and doesn.t adequately illustrate the distinction\./g, "Phần giải thích còn quá ngắn và chưa làm rõ sự khác biệt.")
-    .replace(/Question stem and explanation are not clear enough to differentiate between WHERE and HAVING clauses in the context of aggregate filtering\./g, "Đề bài và phần giải thích chưa đủ rõ để phân biệt WHERE và HAVING trong ngữ cảnh lọc dữ liệu tổng hợp.")
-    .replace(/The 100% incorrect rate suggests students are struggling to identify the correct clause\./g, "Tỷ lệ sai 100% cho thấy sinh viên đang gặp khó khăn khi xác định mệnh đề đúng.");
+    .replace(/The question's current formulation lacks sufficient clarity regarding the application of WHERE and HAVING clauses when filtering aggregate results\./g, "The current wording does not clearly explain how to use WHERE and HAVING when filtering aggregate results.")
+    .replace(/The explanation is also too brief and doesn.t adequately illustrate the distinction\./g, "The explanation is too brief and does not clearly illustrate the distinction.")
+    .replace(/Question stem and explanation are not clear enough to differentiate between WHERE and HAVING clauses in the context of aggregate filtering\./g, "The question and explanation do not clearly distinguish WHERE from HAVING in aggregate filtering.")
+    .replace(/The 100% incorrect rate suggests students are struggling to identify the correct clause\./g, "A 100% incorrect-answer rate suggests students are struggling to identify the correct clause.");
 };
 
 const translateMetricText = (value: string) =>
@@ -671,7 +651,7 @@ export default function ExamAnalytics() {
       setPreviewError(
         error instanceof Error
           ? error.message
-          : "Không thể tải chi tiết câu hỏi.",
+          : "Unable to load question details.",
       );
     } finally {
       setPreviewLoading(false);
@@ -695,19 +675,19 @@ export default function ExamAnalytics() {
   const formatAiStatus = (status?: string) => {
     switch (status) {
       case "QUEUED":
-        return "Đang chờ AI xử lý";
+        return "Awaiting AI processing";
       case "GENERATING":
-        return "AI đang cải thiện câu hỏi...";
+        return "AI is improving the question...";
       case "READY_FOR_REVIEW":
-        return "AI đã đề xuất bản mới";
+        return "AI proposed a new version";
       case "APPROVED":
-        return "Đã cải thiện chất lượng câu hỏi";
+        return "Question quality improved";
       case "REJECTED":
-        return "Đã từ chối đề xuất AI";
+        return "AI suggestion rejected";
       case "FAILED":
-        return "Không thể tạo đề xuất";
+        return "Unable to create suggestion";
       case "EXPIRED":
-        return "Đề xuất không còn phù hợp";
+        return "Suggestion is no longer applicable";
       default:
         return "";
     }
@@ -742,7 +722,7 @@ export default function ExamAnalytics() {
         [item.questionId]: {
           id: "",
           status: "FAILED",
-          errorMessage: error instanceof Error ? error.message : "Không thể tạo đề xuất AI.",
+          errorMessage: error instanceof Error ? error.message : "Unable to create AI suggestion.",
         },
       }));
     } finally {
@@ -839,7 +819,7 @@ export default function ExamAnalytics() {
       setReviewingImprovement(detail);
       setQuestionImprovement(questionId, detail);
     } catch (error) {
-      setReviewError(error instanceof Error ? error.message : "Không thể tải đề xuất AI.");
+      setReviewError(error instanceof Error ? error.message : "Unable to load AI suggestion.");
     } finally {
       setReviewBusy(false);
     }
@@ -849,14 +829,14 @@ export default function ExamAnalytics() {
     if (!reviewingImprovement) return;
     const finalDraft = reviewingImprovement.finalApproved || reviewingImprovement.proposal || null;
     if (!finalDraft) {
-      setReviewError("Không tìm thấy bản cải thiện để áp dụng.");
+      setReviewError("No improvement version was found to apply.");
       return;
     }
     if (!String(finalDraft.content || "").trim()) {
-      setReviewError("Nội dung câu hỏi không được để trống.");
+      setReviewError("Question content cannot be empty.");
       return;
     }
-    if (!window.confirm("Bản AI đề xuất sẽ thay thế nội dung hiện tại của câu hỏi. Bạn có chắc muốn tiếp tục?")) {
+    if (!window.confirm("The AI-proposed version will replace the question's current content. Do you want to continue?")) {
       return;
     }
     try {
@@ -868,7 +848,7 @@ export default function ExamAnalytics() {
       if (questionId) setQuestionImprovement(questionId, updated as AiImprovementSummary);
       closeAiReview();
     } catch (error) {
-      setReviewError(error instanceof Error ? error.message : "Không thể duyệt đề xuất AI.");
+      setReviewError(error instanceof Error ? error.message : "Unable to approve AI suggestion.");
     } finally {
       setReviewBusy(false);
     }
@@ -879,12 +859,12 @@ export default function ExamAnalytics() {
     try {
       setReviewBusy(true);
       setReviewError("");
-      const updated = await api.rejectQuestionAiImprovement(reviewingImprovement.id, "Giảng viên từ chối đề xuất trong Analytics.");
+      const updated = await api.rejectQuestionAiImprovement(reviewingImprovement.id, "Lecturer rejected the suggestion in Analytics.");
       const questionId = String(updated?.originalSnapshot?.questionId || reviewingImprovement.originalSnapshot?.questionId || "");
       if (questionId) setQuestionImprovement(questionId, updated as AiImprovementSummary);
       closeAiReview();
     } catch (error) {
-      setReviewError(error instanceof Error ? error.message : "Không thể từ chối đề xuất AI.");
+      setReviewError(error instanceof Error ? error.message : "Unable to reject AI suggestion.");
     } finally {
       setReviewBusy(false);
     }
@@ -894,7 +874,7 @@ export default function ExamAnalytics() {
     {
       icon: TrendingUp,
       value: payload.kpis.avgScorePct.toFixed(1) + "%",
-      label: "Điểm trung bình",
+      label: "Average score",
       iconWrapClassName: "bg-sky-500/10",
       iconClassName: "text-sky-600",
       className: "border-border/70 bg-sky-50/35",
@@ -902,7 +882,7 @@ export default function ExamAnalytics() {
     {
       icon: TrendingUp,
       value: payload.kpis.passRate.toFixed(1) + "%",
-      label: "Tỷ lệ đạt",
+      label: "Pass rate",
       iconWrapClassName: "bg-emerald-500/10",
       iconClassName: "text-emerald-600",
       className: "border-border/70 bg-emerald-50/35",
@@ -910,7 +890,7 @@ export default function ExamAnalytics() {
     {
       icon: TrendingUp,
       value: payload.kpis.completionRate.toFixed(1) + "%",
-      label: "Hoàn thành",
+      label: "Completed",
       iconWrapClassName: "bg-amber-500/10",
       iconClassName: "text-amber-600",
       className: "border-border/70 bg-amber-50/35",
@@ -918,7 +898,7 @@ export default function ExamAnalytics() {
     {
       icon: AlertTriangle,
       value: payload.creatorQualityAlerts?.length ?? 0,
-      label: "Cảnh báo chất lượng",
+      label: "Quality warnings",
       iconWrapClassName: "bg-rose-500/10",
       iconClassName: "text-rose-600",
       className: "border-border/70 bg-rose-50/35",
@@ -940,7 +920,7 @@ export default function ExamAnalytics() {
     return (
       <DashboardLayout>
         <div className="min-h-[40vh] flex items-center justify-center text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Đang tải thiết lập phân tích...
+          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading analytics settings...
         </div>
       </DashboardLayout>
     );
@@ -984,10 +964,10 @@ export default function ExamAnalytics() {
           <div>
             {data?.analyticsScope ? (
               <Badge variant={data.analyticsScope === "OFFICIAL" ? "default" : "secondary"} className="mb-2">
-                {data.analyticsScope === "OFFICIAL" ? "Phân tích chính thức" : "Phân tích luyện tập"}
+                {data.analyticsScope === "OFFICIAL" ? "Official analytics" : "Practice analytics"}
               </Badge>
             ) : null}
-            <h1 className="text-xl font-bold sm:text-2xl">Phân tích hiệu suất</h1>
+            <h1 className="text-xl font-bold sm:text-2xl">Performance analytics</h1>
             <p className="text-sm text-muted-foreground">
               Phan tich - Luyen tap - Cai thien theo tung bai thi.
             </p>
@@ -1005,13 +985,13 @@ export default function ExamAnalytics() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[220px_220px_minmax(320px,1fr)]">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Năm học</label>
+                <label className="text-xs font-medium text-muted-foreground">Academic year</label>
                 <Select value={selectedAcademicYear} onValueChange={(val) => { setSelectedAcademicYear(val); setSelectedTerm(""); }}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Tất cả năm học" />
+                    <SelectValue placeholder="All academic years" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">Tất cả năm học</SelectItem>
+                    <SelectItem value="__all__">All academic years</SelectItem>
                     {academicYears.map((year) => (
                       <SelectItem key={year} value={year}>{year}</SelectItem>
                     ))}
@@ -1020,13 +1000,13 @@ export default function ExamAnalytics() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Học kỳ</label>
+                <label className="text-xs font-medium text-muted-foreground">Term</label>
                 <Select value={selectedTerm} onValueChange={setSelectedTerm}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Tất cả học kỳ" />
+                    <SelectValue placeholder="All terms" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">Tất cả học kỳ</SelectItem>
+                    <SelectItem value="__all__">All terms</SelectItem>
                     {terms.map((term) => (
                       <SelectItem key={term} value={term}>{formatTerm(term)}</SelectItem>
                     ))}
@@ -1042,7 +1022,7 @@ export default function ExamAnalytics() {
                   disabled={loadingIntelligence || filteredExams.length === 0}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={filteredExams.length === 0 ? "Không tìm thấy bài thi" : "Chọn bài thi"} />
+                    <SelectValue placeholder={filteredExams.length === 0 ? "No exams found" : "Select an exam"} />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredExams.map((e) => (
@@ -1060,7 +1040,7 @@ export default function ExamAnalytics() {
               if (!current) return null;
               return (
                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <span className="text-xs text-muted-foreground">Đang phân tích:</span>
+                  <span className="text-xs text-muted-foreground">Analyzing:</span>
                   {current.course?.code && <Badge variant="outline" className="text-xs">{current.course.code}</Badge>}
                   {current.course?.academicYear && <Badge variant="outline" className="text-xs">{current.course.academicYear}</Badge>}
                   {current.course?.term && <Badge variant="outline" className="text-xs">{formatTerm(current.course.term)}</Badge>}
@@ -1080,14 +1060,14 @@ export default function ExamAnalytics() {
               <p className="text-lg font-medium">Khong tim thay bai thi</p>
               <p className="text-sm mt-1">
                 {selectedAcademicYear || selectedTerm
-                  ? "Không có bài thi trong năm học và học kỳ đã chọn."
-                  : "Chưa có bài thi để phân tích. Hãy tạo bài thi trước."}
+                  ? "There are no exams in the selected academic year and term."
+                  : "There are no exams to analyze yet. Create an exam first."}
               </p>
             </CardContent>
           </Card>
         ) : loadingIntelligence ? (
           <div className="min-h-[35vh] flex items-center justify-center text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Đang tải dữ liệu phân tích...
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading analytics data...
           </div>
         ) : !data ? (
           <Card className="border-border/70 bg-card shadow-sm">
@@ -1095,7 +1075,7 @@ export default function ExamAnalytics() {
               <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-3">
                 <BarChart3 className="h-6 w-6 text-muted-foreground" />
               </div>
-              <p className="text-lg font-medium">Chưa có dữ liệu hiệu suất</p>
+              <p className="text-lg font-medium">No performance data yet</p>
               <p className="text-sm mt-1">Bai thi nay chua co du lieu hieu suat.</p>
             </CardContent>
           </Card>
@@ -1167,9 +1147,9 @@ export default function ExamAnalytics() {
                       <Sparkles className="h-4 w-4 text-primary" />
                       <h2 className="text-base font-semibold text-foreground">
                         <HelpedTitle help={{
-                          description: "Tóm tắt ngắn do AI tạo từ dữ liệu kết quả bài thi, tỷ lệ sai, chủ đề yếu và áp lực thời gian.",
-                          usedBy: "Giảng viên dùng để nhìn nhanh xu hướng trước khi đi vào từng câu hỏi hoặc từng chủ đề.",
-                          note: "Đây là gợi ý hỗ trợ phân tích, nên đối chiếu với dữ liệu chi tiết trước khi quyết định chỉnh đề.",
+                          description: "A short AI-generated summary based on exam results, incorrect-answer rates, weak topics, and time pressure.",
+                          usedBy: "Lecturers use it to see trends quickly before examining individual questions or topics.",
+                          note: "This is an analysis aid; compare it with detailed data before deciding to revise the exam.",
                         }}>
                           T&#243;m t&#7855;t AI
                         </HelpedTitle>
@@ -1187,9 +1167,9 @@ export default function ExamAnalytics() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-semibold text-foreground">
                   <HelpedTitle help={{
-                    description: "Tập hợp các chủ đề yếu và câu hỏi có tỷ lệ sai cao để giảng viên ưu tiên rà soát.",
-                    usedBy: "Dùng sau khi bài thi có dữ liệu nộp bài, đặc biệt khi cần cải thiện chất lượng câu hỏi hoặc chuẩn bị ôn tập.",
-                    note: "Tỷ lệ sai cao không luôn có nghĩa câu hỏi sai; có thể do chủ đề khó hoặc sinh viên chưa nắm kiến thức.",
+                    description: "Collects weak topics and questions with high incorrect-answer rates for lecturer review.",
+                    usedBy: "Use after the exam has submissions, especially when improving question quality or preparing revision activities.",
+                    note: "A high incorrect-answer rate does not always mean a question is wrong; the topic may be difficult or students may not have mastered it.",
                   }}>
                     &#272;i&#7875;m c&#7847;n ch&#250; &#253;
                   </HelpedTitle>
@@ -1229,9 +1209,9 @@ export default function ExamAnalytics() {
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-sm font-semibold text-foreground">
                         <HelpedTitle help={{
-                          description: "Các câu hỏi được ưu tiên dựa trên nhiều tín hiệu về độ khó, tỷ lệ sai, tỷ lệ bỏ qua và cảnh báo nội dung hiện có.",
-                          usedBy: "Giảng viên dùng để chọn câu cần kiểm tra trước khi chỉnh sửa hoặc nhờ AI đề xuất cải thiện.",
-                          note: "Tỷ lệ sai cao không nhất thiết có nghĩa câu hỏi bị lỗi; đây chỉ là tín hiệu ưu tiên rà soát, không phải kết luận tự động.",
+                          description: "Questions are prioritized using difficulty, incorrect-answer rate, skip rate, and current content warnings.",
+                          usedBy: "Lecturers use this to choose questions to inspect before editing or requesting an AI improvement.",
+                          note: "A high incorrect-answer rate does not necessarily mean the question is defective; it is a review-priority signal, not an automated conclusion.",
                         }}>
                           C&#226;u h&#7887;i c&#7847;n r&#224; so&#225;t
                         </HelpedTitle>
@@ -1252,14 +1232,14 @@ export default function ExamAnalytics() {
                           <div key={item.questionId} className="p-4">
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold text-foreground">Bài tập ưu tiên {item.orderIndex + 1}</p>
+                                <p className="text-sm font-semibold text-foreground">Priority item {item.orderIndex + 1}</p>
                                 <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{translateMetricText(item.questionText)}</p>
                               </div>
                               <div className="flex shrink-0 flex-wrap gap-2">
                                 <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">{item.incorrectRate.toFixed(0)}% sai</Badge>
-                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">Bỏ qua {item.skipRate.toFixed(0)}%</Badge>
+                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">Skipped {item.skipRate.toFixed(0)}%</Badge>
                                 {item.flaggedCount > 0 ? (
-                                  <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">{item.flaggedCount} cảnh báo</Badge>
+                                  <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">{item.flaggedCount} warnings</Badge>
                                 ) : null}
                               </div>
                             </div>
@@ -1270,9 +1250,9 @@ export default function ExamAnalytics() {
                                   <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> {formatAiStatus(status)}
                                 </Badge>
                                 <ContextHelp content={{
-                                  description: "Câu hỏi đã được giảng viên duyệt bản cải thiện và cập nhật vào ngân hàng câu hỏi.",
-                                  usedBy: "Dùng để phân biệt câu hỏi đã xử lý xong với câu hỏi vẫn còn chờ xem xét.",
-                                  note: "Các bài thi cũ vẫn nên giữ nguyên snapshot lịch sử, chỉ ngân hàng câu hỏi hiện tại được cập nhật.",
+                                  description: "The lecturer approved an improvement version and updated the question bank.",
+                                  usedBy: "Used to distinguish resolved questions from those still awaiting review.",
+                                  note: "Older exams should retain their historical snapshots; only the current question bank is updated.",
                                 }} />
                                 {improvement?.id ? (
                                   <Button size="sm" className="h-8 gap-1" onClick={() => openAiReview(item.questionId, improvement.id)}>
@@ -1299,12 +1279,12 @@ export default function ExamAnalytics() {
                                       }}
                                     >
                                       {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                                      {status === "IDLE" ? "Nhờ AI cải thiện" : status === "FAILED" ? "Thử lại" : "Tạo đề xuất khác"}
+                                      {status === "IDLE" ? "Ask AI to improve" : status === "FAILED" ? "Try again" : "Create another suggestion"}
                                     </Button>
                                     {status === "IDLE" ? <ContextHelp content={{
-                                      description: "Yêu cầu AI phân tích câu hỏi có tỷ lệ sai cao và tạo một bản đề xuất cải thiện.",
-                                      usedBy: "Giảng viên dùng khi muốn AI gợi ý cách viết lại nội dung, phương án, đáp án hoặc giải thích.",
-                                      note: "AI không tự cập nhật ngân hàng câu hỏi; bản đề xuất chỉ có hiệu lực sau khi giảng viên duyệt.",
+                                      description: "Ask AI to analyze a question with a high incorrect-answer rate and create an improvement suggestion.",
+                                      usedBy: "Lecturers use it when they want AI to suggest revisions to content, options, answers, or explanations.",
+                                      note: "AI does not update the question bank automatically; a suggestion takes effect only after lecturer approval.",
                                     }} /> : null}
                                   </>
                                 ) : null}
@@ -1424,7 +1404,7 @@ export default function ExamAnalytics() {
                 className="h-8 w-8 p-0"
                 onClick={closeQuestionPreview}
               >
-                <span className="sr-only">Đóng</span>
+                <span className="sr-only">Close</span>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -1437,7 +1417,7 @@ export default function ExamAnalytics() {
               <div className="flex h-64 flex-col items-center justify-center gap-3 px-6 text-center">
                 <AlertTriangle className="h-10 w-10 text-destructive" />
                 <p className="text-lg font-medium">
-                  Không thể tải chi tiết câu hỏi
+                  Unable to load question details
                 </p>
                 <p className="max-w-md text-sm text-muted-foreground">
                   {previewError}
@@ -1457,7 +1437,7 @@ export default function ExamAnalytics() {
                 <div className="max-h-[calc(85vh-73px)] space-y-6 overflow-y-auto p-6">
                   <QuestionReviewCard title="Question Content">
                     <p className="whitespace-pre-wrap break-words text-sm text-foreground">
-                      {previewQuestion.content || "Không có nội dung câu hỏi."}
+                      {previewQuestion.content || "No question content available."}
                     </p>
                   </QuestionReviewCard>
 
@@ -1566,7 +1546,7 @@ export default function ExamAnalytics() {
                       <p className="text-lg font-semibold">
                         {QUESTION_TYPE_LABELS[String(previewQuestion.type || "")] ||
                           previewQuestion.type ||
-                          "Không xác định"}
+                          "Unknown"}
                       </p>
                     </div>
                   </div>
@@ -1609,20 +1589,20 @@ export default function ExamAnalytics() {
                   <DialogTitle className="flex items-center gap-2 text-xl">
                     <Sparkles className="h-5 w-5 text-primary" />
                     <HelpedTitle help={{
-                      description: "Màn hình này cho phép so sánh b?n cu v?i b?n AI d? xu?t ho?c b?n dã áp d?ng cho câu h?i.",
-                      usedBy: "Gi?ng viên dùng d? ki?m tra thay d?i tru?c khi ch?p nh?n c?p nh?t vào ngân hàng câu h?i.",
-                      note: "AI ch? t?o d? xu?t. Câu h?i ch? du?c c?p nh?t sau khi gi?ng viên b?m áp d?ng.",
+                      description: "Compare the previous version with the AI proposal or the version already applied to the question.",
+                      usedBy: "Lecturers use it to inspect changes before accepting an update to the question bank.",
+                      note: "AI only creates a proposal. The question is updated only after the lecturer applies it.",
                     }}>
-                      {"So sánh c?i thi?n câu h?i"}
+                      {"Compare question improvements"}
                     </HelpedTitle>
                   </DialogTitle>
                   <DialogDescription className="mt-2">
                     {canApplyImprovement
-                      ? "So sánh b?n cu và b?n AI d? xu?t tru?c khi áp d?ng vào ngân hàng câu h?i."
-                      : "Xem l?i nh?ng thay d?i dã du?c áp d?ng cho câu h?i này."}
+                      ? "Compare the previous version and the AI proposal before applying it to the question bank."
+                      : "Review changes already applied to this question."}
                   </DialogDescription>
                 </div>
-                {reviewingImprovement ? <Badge variant="outline" className="shrink-0 border-primary/25 bg-primary/10 text-primary">{`Ã? tin c?y ${Math.round(Number(reviewingImprovement.confidence || 0) * 100)}%`}</Badge> : null}
+                {reviewingImprovement ? <Badge variant="outline" className="shrink-0 border-primary/25 bg-primary/10 text-primary">{`Confidence ${Math.round(Number(reviewingImprovement.confidence || 0) * 100)}%`}</Badge> : null}
               </div>
             </DialogHeader>
             {reviewError ? <div className="mx-6 mt-4 shrink-0 rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">{reviewError}</div> : null}
@@ -1631,11 +1611,11 @@ export default function ExamAnalytics() {
                 <div className="space-y-5">
                   <Card className="border-border/70">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base font-semibold">Tóm t?t thay d?i</CardTitle>
+                      <CardTitle className="text-base font-semibold">Change summary</CardTitle>
                       <CardDescription>
                         {comparisonChanges.length
-                          ? "Ch? hi?n th? các tru?ng có thay d?i gi?a b?n cu và b?n m?i."
-                          : "Không phát hi?n thay d?i rõ ràng gi?a hai phiên b?n."}
+                          ? "Only fields that differ between the previous and new versions are shown."
+                          : "No clear differences were detected between the two versions."}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -1649,7 +1629,7 @@ export default function ExamAnalytics() {
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground">
-                          AI không t?o ra khác bi?t d? rõ trên các tru?ng chính. B?n v?n có th? ki?m tra chi ti?t bên du?i.
+                          AI did not produce clear differences in the main fields. You can still inspect the details below.
                         </p>
                       )}
 
@@ -1663,7 +1643,7 @@ export default function ExamAnalytics() {
                             <div className="mt-3 space-y-2">
                               {reviewingImprovement.diagnosis?.issues?.map((issue, index) => (
                                 <div key={`${issue.type}-${index}`} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                                  <p className="font-medium">{ISSUE_LABELS[String(issue.type || "")] || issue.type || "V?n d? c?n xem xét"}</p>
+                                  <p className="font-medium">{ISSUE_LABELS[String(issue.type || "")] || issue.type || "Issue requiring review"}</p>
                                   {issue.description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{translateAiAnalysisText(issue.description)}</p> : null}
                                 </div>
                               ))}
@@ -1688,19 +1668,19 @@ export default function ExamAnalytics() {
                   </div>
                 </div>
               </div>
-            ) : reviewBusy ? <div className="grid min-h-80 flex-1 place-items-center text-muted-foreground"><div className="space-y-4 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" /><div className="space-y-1 text-sm"><p>{"Ðang phân tích câu h?i."}</p><p>{"Ðang ki?m tra dáp án."}</p><p>{"Ðang vi?t l?i n?i dung và gi?i thích."}</p></div></div></div> : null}
+            ) : reviewBusy ? <div className="grid min-h-80 flex-1 place-items-center text-muted-foreground"><div className="space-y-4 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" /><div className="space-y-1 text-sm"><p>{"Analyzing the question."}</p><p>{"Checking the answer."}</p><p>{"Rewriting content and explanation."}</p></div></div></div> : null}
             <DialogFooter className="sticky bottom-0 z-10 shrink-0 justify-between gap-3 border-t border-border bg-card/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-card/80">
               <div className="flex gap-2">
-                <Button variant="outline" disabled={reviewBusy} onClick={closeAiReview}>{"Ðóng"}</Button>
+                <Button variant="outline" disabled={reviewBusy} onClick={closeAiReview}>{"Close"}</Button>
                 {canApplyImprovement ? (
-                  <Button variant="outline" disabled={reviewBusy || !reviewingImprovement} onClick={rejectAiImprovement}>{"Gi? nguyên câu h?i hi?n t?i"}</Button>
+                  <Button variant="outline" disabled={reviewBusy || !reviewingImprovement} onClick={rejectAiImprovement}>{"Keep current question"}</Button>
                 ) : null}
               </div>
               <div className="flex gap-2">
                 {canApplyImprovement ? (
                   <Button disabled={reviewBusy || !reviewingImprovement} onClick={approveAiImprovement}>
                     {reviewBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {"Áp d?ng b?n c?i thi?n"}
+                    {"Apply improvement"}
                   </Button>
                 ) : null}
               </div>
@@ -1748,19 +1728,19 @@ function QuestionComparisonCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ComparisonSection title="N?i dung câu h?i" changed={isChanged("content")}>
+        <ComparisonSection title="Question content" changed={isChanged("content")}>
           <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
-            {snapshot.content || "Chua có n?i dung."}
+            {snapshot.content || "No content available."}
           </p>
         </ComparisonSection>
 
-        <ComparisonSection title="Lo?i câu h?i" changed={isChanged("type")}>
+        <ComparisonSection title="Question type" changed={isChanged("type")}>
           <p className="text-sm text-foreground">
-            {QUESTION_TYPE_LABELS[String(snapshot.type)] || snapshot.type || "Không xác d?nh"}
+            {QUESTION_TYPE_LABELS[String(snapshot.type)] || snapshot.type || "Unknown"}
           </p>
         </ComparisonSection>
 
-        <ComparisonSection title="Phuong án" changed={isChanged("options") || isChanged("correctAnswer")}>
+        <ComparisonSection title="Options" changed={isChanged("options") || isChanged("correctAnswer")}>
           {snapshot.options.length ? (
             <div className="space-y-2">
               {snapshot.options.map((option) => (
@@ -1772,36 +1752,36 @@ function QuestionComparisonCard({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Không có phuong án.</p>
+            <p className="text-sm text-muted-foreground">No options available.</p>
           )}
         </ComparisonSection>
 
-        <ComparisonSection title="Ðáp án dúng" changed={isChanged("correctAnswer")}>
+        <ComparisonSection title="Correct answer" changed={isChanged("correctAnswer")}>
           <p className="text-sm text-foreground">
-            {snapshot.correctAnswerIds.length ? snapshot.correctAnswerIds.join(", ") : "Chua xác d?nh"}
+            {snapshot.correctAnswerIds.length ? snapshot.correctAnswerIds.join(", ") : "Not specified"}
           </p>
         </ComparisonSection>
 
-        <ComparisonSection title="Gi?i thích" changed={isChanged("explanation")}>
+        <ComparisonSection title="Explanation" changed={isChanged("explanation")}>
           <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
-            {snapshot.explanation || "Chua có gi?i thích."}
+            {snapshot.explanation || "No explanation available."}
           </p>
         </ComparisonSection>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <ComparisonSection title="Ð? khó" changed={isChanged("difficulty")}>
+          <ComparisonSection title="Difficulty" changed={isChanged("difficulty")}>
             <p className={`text-sm font-medium ${difficulty.className}`}>
-              {snapshot.difficulty == null ? "Chua gán" : `${snapshot.difficulty} Â· ${difficulty.text}`}
+              {snapshot.difficulty == null ? "Not assigned" : `${snapshot.difficulty} · ${difficulty.text}`}
             </p>
           </ComparisonSection>
-          <ComparisonSection title="Ði?m" changed={isChanged("points")}>
+          <ComparisonSection title="Points" changed={isChanged("points")}>
             <p className="text-sm font-medium text-foreground">
-              {snapshot.points == null ? "Chua gán" : snapshot.points}
+              {snapshot.points == null ? "Not assigned" : snapshot.points}
             </p>
           </ComparisonSection>
         </div>
 
-        <ComparisonSection title="Khóa h?c" changed={false}>
+        <ComparisonSection title="Course" changed={false}>
           {getCourseLabel(snapshot.course) ? (
             <div className="space-y-1 text-sm text-foreground">
               <p className="font-medium">{getCourseLabel(snapshot.course)}</p>
@@ -1812,16 +1792,16 @@ function QuestionComparisonCard({
               ) : null}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Chua xác d?nh khóa h?c.</p>
+            <p className="text-sm text-muted-foreground">Course not specified.</p>
           )}
         </ComparisonSection>
 
         <ComparisonSection title="Th?" changed={isChanged("tags")}>
-          <TagList values={snapshot.tags} emptyLabel="Chua có th?." />
+          <TagList values={snapshot.tags} emptyLabel="No tags." />
         </ComparisonSection>
 
         <ComparisonSection title="Ch? d?" changed={isChanged("topics")}>
-          <TagList values={snapshot.topics} emptyLabel="Chua có ch? d?." />
+          <TagList values={snapshot.topics} emptyLabel="No topics." />
         </ComparisonSection>
       </CardContent>
     </Card>
@@ -1852,7 +1832,7 @@ function ComparisonSection({
         <p className="text-sm font-medium text-foreground">{title}</p>
         {changed ? (
           <Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">
-            Ðã thay đổi
+            Changed
           </Badge>
         ) : null}
       </div>

@@ -29,8 +29,8 @@ interface SystemCheck {
 }
 
 const defaultExamInfo = {
-  title: "Bài thi cuối kỳ Cấu trúc dữ liệu",
-  course: "CS201 - Khoa Công nghệ thông tin",
+  title: "Data Structures Final Exam",
+  course: "CS201 - Faculty of Information Technology",
   duration: 120,
   totalQuestions: 45,
   sessionId: "EXM-2026-DS-001",
@@ -62,13 +62,13 @@ export default function ExamReadyCheck() {
   const [checks, setChecks] = useState<SystemCheck[]>([
     {
       id: "internet",
-      label: "Kết nối Internet",
+      label: "Internet connection",
       icon: <Wifi className="h-4 w-4" />,
       status: "pending",
     },
     {
       id: "browser",
-      label: "Hỗ trợ toàn màn hình",
+      label: "Full-screen support",
       icon: <Monitor className="h-4 w-4" />,
       status: "pending",
     },
@@ -125,16 +125,16 @@ export default function ExamReadyCheck() {
     );
 
     if (navigator.onLine) {
-      updateCheck("internet", "passed", "Kết nối ổn định");
+      updateCheck("internet", "passed", "Connection is stable");
     } else {
-      updateCheck("internet", "failed", "Không phát hiện kết nối Internet");
+      updateCheck("internet", "failed", "No internet connection detected");
     }
     await new Promise((r) => setTimeout(r, 300));
 
     if (document.documentElement.requestFullscreen) {
-      updateCheck("browser", "passed", "Trình duyệt hỗ trợ chế độ toàn màn hình");
+      updateCheck("browser", "passed", "Your browser supports full-screen mode");
     } else {
-      updateCheck("browser", "failed", "Trình duyệt này không hỗ trợ chế độ toàn màn hình");
+      updateCheck("browser", "failed", "This browser does not support full-screen mode");
     }
 
     setIsRunningChecks(false);
@@ -153,14 +153,14 @@ export default function ExamReadyCheck() {
 
   const handleStartExam = async () => {
     if (!examId) {
-      toast.error("Thiếu mã bài thi. Vui lòng mở lại bài thi từ trang tổng quan.");
+      toast.error("The exam ID is missing. Please reopen the exam from your dashboard.");
       return;
     }
 
     try {
     const res = await api.startExam(examId, { isMobileOrTablet: deviceBlocked });
       if (!res?.id) {
-        toast.error("Không thể bắt đầu lượt thi. Vui lòng thử lại.");
+        toast.error("Unable to start the submission. Please try again.");
         return;
       }
       try {
@@ -170,7 +170,7 @@ export default function ExamReadyCheck() {
       } catch {}
     } catch (err: any) {
       console.error("Failed to start submission on server:", err);
-      toast.error(err?.message || "Không thể bắt đầu bài thi. Vui lòng thử lại.");
+      toast.error(err?.message || "Unable to start the exam. Please try again.");
       return;
     }
 
@@ -195,7 +195,7 @@ export default function ExamReadyCheck() {
                 <CardTitle className="mb-1 text-xl">{examInfo.title}</CardTitle>
                 <CardDescription>{examInfo.course}</CardDescription>
               </div>
-              <StatusBadge tone="info">PHIÊN THI CHÍNH THỨC</StatusBadge>
+              <StatusBadge tone="info">OFFICIAL EXAM SESSION</StatusBadge>
             </div>
           </CardHeader>
           <CardContent>
@@ -203,22 +203,22 @@ export default function ExamReadyCheck() {
               <div>
                 <Clock className="mx-auto mb-1 h-5 w-5 text-primary" />
                 <p className="text-lg font-semibold">{examInfo.duration}</p>
-                <p className="text-xs text-muted-foreground">Phút</p>
+                <p className="text-xs text-muted-foreground">Minutes</p>
               </div>
               <div>
                 <FileText className="mx-auto mb-1 h-5 w-5 text-primary" />
                 <p className="text-lg font-semibold">{examInfo.totalQuestions}</p>
-                <p className="text-xs text-muted-foreground">Câu hỏi</p>
+                <p className="text-xs text-muted-foreground">Questions</p>
               </div>
               <div>
                 <Shield className="mx-auto mb-1 h-5 w-5 text-primary" />
-                <p className="text-lg font-semibold">Có giám sát</p>
-                <p className="text-xs text-muted-foreground">Chế độ</p>
+                <p className="text-lg font-semibold">Proctored</p>
+                <p className="text-xs text-muted-foreground">Mode</p>
               </div>
               <div>
                 <CheckCircle2 className="mx-auto mb-1 h-5 w-5 text-primary" />
-                <p className="text-lg font-semibold">Sẵn sàng</p>
-                <p className="text-xs text-muted-foreground">Kiểm tra hệ thống</p>
+                <p className="text-lg font-semibold">Ready</p>
+                <p className="text-xs text-muted-foreground">System check</p>
               </div>
             </div>
           </CardContent>
@@ -226,8 +226,8 @@ export default function ExamReadyCheck() {
 
         <div className="mb-6 flex items-center justify-between px-4">
           {[
-            { key: "system-check", label: "Kiểm tra", number: 1 },
-            { key: "ready", label: "Bắt đầu", number: 2 },
+            { key: "system-check", label: "Check", number: 1 },
+            { key: "ready", label: "Start", number: 2 },
           ].map((step, i) => (
             <div key={step.key} className="flex items-center">
               <div className="flex flex-col items-center">
@@ -265,31 +265,31 @@ export default function ExamReadyCheck() {
                   <div>
                     <CardTitle className="text-lg">
                       <HelpedTitle help={{
-                        description: "Kiểm tra kết nối, chế độ toàn màn hình và các điều kiện cần trước khi bắt đầu bài thi.",
-                        usedBy: "Sinh viên dùng ngay trước giờ thi để đảm bảo thiết bị sẵn sàng.",
-                        note: "Nếu có mục chưa đạt, nên xử lý trước khi vào bài để tránh gián đoạn hoặc phát sinh cảnh báo.",
+                        description: "Check your connection, full-screen mode, and other requirements before starting the exam.",
+                        usedBy: "Students use this immediately before an exam to make sure their device is ready.",
+                        note: "Resolve any failed checks before entering the exam to avoid interruptions or warnings.",
                       }}>
-                        Kiểm tra điều kiện dự thi
+                        Check exam requirements
                       </HelpedTitle>
                     </CardTitle>
                     <CardDescription>
-                      Hệ thống kiểm tra kết nối và chế độ toàn màn hình trước khi bạn bắt đầu.
+                      The system checks your connection and full-screen mode before you begin.
                     </CardDescription>
                   </div>
                   <Button variant="outline" size="sm" className="gap-2" onClick={runSystemChecks} disabled={isRunningChecks}>
                     <RefreshCw className={`h-4 w-4 ${isRunningChecks ? "animate-spin" : ""}`} />
-                    Kiểm tra lại
+                    Check again
                   </Button>
                 </div>
                 <Progress value={(passedCount / checks.length) * 100} className="mt-3 h-2" />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Đạt {passedCount}/{checks.length} mục{failedCount > 0 && `, ${failedCount} mục chưa đạt`}
+                  Passed {passedCount}/{checks.length} checks{failedCount > 0 && `, ${failedCount} failed`}
                 </p>
               </CardHeader>
               <CardContent>
                 {deviceBlocked ? (
                   <Alert className="mb-4" variant="destructive">
-                    <AlertDescription>Bài kiểm tra có giám sát chỉ cho phép laptop hoặc PC. Vui lòng đổi thiết bị để tiếp tục.</AlertDescription>
+                    <AlertDescription>Proctored exams are available only on a laptop or desktop computer. Please switch devices to continue.</AlertDescription>
                   </Alert>
                 ) : null}
                 <div className="space-y-3">
@@ -328,11 +328,11 @@ export default function ExamReadyCheck() {
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Shield className="h-5 w-5 text-primary" />
                   <HelpedTitle help={{
-                    description: "Các lưu ý giúp phiên thi được ghi nhận công bằng và ổn định.",
-                    usedBy: "Sinh viên đọc trước khi bắt đầu để biết những hành vi nào có thể được ghi nhận.",
-                    note: "Hệ thống chỉ ghi nhận tín hiệu; việc đánh giá cuối cùng cần có xem xét của người phụ trách.",
+                    description: "These guidelines help ensure a fair and stable exam session.",
+                    usedBy: "Students read them before starting to understand which actions may be recorded.",
+                    note: "The system records events only; the final assessment requires review by the responsible staff member.",
                   }}>
-                    Lưu ý về tính toàn vẹn và công bằng
+                    Integrity and fairness guidelines
                   </HelpedTitle>
                 </CardTitle>
               </CardHeader>
@@ -340,17 +340,17 @@ export default function ExamReadyCheck() {
                 <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                    <p>Nên sử dụng chế độ toàn màn hình trong suốt phiên thi.</p>
+                    <p>Use full-screen mode throughout the exam session.</p>
                   </div>
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                     <p>
-                      Nền tảng ghi nhận tín hiệu bất thường để giảng viên xem xét, không tự động kết luận gian lận.
+                      The platform records unusual events for lecturer review; it does not automatically determine misconduct.
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                    <p>Vui lòng duy trì kết nối Internet ổn định trong phiên thi.</p>
+                    <p>Please maintain a stable internet connection during the exam session.</p>
                   </div>
                 </div>
 
@@ -364,7 +364,7 @@ export default function ExamReadyCheck() {
                     className="mt-0.5"
                   />
                   <label htmlFor="agree" className="cursor-pointer text-sm leading-relaxed">
-                    Tôi đã hiểu và đồng ý với quy định của phiên thi, đồng thời xác nhận sẽ tự mình hoàn thành bài thi.
+                    I understand and agree to the exam-session rules, and confirm that I will complete this exam on my own.
                   </label>
                 </div>
               </CardContent>
@@ -375,22 +375,22 @@ export default function ExamReadyCheck() {
                 {!allChecksPassed ? (
                   <>
                     <AlertTriangle className="h-4 w-4" />
-                    Cần hoàn tất kiểm tra hệ thống
+                    Complete the system check first
                   </>
                 ) : !agreed ? (
                   <>
                     <Shield className="h-4 w-4" />
-                    Đồng ý quy định để tiếp tục
+                    Agree to the rules to continue
                   </>
                 ) : (
                   <>
                     <ArrowRight className="h-4 w-4" />
-                    Tiếp tục
+                    Continue
                   </>
                 )}
               </Button>
               <Button variant="outline" onClick={() => router.push("/student")} className="h-11">
-                Quay lại
+                Back
               </Button>
             </div>
           </>
@@ -405,9 +405,9 @@ export default function ExamReadyCheck() {
                     <CheckCircle2 className="h-8 w-8 text-emerald-600" />
                   </div>
                   <div>
-                    <h2 className="mb-1 text-xl font-semibold text-foreground">Sẵn sàng bắt đầu</h2>
-                    <p className="text-muted-foreground">Phiên thi đã sẵn sàng. Bạn có thể bắt đầu ngay.</p>
-                    {checkingAttempt && <p className="mt-2 text-xs text-muted-foreground">Đang kiểm tra trạng thái lượt thi...</p>}
+                    <h2 className="mb-1 text-xl font-semibold text-foreground">Ready to start</h2>
+                    <p className="text-muted-foreground">Your exam session is ready. You can start now.</p>
+                    {checkingAttempt && <p className="mt-2 text-xs text-muted-foreground">Checking submission status...</p>}
                   </div>
                 </div>
               </CardContent>
@@ -421,15 +421,15 @@ export default function ExamReadyCheck() {
                 disabled={checkingAttempt}
               >
                 <ArrowRight className="h-5 w-5" />
-                Bắt đầu làm bài
+                Start exam
               </Button>
-              <BackToDashboardButton to="/student" label="Về trang tổng quan" variant="outline" size="default" className="h-12" />
+              <BackToDashboardButton to="/student" label="Back to dashboard" variant="outline" size="default" className="h-12" />
             </div>
           </>
         )}
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          Mã phiên: {examInfo.sessionId} • Mã hóa SSL • Đang ghi nhận tín hiệu phiên thi
+          Session ID: {examInfo.sessionId} • SSL encrypted • Recording exam-session events
         </p>
       </div>
     </DashboardLayout>

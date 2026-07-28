@@ -41,7 +41,7 @@ export function ActiveFilterChips({
             className="h-5 w-5 rounded-full text-muted-foreground hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
-            <span className="sr-only">Xóa bộ lọc {chip.label}</span>
+            <span className="sr-only">Remove {chip.label} filter</span>
           </Button>
         </Badge>
       ))}
@@ -53,7 +53,7 @@ export function ActiveFilterChips({
         onClick={onClearAll}
         className="h-8 rounded-full px-3 text-xs"
       >
-        Xóa bộ lọc
+        Clear filters
       </Button>
     </div>
   );

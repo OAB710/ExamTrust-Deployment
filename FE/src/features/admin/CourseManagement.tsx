@@ -787,11 +787,11 @@ export default function AdminCourseManagement() {
       setArchiving(true);
       if (actionCourse.status === 'archived') await api.restoreCourse(actionCourse.id);
       else await api.archiveCourse(actionCourse.id);
-      toast.success(actionCourse.status === 'archived' ? 'Đã khôi phục khóa học' : 'Đã lưu trữ khóa học');
+      toast.success(actionCourse.status === 'archived' ? 'Course restored' : 'Course archived');
       setActionCourse(null);
       await fetchData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Không thể cập nhật khóa học');
+      toast.error(error instanceof Error ? error.message : 'Unable to update course');
     } finally {
       setArchiving(false);
     }
@@ -1608,8 +1608,8 @@ export default function AdminCourseManagement() {
             <Select value={archiveScope} onValueChange={(value) => setArchiveScope(value as 'active' | 'archived')}>
               <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">Các khóa học đang hoạt động</SelectItem>
-                <SelectItem value="archived">Các khóa học đã được lưu trữ</SelectItem>
+                <SelectItem value="active">Active courses</SelectItem>
+                <SelectItem value="archived">Archived courses</SelectItem>
               </SelectContent>
             </Select>
             <FilterPanel
@@ -1725,7 +1725,7 @@ export default function AdminCourseManagement() {
                               variant="ghost"
                               size="sm"
                               onClick={() => setActionCourse(course)}
-                              title={course.status === 'archived' ? 'Khôi phục khóa học' : 'Lưu trữ khóa học'}
+                              title={course.status === 'archived' ? 'Restore course' : 'Archive course'}
                             >
                               {course.status === 'archived' ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
                             </Button>
@@ -1810,16 +1810,16 @@ export default function AdminCourseManagement() {
       <Dialog open={Boolean(actionCourse)} onOpenChange={(open) => !open && setActionCourse(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{actionCourse?.status === 'archived' ? 'Khôi phục khóa học?' : 'Lưu trữ khóa học?'}</DialogTitle>
+            <DialogTitle>{actionCourse?.status === 'archived' ? 'Restore course?' : 'Archive course?'}</DialogTitle>
             <DialogDescription>
               {actionCourse?.status === 'archived'
-                ? 'Khóa học sẽ xuất hiện lại trong danh sách đang hoạt động.'
-                : 'Khóa học sẽ được ẩn khỏi danh sách đang hoạt động. Bài học, bài thi, kết quả và dữ liệu liên quan vẫn được giữ lại.'}
+                ? 'The course will reappear in the active-course list.'
+                : 'The course will be hidden from the active-course list. Lessons, exams, results, and related data will be retained.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setActionCourse(null)}>Hủy</Button>
-            <Button onClick={handleArchiveAction} disabled={archiving}>{archiving ? <Loader2 className="h-4 w-4 animate-spin" /> : actionCourse?.status === 'archived' ? 'Khôi phục' : 'Lưu trữ'}</Button>
+            <Button variant="outline" onClick={() => setActionCourse(null)}>Cancel</Button>
+            <Button onClick={handleArchiveAction} disabled={archiving}>{archiving ? <Loader2 className="h-4 w-4 animate-spin" /> : actionCourse?.status === 'archived' ? 'Restore' : 'Archive'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

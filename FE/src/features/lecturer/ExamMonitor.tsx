@@ -344,7 +344,7 @@ export default function ExamMonitor() {
           submittedAt: submission?.submittedAt
             ? new Date(submission.submittedAt).toLocaleTimeString()
             : null,
-          flagReason: status === "flagged" ? "Lượt nộp bị gắn cờ" : null,
+          flagReason: status === "flagged" ? "Submission was flagged" : null,
         };
       });
 
@@ -419,7 +419,7 @@ export default function ExamMonitor() {
         setRiskError(eligibility.existingAssessment.errorMessage);
       }
     } catch (err: any) {
-      setRiskError(err?.message || "Không thể kiểm tra điều kiện đánh giá rủi ro.");
+      setRiskError(err?.message || "Unable to check risk-assessment eligibility.");
     } finally {
       setRiskEligibilityLoading(false);
     }
@@ -444,7 +444,7 @@ export default function ExamMonitor() {
       setRiskFlag(job?.flag || null);
       await loadRiskFlags();
     } catch (err: any) {
-          setRiskError(err?.message || "Không thể tạo đánh giá dấu hiệu rủi ro.");
+          setRiskError(err?.message || "Unable to generate the risk-signal assessment.");
     } finally {
       setRiskLoading(false);
     }
@@ -1072,7 +1072,7 @@ export default function ExamMonitor() {
                                     className="ml-1"
                                   />
                                 ) : (
-                                  "Đánh giá rủi ro"
+                                  "Risk assessment"
                                 )}
                               </Button>
                             )}
@@ -1174,39 +1174,39 @@ export default function ExamMonitor() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Eye className="h-5 w-5" />
-                Đánh giá dấu hiệu rủi ro — {riskDialogSubmission?.name}
+                Risk-signal assessment — {riskDialogSubmission?.name}
               </DialogTitle>
               <DialogDescription>
-                Công cụ này tổng hợp dữ liệu giám sát của lượt làm bài để hỗ trợ giảng viên rà soát.
-                Đây chỉ là chỉ báo rủi ro, không phải kết luận sinh viên gian lận.
+                This tool summarizes submission monitoring data to support lecturer review.
+                It is a risk indicator only, not a finding of student misconduct.
               </DialogDescription>
             </DialogHeader>
 
             {!riskResult && !riskLoading && (
               <div className="space-y-4">
                 <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
-                  <p className="font-medium text-foreground">Dữ liệu được xem xét</p>
+                  <p className="font-medium text-foreground">Data reviewed</p>
                   <p className="mt-1 leading-6">
-                    Đổi tab, mất focus, thoát fullscreen, thao tác chuột và thời gian trả lời quá nhanh.
-                    Hệ thống chỉ dùng các tín hiệu đã ghi nhận trong lượt làm bài này.
+                    Tab switches, lost focus, exiting full-screen mode, mouse activity, and unusually fast responses.
+                    The system uses only events recorded for this submission.
                   </p>
                 </div>
                 {riskEligibilityLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Đang kiểm tra dữ liệu giám sát...
+                    <Loader2 className="h-4 w-4 animate-spin" /> Checking monitoring data...
                   </div>
                 ) : riskEligibility?.eligible ? (
                   <>
                     <p className="text-sm text-muted-foreground">
-                      Chưa có kết quả đánh giá cho lượt làm bài này.
+                      No assessment result is available for this submission yet.
                     </p>
                     <Button onClick={handleGenerateRisk} className="gap-2" disabled={!riskDialogSubmission}>
-                      Phân tích dấu hiệu rủi ro
+                      Analyze risk signals
                     </Button>
                   </>
                 ) : riskEligibility ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    {riskEligibility.reason || "Chưa đủ dữ liệu để đánh giá dấu hiệu rủi ro."}
+                    {riskEligibility.reason || "There is not enough data to assess risk signals."}
                   </div>
                 ) : null}
                 {riskError && <p className="text-sm text-red-600">{riskError}</p>}
@@ -1215,7 +1215,7 @@ export default function ExamMonitor() {
 
             {riskLoading && (
               <div className="flex items-center justify-center py-8 text-muted-foreground text-sm gap-2">
-                <RefreshCw className="h-4 w-4 animate-spin" /> Đang phân tích dữ liệu giám sát...
+                <RefreshCw className="h-4 w-4 animate-spin" /> Analyzing monitoring data...
               </div>
             )}
 
@@ -1223,9 +1223,9 @@ export default function ExamMonitor() {
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <StatusBadge domain="severity" status={riskResult.riskLevel?.toLowerCase()}>
-                    Rủi ro {riskResult.riskLevel}
+                    {riskResult.riskLevel} risk
                   </StatusBadge>
-                  <span className="text-sm text-muted-foreground">Điểm rủi ro: {riskResult.riskScore}/100</span>
+                  <span className="text-sm text-muted-foreground">Risk score: {riskResult.riskScore}/100</span>
                   {riskFlag?.status && (
                     <StatusBadge
                       domain="integrity"
@@ -1239,7 +1239,7 @@ export default function ExamMonitor() {
                 {Array.isArray(riskResult.signals) && riskResult.signals.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Tín hiệu được ghi nhận
+                      Recorded events
                     </p>
                     {riskResult.signals.map((sig: any, idx: number) => (
                       <div key={idx} className="rounded-md border border-border bg-muted/30 p-2 text-sm">
@@ -1251,10 +1251,10 @@ export default function ExamMonitor() {
 
                 <div className="space-y-2">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Xử lý của giảng viên
+                      Lecturer action
                   </p>
                   <Textarea
-                    placeholder="Ghi chú rà soát (không bắt buộc)..."
+                    placeholder="Review note (optional)..."
                     value={reviewNotes}
                     onChange={(e) => setReviewNotes(e.target.value)}
                     className="text-sm min-h-[60px]"
@@ -1266,7 +1266,7 @@ export default function ExamMonitor() {
                       disabled={!riskFlag?.id}
                       onClick={() => handleReviewFlag("REVIEWED")}
                     >
-                      Đã rà soát
+                      Reviewed
                     </Button>
                     <Button
                       size="sm"
@@ -1274,7 +1274,7 @@ export default function ExamMonitor() {
                       disabled={!riskFlag?.id}
                       onClick={() => handleReviewFlag("DISMISSED")}
                     >
-                      Bỏ qua cảnh báo
+                      Dismiss warning
                     </Button>
                     <Button
                       size="sm"
@@ -1282,7 +1282,7 @@ export default function ExamMonitor() {
                       disabled={!riskFlag?.id}
                       onClick={() => handleReviewFlag("CONFIRMED")}
                     >
-                      Cần điều tra thêm
+                      Requires further investigation
                     </Button>
                   </div>
                 </div>

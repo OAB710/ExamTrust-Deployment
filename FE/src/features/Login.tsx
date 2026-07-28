@@ -14,9 +14,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { elapsedMs, logPerf, nowMs } from "@/lib/perf";
 
 const demoAccounts = [
-  { role: "Quản trị viên", email: "admin@tdtutdtu.edu.vn" },
-  { role: "Giảng viên", email: "lecturer01@tdtutdtu.edu.vn" },
-  { role: "Sinh viên", email: "522h0001@tdtutdtu.edu.vn" },
+  { role: "Administrator", email: "admin@tdtutdtu.edu.vn" },
+  { role: "Lecturer", email: "lecturer01@tdtutdtu.edu.vn" },
+  { role: "Student", email: "522h0001@tdtutdtu.edu.vn" },
 ] as const;
 
 const demoPassword = "123123123Az!";
@@ -47,8 +47,8 @@ export default function Login() {
       const message = String(loginError?.message || "").toLowerCase();
       setError(
         message.includes("failed to fetch")
-          ? "Không thể kết nối máy chủ. Hãy kiểm tra backend tại cổng 3001."
-          : "Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.",
+          ? "Unable to connect to the server. Check that the backend is running on port 3001."
+          : "Incorrect email or password. Please check and try again.",
       );
     }
   };
@@ -72,7 +72,7 @@ export default function Login() {
           <div className="flex items-center gap-1">
             <ThemeToggle compact />
             <Button asChild variant="ghost" size="sm">
-              <Link href="/">Trang chủ</Link>
+              <Link href="/">Home</Link>
             </Button>
           </div>
         </div>
@@ -80,18 +80,18 @@ export default function Login() {
 
       <main id="main-content" className="container grid min-h-[calc(100dvh-4rem)] items-center gap-10 py-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(420px,0.55fr)] lg:py-16">
         <section className="hidden max-w-xl lg:block">
-          <p className="text-sm font-semibold text-primary">Không gian làm việc an toàn</p>
+          <p className="text-sm font-semibold text-primary">A secure workspace</p>
           <h1 className="mt-4 text-4xl font-semibold leading-[1.12] tracking-[-0.05em] xl:text-5xl">
-            Tiếp tục công việc theo đúng vai trò của bạn
+            Continue with the workspace for your role
           </h1>
           <p className="mt-5 max-w-[54ch] text-base leading-7 text-muted-foreground">
-            Sinh viên làm bài tập trung. Giảng viên quản lý đề thi. Quản trị viên theo dõi vận hành và toàn vẹn học thuật.
+            Students focus on exams. Lecturers manage assessments. Administrators oversee operations and academic integrity.
           </p>
-          <div className="mt-10 grid grid-cols-3 gap-3" aria-label="Các vai trò được hỗ trợ">
+          <div className="mt-10 grid grid-cols-3 gap-3" aria-label="Supported roles">
             {demoAccounts.map((account) => (
               <div key={account.role} className="rounded-xl border border-border/70 bg-card/80 px-4 py-5 shadow-soft">
                 <p className="text-sm font-semibold">{account.role}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Không gian riêng</p>
+                <p className="mt-1 text-xs text-muted-foreground">Dedicated workspace</p>
               </div>
             ))}
           </div>
@@ -100,9 +100,9 @@ export default function Login() {
         <section className="mx-auto w-full max-w-md">
           <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-medium sm:p-8">
             <div>
-              <p className="text-sm font-semibold text-primary">Chào mừng trở lại</p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">Đăng Nhập ExamTrust</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">Sử dụng tài khoản được nhà trường cấp.</p>
+              <p className="text-sm font-semibold text-primary">Welcome back</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">Sign in to ExamTrust</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Use the account issued by your institution.</p>
             </div>
 
             {error && (
@@ -120,7 +120,7 @@ export default function Login() {
                   name="email"
                   type="email"
                   autoComplete="username"
-                  placeholder="tenban@truong.edu.vn"
+                  placeholder="email@tdtu.edu.vn"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   required
@@ -128,9 +128,9 @@ export default function Login() {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-4">
-                  <Label htmlFor="password">Mật khẩu</Label>
+                  <Label htmlFor="password">Password</Label>
                   <Link href="/reset-password" className="text-xs font-medium text-primary hover:underline">
-                    Quên mật khẩu?
+                    Forgot password?
                   </Link>
                 </div>
                 <div className="relative">
@@ -139,7 +139,7 @@ export default function Login() {
                     name="password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
-                    placeholder="Nhập mật khẩu"
+                    placeholder="Enter your password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     required
@@ -149,7 +149,7 @@ export default function Login() {
                     type="button"
                     className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground hover:text-foreground"
                     onClick={() => setShowPassword((visible) => !visible)}
-                    aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -157,18 +157,18 @@ export default function Login() {
               </div>
 
               <p className="text-xs leading-5 text-muted-foreground">
-                Khi đăng nhập, bạn đồng ý với chính sách sử dụng và bảo vệ dữ liệu của nhà trường.
+                By signing in, you agree to your institution's usage and data-protection policies.
               </p>
 
               <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="animate-spin" />
-                    Đang xác thực
+                    Signing in
                   </>
                 ) : (
                   <>
-                    Đăng nhập
+                    Sign in
                     <ArrowRight />
                   </>
                 )}
@@ -177,8 +177,8 @@ export default function Login() {
           </div>
 
           <div className="mt-4 rounded-xl border border-border/70 bg-card/70 p-4">
-            <p className="text-sm font-semibold">Tài khoản demo</p>
-            <p className="mt-1 text-xs text-muted-foreground">Chọn một vai trò để điền thông tin đăng nhập.</p>
+            <p className="text-sm font-semibold">Demo accounts</p>
+            <p className="mt-1 text-xs text-muted-foreground">Select a role to fill in the sign-in details.</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {demoAccounts.map((account) => (
                 <Button

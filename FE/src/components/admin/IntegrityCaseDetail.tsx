@@ -217,8 +217,8 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Phạm vi evidence</CardTitle>
-                <CardDescription>Chỉ các tín hiệu đã được ghi nhận ở trên mới được dùng để hỗ trợ quyết định. Timeline chi tiết chưa được API cung cấp.</CardDescription>
+                <CardTitle className="text-lg">Evidence scope</CardTitle>
+                <CardDescription>Only the recorded events above are used to support the decision. The API does not provide a detailed timeline.</CardDescription>
               </CardHeader>
             </Card>
           </div>
@@ -241,7 +241,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                   }`}>
                     <AlertTriangle className="h-10 w-10" />
                   </div>
-                  <p className="mt-3 text-lg font-semibold">Mức tín hiệu {submission.confidence}</p>
+                  <p className="mt-3 text-lg font-semibold">{submission.confidence} confidence level</p>
                   <p className="text-sm text-muted-foreground">
                     {submission.reasons.length} detection signals
                   </p>
@@ -249,16 +249,16 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                 <Separator />
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Điểm tương đồng</span>
-                    <span className="font-medium">{submission.similarityScore ?? 'Chưa có dữ liệu'}</span>
+                    <span className="text-muted-foreground">Similarity score</span>
+                    <span className="font-medium">{submission.similarityScore ?? 'No data available'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Tín hiệu thời gian</span>
-                    <span className="font-medium">{submission.timeAnomaly ? 'Có tín hiệu' : 'Không ghi nhận'}</span>
+                    <span className="text-muted-foreground">Time signal</span>
+                    <span className="font-medium">{submission.timeAnomaly ? 'Signal detected' : 'Not detected'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Mẫu hành vi</span>
-                    <span className="font-medium">{submission.patternMatch?.length ? submission.patternMatch.length : 'Chưa có dữ liệu'}</span>
+                    <span className="text-muted-foreground">Behavior patterns</span>
+                    <span className="font-medium">{submission.patternMatch?.length ? submission.patternMatch.length : 'No data available'}</span>
                   </div>
                 </div>
               </CardContent>
@@ -286,15 +286,15 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                 <div className="space-y-2">
                   <Button className="w-full" variant="destructive" disabled={isSaving} onClick={() => onReview('CONFIRMED', reviewNotes)}>
                     <XCircle className="h-4 w-4 mr-2" />
-                    Xác nhận cần xử lý
+                    Confirm for action
                   </Button>
                   <Button className="w-full" variant="outline" disabled={isSaving} onClick={() => onReview('DISMISSED', reviewNotes)}>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Loại trừ tín hiệu
+                    Dismiss signal
                   </Button>
                   <Button className="w-full" variant="ghost" disabled={isSaving} onClick={() => onReview('REVIEWED', reviewNotes)}>
                     <MessageSquare className="h-4 w-4 mr-2" />
-                    Đánh dấu đã xem xét
+                    Mark as reviewed
                   </Button>
                 </div>
               </CardContent>
@@ -308,7 +308,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
               <CardContent>
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Lịch sử tổng hợp chưa được cung cấp bởi API và không được suy diễn từ tín hiệu hiện tại.
+                    Aggregate history is not provided by the API and is not inferred from current signals.
                   </p>
                 </div>
               </CardContent>

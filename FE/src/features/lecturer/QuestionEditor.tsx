@@ -339,9 +339,9 @@ export default function QuestionEditor() {
       const draft = loadDraft();
       if (draft) {
         restoreDraft(draft);
-        toast.success("Đã khôi phục bản nháp câu hỏi.");
+        toast.success("Question draft restored.");
       } else {
-        toast.info("Không tìm thấy bản nháp câu hỏi.");
+        toast.info("No question draft found.");
       }
     }
   }, [questionId, restoreDraftParam]);
@@ -767,7 +767,7 @@ export default function QuestionEditor() {
       localStorage.removeItem(DRAFT_STORAGE_KEY);
 
       if (addAnother && !questionId) {
-        window.alert("Thêm câu hỏi thành công!");
+        window.alert("Question added successfully!");
         resetFormForNextQuestion();
         return;
       }
@@ -1049,19 +1049,19 @@ export default function QuestionEditor() {
 
       setTopicSuggestions(rankedTopics);
       if (rankedTopics.length > 0) {
-        const message = `Tìm thấy ${rankedTopics.length} chủ đề tương tự.`;
+        const message = `Found ${rankedTopics.length} similar topics.`;
         setTopicCheckMessage(message);
         toast.success(message);
       } else {
-        const message = "Không tìm thấy chủ đề tương tự. Bạn có thể tạo chủ đề mới.";
+        const message = "No similar topics found. You can create a new topic.";
         setTopicCheckMessage(message);
         toast.info(message);
       }
     } catch (error) {
       console.error("Failed to check similar topics:", error);
       setTopicSuggestions([]);
-      setTopicCheckMessage("Không thể kiểm tra bằng AI lúc này. Vui lòng thử lại.");
-      toast.error("Không thể kiểm tra topic tương tự.");
+      setTopicCheckMessage("AI cannot check this right now. Please try again.");
+      toast.error("Unable to check similar topics.");
     } finally {
       setCheckingTopicSimilarity(false);
     }
@@ -1308,9 +1308,9 @@ export default function QuestionEditor() {
                     <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
                       <CardTitle className="text-sm sm:text-base">
                         <HelpedTitle help={{
-                          description: "Xác định cách sinh viên sẽ trả lời câu hỏi, ví dụ trắc nghiệm, đúng/sai, điền khuyết hoặc tự luận.",
-                          usedBy: "Giảng viên chọn khi tạo hoặc chỉnh sửa câu hỏi để hệ thống hiển thị đúng form nhập liệu và cách chấm.",
-                          note: "Đổi loại câu hỏi có thể làm thay đổi cấu trúc phương án trả lời, nên kiểm tra lại đáp án đúng trước khi lưu.",
+                          description: "Defines how students answer the question, such as multiple choice, true/false, fill in the blank, or essay.",
+                          usedBy: "Lecturers select it when creating or editing questions so the system shows the correct input form and grading method.",
+                          note: "Changing the question type can change the answer-option structure; verify the correct answer before saving.",
                         }}>
                           Question Type
                         </HelpedTitle>
@@ -1867,9 +1867,9 @@ export default function QuestionEditor() {
                       <div className="space-y-1.5">
                         <Label className="text-xs text-muted-foreground">
                           <HelpedTitle help={{
-                            description: "Gắn câu hỏi vào một nhóm kiến thức cụ thể trong khóa học.",
-                            usedBy: "Dùng khi lọc ngân hàng câu hỏi, sinh đề theo chủ đề và xem phân tích chủ đề yếu sau bài thi.",
-                            note: "Nên chọn chủ đề đủ cụ thể để báo cáo phân tích có ý nghĩa hơn.",
+                            description: "Assigns the question to a specific knowledge area in the course.",
+                            usedBy: "Used to filter the question bank, generate exams by topic, and view weak-topic analysis after exams.",
+                            note: "Choose a sufficiently specific topic for more meaningful analytics reports.",
                           }}>
                             Topic
                           </HelpedTitle>
@@ -1898,9 +1898,9 @@ export default function QuestionEditor() {
                     <CardHeader className="pb-2 px-4 pt-4">
                       <CardTitle className="text-sm">
                         <HelpedTitle help={{
-                          description: "Mức độ khó dự kiến của câu hỏi, thường dùng để cân bằng đề giữa dễ, trung bình và khó.",
-                          usedBy: "Giảng viên dùng khi tạo đề; hệ thống dùng để lọc, thống kê và phân tích chất lượng câu hỏi.",
-                          note: "Độ khó thực tế có thể được điều chỉnh lại sau khi có dữ liệu bài làm của sinh viên.",
+                          description: "The intended difficulty of the question, usually used to balance exams across easy, medium, and hard questions.",
+                          usedBy: "Lecturers use it when creating exams; the system uses it for filtering, statistics, and question-quality analysis.",
+                          note: "Actual difficulty may be recalibrated after student submission data is available.",
                         }}>
                           Difficulty
                         </HelpedTitle>
@@ -2031,7 +2031,7 @@ export default function QuestionEditor() {
                   {checkingTopicSimilarity ? (
                     <div className="flex items-center gap-2 rounded-xl border border-info/25 bg-info/5 px-3 py-2 text-xs text-info">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Đang kiểm tra chủ đề tương tự...
+                      Checking similar topics...
                     </div>
                   ) : topicCheckMessage ? (
                     <div

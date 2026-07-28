@@ -117,9 +117,9 @@ describe("CourseDetail exam statistics tabs", () => {
       expect(screen.getByText("Nguyễn Văn A")).toBeInTheDocument(),
     );
     expect(
-      screen.getByRole("tab", { name: "Sinh viên" }),
+      screen.getByRole("tab", { name: "Students" }),
     ).toHaveAttribute("data-state", "active");
-    expect(screen.queryByText("Bài kiểm tra của khóa học")).not.toBeInTheDocument();
+    expect(screen.queryByText("Course exams")).not.toBeInTheDocument();
   });
 
   it("shows course exams and per-student statistics in the exam tab", async () => {
@@ -130,16 +130,16 @@ describe("CourseDetail exam statistics tabs", () => {
     );
 
     const examTab = screen.getByRole("tab", {
-      name: "Bài kiểm tra & thống kê",
+      name: "Exams & statistics",
     });
     fireEvent.pointerDown(examTab, { button: 0, ctrlKey: false });
     fireEvent.mouseDown(examTab, { button: 0, ctrlKey: false });
     fireEvent.click(examTab);
 
-    expect(await screen.findByText("Bài kiểm tra của khóa học")).toBeInTheDocument();
+    expect(await screen.findByText("Course exams")).toBeInTheDocument();
     expect(screen.getByText("Kiểm tra giữa kỳ")).toBeInTheDocument();
     expect(screen.getAllByText("80%").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Tín hiệu cần xem xét").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Events requiring review").length).toBeGreaterThan(0);
     expect(mocks.getExams).toHaveBeenCalledWith({ courseId: "course-1", limit: 100 });
   });
 });

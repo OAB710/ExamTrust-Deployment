@@ -76,27 +76,27 @@ interface QuestionBankSummary {
 }
 
 const questionTypeLabels: Record<string, string> = {
-  MULTIPLE_CHOICE: "Trắc nghiệm",
-  TRUE_FALSE: "Đúng/sai",
-  SHORT_ANSWER: "Tự luận ngắn",
-  ESSAY: "Tự luận",
-  FILL_BLANK: "Điền khuyết",
-  MATCHING: "Ghép đôi",
-  ORDERING: "Sắp xếp thứ tự",
-  FIND_ERROR: "Tìm lỗi sai",
+  MULTIPLE_CHOICE: "Multiple choice",
+  TRUE_FALSE: "True/False",
+  SHORT_ANSWER: "Short answer",
+  ESSAY: "Essay",
+  FILL_BLANK: "Fill in the blank",
+  MATCHING: "Matching",
+  ORDERING: "Ordering",
+  FIND_ERROR: "Find the error",
 };
 
 const formatDifficulty = (value: number) => {
-  if (!Number.isFinite(value) || value <= 0) return "Chưa có";
-  if (value < 1.8) return "Dễ";
-  if (value < 2.6) return "Trung bình";
-  return "Khó";
+  if (!Number.isFinite(value) || value <= 0) return "Not available";
+  if (value < 1.8) return "Easy";
+  if (value < 2.6) return "Medium";
+  return "Hard";
 };
 
 const formatRecentDate = (value: string | null) => {
-  if (!value) return "Chưa cập nhật";
+  if (!value) return "Not available";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Chưa cập nhật";
+  if (Number.isNaN(date.getTime())) return "Not available";
   return new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -131,7 +131,7 @@ const buildQuestionBankSummaries = (
       null;
     const courseId = course?.id || question.courseId || question.course?.id || "";
     const courseCode = course?.code || question.course?.code || "Chung";
-    const courseName = course?.name || question.course?.name || "Chưa gán khóa học";
+    const courseName = course?.name || question.course?.name || "No course assigned";
     const key = courseId || courseCode;
     const current =
       grouped.get(key) ||
@@ -197,16 +197,16 @@ function AiAssistantCard() {
           </div>
           <div>
             <h3 className="font-bold text-foreground">AI Assistant</h3>
-            <p className="text-xs text-muted-foreground">Tạo câu hỏi với AI</p>
+            <p className="text-xs text-muted-foreground">Create questions with AI</p>
           </div>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Dùng AI để đề xuất câu hỏi từ tài liệu khóa học, sau đó giảng viên xem xét trước khi sử dụng.
+          Use AI to propose questions from course materials, then review them before use.
         </p>
         <Button asChild variant="outline" className="w-full rounded-xl gap-2" size="sm">
           <Link href="/lecturer/question-bank">
             <Zap className="h-4 w-4" />
-            Mở ngân hàng câu hỏi
+            Open question bank
           </Link>
         </Button>
       </CardContent>
@@ -256,7 +256,7 @@ export default function LecturerDashboard() {
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">
-              Đang tải trang tổng quan...
+              Loading dashboard...
             </p>
           </div>
         </div>
@@ -271,10 +271,10 @@ export default function LecturerDashboard() {
         <div className="flex items-start justify-between">
           <div className="animate-fade-in opacity-0">
             <h1 className="text-2xl font-bold text-foreground">
-              Chào mừng trở lại, {user?.fullName.split(" ")[0]}
+              Welcome back, {user?.fullName.split(" ")[0]}
             </h1>
             <p className="text-muted-foreground mt-1">
-              Tổng quan khóa học, bài thi và ngân hàng câu hỏi của bạn.
+              An overview of your courses, exams, and question bank.
             </p>
           </div>
           <Button
@@ -284,7 +284,7 @@ export default function LecturerDashboard() {
           >
             <Link href="/lecturer/exams/create">
               <Plus className="h-4 w-4" />
-              Tạo bài thi
+              Create exam
             </Link>
           </Button>
         </div>
@@ -301,9 +301,9 @@ export default function LecturerDashboard() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-lg font-bold">
-                    Bài thi gần đây
+                    Recent exams
                   </CardTitle>
-                  <CardDescription>Các bài thi được cập nhật gần nhất</CardDescription>
+                  <CardDescription>Most recently updated exams</CardDescription>
                 </div>
                 <Button
                   variant="ghost"
@@ -312,7 +312,7 @@ export default function LecturerDashboard() {
                   asChild
                 >
                   <Link href="/lecturer/exams">
-                    Xem tất cả
+                    View all
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
@@ -325,15 +325,15 @@ export default function LecturerDashboard() {
                         <FileText className="h-6 w-6 text-muted-foreground" />
                       </div>
                       <p className="text-muted-foreground font-medium">
-                        Chưa có bài thi
+                        No exams yet
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Tạo bài thi đầu tiên để bắt đầu
+                        Create your first exam to get started
                       </p>
                       <Button asChild className="mt-4 rounded-xl" size="sm">
                         <Link href="/lecturer/exams/create">
                           <Plus className="mr-2 h-4 w-4" />
-                          Tạo bài thi
+                          Create exam
                         </Link>
                       </Button>
                     </div>
@@ -363,8 +363,8 @@ export default function LecturerDashboard() {
                       const actionLabel = shouldMonitor
                         ? "Monitor"
                         : shouldShowResults
-                          ? "Xem kết quả"
-                          : "Xem trước và chỉnh sửa";
+                          ? "View results"
+                          : "Preview and edit";
                       const actionHref = shouldMonitor
                         ? `/lecturer/exam/${exam.id}/monitor`
                         : shouldShowResults
@@ -394,11 +394,11 @@ export default function LecturerDashboard() {
                               </span>
                               <span className="flex items-center gap-1 whitespace-nowrap">
                                 <BookOpen className="h-3.5 w-3.5" />
-                                {questionCount} câu hỏi
+                                {questionCount} questions
                               </span>
                               <span className="flex items-center gap-1 whitespace-nowrap">
                                 <Clock className="h-3.5 w-3.5" />
-                                {exam.duration} phút
+                                {exam.duration} minutes
                               </span>
                             </div>
                           </div>
@@ -443,12 +443,12 @@ export default function LecturerDashboard() {
             <Card className="card-elevated flex h-full w-full flex-col">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-bold">
-                  <HelpedTitle help="Các khóa học có câu hỏi được cập nhật gần đây, giúp bạn nhanh chóng quay lại quản lý ngân hàng câu hỏi.">
-                    Ngân hàng câu hỏi gần đây
+                  <HelpedTitle help="Courses with recently updated questions, so you can quickly return to question-bank management.">
+                    Recent question banks
                   </HelpedTitle>
                 </CardTitle>
                 <CardDescription>
-                  Các khóa học có câu hỏi được cập nhật gần nhất
+                  Courses with the most recently updated questions
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-1 flex-col space-y-3">
@@ -458,15 +458,15 @@ export default function LecturerDashboard() {
                       <Database className="h-5 w-5" />
                     </div>
                     <p className="text-sm font-semibold text-foreground">
-                      Chưa có câu hỏi trong ngân hàng
+                      No questions in the question bank
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Thêm câu hỏi hoặc dùng AI để chuẩn bị đề cho khóa học.
+                      Add questions or use AI to prepare an exam for this course.
                     </p>
                     <Button asChild size="sm" className="mt-4 rounded-xl">
                       <Link href="/lecturer/question-editor">
                         <Plus className="mr-2 h-4 w-4" />
-                        Thêm câu hỏi
+                        Add questions
                       </Link>
                     </Button>
                   </div>
@@ -476,7 +476,7 @@ export default function LecturerDashboard() {
                       key={bank.courseId || bank.courseCode}
                       href={`/lecturer/question-bank?courseCode=${encodeURIComponent(bank.courseCode)}${bank.courseId ? `&courseId=${encodeURIComponent(bank.courseId)}` : ""}`}
                       className="block rounded-lg border border-border/60 p-3 transition-colors hover:border-primary/20 hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      aria-label={`Mở ngân hàng câu hỏi ${bank.courseCode}`}
+                      aria-label={`Open question bank for ${bank.courseCode}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -513,7 +513,7 @@ export default function LecturerDashboard() {
                         ))}
                         {bank.questionTypes.length > 2 ? (
                           <span className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-                            +{bank.questionTypes.length - 2} loại
+                            +{bank.questionTypes.length - 2} types
                           </span>
                         ) : null}
                       </div>
@@ -527,7 +527,7 @@ export default function LecturerDashboard() {
                   className="mt-auto w-full rounded-xl"
                 >
                   <Link href="/lecturer/question-bank">
-                    Quản lý ngân hàng câu hỏi
+                    Manage question bank
                   </Link>
                 </Button>
               </CardContent>
@@ -543,17 +543,17 @@ export default function LecturerDashboard() {
                   </div>
                   <div>
                     <h3 className="font-bold text-foreground">
-                      <HelpedTitle help="AI hỗ trợ tạo bản nháp câu hỏi từ tài liệu hoặc gợi ý, giảng viên vẫn cần xem xét trước khi sử dụng.">
+                      <HelpedTitle help="AI helps draft questions from documents or prompts; lecturers still need to review them before use.">
                         AI Assistant
                       </HelpedTitle>
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      Tạo câu hỏi với AI
+                      Create questions with AI
                     </p>
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Dùng AI để đề xuất câu hỏi từ tài liệu khóa học, sau đó giảng viên xem xét trước khi sử dụng.
+                  Use AI to propose questions from course materials, then review them before use.
                   content.
                 </p>
                 <Button
@@ -564,7 +564,7 @@ export default function LecturerDashboard() {
                 >
                   <Link href="/lecturer/question-bank">
                     <Zap className="h-4 w-4" />
-                    Mở ngân hàng câu hỏi
+                    Open question bank
                   </Link>
                 </Button>
               </CardContent>

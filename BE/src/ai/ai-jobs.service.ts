@@ -90,7 +90,7 @@ export class AiJobsService {
         payload: params.payload,
       });
     } catch (error: any) {
-      const message = 'Không thể đưa yêu cầu AI vào hàng đợi. Vui lòng thử lại sau.';
+      const message = 'Unable to queue the AI request. Please try again later.';
       await this.prisma.aIGenerationRecord.update({
         where: { id: record.id },
         data: { status: 'FAILED', errorMessage: String(error?.message || message) },

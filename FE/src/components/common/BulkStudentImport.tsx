@@ -124,7 +124,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
     ];
     const ext = selectedFile.name.split(".").pop()?.toLowerCase();
     if (!validTypes.includes(selectedFile.type) && !["csv", "xlsx", "xls"].includes(ext || "")) {
-      toast.error("Định dạng tệp không được hỗ trợ. Vui lòng dùng CSV hoặc Excel (.xlsx, .xls).");
+      toast.error("Unsupported file format. Please use CSV or Excel (.xlsx, .xls).");
       return;
     }
     setFile(selectedFile);
@@ -174,7 +174,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
       const rawData: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
       if (rawData.length === 0) {
-        toast.error("Tệp đang trống.");
+        toast.error("The file is empty.");
         setState("file-selected");
         return;
       }
@@ -202,7 +202,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
           // Re-include first row as data
           rawData.unshift([]); // shift index so data starts at 1
         } else {
-          toast.error("Không tìm thấy cột 'Email' trong tệp. Vui lòng kiểm tra tiêu đề cột.");
+          toast.error("The 'Email' column was not found in the file. Please check the column headers.");
           setState("file-selected");
           return;
         }
@@ -231,11 +231,11 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
 
         // Validate email
         if (!email) {
-          rowErrors.push("Email là bắt buộc");
+          rowErrors.push("Email is required");
         } else if (!EMAIL_REGEX.test(email)) {
-          rowErrors.push(`Email không đúng định dạng: "${email}"`);
+          rowErrors.push(`Invalid email format: "${email}"`);
         } else if (emailsSeen.has(email)) {
-          rowErrors.push(`Email bị trùng với dòng ${emailsSeen.get(email)}`);
+          rowErrors.push(`Duplicate email from row ${emailsSeen.get(email)}`);
         }
 
         if (rowErrors.length > 0) {
@@ -253,7 +253,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
       }
 
       if (parsedRows.length === 0 && errorRows.length === 0) {
-        toast.error("Không tìm thấy dòng dữ liệu trong tệp.");
+        toast.error("No data rows were found in the file.");
         setState("file-selected");
         return;
       }
@@ -262,7 +262,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
       setState("preview");
     } catch (err: any) {
       console.error("Parse error:", err);
-      toast.error("Không thể đọc tệp: " + (err?.message || "Lỗi chưa xác định"));
+      toast.error("Unable to read file: " + (err?.message || "Unknown error"));
       setState("file-selected");
     }
   }, [file]);
@@ -291,7 +291,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
       }
     } catch (err: any) {
       console.error("Import error:", err);
-      toast.error("Import thất bại: " + (err?.message || "Lỗi chưa xác định"));
+      toast.error("Import failed: " + (err?.message || "Unknown error"));
       setState("preview");
     }
   }, [validated, courseId, onImportSuccess]);
@@ -317,7 +317,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Students");
     XLSX.writeFile(wb, "student_import_template.xlsx");
-    toast.success("Đã tải mẫu thành công");
+    toast.success("Template downloaded successfully");
   }, []);
 
   // ─── Render: Idle / File selected ──────────────────────────────
@@ -603,7 +603,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
             className="flex-1"
             onClick={clearFile}
           >
-            Hủy
+            Cancel
           </Button>
           <Button
             className="flex-1 gap-2"
@@ -611,7 +611,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
             onClick={handleImport}
           >
             <Upload className="h-4 w-4" />
-            Import {validRows.length} sinh viên
+            Import {validRows.length} students
           </Button>
         </div>
       </div>
@@ -654,18 +654,18 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
             <div className="space-y-1">
               <p className="font-semibold text-sm">
                 {result.success.length > 0 && result.failed.length === 0
-                  ? "Import hoàn tất thành công!"
+                  ? "Import completed successfully!"
                   : result.success.length > 0
-                    ? "Import hoàn tất nhưng còn một số dòng lỗi"
-                    : "Import thất bại"}
+                    ? "Import completed with some row errors"
+                    : "Import failed"}
               </p>
               <div className="text-xs space-y-0.5 text-muted-foreground">
-                <p><strong>{result.success.length}</strong> sinh viên đã được import thành công</p>
+                <p><strong>{result.success.length}</strong> students imported successfully</p>
                 {result.failed.length > 0 && (
-                  <p><strong>{result.failed.length}</strong> dòng đã bị bỏ qua</p>
+                  <p><strong>{result.failed.length}</strong> rows skipped</p>
                 )}
                 {result.provisioned > 0 && (
-                  <p><strong>{result.provisioned}</strong> tài khoản mới đã được tạo tự động</p>
+                  <p><strong>{result.provisioned}</strong> new accounts created automatically</p>
                 )}
               </div>
             </div>
@@ -679,7 +679,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-red-500" />
                 <span className="text-sm font-medium text-red-700 dark:text-red-400">
-                  Dòng bị bỏ qua
+                  Skipped rows
                 </span>
               </div>
             </div>
@@ -687,9 +687,9 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
               <Table>
                 <TableHeader>
                   <TableRow className="bg-red-50/50 dark:bg-red-950/10 hover:bg-red-50/50 sticky top-0 z-10 shadow-sm">
-                    <TableHead className="w-16 text-xs bg-red-50/50 dark:bg-red-950/10">Dòng</TableHead>
+                    <TableHead className="w-16 text-xs bg-red-50/50 dark:bg-red-950/10">Row</TableHead>
                     <TableHead className="text-xs bg-red-50/50 dark:bg-red-950/10">Email</TableHead>
-                    <TableHead className="text-xs bg-red-50/50 dark:bg-red-950/10">Lý do</TableHead>
+                    <TableHead className="text-xs bg-red-50/50 dark:bg-red-950/10">Reason</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -717,7 +717,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
           className="w-full"
           onClick={clearFile}
         >
-          Hoàn tất
+          Done
         </Button>
       </div>
     );

@@ -176,14 +176,14 @@ const completedSubmissionStatuses = new Set([
 ]);
 
 const formatPercent = (value: number | null) => {
-  if (value === null || !Number.isFinite(value)) return "Chưa có dữ liệu";
+  if (value === null || !Number.isFinite(value)) return "No data available";
   return `${Math.round(value)}%`;
 };
 
 const formatDateTime = (value: string | null) => {
-  if (!value) return "Chưa có";
+  if (!value) return "Not available";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Chưa có";
+  if (Number.isNaN(date.getTime())) return "Not available";
   return new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
@@ -802,8 +802,8 @@ export default function CourseDetail() {
 
         <Tabs defaultValue="students" className="space-y-4">
           <TabsList className="grid w-full grid-cols-2 sm:w-auto">
-            <TabsTrigger value="students">Sinh viên</TabsTrigger>
-            <TabsTrigger value="exams">Bài kiểm tra & thống kê</TabsTrigger>
+            <TabsTrigger value="students">Students</TabsTrigger>
+            <TabsTrigger value="exams">Exams & statistics</TabsTrigger>
           </TabsList>
 
           <TabsContent value="students" className="space-y-4">
@@ -934,7 +934,7 @@ export default function CourseDetail() {
                 <CardContent className="flex min-h-[260px] items-center justify-center">
                   <div className="flex flex-col items-center gap-3 text-muted-foreground">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    <p className="text-sm">Đang tải thống kê bài kiểm tra...</p>
+                    <p className="text-sm">Loading exam statistics...</p>
                   </div>
                 </CardContent>
               </Card>
@@ -948,7 +948,7 @@ export default function CourseDetail() {
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">
-                          Bài kiểm tra
+                          Exams
                         </p>
                         <p className="text-2xl font-semibold tabular-nums">
                           {courseExams.length}
@@ -963,7 +963,7 @@ export default function CourseDetail() {
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">
-                          Lượt nộp
+                          Submissions
                         </p>
                         <p className="text-2xl font-semibold tabular-nums">
                           {courseExams.reduce(
@@ -981,7 +981,7 @@ export default function CourseDetail() {
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">
-                          Tín hiệu cần xem xét
+                          Events requiring review
                         </p>
                         <p className="text-2xl font-semibold tabular-nums">
                           {studentPerformance.reduce(
@@ -996,9 +996,9 @@ export default function CourseDetail() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Bài kiểm tra của khóa học</CardTitle>
+                    <CardTitle>Course exams</CardTitle>
                     <CardDescription>
-                      Mỗi dòng liên kết nhanh tới kết quả, giám sát và phân tích.
+                      Each row links directly to results, monitoring, and analytics.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -1006,12 +1006,12 @@ export default function CourseDetail() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Bài kiểm tra</TableHead>
-                            <TableHead>Trạng thái</TableHead>
-                            <TableHead>Lượt nộp</TableHead>
-                            <TableHead>Điểm TB</TableHead>
-                            <TableHead>Lịch</TableHead>
-                            <TableHead className="text-right">Thao tác</TableHead>
+                            <TableHead>Exam</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Submissions</TableHead>
+                            <TableHead>Average score</TableHead>
+                            <TableHead>Schedule</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1021,7 +1021,7 @@ export default function CourseDetail() {
                                 colSpan={6}
                                 className="py-10 text-center text-muted-foreground"
                               >
-                                Chưa có bài kiểm tra nào liên kết với khóa học này.
+                                No exams are linked to this course.
                               </TableCell>
                             </TableRow>
                           ) : (
@@ -1033,7 +1033,7 @@ export default function CourseDetail() {
                                       {exam.title}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      {exam.duration || 0} phút
+                                      {exam.duration || 0} minutes
                                     </p>
                                   </div>
                                 </TableCell>
@@ -1065,7 +1065,7 @@ export default function CourseDetail() {
                                       }
                                     >
                                       <Eye className="h-4 w-4" />
-                                      Xem kết quả
+                                      View results
                                     </Button>
                                     <Button
                                       variant="outline"
@@ -1076,7 +1076,7 @@ export default function CourseDetail() {
                                         )
                                       }
                                     >
-                                      Theo dõi
+                                      Monitor
                                     </Button>
                                     <Button
                                       variant="ghost"
@@ -1089,7 +1089,7 @@ export default function CourseDetail() {
                                       }
                                     >
                                       <BarChart3 className="h-4 w-4" />
-                                      Phân tích
+                                      Analytics
                                     </Button>
                                   </div>
                                 </TableCell>
@@ -1104,9 +1104,9 @@ export default function CourseDetail() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Theo từng sinh viên</CardTitle>
+                    <CardTitle>By student</CardTitle>
                     <CardDescription>
-                      Tổng hợp lượt nộp, điểm trung bình và tín hiệu cần xem xét.
+                      A summary of submissions, average scores, and events requiring review.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -1114,13 +1114,13 @@ export default function CourseDetail() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Sinh viên</TableHead>
-                            <TableHead>Mã SV</TableHead>
-                            <TableHead>Đã nộp</TableHead>
-                            <TableHead>Điểm TB</TableHead>
-                            <TableHead>Bài gần nhất</TableHead>
-                            <TableHead>Tín hiệu cần xem xét</TableHead>
-                            <TableHead className="text-right">Chi tiết</TableHead>
+                            <TableHead>Student</TableHead>
+                            <TableHead>Student ID</TableHead>
+                            <TableHead>Submitted</TableHead>
+                            <TableHead>Average score</TableHead>
+                            <TableHead>Most recent exam</TableHead>
+                            <TableHead>Events requiring review</TableHead>
+                            <TableHead className="text-right">Details</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1130,7 +1130,7 @@ export default function CourseDetail() {
                                 colSpan={7}
                                 className="py-10 text-center text-muted-foreground"
                               >
-                                Chưa có sinh viên để tổng hợp thống kê.
+                                There are no students to include in the statistics.
                               </TableCell>
                             </TableRow>
                           ) : (
@@ -1193,11 +1193,11 @@ export default function CourseDetail() {
                                     <TableCell>
                                       {student.reviewSignalCount > 0 ? (
                                         <StatusBadge tone="warning">
-                                          {student.reviewSignalCount} tín hiệu
+                                          {student.reviewSignalCount} events
                                         </StatusBadge>
                                       ) : (
                                         <span className="text-sm text-muted-foreground">
-                                          Không có
+                                          None
                                         </span>
                                       )}
                                     </TableCell>
@@ -1214,7 +1214,7 @@ export default function CourseDetail() {
                                           )
                                         }
                                       >
-                                        Chi tiết
+                                        Details
                                         <ChevronDown
                                           className={`h-4 w-4 transition-transform ${
                                             isExpanded ? "rotate-180" : ""
@@ -1232,11 +1232,11 @@ export default function CourseDetail() {
                                         <div className="overflow-x-auto rounded-lg border bg-background">
                                           <div className="min-w-[760px]">
                                             <div className="grid grid-cols-[minmax(240px,1fr)_140px_120px_170px_140px] gap-3 border-b bg-muted/40 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                              <span>Bài kiểm tra</span>
-                                              <span>Trạng thái</span>
-                                              <span>Điểm</span>
-                                              <span>Thời gian nộp</span>
-                                              <span>Tín hiệu</span>
+                                              <span>Exam</span>
+                                              <span>Status</span>
+                                              <span>Score</span>
+                                              <span>Submitted at</span>
+                                              <span>Events</span>
                                             </div>
                                             {student.examResults.map((result) => (
                                               <div
@@ -1252,7 +1252,7 @@ export default function CourseDetail() {
                                                   {result.status ===
                                                   "NOT_SUBMITTED" ? (
                                                     <StatusBadge tone="neutral">
-                                                      Chưa nộp
+                                                      Not submitted
                                                     </StatusBadge>
                                                   ) : (
                                                     <StatusBadge
@@ -1276,11 +1276,11 @@ export default function CourseDetail() {
                                                       {
                                                         result.reviewSignalCount
                                                       }{" "}
-                                                      tín hiệu
+                                                      events
                                                     </StatusBadge>
                                                   ) : (
                                                     <span className="text-sm text-muted-foreground">
-                                                      Không có
+                                                      None
                                                     </span>
                                                   )}
                                                 </div>

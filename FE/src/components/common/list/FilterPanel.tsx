@@ -59,14 +59,14 @@ const getNumberFieldKey = (filterKey: string, bound: "min" | "max") =>
   `${filterKey}::${bound}`;
 
 export function FilterPanel({
-  title = "Bộ lọc",
-  description = "Thu hẹp kết quả trước khi áp dụng.",
+  title = "Filters",
+  description = "Narrow the results before applying.",
   filters,
   value,
   onValueChange,
   onApply,
   onClear,
-  triggerLabel = "Lọc",
+  triggerLabel = "Filter",
   activeCount = 0,
   className,
   inline = true,
@@ -212,7 +212,7 @@ export function FilterPanel({
             className="h-8 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
-            Xóa bộ lọc
+            Clear filters
           </Button>
         ) : null}
       </div>
@@ -252,14 +252,14 @@ export function FilterPanel({
                       <SelectValue
                         placeholder={
                           filter.placeholder ||
-                          `Chọn ${filter.label.toLowerCase()}`
+                          `Select ${filter.label.toLowerCase()}`
                         }
                       />
                     </SelectTrigger>
                     <SelectContent>
                       {filter.allowAll !== false && (
                         <SelectItem value="all">
-                          {filter.allLabel || `Tất cả ${filter.label}`}
+                          {filter.allLabel || `All ${filter.label}`}
                         </SelectItem>
                       )}
                       {filter.options.map((option) => (
@@ -341,9 +341,9 @@ export function FilterPanel({
                     <p className="text-xs font-medium text-foreground">
                       {typeof current === "boolean"
                         ? current
-                          ? filter.trueLabel || "Đã bật"
-                          : filter.falseLabel || "Đã tắt"
-                        : `Bật hoặc tắt ${filter.label.toLowerCase()}`}
+                          ? filter.trueLabel || "Enabled"
+                          : filter.falseLabel || "Disabled"
+                        : `Enable or disable ${filter.label.toLowerCase()}`}
                     </p>
                     <Switch
                       checked={typeof current === "boolean" ? current : false}
@@ -456,7 +456,7 @@ export function FilterPanel({
                                 },
                               )
                             }
-                            placeholder="Tối đa"
+                            placeholder="Maximum"
                             className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
                           />
                           {maxError ? (
@@ -488,7 +488,7 @@ export function FilterPanel({
                               range,
                             )
                           }
-                          placeholder="Tối thiểu"
+                          placeholder="Minimum"
                           className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
                         />
                         {minError ? (
@@ -523,7 +523,7 @@ export function FilterPanel({
                               },
                             )
                           }
-                          placeholder="Tối đa"
+                          placeholder="Maximum"
                           className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
                         />
                         {maxError ? (
@@ -556,7 +556,7 @@ export function FilterPanel({
                   <div className="grid gap-2 md:grid-cols-2">
                     <div className="space-y-1.5">
                       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Từ ngày
+                        From date
                       </span>
                       <Input
                         type={filter.showTime ? "datetime-local" : "date"}
@@ -572,7 +572,7 @@ export function FilterPanel({
                     </div>
                     <div className="space-y-1.5">
                       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Đến ngày
+                        To date
                       </span>
                       <Input
                         type={filter.showTime ? "datetime-local" : "date"}
@@ -604,7 +604,7 @@ export function FilterPanel({
             onClick={handleClearWithReset}
             className="h-8 rounded-lg px-3 text-xs"
           >
-            Xóa bộ lọc
+            Clear filters
           </Button>
         </div>
       ) : null}

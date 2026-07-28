@@ -183,7 +183,7 @@ export default function ManualGradingDetail() {
                     }
                   >
                     {isAllManualGraded
-                      ? "Xem điểm"
+                      ? "View grade"
                       : `${gradedCount}/${manualTotal} graded`}
                   </Badge>
                 </div>
@@ -295,7 +295,7 @@ export default function ManualGradingDetail() {
                             ) : (
                               <Save className="h-4 w-4" />
                             )}
-                            {isSaved && !isDirty ? "Đã lưu" : "Lưu điểm"}
+                            {isSaved && !isDirty ? "Saved" : "Save grade"}
                           </Button>
                         </div>
                       </CardContent>

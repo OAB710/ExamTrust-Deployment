@@ -21,7 +21,7 @@ export function SearchBar({
   value,
   onChange,
   onSearch,
-  placeholder = "Tìm kiếm...",
+  placeholder = "Search...",
   className,
   disabled,
   clearable = true,
@@ -67,7 +67,7 @@ export function SearchBar({
             className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             <X className="h-4 w-4" />
-            <span className="sr-only">Xóa nội dung tìm kiếm</span>
+            <span className="sr-only">Clear search</span>
           </Button>
         ) : null}
       </div>

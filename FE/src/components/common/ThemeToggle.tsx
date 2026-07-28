@@ -18,9 +18,9 @@ import {
 import { THEME_OPTIONS } from "@/lib/theme";
 
 const themes = [
-  { value: THEME_OPTIONS[0], label: "Giao diện sáng", icon: Sun },
-  { value: THEME_OPTIONS[1], label: "Giao diện tối", icon: Moon },
-  { value: THEME_OPTIONS[2], label: "Theo thiết bị", icon: Monitor },
+  { value: THEME_OPTIONS[0], label: "Light", icon: Sun },
+  { value: THEME_OPTIONS[1], label: "Dark", icon: Moon },
+  { value: THEME_OPTIONS[2], label: "System", icon: Monitor },
 ] as const;
 
 export function ThemeToggle({ compact = false }: { compact?: boolean }) {
@@ -38,14 +38,14 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
           variant="ghost"
           size={compact ? "icon" : "sm"}
           className={compact ? "h-10 w-10" : "gap-2"}
-          aria-label="Chọn chế độ màu"
+          aria-label="Choose color theme"
         >
           <CurrentIcon className="h-4 w-4" aria-hidden="true" />
-          {!compact && <span>Giao diện</span>}
+          {!compact && <span>Theme</span>}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuLabel>Chế độ màu</DropdownMenuLabel>
+        <DropdownMenuLabel>Color theme</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
           {themes.map(({ value, label, icon: Icon }) => (

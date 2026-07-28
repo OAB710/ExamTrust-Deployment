@@ -148,9 +148,9 @@ export default function ExamManagement() {
   const formatExamMetadata = (exam: Exam) => {
     const parts = [];
     if (exam.duration) parts.push(formatDurationVi(exam.duration));
-    if (exam._count?.examQuestions) parts.push(`${exam._count.examQuestions} câu hỏi`);
-    if (exam._count?.submissions) parts.push(`${exam._count.submissions} lượt nộp`);
-    parts.push(`tạo lúc ${formatDateTimeVi(exam.createdAt)}`);
+    if (exam._count?.examQuestions) parts.push(`${exam._count.examQuestions} questions`);
+    if (exam._count?.submissions) parts.push(`${exam._count.submissions} submissions`);
+    parts.push(`created ${formatDateTimeVi(exam.createdAt)}`);
     return parts.join(" • ");
   };
 
@@ -180,7 +180,7 @@ export default function ExamManagement() {
       );
     } catch (error) {
       console.error("Failed to fetch exams:", error);
-      toast.error("Không thể tải danh sách bài thi");
+      toast.error("Unable to load exams");
     } finally {
       setLoading(false);
     }
@@ -210,11 +210,11 @@ export default function ExamManagement() {
       const archived = selectedExam.status === 'ARCHIVED';
       await (archived ? api.restoreExam(selectedExam.id) : api.archiveExam(selectedExam.id));
       setExams((previous) => previous.filter((exam) => exam.id !== selectedExam.id));
-      toast.success(archived ? 'Đã khôi phục bài thi' : 'Đã lưu trữ bài thi');
+      toast.success(archived ? 'Exam restored' : 'Exam archived');
       setShowArchiveDialog(false);
       setSelectedExam(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Không thể cập nhật bài thi');
+      toast.error(error instanceof Error ? error.message : 'Unable to update exam');
     } finally {
       setIsArchiving(false);
     }
@@ -299,13 +299,13 @@ export default function ExamManagement() {
             : item,
         ),
       );
-      toast.success("Đã công bố lại bài thi và tạo snapshot cho học sinh.");
+      toast.success("Exam republished and a student snapshot was created.");
     } catch (error) {
       console.error("Failed to republish exam:", error);
       toast.error(
         error instanceof Error
           ? error.message
-          : "Không thể công bố lại bài thi",
+          : "Unable to republish exam",
       );
     } finally {
       setPublishingExamId(null);
@@ -335,7 +335,7 @@ export default function ExamManagement() {
 
     if ((endTime.getTime() - startTime.getTime()) / 60000 < selectedExam.duration) {
       toast.error(
-        `Khung giờ thi phải dài ít nhất ${selectedExam.duration} phút`,
+        `The exam window must be at least ${selectedExam.duration} minutes long`,
       );
       return;
     }
@@ -374,22 +374,22 @@ export default function ExamManagement() {
     () => [
       {
         key: "status",
-        label: "Trạng thái",
+        label: "Status",
         type: "select",
-        allLabel: "Tất cả trạng thái",
+        allLabel: "All statuses",
         options: [
-          { label: "Bản nháp", value: "DRAFT" },
-          { label: "Đã công bố", value: "PUBLISHED" },
-          { label: "Đang diễn ra", value: "ONGOING" },
-          { label: "Đã hoàn thành", value: "COMPLETED" },
-          { label: "Đã lưu trữ", value: "ARCHIVED" },
+          { label: "Draft", value: "DRAFT" },
+          { label: "Published", value: "PUBLISHED" },
+          { label: "Ongoing", value: "ONGOING" },
+          { label: "Completed", value: "COMPLETED" },
+          { label: "Archived", value: "ARCHIVED" },
         ],
       },
       {
         key: "courseId",
-        label: "Khóa học",
+        label: "Course",
         type: "select",
-        allLabel: "Tất cả khóa học",
+        allLabel: "All courses",
         options: courses.map((course) => ({
           label: `${course.code} - ${course.name}`,
           value: course.id,
@@ -397,14 +397,14 @@ export default function ExamManagement() {
       },
       {
         key: "title",
-        label: "Tiêu đề",
+        label: "Title",
         type: "text",
-        placeholder: "Lọc theo tiêu đề",
+        placeholder: "Filter by title",
         operators: ["contains", "startsWith", "equals"],
       },
       {
         key: "createdAt",
-        label: "Ngày tạo",
+        label: "Created date",
         type: "date-range",
       },
     ],
@@ -526,9 +526,9 @@ export default function ExamManagement() {
   const activeFilterChips = getFilterChips(appliedFilters, examFilterDefinitions);
 
   const examSortOptions = [
-    { field: "course.code", label: "Khóa học" },
-    { field: "startTime", label: "Lịch thi" },
-    { field: "status", label: "Trạng thái" },
+    { field: "course.code", label: "Course" },
+    { field: "startTime", label: "Exam schedule" },
+    { field: "status", label: "Status" },
   ];
 
   const ITEMS_PER_PAGE = 10;
@@ -571,14 +571,14 @@ export default function ExamManagement() {
     <DashboardLayout>
       <AdminPageShell backTo="/lecturer">
         <ListPageHeader
-          title="Quản lý bài thi"
+          title="Exam management"
           actions={
             <Button
               onClick={() => router.push("/lecturer/exams/create")}
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
-              Tạo bài thi
+              Create exam
             </Button>
           }
         />
@@ -588,26 +588,26 @@ export default function ExamManagement() {
           <AdminStatCard
             icon={FileText}
             value={stats.total}
-            label="Tổng số bài thi"
+            label="Total exams"
           />
           <AdminStatCard
             icon={CheckCircle2}
             value={stats.published}
-            label="Đã công bố"
+            label="Published"
             iconWrapClassName="bg-blue-500/10"
             iconClassName="text-blue-600"
           />
           <AdminStatCard
             icon={Clock}
             value={stats.ongoing}
-            label="Đang diễn ra"
+            label="Ongoing"
             iconWrapClassName="bg-amber-500/10"
             iconClassName="text-amber-600"
           />
           <AdminStatCard
             icon={AlertCircle}
             value={stats.draft}
-            label="Bản nháp"
+            label="Drafts"
             iconWrapClassName="bg-gray-500/10"
             iconClassName="text-gray-600"
           />
@@ -619,7 +619,7 @@ export default function ExamManagement() {
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Tìm bài thi hoặc khóa học"
+              placeholder="Search exams or courses"
               className="flex-1"
             />
             <SortButton
@@ -632,8 +632,8 @@ export default function ExamManagement() {
               }}
             />
             <FilterPanel
-              title="Bộ lọc bài thi"
-              description="Lọc theo trạng thái, khóa học, tiêu đề, thời lượng và ngày tạo."
+              title="Exam filters"
+              description="Filter by status, course, title, duration, and created date."
               filters={examFilterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -664,13 +664,13 @@ export default function ExamManagement() {
                 <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
                 <p className="text-muted-foreground font-medium">
                   {exams.length === 0
-                    ? "Chưa có bài thi nào"
-                    : "Không có bài thi phù hợp với bộ lọc"}
+                    ? "No exams yet"
+                    : "No exams match the filters"}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {exams.length === 0
-                    ? "Tạo bài thi đầu tiên để bắt đầu"
-                    : "Hãy thử điều chỉnh bộ lọc"}
+                    ? "Create your first exam to get started"
+                    : "Try adjusting the filters"}
                 </p>
                 {exams.length === 0 && (
                   <Button
@@ -679,7 +679,7 @@ export default function ExamManagement() {
                     size="sm"
                   >
                     <Plus className="mr-2 h-4 w-4" />
-                    Tạo bài thi
+                    Create exam
                   </Button>
                 )}
               </div>
@@ -691,11 +691,11 @@ export default function ExamManagement() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="max-w-sm">Tiêu đề</TableHead>
-                      <TableHead>Khóa học</TableHead>
-                      <TableHead>Lịch thi</TableHead>
-                      <TableHead>Trạng thái</TableHead>
-                      <TableHead className="text-right">Thao tác</TableHead>
+                      <TableHead className="max-w-sm">Title</TableHead>
+                      <TableHead>Course</TableHead>
+                      <TableHead>Exam schedule</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -724,19 +724,19 @@ export default function ExamManagement() {
                             <div className="text-xs text-muted-foreground leading-5">
                               {exam.startTime ? (
                                 <div className="truncate">
-                                  <span className="font-medium">Bắt đầu:</span>{" "}
+                                  <span className="font-medium">Start:</span>{" "}
                                   {getScheduleLabel(exam.startTime)}
                                 </div>
                               ) : (
-                                <div className="truncate">Bắt đầu: Chưa lên lịch</div>
+                                <div className="truncate">Start: Unscheduled</div>
                               )}
                               {exam.endTime ? (
                                 <div className="truncate">
-                                  <span className="font-medium">Kết thúc:</span>{" "}
+                                  <span className="font-medium">End:</span>{" "}
                                   {getScheduleLabel(exam.endTime)}
                                 </div>
                               ) : (
-                                <div className="truncate">Kết thúc: Chưa lên lịch</div>
+                                <div className="truncate">End: Unscheduled</div>
                               )}
                             </div>
                           </TableCell>
@@ -760,7 +760,7 @@ export default function ExamManagement() {
                                 className="h-8 gap-1.5 border-sky-200 bg-sky-50 px-2.5 text-sky-700 shadow-none hover:border-sky-300 hover:bg-sky-100 hover:text-sky-800"
                               >
                                 <Eye className="h-3.5 w-3.5" />
-                                Xem trước
+                                Preview
                               </Button>
                               {(exam.status === "ONGOING" ||
                                 exam.status === "PUBLISHED") && (
@@ -775,7 +775,7 @@ export default function ExamManagement() {
                                   className="h-8 gap-1.5 border-amber-200 bg-amber-50 px-2.5 text-amber-700 shadow-none hover:border-amber-300 hover:bg-amber-100 hover:text-amber-800"
                                 >
                                   <Clock className="h-3.5 w-3.5" />
-                                  Theo dõi
+                                  Monitor
                                 </Button>
                               )}
 
@@ -792,7 +792,7 @@ export default function ExamManagement() {
                                   className="h-8 gap-1.5 border-violet-200 bg-violet-50 px-2.5 text-violet-700 shadow-none hover:border-violet-300 hover:bg-violet-100 hover:text-violet-800"
                                 >
                                   <BarChart3 className="h-3.5 w-3.5" />
-                                  Kết quả
+                                  Results
                                 </Button>
                               )}
                               {(exam.status === "DRAFT" ||
@@ -804,7 +804,7 @@ export default function ExamManagement() {
                                   className="h-8 gap-1.5 border-indigo-200 bg-indigo-50 px-2.5 text-indigo-700 shadow-none hover:border-indigo-300 hover:bg-indigo-100 hover:text-indigo-800"
                                 >
                                   <CalendarClock className="h-3.5 w-3.5" />
-                                  Đổi lịch
+                                  Reschedule
                                 </Button>
                               )}
                               <Button
@@ -817,7 +817,7 @@ export default function ExamManagement() {
                                 className="h-8 gap-1.5 px-2.5"
                               >
                                 {exam.status === "ARCHIVED" ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-                                {exam.status === "ARCHIVED" ? "Khôi phục" : "Lưu trữ"}
+                                {exam.status === "ARCHIVED" ? "Restore" : "Archive"}
                               </Button>
                               {exam.status === "DRAFT" && (
                                 <>
@@ -828,7 +828,7 @@ export default function ExamManagement() {
                                     className="h-8 gap-1.5 border-slate-200 bg-slate-50 px-2.5 text-slate-700 shadow-none hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900"
                                   >
                                     <Edit2 className="h-3.5 w-3.5" />
-                                    Sửa
+                                    Edit
                                   </Button>
                                   <Button
                                     variant="outline"
@@ -840,7 +840,7 @@ export default function ExamManagement() {
                                     className="h-8 gap-1.5 border-red-200 bg-red-50 px-2.5 text-red-700 shadow-none hover:border-red-300 hover:bg-red-100 hover:text-red-800"
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
-                                    Xóa
+                                    Delete
                                   </Button>
                                 </>
                               )}
@@ -859,7 +859,7 @@ export default function ExamManagement() {
             totalPages={totalPages}
             totalItems={filteredExams.length}
             onPageChange={setPage}
-            itemLabel="bài thi"
+            itemLabel="exams"
           />
         </Card>
       </AdminPageShell>
@@ -868,23 +868,23 @@ export default function ExamManagement() {
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sửa bài thi</DialogTitle>
-            <DialogDescription>Cập nhật thông tin bài thi</DialogDescription>
+            <DialogTitle>Edit exam</DialogTitle>
+            <DialogDescription>Update exam information</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Tiêu đề</Label>
+              <Label htmlFor="title">Title</Label>
               <Input
                 id="title"
                 value={editForm.title}
                 onChange={(e) =>
                   setEditForm((prev) => ({ ...prev, title: e.target.value }))
                 }
-                placeholder="Tiêu đề bài thi"
+                placeholder="Exam title"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="description">Mô tả</Label>
+              <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
                 value={editForm.description}
@@ -894,12 +894,12 @@ export default function ExamManagement() {
                     description: e.target.value,
                   }))
                 }
-                placeholder="Mô tả bài thi"
+                placeholder="Exam description"
                 rows={3}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="passingScore">Điểm đạt</Label>
+              <Label htmlFor="passingScore">Passing score</Label>
               <Input
                 id="passingScore"
                 type="number"
@@ -924,7 +924,7 @@ export default function ExamManagement() {
                     }) || "",
                   )
                 }
-                placeholder="Điểm đạt (0-100)"
+                placeholder="Passing score (0-100)"
               />
               {passingScoreError ? (
                 <p className="text-xs text-destructive">{passingScoreError}</p>
@@ -933,13 +933,13 @@ export default function ExamManagement() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              Hủy
+              Cancel
             </Button>
             <Button onClick={handleSaveEdit} disabled={isUpdating}>
               {isUpdating ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              Lưu thay đổi
+              Save changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -949,14 +949,14 @@ export default function ExamManagement() {
       <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Đổi lịch bài thi</DialogTitle>
+            <DialogTitle>Reschedule exam</DialogTitle>
             <DialogDescription>
-              Cập nhật thời gian bắt đầu và kết thúc cho "{selectedExam?.title}".
+              Update the start and end times for "{selectedExam?.title}".
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="rescheduleStartTime">Thời gian bắt đầu</Label>
+              <Label htmlFor="rescheduleStartTime">Start time</Label>
               <Input
                 id="rescheduleStartTime"
                 type="datetime-local"
@@ -970,7 +970,7 @@ export default function ExamManagement() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="rescheduleEndTime">Thời gian kết thúc</Label>
+              <Label htmlFor="rescheduleEndTime">End time</Label>
               <Input
                 id="rescheduleEndTime"
                 type="datetime-local"
@@ -984,7 +984,7 @@ export default function ExamManagement() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Khung giờ thi phải dài ít nhất bằng thời lượng đã cấu hình.
+              The exam window must be at least as long as the configured duration.
             </p>
           </div>
           <DialogFooter>
@@ -992,13 +992,13 @@ export default function ExamManagement() {
               variant="outline"
               onClick={() => setShowRescheduleDialog(false)}
             >
-              Hủy
+              Cancel
             </Button>
             <Button onClick={handleSaveReschedule} disabled={isRescheduling}>
               {isRescheduling ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              Lưu lịch thi
+              Save schedule
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1008,9 +1008,9 @@ export default function ExamManagement() {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Xóa bài thi</DialogTitle>
+            <DialogTitle>Delete exam</DialogTitle>
             <DialogDescription>
-              Chỉ bản nháp chưa có dữ liệu làm bài mới có thể xóa. Bài thi khác sẽ được lưu trữ để giữ lịch sử.
+              Only drafts with no submission data can be deleted. Other exams are archived to retain history.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1018,7 +1018,7 @@ export default function ExamManagement() {
               variant="outline"
               onClick={() => setShowDeleteDialog(false)}
             >
-              Hủy
+              Cancel
             </Button>
             <Button
               variant="destructive"
@@ -1028,7 +1028,7 @@ export default function ExamManagement() {
               {isDeleting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              Xóa bản nháp
+              Delete draft
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1037,18 +1037,18 @@ export default function ExamManagement() {
       <Dialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{selectedExam?.status === 'ARCHIVED' ? 'Khôi phục bài thi?' : 'Lưu trữ bài thi?'}</DialogTitle>
+            <DialogTitle>{selectedExam?.status === 'ARCHIVED' ? 'Restore exam?' : 'Archive exam?'}</DialogTitle>
             <DialogDescription>
               {selectedExam?.status === 'ARCHIVED'
-                ? 'Bài thi sẽ trở lại danh sách quản lý phù hợp với trạng thái trước đó.'
-                : 'Bài thi sẽ được ẩn khỏi danh sách quản lý thông thường. Toàn bộ lượt làm bài, điểm và dữ liệu giám sát vẫn được giữ lại.'}
+                ? 'The exam will return to the appropriate management list based on its previous status.'
+                : 'The exam will be hidden from the standard management list. All submissions, scores, and monitoring data will be retained.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowArchiveDialog(false)}>Hủy</Button>
+            <Button variant="outline" onClick={() => setShowArchiveDialog(false)}>Cancel</Button>
             <Button onClick={handleArchiveExam} disabled={isArchiving}>
               {isArchiving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {selectedExam?.status === 'ARCHIVED' ? 'Khôi phục' : 'Lưu trữ'}
+              {selectedExam?.status === 'ARCHIVED' ? 'Restore' : 'Archive'}
             </Button>
           </DialogFooter>
         </DialogContent>

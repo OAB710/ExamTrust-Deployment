@@ -27,7 +27,7 @@ export function ConfirmActionDialog({
   title,
   description,
   confirmText = "Confirm",
-  cancelText = "Hủy",
+  cancelText = "Cancel",
   destructive = false,
   onConfirm,
   children,
