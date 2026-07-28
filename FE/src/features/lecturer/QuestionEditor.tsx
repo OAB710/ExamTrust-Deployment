@@ -817,7 +817,7 @@ export default function QuestionEditor() {
         prompt: aiPrompt,
         questionType: mappedType,
         difficulty: snapDifficulty(Math.max(0, Math.min(1, difficulty[0]))),
-        language: "en",
+        language: "vi",
         useCase: "question_bank",
         context: {
           courseId: course || undefined,
@@ -1132,8 +1132,8 @@ export default function QuestionEditor() {
           onClick={() => router.push(questionBankPath)}
         >
           <ArrowLeft className="h-4 w-4" />{" "}
-          <span className="hidden sm:inline">Back to Question Bank</span>
-          <span className="sm:hidden">Back</span>
+          <span className="hidden sm:inline">Quay lại ngân hàng câu hỏi</span>
+          <span className="sm:hidden">Quay lại</span>
         </Button>
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-0 mb-4 sm:mb-6">
@@ -1143,7 +1143,7 @@ export default function QuestionEditor() {
                 ? "Loading..."
                 : questionId
                   ? "Edit Question"
-                  : "New Question"}
+                  : "Câu hỏi mới"}
             </h1>
             <p className="text-sm text-muted-foreground break-words">
               {(() => {
@@ -1168,7 +1168,7 @@ export default function QuestionEditor() {
                   );
                 return questionId
                   ? "Edit an existing question"
-                  : "Create a new question";
+                  : "Tạo câu hỏi mới";
               })()}
             </p>
           </div>
@@ -1187,8 +1187,8 @@ export default function QuestionEditor() {
                   ) : (
                     <Save className="h-4 w-4" />
                   )}
-                  <span className="hidden xs:inline">Save</span>
-                  <span className="xs:hidden">Save</span>
+                  <span className="hidden xs:inline">Lưu</span>
+                  <span className="xs:hidden">Lưu</span>
                 </Button>
                 {!questionId && (
                   <Button
@@ -1203,8 +1203,8 @@ export default function QuestionEditor() {
                     ) : (
                       <Plus className="h-4 w-4" />
                     )}
-                    <span className="hidden xs:inline">Save and Add Another</span>
-                    <span className="xs:hidden">Save and Add Another</span>
+                    <span className="hidden xs:inline">Lưu và thêm câu khác</span>
+                    <span className="xs:hidden">Lưu và thêm</span>
                   </Button>
                 )}
               </>
@@ -1272,7 +1272,7 @@ export default function QuestionEditor() {
                           disabled={isGenerating || !aiPrompt.trim() || !course}
                           className="gap-2 w-full sm:w-auto"
                           size="sm"
-                          title={!course ? "Select a course to use AI generation" : ""}
+                          title={!course ? "Chọn học phần để dùng tính năng tạo bằng AI" : ""}
                         >
                           {isGenerating ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1284,7 +1284,7 @@ export default function QuestionEditor() {
                       </div>
                       {!course && (
                         <p className="text-[10px] text-amber-600 font-medium px-1">
-                          ⚠️ Select a course from the right panel to enable AI generation.
+                          ⚠️ Chọn học phần ở cột bên phải để bật tạo câu hỏi bằng AI.
                         </p>
                       )}
                       <p className="text-[10px] text-muted-foreground italic px-1">
@@ -1312,7 +1312,7 @@ export default function QuestionEditor() {
                           usedBy: "Giảng viên chọn khi tạo hoặc chỉnh sửa câu hỏi để hệ thống hiển thị đúng form nhập liệu và cách chấm.",
                           note: "Đổi loại câu hỏi có thể làm thay đổi cấu trúc phương án trả lời, nên kiểm tra lại đáp án đúng trước khi lưu.",
                         }}>
-                          Question Type
+                          Loại câu hỏi
                         </HelpedTitle>
                       </CardTitle>
                     </CardHeader>
@@ -1356,17 +1356,17 @@ export default function QuestionEditor() {
                   <Card>
                     <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
                       <CardTitle className="text-sm sm:text-base">
-                        Question Content
+                        Nội dung câu hỏi
                       </CardTitle>
                       <CardDescription className="text-xs sm:text-sm">
-                        Enter your question text
+                        Nhập nội dung câu hỏi
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
                       {questionType === "multiple_choice" && (
                         <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-blue-50 border border-blue-200 rounded-lg">
                           <p className="text-xs sm:text-sm text-blue-800 font-medium mb-0.5 sm:mb-1">
-                            💡 How to select correct answers:
+                            💡 Cách chọn đáp án đúng:
                           </p>
                           <p className="text-[11px] sm:text-xs text-blue-700">
                             {multipleAnswers
@@ -1378,7 +1378,7 @@ export default function QuestionEditor() {
                       {questionType === "true_false" && (
                         <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-green-50 border border-green-200 rounded-lg">
                           <p className="text-xs sm:text-sm text-green-800 font-medium mb-0.5 sm:mb-1">
-                            💡 How to select correct answer:
+                            💡 Cách chọn đáp án đúng:
                           </p>
                           <p className="text-[11px] sm:text-xs text-green-700">
                             Click either "True" or "False" button below to set
@@ -1388,7 +1388,7 @@ export default function QuestionEditor() {
                       )}
                       <div className="space-y-1.5 sm:space-y-2">
                         <Label htmlFor="content" className="text-sm">
-                          Question Text
+                          Nội dung câu hỏi
                         </Label>
 
                         {/* Insert fill-in-the-blank helper into Question Content for better discoverability */}
@@ -1407,7 +1407,7 @@ export default function QuestionEditor() {
 
                         <Textarea
                           id="content"
-                          placeholder="Enter your question here..."
+                          placeholder="Nhập nội dung câu hỏi tại đây..."
                           value={content}
                           onChange={(e) => setContent(e.target.value)}
                           rows={3}
@@ -1421,7 +1421,7 @@ export default function QuestionEditor() {
                             onClick={insertBlankAtCursor}
                             className="gap-1"
                           >
-                            <Plus className="h-3.5 w-3.5" /> Add Blank
+                            <Plus className="h-3.5 w-3.5" /> Thêm chỗ trống
                           </Button>
                         </div>
                       </div>
@@ -1432,7 +1432,7 @@ export default function QuestionEditor() {
                             checked={hasMedia}
                             onCheckedChange={setHasMedia}
                           />
-                          <Label>Include media</Label>
+                          <Label>Đính kèm phương tiện</Label>
                         </div>
                         {hasMedia && (
                           <div className="flex gap-2">
@@ -1484,11 +1484,11 @@ export default function QuestionEditor() {
                       <div className="flex items-center justify-between gap-2">
                         <CardTitle className="text-sm sm:text-base">
                           {questionType === "multiple_choice" &&
-                            "Answer Options"}
-                          {questionType === "true_false" && "Correct Answer"}
-                          {questionType === "essay" && "Grading Rubric"}
+                            "Các phương án trả lời"}
+                          {questionType === "true_false" && "Đáp án đúng"}
+                          {questionType === "essay" && "Tiêu chí chấm điểm"}
                           {/* Removed Blank Configurations label for fill_blank as helper now lives in Question Content */}
-                          {questionType === "matching" && "Matching Pairs"}
+                          {questionType === "matching" && "Các cặp ghép đôi"}
                           {questionType === "find_error" && "Code Lines"}
                           {questionType === "ordering" && "Sequence Items"}
                         </CardTitle>
@@ -1517,7 +1517,7 @@ export default function QuestionEditor() {
                         <div className="mb-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              <Label className="text-sm">Allow multiple correct answers</Label>
+                              <Label className="text-sm">Cho phép nhiều đáp án đúng</Label>
                               <Switch
                                 checked={multipleAnswers}
                                 onCheckedChange={setMultipleAnswers}
@@ -1811,7 +1811,7 @@ export default function QuestionEditor() {
                   <Card>
                     <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
                       <CardTitle className="text-sm sm:text-base">
-                        Explanation (optional)
+                        Giải thích (không bắt buộc)
                       </CardTitle>
                       <CardDescription className="text-xs sm:text-sm">
                         Shown to students after they answer
@@ -1845,7 +1845,7 @@ export default function QuestionEditor() {
                     <CardContent className="space-y-3 px-4 pb-4">
                       <Select value={course} onValueChange={setCourse}>
                         <SelectTrigger className={`text-sm ${!course ? "border-red-300 bg-red-50" : ""}`}>
-                          <SelectValue placeholder="Select a course..." />
+                          <SelectValue placeholder="Chọn học phần..." />
                         </SelectTrigger>
                         <SelectContent>
                           {courses.map((c) => (
@@ -1861,7 +1861,7 @@ export default function QuestionEditor() {
                       </Select>
                       {!course && (
                         <p className="text-[10px] text-red-600 font-medium">
-                          ⚠️ Course selection is required to save a question.
+                          ⚠️ Cần chọn học phần để lưu câu hỏi.
                         </p>
                       )}
                       <div className="space-y-1.5">
@@ -1881,12 +1881,12 @@ export default function QuestionEditor() {
                           className="w-full justify-start text-left font-normal"
                         >
                           {topic
-                            ? availableTopics.find((t: any) => t.id === topic)?.name || "Unknown Topic"
-                            : "Select or create a topic..."}
+                            ? availableTopics.find((t: any) => t.id === topic)?.name || "Chủ đề không xác định"
+                            : "Chọn hoặc tạo chủ đề..."}
                         </Button>
                         {!course && (
                           <p className="text-[10px] text-amber-600">
-                            Select a course first to choose a topic.
+                            Chọn học phần trước để chọn chủ đề.
                           </p>
                         )}
                       </div>
@@ -1917,7 +1917,7 @@ export default function QuestionEditor() {
                           }`}
                           onClick={() => setDifficulty([0.3])}
                         >
-                          Easy
+                          Dễ
                         </Button>
                         <Button
                           variant="outline"
@@ -1928,7 +1928,7 @@ export default function QuestionEditor() {
                           }`}
                           onClick={() => setDifficulty([0.5])}
                         >
-                          Medium
+                          Trung bình
                         </Button>
                         <Button
                           variant="outline"
@@ -1939,7 +1939,7 @@ export default function QuestionEditor() {
                           }`}
                           onClick={() => setDifficulty([0.7])}
                         >
-                          Hard
+                          Khó
                         </Button>
                       </div>
                     </CardContent>
@@ -1964,13 +1964,13 @@ export default function QuestionEditor() {
               <CardHeader className="border-b bg-gradient-to-r from-background to-muted/30">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <CardTitle>Select or Create Topic</CardTitle>
+                    <CardTitle>Chọn hoặc tạo chủ đề</CardTitle>
                     <CardDescription>
-                      Search existing topics, check for similar ones, or create a new topic.
+                      Tìm chủ đề có sẵn, kiểm tra chủ đề tương tự hoặc tạo chủ đề mới.
                     </CardDescription>
                   </div>
                   <Button variant="ghost" size="sm" onClick={handleCloseTopicDialog} className="text-muted-foreground">
-                    Cancel
+                    Hủy
                   </Button>
                 </div>
               </CardHeader>
@@ -1981,17 +1981,17 @@ export default function QuestionEditor() {
                       htmlFor="topic-name"
                       className="text-xs uppercase tracking-wide text-muted-foreground"
                     >
-                      New Topic
+                      Chủ đề mới
                     </Label>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Create a new topic if it doesn't already exist.
+                      Tạo chủ đề mới nếu chủ đề này chưa tồn tại.
                     </p>
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                       id="topic-name"
-                      placeholder="e.g., Graph Algorithms"
+                      placeholder="Ví dụ: Thuật toán đồ thị"
                       value={newTopicName}
                       onChange={(e) => setNewTopicName(e.target.value)}
                       onKeyDown={(e) => {
@@ -2012,7 +2012,7 @@ export default function QuestionEditor() {
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      AI Check
+                      Kiểm tra AI
                     </Button>
                     <Button
                       onClick={handleCreateTopic}
@@ -2024,7 +2024,7 @@ export default function QuestionEditor() {
                       ) : (
                         <Plus className="h-4 w-4" />
                       )}
-                      Create
+                      Tạo
                     </Button>
                   </div>
 
@@ -2049,10 +2049,10 @@ export default function QuestionEditor() {
                     <div className="space-y-2 pt-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                          Similar existing topics
+                          Các chủ đề tương tự đang có
                         </p>
                         <span className="text-[10px] text-muted-foreground">
-                          AI ranked
+                          AI xếp hạng
                         </span>
                       </div>
                       <div className="space-y-2">
@@ -2092,14 +2092,14 @@ export default function QuestionEditor() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                        Search Topics
+                        Tìm chủ đề
                       </Label>
                       <span className="text-[10px] text-muted-foreground">
-                        {dedupedFilteredTopics.length} result(s)
+                        {dedupedFilteredTopics.length} kết quả
                       </span>
                     </div>
                     <Input
-                      placeholder="Search by topic name or code..."
+                      placeholder="Tìm theo tên hoặc mã chủ đề..."
                       value={topicSearch}
                       onChange={(e) => setTopicSearch(e.target.value)}
                       className="text-sm"
@@ -2110,7 +2110,7 @@ export default function QuestionEditor() {
 
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                      Available Topics
+                      Chủ đề hiện có
                     </Label>
                     <div className="max-h-[420px] overflow-y-auto space-y-2.5 pr-1">
                       {dedupedFilteredTopics.length > 0 ? (
@@ -2130,7 +2130,7 @@ export default function QuestionEditor() {
                         ))
                       ) : (
                         <p className="text-sm text-muted-foreground py-2">
-                          No topics match your search.
+                          Không có chủ đề phù hợp.
                         </p>
                       )}
                     </div>
@@ -2143,7 +2143,7 @@ export default function QuestionEditor() {
                   onClick={handleCloseTopicDialog}
                   className="flex-1"
                 >
-                  Cancel
+                  Hủy
                 </Button>
                 <Button
                   onClick={handleCreateTopic}
@@ -2153,10 +2153,10 @@ export default function QuestionEditor() {
                   {creatingTopic ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Creating...
+                      Đang tạo...
                     </>
                   ) : (
-                    "Create & Select"
+                    "Tạo và chọn"
                   )}
                 </Button>
               </CardFooter>

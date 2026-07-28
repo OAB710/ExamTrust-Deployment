@@ -257,6 +257,7 @@ export default function CourseDetail() {
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(
     null,
   );
+  const [performancePage, setPerformancePage] = useState(1);
   const [courseExamLoading, setCourseExamLoading] = useState(false);
 
   // Manual Add Form
@@ -512,19 +513,19 @@ export default function CourseDetail() {
   const studentFilterDefinitions: FilterDefinition[] = [
     {
       key: "status",
-      label: "Status",
+      label: "Trạng thái",
       type: "select",
-      allLabel: "All Status",
-      options: [{ label: "Active", value: "active" }],
+      allLabel: "Tất cả trạng thái",
+      options: [{ label: "Đang hoạt động", value: "active" }],
     },
     {
       key: "joinedAt",
-      label: "Joined Date",
+      label: "Ngày tham gia",
       type: "date-range",
     },
     {
       key: "studentCode",
-      label: "Student ID",
+      label: "Mã sinh viên",
       type: "text",
       placeholder: "Filter by student ID",
       operators: ["contains", "startsWith", "equals"],
@@ -591,10 +592,23 @@ export default function CourseDetail() {
   const STUDENT_TABLE_HEADER_HEIGHT = 48;
   const STUDENT_TABLE_MIN_HEIGHT =
     ITEMS_PER_PAGE * STUDENT_ROW_HEIGHT + STUDENT_TABLE_HEADER_HEIGHT;
+  const PERFORMANCE_ITEMS_PER_PAGE = 10;
+  const performanceTotalPages = Math.max(
+    1,
+    Math.ceil(studentPerformance.length / PERFORMANCE_ITEMS_PER_PAGE),
+  );
+  const paginatedStudentPerformance = studentPerformance.slice(
+    (performancePage - 1) * PERFORMANCE_ITEMS_PER_PAGE,
+    performancePage * PERFORMANCE_ITEMS_PER_PAGE,
+  );
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
   }, [totalPages]);
+
+  useEffect(() => {
+    setPerformancePage((current) => Math.min(current, performanceTotalPages));
+  }, [performanceTotalPages]);
 
   const runSearch = () => {
     setAppliedSearch(searchInput.trim());
@@ -635,9 +649,9 @@ export default function CourseDetail() {
   const activeFilterChips = getFilterChips(appliedFilters, studentFilterDefinitions);
 
   const studentSortOptions = [
-    { field: "studentCode", label: "Student ID" },
-    { field: "name", label: "Name" },
-    { field: "joinedAt", label: "Joined Date" },
+    { field: "studentCode", label: "Mã sinh viên" },
+    { field: "name", label: "Họ tên" },
+    { field: "joinedAt", label: "Ngày tham gia" },
   ];
 
   const handleAddManual = async () => {
@@ -712,24 +726,24 @@ export default function CourseDetail() {
               )
             }
           >
-            <ArrowLeft className="h-4 w-4" /> Back to Courses
+            <ArrowLeft className="h-4 w-4" /> Quay lại danh sách khóa học
           </Button>
           <ListPageHeader
             title={`${course?.name || "Course Details"}${course?.code ? ` (${course.code})` : ""}`}
             actions={
               <div className="flex gap-2">
                 <Button variant="outline" className="gap-2">
-                  <Download className="h-4 w-4" /> Export List
+                  <Download className="h-4 w-4" /> Xuất danh sách
                 </Button>
                 <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                   <DialogTrigger asChild>
                     <Button className="gap-2">
-                      <UserPlus className="h-4 w-4" /> Add Students
+                      <UserPlus className="h-4 w-4" /> Thêm sinh viên
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
                     <DialogHeader>
-                      <DialogTitle>Add Students to Course</DialogTitle>
+                      <DialogTitle>Thêm sinh viên vào học phần</DialogTitle>
                       <DialogDescription>
                         Add students manually or import from a CSV file.
                       </DialogDescription>
@@ -737,7 +751,7 @@ export default function CourseDetail() {
 
                     <Tabs defaultValue="manual" className="w-full">
                       <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+                        <TabsTrigger value="manual">Nhập thủ công</TabsTrigger>
                         <TabsTrigger value="import">Import File</TabsTrigger>
                       </TabsList>
 
@@ -745,7 +759,7 @@ export default function CourseDetail() {
                       <TabsContent value="manual" className="space-y-4 py-4">
                         <div className="space-y-2">
                           <Label htmlFor="sid">
-                            Student Email / Student ID{" "}
+                            Email / mã sinh viên{" "}
                             <span className="text-destructive">*</span>
                           </Label>
                           <Input
@@ -782,7 +796,7 @@ export default function CourseDetail() {
                           />
                         ) : (
                           <p className="text-sm text-muted-foreground text-center py-4">
-                            Course not resolved. Cannot import students.
+                            Không xác định được học phần. Không thể nhập sinh viên.
                           </p>
                         )}
                       </TabsContent>
@@ -796,7 +810,7 @@ export default function CourseDetail() {
             {formatCourseTerm(
               course?.academicYear,
               course?.term,
-            )} • {students.length} Students Enrolled
+            )} • {students.length} sinh viên đã tham gia
           </p>
         </div>
 
@@ -814,7 +828,7 @@ export default function CourseDetail() {
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Search by name, ID, email"
+              placeholder="Tìm theo họ tên, mã sinh viên hoặc email"
               className="flex-1"
             />
             <SortButton
@@ -827,8 +841,8 @@ export default function CourseDetail() {
               }}
             />
             <FilterPanel
-              title="Student filters"
-              description="Filter by status, joined date, and student ID."
+              title="Bộ lọc sinh viên"
+              description="Lọc theo trạng thái, ngày tham gia và mã sinh viên."
               filters={studentFilterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -856,12 +870,12 @@ export default function CourseDetail() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Student ID</TableHead>
-                    <TableHead>Name</TableHead>
+                    <TableHead>Mã sinh viên</TableHead>
+                    <TableHead>Họ tên</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Joined Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Trạng thái</TableHead>
+                    <TableHead>Ngày tham gia</TableHead>
+                    <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1134,7 +1148,7 @@ export default function CourseDetail() {
                               </TableCell>
                             </TableRow>
                           ) : (
-                            studentPerformance.map((student) => {
+                            paginatedStudentPerformance.map((student) => {
                               const isExpanded =
                                 expandedStudentId === student.studentId;
                               const completionPct =
@@ -1298,6 +1312,19 @@ export default function CourseDetail() {
                         </TableBody>
                       </Table>
                     </div>
+                    {studentPerformance.length > 0 && (
+                      <DataPagination
+                        currentPage={performancePage}
+                        totalPages={performanceTotalPages}
+                        totalItems={studentPerformance.length}
+                        itemLabel="sinh viên"
+                        onPageChange={(nextPage) => {
+                          setExpandedStudentId(null);
+                          setPerformancePage(nextPage);
+                        }}
+                        syncUrl={false}
+                      />
+                    )}
                   </CardContent>
                 </Card>
               </>

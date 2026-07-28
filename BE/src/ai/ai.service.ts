@@ -87,6 +87,21 @@ export class AiService {
     }
   }
 
+  /**
+   * Question-generation policy: Vietnamese is the default regardless of a
+   * caller-supplied locale. English is selected only when the lecturer's
+   * prompt explicitly asks for English output.
+   */
+  private resolveQuestionOutputLanguage(prompt: string): 'vi' | 'en' {
+    const normalized = String(prompt || '').toLowerCase();
+    const explicitlyRequestsEnglish =
+      /ti[eế]ng\s*anh|english\s*(?:question|questions|output|language|version|please)?\b/.test(normalized)
+      || /\b(?:in|write\s+in|generate\s+in|create\s+in|answer\s+in)\s+(?:the\s+)?english\b/.test(normalized)
+      || /(?:vi[eế]t|ghi|tạo|tao|trả\s*lời|tra\s*loi)\s+(?:bằng|bang)\s+ti[eế]ng\s*anh/.test(normalized);
+
+    return explicitlyRequestsEnglish ? 'en' : 'vi';
+  }
+
   async generateQuestion(params: {
     prompt: string;
     questionType?: string;
@@ -106,11 +121,11 @@ export class AiService {
       context,
     } = params;
 
-    const targetLanguage = language || this.defaultLanguage;
+    const targetLanguage = this.resolveQuestionOutputLanguage(prompt);
     const difficultyLabel = difficulty <= 0.4 ? 'Easy' : difficulty <= 0.7 ? 'Medium' : 'Hard';
     const langInstruction = targetLanguage === 'vi'
-      ? 'Generate the question and all content in Vietnamese.'
-      : 'Generate the question and all content in English.';
+      ? 'Generate the question and every human-readable field (content, options, answers, explanation, topic, learningObjective) in Vietnamese. Do not switch to English merely because the source prompt contains English technical terms.'
+      : 'The user explicitly requested English. Generate the question and every human-readable field (content, options, answers, explanation, topic, learningObjective) in English.';
 
     const profilePrompt = buildExamTrustPromptHeader({
       appName: this.appName,
@@ -257,7 +272,7 @@ Rules:
       context,
     } = params;
 
-    const targetLanguage = language || this.defaultLanguage;
+    const targetLanguage = this.resolveQuestionOutputLanguage(prompt);
     const diffLabel = difficulty <= 0.3 ? 'Easy' : difficulty <= 0.5 ? 'Medium' : 'Hard';
     const courseContext = courseName ? `for the course "${courseName}"` : '';
     const normalizedType = this.normalizeQuestionType(questionType);
@@ -266,8 +281,8 @@ Rules:
       : `- Generate ALL questions as ${normalizedType}`;
     const sampleType = normalizedType === 'MIXED' ? 'MULTIPLE_CHOICE' : normalizedType;
     const langInstruction = targetLanguage === 'vi'
-      ? 'Generate the question set in Vietnamese.'
-      : 'Generate the question set in English.';
+      ? 'Generate every question and every human-readable field (content, options, answers, explanations, topics, learning objectives) in Vietnamese. Do not switch to English merely because the source prompt contains English technical terms.'
+      : 'The user explicitly requested English. Generate every question and every human-readable field in English.';
 
     const profilePrompt = buildExamTrustPromptHeader({
       appName: this.appName,
@@ -714,15 +729,18 @@ Rules:
 
   async generateQuestionImprovement(params: {
     language?: string;
+    instruction?: string;
     context?: ExamTrustAiContext;
     original: Record<string, any>;
     analytics?: Record<string, any>;
     qualitySignals?: any[];
   }) {
-    const targetLanguage = params.language || this.defaultLanguage;
+    const targetLanguage = this.resolveQuestionOutputLanguage(
+      params.instruction || String(params.context?.instruction || ''),
+    );
     const langInstruction = targetLanguage === 'vi'
-      ? 'Write diagnosis, reasons, warnings, and the improved question in Vietnamese.'
-      : 'Write diagnosis, reasons, warnings, and the improved question in English.';
+      ? 'Write diagnosis, reasons, warnings, and every human-readable field of the improved question in Vietnamese. Do not switch to English merely because the original question or technical terms are in English.'
+      : 'The lecturer explicitly requested English. Write diagnosis, reasons, warnings, and every human-readable field of the improved question in English.';
 
     const original = params.original || {};
     const questionType = String(original.type || params.context?.questionType || 'MULTIPLE_CHOICE');
@@ -745,6 +763,9 @@ ${JSON.stringify(params.analytics || {}, null, 2)}
 
 Quality review signals:
 ${JSON.stringify(params.qualitySignals || [], null, 2)}
+
+Lecturer instruction:
+${params.instruction || 'No additional instruction.'}
 
 You MUST respond with a valid JSON object (no markdown, no code fences, just pure JSON) with this exact structure:
 {

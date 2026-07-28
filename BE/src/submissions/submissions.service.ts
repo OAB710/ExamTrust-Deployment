@@ -2773,7 +2773,6 @@ export class SubmissionsService {
         startedAt: true,
         submittedAt: true,
         createdAt: true,
-        updatedAt: true,
         exam: {
           select: {
             id: true,

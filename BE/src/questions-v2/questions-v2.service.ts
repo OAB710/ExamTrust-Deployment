@@ -569,6 +569,7 @@ export class QuestionsService {
           sourceUpdatedAt: question.updatedAt.toISOString(),
           original,
           analytics: dto.analytics || {},
+          instruction: dto.instruction || '',
           qualitySignals: qualitySignals.map((item) => ({
             id: item.id,
             severity: item.severity,

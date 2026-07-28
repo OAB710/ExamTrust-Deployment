@@ -1609,20 +1609,20 @@ export default function ExamAnalytics() {
                   <DialogTitle className="flex items-center gap-2 text-xl">
                     <Sparkles className="h-5 w-5 text-primary" />
                     <HelpedTitle help={{
-                      description: "Màn hình này cho phép so sánh b?n cu v?i b?n AI d? xu?t ho?c b?n dã áp d?ng cho câu h?i.",
-                      usedBy: "Gi?ng viên dùng d? ki?m tra thay d?i tru?c khi ch?p nh?n c?p nh?t vào ngân hàng câu h?i.",
-                      note: "AI ch? t?o d? xu?t. Câu h?i ch? du?c c?p nh?t sau khi gi?ng viên b?m áp d?ng.",
+                      description: "Màn hình này cho phép so sánh bản cũ với bản AI đề xuất hoặc bản đã áp dụng cho câu hỏi.",
+                      usedBy: "Giảng viên dùng để kiểm tra thay đổi trước khi chấp nhận cập nhật vào ngân hàng câu hỏi.",
+                      note: "AI chỉ tạo đề xuất. Câu hỏi chỉ được cập nhật sau khi giảng viên bấm áp dụng.",
                     }}>
-                      {"So sánh c?i thi?n câu h?i"}
+                      {"So sánh cải thiện câu hỏi"}
                     </HelpedTitle>
                   </DialogTitle>
                   <DialogDescription className="mt-2">
                     {canApplyImprovement
-                      ? "So sánh b?n cu và b?n AI d? xu?t tru?c khi áp d?ng vào ngân hàng câu h?i."
-                      : "Xem l?i nh?ng thay d?i dã du?c áp d?ng cho câu h?i này."}
+                      ? "So sánh bản cũ và bản AI đề xuất trước khi áp dụng vào ngân hàng câu hỏi."
+                      : "Xem lại những thay đổi đã được áp dụng cho câu hỏi này."}
                   </DialogDescription>
                 </div>
-                {reviewingImprovement ? <Badge variant="outline" className="shrink-0 border-primary/25 bg-primary/10 text-primary">{`Ã? tin c?y ${Math.round(Number(reviewingImprovement.confidence || 0) * 100)}%`}</Badge> : null}
+                {reviewingImprovement ? <Badge variant="outline" className="shrink-0 border-primary/25 bg-primary/10 text-primary">{`Độ tin cậy ${Math.round(Number(reviewingImprovement.confidence || 0) * 100)}%`}</Badge> : null}
               </div>
             </DialogHeader>
             {reviewError ? <div className="mx-6 mt-4 shrink-0 rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">{reviewError}</div> : null}
@@ -1631,11 +1631,11 @@ export default function ExamAnalytics() {
                 <div className="space-y-5">
                   <Card className="border-border/70">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base font-semibold">Tóm t?t thay d?i</CardTitle>
+                      <CardTitle className="text-base font-semibold">Tóm tắt thay đổi</CardTitle>
                       <CardDescription>
                         {comparisonChanges.length
-                          ? "Ch? hi?n th? các tru?ng có thay d?i gi?a b?n cu và b?n m?i."
-                          : "Không phát hi?n thay d?i rõ ràng gi?a hai phiên b?n."}
+                          ? "Chỉ hiển thị các trường có thay đổi giữa bản cũ và bản mới."
+                          : "Không phát hiện thay đổi rõ ràng giữa hai phiên bản."}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -1649,21 +1649,21 @@ export default function ExamAnalytics() {
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground">
-                          AI không t?o ra khác bi?t d? rõ trên các tru?ng chính. B?n v?n có th? ki?m tra chi ti?t bên du?i.
+                          AI không tạo ra khác biệt dễ nhận thấy ở các trường chính. Bạn vẫn có thể kiểm tra chi tiết bên dưới.
                         </p>
                       )}
 
                       {(reviewingImprovement.diagnosis?.reason || (reviewingImprovement.diagnosis?.issues || []).length > 0) ? (
                         <div className="rounded-lg border border-border bg-muted/30 p-4">
-                          <p className="text-sm font-medium text-foreground">Nh?n d?nh c?a AI</p>
+                          <p className="text-sm font-medium text-foreground">Nhận định của AI</p>
                           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                            {translateAiAnalysisText(reviewingImprovement.diagnosis?.reason) || "AI chua cung c?p nh?n d?nh t?ng quan."}
+                            {translateAiAnalysisText(reviewingImprovement.diagnosis?.reason) || "AI chưa cung cấp nhận định tổng quan."}
                           </p>
                           {(reviewingImprovement.diagnosis?.issues || []).length ? (
                             <div className="mt-3 space-y-2">
                               {reviewingImprovement.diagnosis?.issues?.map((issue, index) => (
                                 <div key={`${issue.type}-${index}`} className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
-                                  <p className="font-medium">{ISSUE_LABELS[String(issue.type || "")] || issue.type || "V?n d? c?n xem xét"}</p>
+                                  <p className="font-medium">{ISSUE_LABELS[String(issue.type || "")] || issue.type || "Vấn đề cần xem xét"}</p>
                                   {issue.description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{translateAiAnalysisText(issue.description)}</p> : null}
                                 </div>
                               ))}
@@ -1676,31 +1676,31 @@ export default function ExamAnalytics() {
 
                   <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                     <QuestionComparisonCard
-                      title="B?n cu"
+                      title="Bản cũ"
                       snapshot={comparisonBefore}
                       changedFields={comparisonChanges.map((field) => field.key)}
                     />
                     <QuestionComparisonCard
-                      title="B?n m?i"
+                      title="Bản mới"
                       snapshot={comparisonAfter}
                       changedFields={comparisonChanges.map((field) => field.key)}
                     />
                   </div>
                 </div>
               </div>
-            ) : reviewBusy ? <div className="grid min-h-80 flex-1 place-items-center text-muted-foreground"><div className="space-y-4 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" /><div className="space-y-1 text-sm"><p>{"Ðang phân tích câu h?i."}</p><p>{"Ðang ki?m tra dáp án."}</p><p>{"Ðang vi?t l?i n?i dung và gi?i thích."}</p></div></div></div> : null}
+            ) : reviewBusy ? <div className="grid min-h-80 flex-1 place-items-center text-muted-foreground"><div className="space-y-4 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" /><div className="space-y-1 text-sm"><p>{"Đang phân tích câu hỏi."}</p><p>{"Đang kiểm tra đáp án."}</p><p>{"Đang viết lại nội dung và giải thích."}</p></div></div></div> : null}
             <DialogFooter className="sticky bottom-0 z-10 shrink-0 justify-between gap-3 border-t border-border bg-card/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-card/80">
               <div className="flex gap-2">
-                <Button variant="outline" disabled={reviewBusy} onClick={closeAiReview}>{"Ðóng"}</Button>
+                <Button variant="outline" disabled={reviewBusy} onClick={closeAiReview}>{"Đóng"}</Button>
                 {canApplyImprovement ? (
-                  <Button variant="outline" disabled={reviewBusy || !reviewingImprovement} onClick={rejectAiImprovement}>{"Gi? nguyên câu h?i hi?n t?i"}</Button>
+                  <Button variant="outline" disabled={reviewBusy || !reviewingImprovement} onClick={rejectAiImprovement}>{"Giữ nguyên câu hỏi hiện tại"}</Button>
                 ) : null}
               </div>
               <div className="flex gap-2">
                 {canApplyImprovement ? (
                   <Button disabled={reviewBusy || !reviewingImprovement} onClick={approveAiImprovement}>
                     {reviewBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {"Áp d?ng b?n c?i thi?n"}
+                    {"Áp dụng bản cải thiện"}
                   </Button>
                 ) : null}
               </div>
@@ -1748,19 +1748,19 @@ function QuestionComparisonCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ComparisonSection title="N?i dung câu h?i" changed={isChanged("content")}>
+        <ComparisonSection title="Nội dung câu hỏi" changed={isChanged("content")}>
           <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
-            {snapshot.content || "Chua có n?i dung."}
+            {snapshot.content || "Chưa có nội dung."}
           </p>
         </ComparisonSection>
 
-        <ComparisonSection title="Lo?i câu h?i" changed={isChanged("type")}>
+        <ComparisonSection title="Loại câu hỏi" changed={isChanged("type")}>
           <p className="text-sm text-foreground">
-            {QUESTION_TYPE_LABELS[String(snapshot.type)] || snapshot.type || "Không xác d?nh"}
+            {QUESTION_TYPE_LABELS[String(snapshot.type)] || snapshot.type || "Không xác định"}
           </p>
         </ComparisonSection>
 
-        <ComparisonSection title="Phuong án" changed={isChanged("options") || isChanged("correctAnswer")}>
+        <ComparisonSection title="Phương án" changed={isChanged("options") || isChanged("correctAnswer")}>
           {snapshot.options.length ? (
             <div className="space-y-2">
               {snapshot.options.map((option) => (
@@ -1772,36 +1772,36 @@ function QuestionComparisonCard({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Không có phuong án.</p>
+            <p className="text-sm text-muted-foreground">Không có phương án.</p>
           )}
         </ComparisonSection>
 
-        <ComparisonSection title="Ðáp án dúng" changed={isChanged("correctAnswer")}>
+        <ComparisonSection title="Đáp án đúng" changed={isChanged("correctAnswer")}>
           <p className="text-sm text-foreground">
-            {snapshot.correctAnswerIds.length ? snapshot.correctAnswerIds.join(", ") : "Chua xác d?nh"}
+            {snapshot.correctAnswerIds.length ? snapshot.correctAnswerIds.join(", ") : "Chưa xác định"}
           </p>
         </ComparisonSection>
 
-        <ComparisonSection title="Gi?i thích" changed={isChanged("explanation")}>
+        <ComparisonSection title="Giải thích" changed={isChanged("explanation")}>
           <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
-            {snapshot.explanation || "Chua có gi?i thích."}
+            {snapshot.explanation || "Chưa có giải thích."}
           </p>
         </ComparisonSection>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <ComparisonSection title="Ð? khó" changed={isChanged("difficulty")}>
+          <ComparisonSection title="Độ khó" changed={isChanged("difficulty")}>
             <p className={`text-sm font-medium ${difficulty.className}`}>
-              {snapshot.difficulty == null ? "Chua gán" : `${snapshot.difficulty} Â· ${difficulty.text}`}
+              {snapshot.difficulty == null ? "Chưa gán" : `${snapshot.difficulty} · ${difficulty.text}`}
             </p>
           </ComparisonSection>
-          <ComparisonSection title="Ði?m" changed={isChanged("points")}>
+          <ComparisonSection title="Điểm" changed={isChanged("points")}>
             <p className="text-sm font-medium text-foreground">
-              {snapshot.points == null ? "Chua gán" : snapshot.points}
+              {snapshot.points == null ? "Chưa gán" : snapshot.points}
             </p>
           </ComparisonSection>
         </div>
 
-        <ComparisonSection title="Khóa h?c" changed={false}>
+        <ComparisonSection title="Khóa học" changed={false}>
           {getCourseLabel(snapshot.course) ? (
             <div className="space-y-1 text-sm text-foreground">
               <p className="font-medium">{getCourseLabel(snapshot.course)}</p>
@@ -1812,16 +1812,16 @@ function QuestionComparisonCard({
               ) : null}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Chua xác d?nh khóa h?c.</p>
+            <p className="text-sm text-muted-foreground">Chưa xác định khóa học.</p>
           )}
         </ComparisonSection>
 
-        <ComparisonSection title="Th?" changed={isChanged("tags")}>
-          <TagList values={snapshot.tags} emptyLabel="Chua có th?." />
+        <ComparisonSection title="Thẻ" changed={isChanged("tags")}>
+          <TagList values={snapshot.tags} emptyLabel="Chưa có thẻ." />
         </ComparisonSection>
 
-        <ComparisonSection title="Ch? d?" changed={isChanged("topics")}>
-          <TagList values={snapshot.topics} emptyLabel="Chua có ch? d?." />
+        <ComparisonSection title="Chủ đề" changed={isChanged("topics")}>
+          <TagList values={snapshot.topics} emptyLabel="Chưa có chủ đề." />
         </ComparisonSection>
       </CardContent>
     </Card>
@@ -1852,7 +1852,7 @@ function ComparisonSection({
         <p className="text-sm font-medium text-foreground">{title}</p>
         {changed ? (
           <Badge variant="outline" className="border-primary/25 bg-primary/10 text-primary">
-            Ðã thay đổi
+            Đã thay đổi
           </Badge>
         ) : null}
       </div>

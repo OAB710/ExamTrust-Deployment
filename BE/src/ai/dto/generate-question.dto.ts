@@ -16,7 +16,7 @@ export class GenerateQuestionDto {
 
   @IsOptional()
   @IsString()
-  language?: string; // 'en' | 'vi'
+  language?: string; // UI/response preference; question output follows the explicit prompt language request.
 
   @IsOptional()
   @IsString()
