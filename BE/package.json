@@ -22,6 +22,7 @@
     "backfill:question-v2": "ts-node scripts/backfill-question-v2.ts",
     "seed": "ts-node prisma/seed.ts",
     "seed:question-banks": "ts-node --transpile-only prisma/seed-course-question-banks.ts",
+    "seed:question-history-demo": "ts-node --transpile-only prisma/seed-question-history-demo.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest"
   },
