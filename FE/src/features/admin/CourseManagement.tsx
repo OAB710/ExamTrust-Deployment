@@ -1635,7 +1635,7 @@ export default function AdminCourseManagement() {
         <Card>
           <CardContent className="p-0">
             <div
-              className="overflow-hidden"
+              className="overflow-x-auto"
               style={{ minHeight: COURSE_TABLE_MIN_HEIGHT }}
             >
               <Table>
