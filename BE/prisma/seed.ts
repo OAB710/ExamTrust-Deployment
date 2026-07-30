@@ -10,6 +10,23 @@ const COURSE_ACADEMIC_YEAR = '2025-2026';
 const COURSE_TERM = 'TERM_2';
 const STUDENT_COUNT = 36;
 const DEMO_PREFIX = '[DEMO-CLS001]';
+const STUDENTS_PER_CLASS = 20;
+
+// These are separate teaching sections. Repeated subjects intentionally model
+// the real timetable, where the same subject is delivered in different slots.
+const realisticCourseSections = [
+  { code: 'DATNUO-LECT-01', name: 'Đất nước Việt Nam - Thứ 4 ca 1', credits: 2 },
+  { code: 'DATNUO-LECT-02', name: 'Đất nước Việt Nam - Thứ 4 ca 2', credits: 2 },
+  { code: 'CLS002', name: 'Lập trình Web - Thứ 4 ca 1', credits: 3 },
+  { code: 'CLS003', name: 'Lập trình Web - Thứ 4 ca 2', credits: 3 },
+  { code: 'CLS004', name: 'Lập trình hướng đối tượng - Thứ 3 ca 1', credits: 3 },
+  { code: 'CLS005', name: 'Nhập môn lập trình - Thứ 2 ca 1', credits: 3 },
+  { code: 'CLS006', name: 'Cấu trúc dữ liệu và giải thuật - Thứ 5 ca 2', credits: 3 },
+  { code: 'CLS007', name: 'Hệ điều hành - Thứ 3 ca 2', credits: 3 },
+  { code: 'CLS008', name: 'Mạng máy tính - Thứ 4 ca 3', credits: 3 },
+  { code: 'CLS009', name: 'Phân tích và thiết kế hệ thống - Thứ 6 ca 1', credits: 3 },
+  { code: 'CLS010', name: 'Xây dựng ứng dụng di động - Thứ 5 ca 1', credits: 3 },
+] as const;
 
 type ChoiceQuestion = {
   code: string;
@@ -673,7 +690,7 @@ async function main() {
     },
   });
 
-  const studentRows = [];
+  const studentRows: Array<ReturnType<typeof prisma.user.upsert>> = [];
   for (const student of students) {
     studentRows.push(
       prisma.user.upsert({
@@ -709,6 +726,51 @@ async function main() {
     })),
     skipDuplicates: true,
   });
+
+  // Keep the original CLS001 analytics fixture intact, then seed the visible
+  // course list with realistic sections. This is additive/upsert-only: it
+  // preserves existing course IDs, exam history, and enrollment records.
+  for (const [sectionIndex, section] of realisticCourseSections.entries()) {
+    const sectionCourse = await prisma.course.upsert({
+      where: { code: section.code },
+      update: {
+        name: section.name,
+        academicYear: COURSE_ACADEMIC_YEAR,
+        term: COURSE_TERM as any,
+        credits: section.credits,
+        description: `Lớp học phần ${section.name}.`,
+        status: 'active',
+        statusEnum: 'ACTIVE',
+        lecturerId: lecturer.id,
+      },
+      create: {
+        code: section.code,
+        name: section.name,
+        academicYear: COURSE_ACADEMIC_YEAR,
+        term: COURSE_TERM as any,
+        credits: section.credits,
+        description: `Lớp học phần ${section.name}.`,
+        status: 'active',
+        statusEnum: 'ACTIVE',
+        lecturerId: lecturer.id,
+      },
+    });
+
+    const sectionStudents = Array.from(
+      { length: STUDENTS_PER_CLASS },
+      (_, offset) => studentUsers[(sectionIndex * STUDENTS_PER_CLASS + offset) % studentUsers.length],
+    );
+
+    await prisma.enrollment.createMany({
+      data: sectionStudents.map((student) => ({
+        courseId: sectionCourse.id,
+        studentId: student.id,
+        status: 'active',
+        statusEnum: 'ACTIVE',
+      })),
+      skipDuplicates: true,
+    });
+  }
 
   const topicRows = new Map<string, string>();
   for (const question of questions) {

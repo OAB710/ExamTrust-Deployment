@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -26,7 +27,7 @@ import api from '@/lib/api';
 interface IntegrityCaseDetailProps {
   submission: FlaggedSubmission;
   onBack: () => void;
-  onReview: (status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED', notes: string) => Promise<void>;
+  onReview: (status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED', notes: string, deductionPercent?: 10 | 25 | 50 | 100) => Promise<void>;
   isSaving?: boolean;
 }
 
@@ -44,6 +45,8 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
   const [integrityEvents, setIntegrityEvents] = useState<IntegrityTimelineEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState('');
+  const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
+  const [deductionPercent, setDeductionPercent] = useState<10 | 25 | 50 | 100>(10);
 
   const getConfidenceLabel = (confidence: FlaggedSubmission['confidence']) => ({
     High: 'Cao',
@@ -172,6 +175,15 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
   };
 
   const totalWeight = submission.reasons.reduce((sum, r) => sum + r.weight, 0);
+  const academicScore = Number(submission.academicScore ?? submission.integrityReview?.academicScore ?? 0);
+  const deductedScore = Number((academicScore * deductionPercent / 100).toFixed(2));
+  const finalScore = Number(Math.max(0, academicScore - deductedScore).toFixed(2));
+  const activePenalty = submission.integrityReview?.status === 'confirmed' && submission.integrityReview.penaltyPercent;
+
+  const confirmPenalty = async () => {
+    await onReview('CONFIRMED', reviewNotes, deductionPercent);
+    setPenaltyDialogOpen(false);
+  };
 
   return (
     <DashboardLayout>
@@ -261,6 +273,22 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                 </div>
               </CardContent>
             </Card>
+
+            {activePenalty ? (
+              <Card className="border-destructive/30 bg-destructive/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg text-destructive">Khấu trừ điểm do gian lận</CardTitle>
+                  <CardDescription>Quyết định đang có hiệu lực cho bài nộp này.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
+                  <div><p className="text-muted-foreground">Điểm học thuật</p><p className="font-semibold">{Number(submission.integrityReview?.academicScore ?? academicScore).toFixed(2)} / 10</p></div>
+                  <div><p className="text-muted-foreground">Khấu trừ</p><p className="font-semibold text-destructive">{submission.integrityReview?.penaltyPercent}% (-{Number(submission.integrityReview?.deductedScore ?? 0).toFixed(2)})</p></div>
+                  <div><p className="text-muted-foreground">Điểm cuối</p><p className="font-semibold">{Number(submission.integrityReview?.finalScore ?? 0).toFixed(2)} / 10</p></div>
+                  {submission.integrityReview?.reviewerNote ? <p className="sm:col-span-3 text-muted-foreground">Lý do: {submission.integrityReview.reviewerNote}</p> : null}
+                  {submission.integrityReview?.auditLogs?.length ? <div className="sm:col-span-3 border-t border-destructive/15 pt-3"><p className="mb-2 font-medium">Lịch sử quyết định</p><div className="space-y-1 text-xs text-muted-foreground">{submission.integrityReview.auditLogs.map((audit, index) => <p key={`${audit.createdAt}-${index}`}>{new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(audit.createdAt))}: {audit.action === 'PENALTY_APPLIED' ? 'Áp dụng khấu trừ' : audit.action === 'PENALTY_UPDATED' ? 'Điều chỉnh khấu trừ' : audit.action === 'PENALTY_REVOKED' ? 'Hủy khấu trừ' : 'Cập nhật rà soát'}{audit.nextPercent ? ` ${audit.nextPercent}%` : ''}{audit.note ? ` — ${audit.note}` : ''}</p>)}</div></div> : null}
+                </CardContent>
+              </Card>
+            ) : null}
 
             {/* Detection Reasons */}
             <Card>
@@ -419,9 +447,9 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                   />
                 </div>
                 <div className="space-y-2">
-                  <Button className="w-full" variant="destructive" disabled={isSaving} onClick={() => onReview('CONFIRMED', reviewNotes)}>
+                  <Button className="w-full" variant="destructive" disabled={isSaving} onClick={() => setPenaltyDialogOpen(true)}>
                     <XCircle className="h-4 w-4 mr-2" />
-                    Xác nhận cần xử lý
+                    {activePenalty ? 'Điều chỉnh mức khấu trừ' : 'Xác nhận cần xử lý'}
                   </Button>
                   <Button className="w-full" variant="outline" disabled={isSaving} onClick={() => onReview('DISMISSED', reviewNotes)}>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -451,6 +479,33 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
           </div>
         </div>
       </div>
+      <Dialog open={penaltyDialogOpen} onOpenChange={setPenaltyDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận khấu trừ điểm do gian lận</DialogTitle>
+            <DialogDescription>Quyết định này sẽ được hiển thị ngay cho sinh viên cùng điểm trước và sau khấu trừ.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-4 gap-2">
+              {([10, 25, 50, 100] as const).map((percent) => (
+                <Button key={percent} type="button" variant={deductionPercent === percent ? 'destructive' : 'outline'} onClick={() => setDeductionPercent(percent)}>
+                  {percent}%
+                </Button>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3 rounded-lg bg-muted/50 p-3 text-sm">
+              <div><p className="text-muted-foreground">Điểm học thuật</p><p className="font-semibold">{academicScore.toFixed(2)}</p></div>
+              <div><p className="text-muted-foreground">Bị trừ</p><p className="font-semibold text-destructive">-{deductedScore.toFixed(2)}</p></div>
+              <div><p className="text-muted-foreground">Điểm cuối</p><p className="font-semibold">{finalScore.toFixed(2)}</p></div>
+            </div>
+            {!reviewNotes.trim() ? <p className="text-sm text-destructive">Cần nhập lý do rà soát trước khi xác nhận.</p> : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={isSaving} onClick={() => setPenaltyDialogOpen(false)}>Hủy</Button>
+            <Button variant="destructive" disabled={isSaving || !reviewNotes.trim()} onClick={confirmPenalty}>Xác nhận và áp dụng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

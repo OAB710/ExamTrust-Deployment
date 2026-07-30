@@ -162,6 +162,7 @@ model User {
   qualityReviewItemsReviewed ExamQualityReviewItem[]    @relation("ExamQualityReviewItemReviewer")
   anomalyFlagsReviewed       AnomalyFlag[]              @relation("AnomalyFlagReviewer")
   integrityReviews           IntegrityReview[]          @relation("IntegrityReviewReviewer")
+  integrityReviewAudits      IntegrityReviewAudit[]     @relation("IntegrityReviewAuditActor")
 
   @@map("users")
 }
@@ -836,12 +837,39 @@ model IntegrityReview {
   reviewerId   String?
   reviewerNote String?               @db.Text
   decidedAt    DateTime?
+  penaltyPercent Int?
+  academicScore  Decimal?            @db.Decimal(5, 2)
+  deductedScore  Decimal?            @db.Decimal(5, 2)
+  finalScore     Decimal?            @db.Decimal(5, 2)
+  penaltyAppliedAt DateTime?
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
+  auditLogs    IntegrityReviewAudit[]
 
   @@index([status])
   @@index([reviewerId])
   @@map("integrity_reviews")
+}
+
+/// Immutable history of score-penalty decisions made during integrity review.
+model IntegrityReviewAudit {
+  id                String           @id @default(uuid())
+  integrityReview   IntegrityReview  @relation(fields: [integrityReviewId], references: [id], onDelete: Cascade)
+  integrityReviewId String
+  action            String           @db.VarChar(32)
+  previousPercent   Int?
+  nextPercent       Int?
+  academicScore     Decimal?         @db.Decimal(5, 2)
+  deductedScore     Decimal?         @db.Decimal(5, 2)
+  finalScore        Decimal?         @db.Decimal(5, 2)
+  note              String?          @db.Text
+  actor             User?            @relation("IntegrityReviewAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorId           String?
+  createdAt         DateTime         @default(now())
+
+  @@index([integrityReviewId, createdAt])
+  @@index([actorId])
+  @@map("integrity_review_audits")
 }
 
 /// Durable event store for critical events that must be persisted and replayable

@@ -64,6 +64,23 @@ export interface FlaggedSubmission {
   submittedAt: string;
   confidence: "High" | "Medium" | "Low";
   status: "pending" | "reviewed" | "dismissed" | "confirmed";
+  academicScore?: number;
+  integrityReview?: {
+    status: "pending" | "reviewed" | "dismissed" | "confirmed";
+    reviewerNote?: string | null;
+    decidedAt?: string | null;
+    penaltyPercent?: number | null;
+    academicScore?: number | null;
+    deductedScore?: number | null;
+    finalScore?: number | null;
+    auditLogs?: Array<{
+      action: string;
+      previousPercent?: number | null;
+      nextPercent?: number | null;
+      note?: string | null;
+      createdAt: string;
+    }>;
+  } | null;
   reasons: IntegrityReason[];
   similarityScore?: number;
   timeAnomaly?: boolean;
@@ -152,13 +169,33 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
     if (!lecturerScope && String(user?.role || '').toUpperCase() === 'LECTURER') router.replace('/lecturer/integrity');
   }, [lecturerScope, router, user?.role]);
 
-  const reviewCase = async (status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED', notes: string) => {
+  const reviewCase = async (
+    status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED',
+    notes: string,
+    deductionPercent?: 10 | 25 | 50 | 100,
+  ) => {
     if (!selectedCase?.submissionId) return;
     setSavingReview(true);
     try {
-      await api.reviewIntegrityCase(selectedCase.submissionId, { status, notes: notes || undefined });
+      const updatedReview = await api.reviewIntegrityCase(selectedCase.submissionId, {
+        status,
+        notes: notes || undefined,
+        deductionPercent,
+      });
       const nextStatus = status.toLowerCase() as FlaggedSubmission['status'];
-      setSubmissions((items) => items.map((item) => item.id === selectedCase.id ? { ...item, status: nextStatus } : item));
+      setSubmissions((items) => items.map((item) => item.id === selectedCase.id ? {
+        ...item,
+        status: nextStatus,
+        integrityReview: updatedReview ? {
+          status: nextStatus,
+          reviewerNote: updatedReview.reviewerNote,
+          decidedAt: updatedReview.decidedAt,
+          penaltyPercent: updatedReview.penaltyPercent,
+          academicScore: updatedReview.academicScore == null ? null : Number(updatedReview.academicScore),
+          deductedScore: updatedReview.deductedScore == null ? null : Number(updatedReview.deductedScore),
+          finalScore: updatedReview.finalScore == null ? null : Number(updatedReview.finalScore),
+        } : item.integrityReview,
+      } : item));
       setSelectedCase(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không thể lưu kết quả xem xét');

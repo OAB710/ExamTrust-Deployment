@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calculator, CheckCircle2, Clock3, Cpu, Loader2, MessageSquare, ShieldCheck, User, XCircle } from "lucide-react";
+import { AlertTriangle, Calculator, CheckCircle2, Clock3, Cpu, Loader2, MessageSquare, ShieldCheck, User, XCircle } from "lucide-react";
 
 type Question = {
   id: string;
@@ -92,6 +92,9 @@ export default function GradingBreakdown() {
   const gradingComplete = manualPending === 0;
   const showCorrectAnswers = Boolean(submission?.exam?.settings?.showCorrectAnswers ?? submission?.exam?.showCorrectAnswers);
   const autoCorrect = autoQuestions.filter((question) => question.isCorrect).length;
+  const integrityPenalty = submission?.integrityReview?.status === 'CONFIRMED' && submission?.integrityReview?.penaltyPercent
+    ? submission.integrityReview
+    : null;
 
   if (!examId && !submissionId) return <DashboardLayout><div className="mx-auto max-w-5xl py-20 text-center"><h1 className="text-lg font-medium">Chưa chọn bài thi</h1><p className="mt-2 text-sm text-muted-foreground">Mở kết quả của một bài thi để xem chi tiết chấm điểm.</p><BackToDashboardButton to="/student/results" className="mt-5" /></div></DashboardLayout>;
 
@@ -108,6 +111,8 @@ export default function GradingBreakdown() {
         <ScoreCard icon={<User className="h-5 w-5" />} tone="violet" label="Điểm chấm thủ công" score={manualScore} max={manualMax} detail={manualPending ? `Chờ giảng viên chấm ${manualPending} câu` : `Đã chấm ${manualGraded} câu`} />
         <ScoreCard icon={<Calculator className="h-5 w-5" />} tone="primary" label={gradingComplete ? "Điểm cuối cùng" : "Điểm tạm tính"} score={totalScore} max={totalMax} detail={gradingComplete ? `${formatPoints(totalMax > 0 ? totalScore / totalMax * 10 : 0)} / 10` : "Sẽ cập nhật sau khi hoàn tất chấm"} />
       </div></CardContent></Card>
+
+      {integrityPenalty ? <Card className="border-destructive/30 bg-destructive/5"><CardHeader><CardTitle className="flex items-center gap-2 text-lg text-destructive"><AlertTriangle className="h-5 w-5" />Điều chỉnh điểm do gian lận</CardTitle><CardDescription>Quyết định xử lý toàn vẹn học thuật đã được áp dụng cho bài làm này.</CardDescription></CardHeader><CardContent className="space-y-3"><div className="grid gap-3 sm:grid-cols-3"><div><p className="text-sm text-muted-foreground">Điểm học thuật</p><p className="text-lg font-semibold">{Number(integrityPenalty.academicScore ?? 0).toFixed(2)} / 10</p></div><div><p className="text-sm text-muted-foreground">Bị trừ do gian lận</p><p className="text-lg font-semibold text-destructive">{integrityPenalty.penaltyPercent}% (-{Number(integrityPenalty.deductedScore ?? 0).toFixed(2)})</p></div><div><p className="text-sm text-muted-foreground">Điểm cuối</p><p className="text-lg font-semibold">{Number(integrityPenalty.finalScore ?? 0).toFixed(2)} / 10</p></div></div>{integrityPenalty.reviewerNote ? <p className="rounded-md bg-background/70 p-3 text-sm text-foreground"><span className="font-medium">Lý do: </span>{integrityPenalty.reviewerNote}</p> : null}</CardContent></Card> : null}
 
       {submission?.proctoring ? <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-primary" />Dữ liệu giám sát phiên thi</CardTitle><CardDescription>Phiên thi có dữ liệu giám sát được lưu để giảng viên đối chiếu khi cần.</CardDescription></CardHeader><CardContent><p className="text-sm text-muted-foreground">Dữ liệu này không phải điểm phạt, không tự kết luận hành vi và không làm thay đổi điểm số tự động. Chi tiết kỹ thuật chỉ hiển thị cho giảng viên khi cần xem xét.</p></CardContent></Card> : null}
 

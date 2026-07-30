@@ -1040,6 +1040,7 @@ class ApiClient {
   async reviewIntegrityCase(submissionId: string, data: {
     status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED';
     notes?: string;
+    deductionPercent?: 10 | 25 | 50 | 100;
   }) {
     return this.request<any>(`/submissions/integrity/cases/${submissionId}`, {
       method: 'PATCH',
