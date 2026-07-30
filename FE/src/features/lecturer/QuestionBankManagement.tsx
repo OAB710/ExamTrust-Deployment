@@ -344,7 +344,14 @@ export default function QuestionBankManagement() {
         ]);
 
         const firstPageQuestions = unwrapPaginatedData<Question>(firstQuestionsPage);
-        const pages = Math.max(1, Number(firstQuestionsPage?.totalPages ?? 1));
+        // The API returns pagination metadata inside the response envelope.
+        // Reading a non-existent top-level `totalPages` silently limited this
+        // screen to the first 100 questions, causing course counts to appear
+        // as zero or partial after a larger seed.
+        const pages = Math.max(
+          1,
+          Number(firstQuestionsPage?.pagination?.totalPages ?? 1),
+        );
 
         if (pages === 1) {
           setQuestions(firstPageQuestions);

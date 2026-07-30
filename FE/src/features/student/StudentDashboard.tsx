@@ -558,7 +558,7 @@ export default function StudentDashboard() {
                   </p>
                 </div>
               ) : (
-                examHistory.map((submission, i) => {
+                examHistory.slice(0, 5).map((submission, i) => {
                   const score = submission.score || 0;
                   const maxScore = submission.exam?.totalPoints || 100;
                   const passingScore = submission.exam?.passingScore || 50;

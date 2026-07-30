@@ -55,6 +55,14 @@ const statusBadgeClass = (status?: string) => {
   return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300";
 };
 
+const getDisplayedScore = (submission: any) => {
+  const review = submission?.integrityReview;
+  if (String(review?.status || '').toUpperCase() === 'CONFIRMED' && review?.finalScore !== null && review?.finalScore !== undefined) {
+    return Number(review.finalScore);
+  }
+  return typeof submission?.score === 'number' ? submission.score : null;
+};
+
 export default function StudentResults() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,7 +174,7 @@ export default function StudentResults() {
       }
 
       if (scoreFilter && (scoreFilter.min !== undefined || scoreFilter.max !== undefined)) {
-        const score = typeof submission.score === "number" ? submission.score : -1;
+        const score = getDisplayedScore(submission) ?? -1;
         if (scoreFilter.min !== undefined && score < scoreFilter.min) return false;
         if (scoreFilter.max !== undefined && score > scoreFilter.max) return false;
       }
@@ -328,13 +336,13 @@ export default function StudentResults() {
                           <Badge
                             variant="outline"
                             className={scoreBadgeClass(
-                              String(s.status).toUpperCase() === "SUBMITTED" ? null : s.score,
+                              String(s.status).toUpperCase() === "SUBMITTED" ? null : getDisplayedScore(s),
                             )}
                           >
                             <Trophy className="mr-1 h-3.5 w-3.5" />
                             {String(s.status).toUpperCase() === "SUBMITTED"
                               ? "Đang chờ chấm"
-                              : `Điểm: ${s.score !== null ? s.score : "Chưa chấm"}`}
+                              : `Điểm: ${getDisplayedScore(s) ?? "Chưa chấm"}`}
                           </Badge>
                           <Badge
                             variant="outline"
@@ -345,7 +353,7 @@ export default function StudentResults() {
                           </Badge>
                         </div>
                         <p className="sr-only">
-                          {getStatusBadgeLabel(s.status)} • {s.score !== null ? s.score : "—"}
+                          {getStatusBadgeLabel(s.status)} • {getDisplayedScore(s) ?? "—"}
                         </p>
                         <p className="sr-only">
                           Lượt {s.attemptNo ?? "Chưa cập nhật"}

@@ -58,6 +58,23 @@ type IntegrityCase = {
   submittedAt: string;
   confidence: IntegrityCaseConfidence;
   status: IntegrityCaseStatus;
+  academicScore?: number;
+  integrityReview?: {
+    status: IntegrityCaseStatus;
+    reviewerNote?: string | null;
+    decidedAt?: Date | null;
+    penaltyPercent?: number | null;
+    academicScore?: number | null;
+    deductedScore?: number | null;
+    finalScore?: number | null;
+    auditLogs?: Array<{
+      action: string;
+      previousPercent?: number | null;
+      nextPercent?: number | null;
+      note?: string | null;
+      createdAt: Date;
+    }>;
+  } | null;
   reasons: Array<{
     type: IntegrityReasonType;
     description: string;
@@ -981,6 +998,7 @@ export class SubmissionsService {
           select: {
             id: true,
             studentId: true,
+            score: true,
             status: true,
             version: true,
             examSnapshotId: true,
@@ -1388,7 +1406,27 @@ export class SubmissionsService {
               },
             },
             integrityReview: {
-              select: { status: true, reviewerId: true, reviewerNote: true, decidedAt: true },
+              select: {
+                status: true,
+                reviewerId: true,
+                reviewerNote: true,
+                decidedAt: true,
+                penaltyPercent: true,
+                academicScore: true,
+                deductedScore: true,
+                finalScore: true,
+                auditLogs: {
+                  orderBy: { createdAt: 'desc' },
+                  take: 20,
+                  select: {
+                    action: true,
+                    previousPercent: true,
+                    nextPercent: true,
+                    note: true,
+                    createdAt: true,
+                  },
+                },
+              },
             },
           },
         },
@@ -1460,6 +1498,19 @@ export class SubmissionsService {
         submittedAt: submittedAt ? new Date(submittedAt).toISOString() : new Date().toISOString(),
         confidence,
         status: String(session.submission?.integrityReview?.status || 'PENDING').toLowerCase() as IntegrityCaseStatus,
+        academicScore: this.toNumber(session.submission?.score, 0),
+        integrityReview: session.submission?.integrityReview
+          ? {
+              status: String(session.submission.integrityReview.status).toLowerCase() as IntegrityCaseStatus,
+              reviewerNote: session.submission.integrityReview.reviewerNote,
+              decidedAt: session.submission.integrityReview.decidedAt,
+              penaltyPercent: session.submission.integrityReview.penaltyPercent,
+              academicScore: this.toNumber(session.submission.integrityReview.academicScore, 0),
+              deductedScore: this.toNumber(session.submission.integrityReview.deductedScore, 0),
+              finalScore: this.toNumber(session.submission.integrityReview.finalScore, 0),
+              auditLogs: session.submission.integrityReview.auditLogs,
+            }
+          : null,
         reasons: reasons.length
           ? reasons
           : [{
@@ -1536,31 +1587,86 @@ export class SubmissionsService {
 
   async reviewIntegrityCase(
     submissionId: string,
-    dto: { status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED'; notes?: string },
+    dto: { status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED'; notes?: string; deductionPercent?: 10 | 25 | 50 | 100 },
     user: RequestUser,
   ) {
     const submission = await this.prisma.examSubmission.findUnique({
       where: { id: submissionId },
-      select: { id: true, examId: true },
+      select: { id: true, examId: true, score: true },
     });
     if (!submission) throw new NotFoundException('Submission not found');
     await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
 
-    return this.prisma.integrityReview.upsert({
-      where: { submissionId },
-      create: {
-        submissionId,
-        status: dto.status,
-        reviewerId: user.id,
-        reviewerNote: dto.notes?.trim() || null,
-        decidedAt: new Date(),
-      },
-      update: {
-        status: dto.status,
-        reviewerId: user.id,
-        reviewerNote: dto.notes?.trim() || null,
-        decidedAt: new Date(),
-      },
+    const note = dto.notes?.trim() || '';
+    if (dto.status === 'CONFIRMED') {
+      if (!dto.deductionPercent || ![10, 25, 50, 100].includes(dto.deductionPercent)) {
+        throw new BadRequestException('A valid integrity deduction percentage is required');
+      }
+      if (!note) {
+        throw new BadRequestException('A review note is required when applying an integrity penalty');
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.integrityReview.findUnique({ where: { submissionId } });
+      const now = new Date();
+      const academicScore = Number(Math.max(0, Math.min(10, this.toNumber(submission.score, 0))).toFixed(2));
+      const keepsExistingPenalty = dto.status === 'REVIEWED' && existing?.status === 'CONFIRMED';
+      const penaltyPercent = dto.status === 'CONFIRMED'
+        ? Number(dto.deductionPercent)
+        : (keepsExistingPenalty ? existing?.penaltyPercent ?? null : null);
+      const deductedScore = penaltyPercent === null
+        ? null
+        : Number((academicScore * penaltyPercent / 100).toFixed(2));
+      const finalScore = penaltyPercent === null
+        ? null
+        : Number(Math.max(0, academicScore - (deductedScore || 0)).toFixed(2));
+      const priorPercent = existing?.penaltyPercent ?? null;
+
+      const review = await tx.integrityReview.upsert({
+        where: { submissionId },
+        create: {
+          submissionId,
+          status: keepsExistingPenalty ? 'CONFIRMED' : dto.status,
+          reviewerId: user.id,
+          reviewerNote: note || null,
+          decidedAt: now,
+          penaltyPercent,
+          academicScore: penaltyPercent === null ? null : academicScore,
+          deductedScore,
+          finalScore,
+          penaltyAppliedAt: penaltyPercent === null ? null : now,
+        },
+        update: {
+          status: keepsExistingPenalty ? 'CONFIRMED' : dto.status,
+          reviewerId: user.id,
+          reviewerNote: note || null,
+          decidedAt: now,
+          penaltyPercent,
+          academicScore: penaltyPercent === null ? null : academicScore,
+          deductedScore,
+          finalScore,
+          penaltyAppliedAt: penaltyPercent === null ? null : now,
+        },
+      });
+
+      await tx.integrityReviewAudit.create({
+        data: {
+          integrityReviewId: review.id,
+          action: dto.status === 'CONFIRMED'
+            ? (priorPercent === null ? 'PENALTY_APPLIED' : 'PENALTY_UPDATED')
+            : (dto.status === 'DISMISSED' && existing?.status === 'CONFIRMED' ? 'PENALTY_REVOKED' : dto.status),
+          previousPercent: priorPercent,
+          nextPercent: penaltyPercent,
+          academicScore: penaltyPercent === null ? this.toNumber(submission.score, 0) : academicScore,
+          deductedScore,
+          finalScore: penaltyPercent === null ? this.toNumber(submission.score, 0) : finalScore,
+          note: note || null,
+          actorId: user.id,
+        },
+      });
+
+      return review;
     });
   }
 
@@ -2998,6 +3104,13 @@ export class SubmissionsService {
             },
           },
         },
+        integrityReview: {
+          select: {
+            status: true,
+            penaltyPercent: true,
+            finalScore: true,
+          },
+        },
       },
       orderBy: { submittedAt: 'desc' },
     });
@@ -3051,6 +3164,17 @@ export class SubmissionsService {
             tabSwitchCount: true,
             mouseAnomalies: true,
             logs: true,
+          },
+        },
+        integrityReview: {
+          select: {
+            status: true,
+            reviewerNote: true,
+            penaltyPercent: true,
+            academicScore: true,
+            deductedScore: true,
+            finalScore: true,
+            penaltyAppliedAt: true,
           },
         },
       },
@@ -3187,6 +3311,17 @@ export class SubmissionsService {
             tabSwitchCount: true,
             mouseAnomalies: true,
             logs: true,
+          },
+        },
+        integrityReview: {
+          select: {
+            status: true,
+            reviewerNote: true,
+            penaltyPercent: true,
+            academicScore: true,
+            deductedScore: true,
+            finalScore: true,
+            penaltyAppliedAt: true,
           },
         },
       },
