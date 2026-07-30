@@ -87,6 +87,19 @@ export interface FlaggedSubmission {
   patternMatch?: string[];
 }
 
+const translatePrimarySignal = (value?: string) => {
+  const labels: Record<string, string> = {
+    "Fullscreen exit detected": "Phát hiện thoát chế độ toàn màn hình",
+    "Tab switching detected": "Phát hiện chuyển đổi tab",
+    "Tab switch detected": "Phát hiện chuyển đổi tab",
+    "Integrity event recorded": "Đã ghi nhận sự kiện toàn vẹn",
+    "Window focus lost": "Cửa sổ làm bài bị mất tiêu điểm",
+    "Copy event detected": "Phát hiện thao tác sao chép",
+    "Paste event detected": "Phát hiện thao tác dán",
+  };
+  return labels[value || ""] || value || "—";
+};
+
 export interface IntegrityReason {
   type: "similarity" | "timing" | "pattern" | "behavior";
   description: string;
@@ -564,7 +577,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                               </TableCell>
                               <TableCell>
                                 <p className="text-sm text-muted-foreground max-w-xs truncate">
-                                  {submission.reasons[0]?.description}
+                                  {translatePrimarySignal(submission.reasons[0]?.description)}
                                 </p>
                               </TableCell>
                               <TableCell className="text-right">
