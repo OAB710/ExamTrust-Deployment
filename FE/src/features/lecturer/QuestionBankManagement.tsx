@@ -76,28 +76,22 @@ import {
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { unwrapPaginatedData } from "@/lib/api";
-
-interface Question {
-  id: string;
-  content: string;
-  type: string;
-  course?: { id?: string; code: string; name: string } | null;
-  courseId?: string | null;
-  difficulty: number;
-  points: number;
-  options?: unknown;
-  correctAnswer?: unknown;
-  explanation?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface QuestionDraftSummary {
-  content?: string;
-  course?: string;
-  questionType?: string;
-  savedAt?: string;
-}
+import {
+  difficultyLabel as getDifficultyLabel,
+  formatDateSafe as formatQuestionDate,
+  typeLabels as questionTypeLabels,
+} from "./question-bank-utils";
+import type { Question, QuestionDraftSummary } from "./question-bank-utils";
+import { QuestionPreviewInfoCard as InfoCard, QuestionPreviewSection as Section } from "./components/QuestionPreviewSections";
+import {
+  courseFilterDefinitions,
+  EMPTY_COURSE_FILTERS,
+  EMPTY_QUESTION_FILTERS,
+  filterAndSortQuestions,
+  questionFilterDefinitions,
+} from "./question-bank-filters";
+import { useQuestionBankData } from "./hooks/useQuestionBankData";
+import { useQuestionBankRouteState } from "./hooks/useQuestionBankRouteState";
 
 const QUESTION_DRAFT_STORAGE_KEY = "question-draft";
 
@@ -207,91 +201,6 @@ const NO_OPTIONS_TYPES = new Set(["ESSAY", "SHORT_ANSWER"]);
 
 // --- Preview modal sub-components ---
 
-function Section({
-  title,
-  children,
-  className = "",
-}: {
-  title: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`rounded-lg border p-4 space-y-3 ${className}`}>
-      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-function InfoCard({
-  label,
-  help,
-  value,
-  valueClassName = "",
-}: {
-  label: string;
-  help?: React.ReactNode;
-  value: string;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="rounded-lg border bg-card p-4 text-center">
-      <p className="mb-1 inline-flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-        {label}
-        {help ? <ContextHelp content={help} /> : null}
-      </p>
-      <p className={`text-lg font-semibold ${valueClassName}`}>{value}</p>
-    </div>
-  );
-}
-
-const typeLabels: Record<string, string> = {
-  MULTIPLE_CHOICE: "Multiple Choice",
-  MULTI_SELECT: "Multiple Select",
-  TRUE_FALSE: "True/False",
-  SHORT_ANSWER: "Short Answer",
-  ESSAY: "Essay",
-  FILL_IN_BLANK: "Fill in Blank",
-  MATCHING: "Matching",
-  ORDERING: "Ordering",
-  FIND_ERROR: "Find the Error",
-};
-
-// Backend stores difficulty as an integer 1..10 (see QuestionEditor's Easy/Medium/Hard
-// buttons: 0.3/0.5/0.7 slider values * 10 => ~3/5/7).
-const difficultyLabel = (d: number) => {
-  const normalized = Number.isFinite(d) ? Math.round(d) : 1;
-  if (normalized <= 4) return { text: "Dễ", color: "text-green-600" };
-  if (normalized === 5) return { text: "Trung bình", color: "text-yellow-600" };
-  return { text: "Khó", color: "text-red-600" };
-};
-
-const formatUpdatedAt = (value?: string | Date | null) => {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
-};
-
-const EMPTY_COURSE_FILTERS: FilterValues = {
-  questionState: "all",
-  difficulty: "all",
-};
-
-const EMPTY_QUESTION_FILTERS: FilterValues = {
-  type: "all",
-  difficulty: "all",
-  points: { min: undefined, max: undefined },
-};
-
 export default function QuestionBankManagement() {
   const router = useRouter();
   const pathname = usePathname();
@@ -300,11 +209,7 @@ export default function QuestionBankManagement() {
     ? "/admin"
     : "/lecturer";
   const questionEditorPath = `${basePath}/question-editor`;
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [courses, setCourses] = useState<
-    { id: string; code: string; name: string; faculty?: string }[]
-  >([]);
-  const [loading, setLoading] = useState(true);
+  const { questions, setQuestions, courses, loading } = useQuestionBankData();
   const [courseSearchInput, setCourseSearchInput] = useState("");
   const [appliedCourseSearch, setAppliedCourseSearch] = useState("");
   const [questionSearchInput, setQuestionSearchInput] = useState("");
@@ -334,52 +239,10 @@ export default function QuestionBankManagement() {
   const [copySourceCourseId, setCopySourceCourseId] = useState<string>("");
   const [copyLoading, setCopyLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [coursesData, firstQuestionsPage] = await Promise.all([
-          api.getCourses(),
-          api.listQuestions({ page: 1, limit: 100 }),
-        ]);
-
-        const firstPageQuestions = unwrapPaginatedData<Question>(firstQuestionsPage);
-        // The API returns pagination metadata inside the response envelope.
-        // Reading a non-existent top-level `totalPages` silently limited this
-        // screen to the first 100 questions, causing course counts to appear
-        // as zero or partial after a larger seed.
-        const pages = Math.max(
-          1,
-          Number(firstQuestionsPage?.pagination?.totalPages ?? 1),
-        );
-
-        if (pages === 1) {
-          setQuestions(firstPageQuestions);
-        } else {
-          const requests: Promise<unknown>[] = [];
-          for (let currentPage = 2; currentPage <= pages; currentPage += 1) {
-            requests.push(api.listQuestions({ page: currentPage, limit: 100 }));
-          }
-
-          const remainingPages = await Promise.all(requests);
-          const mergedQuestions = [
-            ...firstPageQuestions,
-            ...remainingPages.flatMap((response) =>
-              unwrapPaginatedData<Question>(response),
-            ),
-          ];
-          setQuestions(mergedQuestions);
-        }
-
-        setCourses(unwrapPaginatedData(coursesData));
-      } catch (error) {
-        console.error("Failed to fetch questions:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  useQuestionBankRouteState({
+    courses, questions, searchParams, selectedCourse, setSelectedCourse,
+    setPreviewQuestion, setDetailQuestion, setDetailLoading, setDetailError,
+  });
 
   useEffect(() => {
     try {
@@ -395,183 +258,14 @@ export default function QuestionBankManagement() {
     setQuestionDraft(null);
   };
 
-  useEffect(() => {
-    if (courses.length === 0) return;
-
-    const courseCode = searchParams.get("courseCode");
-    const courseId = searchParams.get("courseId");
-    const matchedCourse = courses.find(
-      (course) => course.code === courseCode || course.id === courseId,
-    );
-
-    if (matchedCourse && selectedCourse !== matchedCourse.code) {
-      setSelectedCourse(matchedCourse.code);
-    }
-  }, [courses, searchParams, selectedCourse]);
-
-  useEffect(() => {
-    const questionId = searchParams.get("questionId");
-    if (!questionId) return;
-
-    let cancelled = false;
-
-    const openPreviewFromUrl = async () => {
-      setDetailLoading(true);
-      setDetailError(false);
-      try {
-        const detail = (await api.getQuestionById(questionId)) as Question;
-        if (cancelled) return;
-
-        const questionCourseCode = detail.course?.code;
-        if (questionCourseCode && selectedCourse !== questionCourseCode) {
-          setSelectedCourse(questionCourseCode);
-        }
-        setPreviewQuestion(detail);
-        setDetailQuestion(detail);
-      } catch {
-        if (cancelled) return;
-        const fallbackQuestion = questions.find(
-          (question) => question.id === questionId,
-        );
-        if (fallbackQuestion) {
-          setPreviewQuestion(fallbackQuestion);
-        }
-        setDetailQuestion(null);
-        setDetailError(true);
-      } finally {
-        if (!cancelled) {
-          setDetailLoading(false);
-        }
-      }
-    };
-
-    void openPreviewFromUrl();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [questions, searchParams, selectedCourse]);
-
-  const courseFilterDefinitions: FilterDefinition[] = useMemo(
-    () => [
-      {
-        key: "questionState",
-        label: "Trạng thái câu hỏi",
-        type: "select",
-        allLabel: "Tất cả khóa học",
-        options: [
-          { label: "Có câu hỏi", value: "hasQuestions" },
-          { label: "Không có câu hỏi", value: "noQuestions" },
-        ],
-      },
-      {
-        key: "difficulty",
-        label: "Độ khó",
-        type: "select",
-        allLabel: "Tất cả độ khó",
-        options: [
-          { label: "Dễ", value: "easy" },
-          { label: "Trung bình", value: "medium" },
-          { label: "Khó", value: "hard" },
-        ],
-      },
-    ],
-    [],
-  );
-
-  const questionFilterDefinitions: FilterDefinition[] = useMemo(
-    () => [
-      {
-        key: "type",
-        label: "Loại câu hỏi",
-        type: "select",
-        allLabel: "Tất cả loại",
-        options: Object.entries(typeLabels).map(([value, label]) => ({
-          label,
-          value,
-        })),
-      },
-      {
-        key: "difficulty",
-        label: "Độ khó",
-        type: "select",
-        allLabel: "Tất cả độ khó",
-        options: [
-          { label: "Dễ", value: "easy" },
-          { label: "Trung bình", value: "medium" },
-          { label: "Khó", value: "hard" },
-        ],
-      },
-      {
-        key: "points",
-        label: "Điểm",
-        type: "number-range",
-        min: 0,
-        max: 20,
-        step: 1,
-      },
-    ],
-    [],
-  );
-
-  const filtered = questions
-    .filter((q) => {
-      const normalizedQuestionSearch = appliedQuestionSearch
-        .trim()
-        .toLowerCase();
-      const matchSearch =
-        q.content.toLowerCase().includes(normalizedQuestionSearch) ||
-        q.id.toLowerCase().includes(normalizedQuestionSearch);
-
-      const matchCourse = selectedCourse ? q.course?.code === selectedCourse : true;
-
-      const typeValue = appliedQuestionFilters.type as string | undefined;
-      const difficultyValue =
-        appliedQuestionFilters.difficulty as string | undefined;
-      const pointsFilter = appliedQuestionFilters.points as
-        | { min?: number; max?: number }
-        | undefined;
-
-      const matchType = !typeValue || typeValue === "all" || q.type === typeValue;
-      const diffLabel = difficultyLabel(q.difficulty || 1).text.toLowerCase();
-      const matchDifficulty =
-        !difficultyValue ||
-        difficultyValue === "all" ||
-        diffLabel === difficultyValue;
-      const matchPoints = (() => {
-        if (!pointsFilter) return true;
-        if (
-          pointsFilter.min === undefined &&
-          pointsFilter.max === undefined
-        )
-          return true;
-        const point = q.points || 0;
-        if (pointsFilter.min !== undefined && point < pointsFilter.min)
-          return false;
-        if (pointsFilter.max !== undefined && point > pointsFilter.max)
-          return false;
-        return true;
-      })();
-
-      return (
-        matchSearch &&
-        matchCourse &&
-        matchType &&
-        matchDifficulty &&
-        matchPoints
-      );
-    })
-    .sort((a, b) => {
-      const mul = sortDir === "asc" ? 1 : -1;
-      if (sortBy === "difficulty")
-        return ((a.difficulty || 1) - (b.difficulty || 1)) * mul;
-      if (sortBy === "updatedAt") {
-        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-        return (aTime - bTime) * mul;
-      }
-      return ((a.points || 1) - (b.points || 1)) * mul;
-    });
+  const filtered = filterAndSortQuestions({
+    questions,
+    selectedCourse,
+    search: appliedQuestionSearch,
+    filters: appliedQuestionFilters,
+    sortBy,
+    sortDir,
+  });
 
   const handleDelete = async (id: string) => {
     try {
@@ -717,7 +411,7 @@ export default function QuestionBankManagement() {
     const avgDiff =
       courseQuestions.reduce((sum, q) => sum + (q.difficulty || 1), 0) /
       courseQuestions.length;
-    return difficultyLabel(avgDiff).text.toLowerCase() === difficultyValue;
+    return getDifficultyLabel(avgDiff).text.toLowerCase() === difficultyValue;
   });
 
   const activeCourseFilterCount = getActiveFilterCount(
@@ -879,7 +573,7 @@ export default function QuestionBankManagement() {
               <AdminStatCard
                 icon={Tag}
                 value={
-                  Object.keys(typeLabels).filter((t) =>
+                  Object.keys(questionTypeLabels).filter((t) =>
                     questions.some((q) => q.type === t),
                   ).length
                 }
@@ -957,7 +651,7 @@ export default function QuestionBankManagement() {
                               0,
                             ) / courseQuestions.length
                           : 0;
-                      const diffInfo = difficultyLabel(avgDiff);
+                      const diffInfo = getDifficultyLabel(avgDiff);
                       return (
                         <button
                           type="button"
@@ -1013,7 +707,7 @@ export default function QuestionBankManagement() {
                                   key={type}
                                   className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground"
                                 >
-                                  {typeLabels[type] || type}
+                                  {questionTypeLabels[type] || type}
                                 </span>
                               ))}
                               {questionTypes.length > 3 && (
@@ -1197,17 +891,17 @@ export default function QuestionBankManagement() {
                       </TableHeader>
                       <TableBody>
                         {displayedQuestions.map((question) => {
-                          const diff = difficultyLabel(question.difficulty || 1);
+                          const diff = getDifficultyLabel(question.difficulty || 1);
                           return (
                             <TableRow key={question.id} className="hover:bg-muted/50">
                               <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                                {formatUpdatedAt(question.updatedAt)}
+                                {formatQuestionDate(question.updatedAt)}
                               </TableCell>
                               <TableCell className="text-sm">
                                 <span className="line-clamp-2">{question.content}</span>
                               </TableCell>
                               <TableCell className="text-sm whitespace-nowrap">
-                                {typeLabels[question.type] || question.type}
+                                {questionTypeLabels[question.type] || question.type}
                               </TableCell>
                               <TableCell className="text-center">
                                 <span className={`text-xs font-medium px-2 py-1 rounded ${diff.color}`}>
@@ -1412,8 +1106,8 @@ export default function QuestionBankManagement() {
 
             {!detailLoading && !detailError && detailQuestion && (() => {
               const q = detailQuestion;
-              const diff = difficultyLabel(q.difficulty || 1);
-              const typeLabel = typeLabels[q.type] || q.type;
+              const diff = getDifficultyLabel(q.difficulty || 1);
+              const typeLabel = questionTypeLabels[q.type] || q.type;
               const options = normalizeOptions(q.options);
               const correctAnswers = normalizeCorrectAnswer(q.correctAnswer);
               const hasOptions = !NO_OPTIONS_TYPES.has(q.type);

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { HelpedTitle } from "@/components/common/ContextHelp";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,12 +31,12 @@ import {
 import { format, formatDistanceToNow, addHours } from "date-fns";
 import { vi } from "date-fns/locale";
 import Link from "next/link";
-import api from "@/lib/api";
 import {
   getCourseExamAction,
-  type CourseExamForAction,
 } from "@/lib/course-exam-action";
-import { formatCourseTerm, type CourseTerm } from "@/lib/course-term";
+import { formatCourseTerm } from "@/lib/course-term";
+import { useStudentDashboardData } from "./hooks/useStudentDashboardData";
+import { safeLabel } from "./student-dashboard-types";
 import {
   Select,
   SelectContent,
@@ -46,159 +45,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface UpcomingExam {
-  id: string;
-  title: string;
-  course: { code: string; name: string };
-  duration: number;
-  startTime: string;
-  endTime: string;
-  status: string;
-  mySubmissionStatus?: string | null;
-  mySubmissionAttemptNo?: number | null;
-  maxAttempts?: number | null;
-  settings?: {
-    maxAttempts?: number | null;
-  };
-}
-
-interface ExamHistoryItem {
-  id: string;
-  examId: string;
-  exam: {
-    title: string;
-    course: { code: string };
-    totalPoints: number;
-    passingScore: number;
-  };
-  score: number | null;
-  status: string;
-  submittedAt: string | null;
-  attemptNo?: number | null;
-}
-
-type StudentCourse = {
-  id: string;
-  code?: string;
-  name?: string;
-  description?: string;
-  academicYear?: string;
-  term?: CourseTerm;
-  credits?: number;
-  lastAccessed?: string;
-  exams?: CourseExamForAction[];
-  lecturer?: {
-    id?: string;
-    fullName?: string;
-    email?: string;
-  };
-};
-
-const safeLabel = (value?: string | null) => (value ? value : "Chưa cập nhật");
-
 export default function StudentDashboard() {
   const { user } = useAuth();
-  const [upcomingExams, setUpcomingExams] = useState<UpcomingExam[]>([]);
-  const [examHistory, setExamHistory] = useState<ExamHistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [recentCourses, setRecentCourses] = useState<StudentCourse[]>([]);
-  const [latestCompletedSubmissionByExamId, setLatestCompletedSubmissionByExamId] =
-    useState<Map<string, any>>(new Map());
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [exams, submissions, myRecentCourses] = await Promise.all([
-          api.getAvailableExams(),
-          api.getMySubmissions(),
-          api.getMyRecentCourses(),
-        ]);
-
-        const recentList = Array.isArray(myRecentCourses)
-          ? (myRecentCourses as StudentCourse[])
-          : [];
-
-        setRecentCourses(recentList);
-
-        const now = new Date();
-        const submissionList = Array.isArray(submissions) ? submissions : [];
-        const examList = Array.isArray(exams) ? exams : [];
-
-        const latestSubmissionByExamId = new Map<string, any>();
-        const latestCompletedSubmissionByExamId = new Map<string, any>();
-        submissionList.forEach((s: any) => {
-          const key = s?.examId;
-          if (!key) return;
-
-          const prev = latestSubmissionByExamId.get(key);
-          const currentTime = new Date(
-            s?.submittedAt || s?.startedAt || s?.createdAt || 0,
-          ).getTime();
-          const prevTime = prev
-            ? new Date(
-                prev?.submittedAt || prev?.startedAt || prev?.createdAt || 0,
-              ).getTime()
-            : -1;
-
-          if (!prev || currentTime >= prevTime) {
-            latestSubmissionByExamId.set(key, s);
-          }
-
-          const status = String(s?.status || "").toUpperCase();
-          if (["SUBMITTED", "GRADED", "FLAGGED", "FINALIZED"].includes(status)) {
-            const prevCompleted = latestCompletedSubmissionByExamId.get(key);
-            const prevCompletedTime = prevCompleted
-              ? new Date(
-                  prevCompleted?.submittedAt || prevCompleted?.startedAt || prevCompleted?.createdAt || 0,
-                ).getTime()
-              : -1;
-            if (!prevCompleted || currentTime >= prevCompletedTime) {
-              latestCompletedSubmissionByExamId.set(key, s);
-            }
-          }
-        });
-        setLatestCompletedSubmissionByExamId(latestCompletedSubmissionByExamId);
-
-        const upcoming = examList
-          .filter((exam: any) => {
-            const endTime = exam?.endTime ? new Date(exam.endTime) : null;
-            return (
-              exam?.status === "PUBLISHED" &&
-              endTime !== null &&
-              !isNaN(endTime.getTime()) &&
-              endTime > now
-            );
-          })
-          .map((exam: any) => ({
-            ...exam,
-            mySubmissionStatus:
-              latestSubmissionByExamId.get(exam.id)?.status ?? null,
-            mySubmissionAttemptNo:
-              latestSubmissionByExamId.get(exam.id)?.attemptNo ?? null,
-            maxAttempts:
-              typeof exam?.maxAttempts === "number"
-                ? exam.maxAttempts
-                : typeof exam?.settings?.maxAttempts === "number"
-                  ? exam.settings.maxAttempts
-                  : null,
-          }));
-
-        setUpcomingExams(upcoming);
-        setExamHistory(
-          submissionList.filter(
-            (s: any) => s.status === "GRADED" || s.status === "SUBMITTED",
-          ),
-        );
-      } catch (err) {
-        console.error("Error fetching data: ", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+  const {
+    upcomingExams,
+    examHistory,
+    recentCourses,
+    latestCompletedSubmissionByExamId,
+    loading,
+  } = useStudentDashboardData();
 
   const avgScore =
     examHistory.length > 0
