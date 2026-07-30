@@ -97,7 +97,7 @@ export default function QuestionHistoryAnalysis() {
       labels: chartMetrics.map((metric) => metric.exam),
       datasets: [
         {
-          label: "Difficulty Index",
+          label: "Chỉ số độ khó",
           data: chartMetrics.map((metric) => metric.difficulty ?? 0),
           borderColor: "rgb(239, 68, 68)",
           backgroundColor: "rgba(239, 68, 68, 0.1)",
@@ -105,7 +105,7 @@ export default function QuestionHistoryAnalysis() {
           tension: 0.3,
         },
         {
-          label: "Discrimination",
+          label: "Chỉ số phân biệt",
           data: chartMetrics.map((metric) => metric.discrimination ?? 0),
           borderColor: "rgb(59, 130, 246)",
           backgroundColor: "rgba(59, 130, 246, 0.1)",
@@ -113,7 +113,7 @@ export default function QuestionHistoryAnalysis() {
           tension: 0.3,
         },
         {
-          label: "Reliability proxy",
+          label: "Độ tin cậy ước tính",
           data: chartMetrics.map((metric) => metric.reliability ?? 0),
           borderColor: "rgb(34, 197, 94)",
           backgroundColor: "rgba(34, 197, 94, 0.1)",
@@ -130,7 +130,7 @@ export default function QuestionHistoryAnalysis() {
       labels: chartMetrics.map((metric) => metric.exam),
       datasets: [
         {
-          label: "Correct Rate",
+          label: "Tỷ lệ trả lời đúng",
           data: chartMetrics.map((metric) => Math.round((metric.correctRate ?? 0) * 100)),
           backgroundColor: chartMetrics.map((metric) => {
             const value = metric.correctRate ?? 0;
@@ -161,15 +161,15 @@ export default function QuestionHistoryAnalysis() {
     <DashboardLayout>
       <div className="max-w-6xl mx-auto">
         <Button variant="ghost" size="sm" className="mb-4 gap-2 text-muted-foreground" onClick={() => router.push(questionBankPath)}>
-          <ArrowLeft className="h-4 w-4" /> Back to Question Bank
+          <ArrowLeft className="h-4 w-4" /> Quay lại ngân hàng câu hỏi
         </Button>
 
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-foreground mb-1">
-            Question History & Performance Analysis
+            Lịch sử phiên bản & phân tích chất lượng câu hỏi
           </h1>
           <p className="text-muted-foreground">
-            Real analytics from question versions, submissions, and stored question statistics.
+            Phân tích từ phiên bản câu hỏi, bài nộp và thống kê chất lượng đã lưu.
           </p>
         </div>
 
@@ -177,7 +177,7 @@ export default function QuestionHistoryAnalysis() {
           <Card>
             <CardContent className="py-12 text-center text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3" />
-              Loading question history...
+              Đang tải lịch sử câu hỏi...
             </CardContent>
           </Card>
         )}
@@ -192,7 +192,7 @@ export default function QuestionHistoryAnalysis() {
           <Card>
             <CardContent className="py-12 text-center text-muted-foreground">
               <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              No question history found. Publish versioned questions and collect submissions first.
+              Chưa có lịch sử câu hỏi. Hãy xuất bản câu hỏi có phiên bản và thu thập bài nộp.
             </CardContent>
           </Card>
         )}
@@ -203,41 +203,41 @@ export default function QuestionHistoryAnalysis() {
               <Card>
                 <CardContent className="pt-4 pb-4 text-center">
                   <p className="text-2xl font-semibold">{stats?.totalQuestions ?? rows.length}</p>
-                  <p className="text-xs text-muted-foreground">Questions</p>
+                  <p className="text-xs text-muted-foreground">Câu hỏi</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-4 pb-4 text-center">
                   <p className="text-2xl font-semibold">{stats?.withAttempts ?? 0}</p>
-                  <p className="text-xs text-muted-foreground">With Attempts</p>
+                  <p className="text-xs text-muted-foreground">Đã có lượt làm</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-4 pb-4 text-center">
                   <p className="text-2xl font-semibold text-red-600">{stats?.degrading ?? 0}</p>
-                  <p className="text-xs text-muted-foreground">Needs Review</p>
+                  <p className="text-xs text-muted-foreground">Cần xem xét</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-4 pb-4 text-center">
                   <p className="text-2xl font-semibold text-blue-600">{stats?.aiGenerated ?? 0}</p>
-                  <p className="text-xs text-muted-foreground">AI-assisted</p>
+                  <p className="text-xs text-muted-foreground">Có hỗ trợ AI</p>
                 </CardContent>
               </Card>
             </div>
 
             <Tabs defaultValue="trends">
               <TabsList className="mb-4">
-                <TabsTrigger value="trends">Metric Trends</TabsTrigger>
-                <TabsTrigger value="drift">Difficulty Drift</TabsTrigger>
-                <TabsTrigger value="history">Version History</TabsTrigger>
+                <TabsTrigger value="trends">Xu hướng chỉ số</TabsTrigger>
+                <TabsTrigger value="drift">Biến động độ khó</TabsTrigger>
+                <TabsTrigger value="history">Lịch sử phiên bản</TabsTrigger>
               </TabsList>
 
               <TabsContent value="trends" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Questions</CardTitle>
+                      <CardTitle className="text-base">Câu hỏi</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 max-h-[620px] overflow-y-auto">
                       {rows.map((row) => (
@@ -269,27 +269,27 @@ export default function QuestionHistoryAnalysis() {
                   <div className="col-span-2 space-y-4">
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Metric Trends</CardTitle>
+                        <CardTitle className="text-base">Xu hướng chỉ số</CardTitle>
                         <CardDescription className="line-clamp-1">{selectedQuestion.content}</CardDescription>
                       </CardHeader>
                       <CardContent>
                         {chartMetrics.some((metric) => metric.attempts > 0) ? (
                           <Line data={lineData} options={{ responsive: true, scales: { y: { min: 0, max: 1 } }, plugins: { legend: { position: "bottom" } } }} />
                         ) : (
-                          <div className="py-12 text-center text-muted-foreground">No completed attempts for this question yet.</div>
+                          <div className="py-12 text-center text-muted-foreground">Câu hỏi này chưa có lượt làm hoàn tất.</div>
                         )}
                       </CardContent>
                     </Card>
 
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Correct Answer Rate (%)</CardTitle>
+                        <CardTitle className="text-base">Tỷ lệ trả lời đúng (%)</CardTitle>
                       </CardHeader>
                       <CardContent>
                         {chartMetrics.some((metric) => metric.attempts > 0) ? (
                           <Bar data={barData} options={{ responsive: true, scales: { y: { min: 0, max: 100 } }, plugins: { legend: { display: false } } }} />
                         ) : (
-                          <div className="py-8 text-center text-muted-foreground">Waiting for submission data.</div>
+                          <div className="py-8 text-center text-muted-foreground">Đang chờ dữ liệu bài nộp.</div>
                         )}
                       </CardContent>
                     </Card>
@@ -300,14 +300,14 @@ export default function QuestionHistoryAnalysis() {
                           <div className="flex items-start gap-3">
                             <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
                             <div>
-                              <p className="text-sm font-medium text-yellow-800">Recommendation</p>
+                              <p className="text-sm font-medium text-yellow-800">Khuyến nghị</p>
                               <p className="text-sm text-yellow-700">{selectedQuestion.recommendation}</p>
                               <div className="flex gap-2 mt-2">
                                 <Button size="sm" variant="outline" className="gap-1 text-xs">
-                                  <RefreshCw className="h-3 w-3" /> Create New Version
+                                  <RefreshCw className="h-3 w-3" /> Tạo phiên bản mới
                                 </Button>
                                 <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => router.push(`${questionEditorPath}?id=${selectedQuestion.id}`)}>
-                                  Edit Question <ArrowRight className="h-3 w-3" />
+                                  Sửa câu hỏi <ArrowRight className="h-3 w-3" />
                                 </Button>
                               </div>
                             </div>
