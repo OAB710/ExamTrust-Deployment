@@ -1090,7 +1090,12 @@ export default function QuestionBankManagement() {
                 <Button
                   variant="outline"
                   className="gap-2"
-                  onClick={() => router.push(`${basePath}/question-history`)}
+                  onClick={() => {
+                    const courseId = courses.find((course) => course.code === selectedCourse)?.id;
+                    router.push(
+                      `${basePath}/question-history?courseCode=${encodeURIComponent(selectedCourse)}${courseId ? `&courseId=${encodeURIComponent(courseId)}` : ""}`,
+                    );
+                  }}
                 >
                   <BarChart3 className="h-4 w-4" /> Analytics
                 </Button>

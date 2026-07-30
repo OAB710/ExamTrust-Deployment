@@ -10,7 +10,7 @@ async function main() {
   const questions = await prisma.question.findMany({
     where: { courseId: course.id },
     orderBy: { updatedAt: 'desc' },
-    take: 3,
+    take: 100,
     include: { versions: { orderBy: { versionNo: 'asc' } } },
   });
 
@@ -23,7 +23,7 @@ async function main() {
   for (const [index, question] of questions.entries()) {
     const base = question.versions[0];
     if (!base) continue;
-    const scenario = scenarios[index];
+    const scenario = scenarios[index % scenarios.length];
     const v2 = await prisma.questionVersion.upsert({
       where: { questionId_versionNo: { questionId: question.id, versionNo: 2 } },
       update: {},

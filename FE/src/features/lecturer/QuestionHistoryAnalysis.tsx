@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ type QuestionHistoryRow = {
 export default function QuestionHistoryAnalysis() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const basePath = pathname.startsWith("/admin") ? "/admin" : "/lecturer";
   const questionBankPath = `${basePath}/question-bank`;
   const questionEditorPath = `${basePath}/question-editor`;
@@ -69,7 +70,9 @@ export default function QuestionHistoryAnalysis() {
       setLoading(true);
       setError("");
       try {
-        const payload = await api.getQuestionHistory();
+        const payload = await api.getQuestionHistory({
+          courseId: searchParams.get("courseId") || undefined,
+        });
         const data = Array.isArray(payload?.data) ? payload.data : [];
         if (!active) return;
         setRows(data);
@@ -85,7 +88,7 @@ export default function QuestionHistoryAnalysis() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [searchParams]);
 
   const chartMetrics = useMemo(
     () => (selectedQuestion?.metrics.length ? selectedQuestion.metrics : []),
@@ -153,9 +156,15 @@ export default function QuestionHistoryAnalysis() {
         return <Minus className="h-4 w-4 text-muted-foreground" />;
     }
   };
+  const trendLabel = (trend: string) => ({
+    improving: "Cải thiện",
+    degrading: "Suy giảm",
+    stable: "Ổn định",
+  }[trend] || "Chưa xác định");
 
   const latestMetric = (row: QuestionHistoryRow) => row.metrics[row.metrics.length - 1];
   const firstMetric = (row: QuestionHistoryRow) => row.metrics.find((metric) => metric.attempts > 0) || row.metrics[0];
+  const currentMetric = selectedQuestion ? latestMetric(selectedQuestion) : undefined;
 
   return (
     <DashboardLayout>
@@ -253,7 +262,7 @@ export default function QuestionHistoryAnalysis() {
                             <div className="flex items-center gap-1">
                               {trendIcon(row.trend)}
                               <StatusBadge variant={row.trend === "improving" ? "success" : row.trend === "degrading" ? "destructive" : "default"}>
-                                {row.trend}
+                                {trendLabel(row.trend)}
                               </StatusBadge>
                             </div>
                           </div>
@@ -291,6 +300,30 @@ export default function QuestionHistoryAnalysis() {
                         ) : (
                           <div className="py-8 text-center text-muted-foreground">Đang chờ dữ liệu bài nộp.</div>
                         )}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-primary/15 bg-muted/20">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Cách đọc các chỉ số</CardTitle>
+                        <CardDescription>Các giá trị đều nằm trong khoảng từ 0 đến 1.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="grid gap-3 text-sm md:grid-cols-3">
+                        <div>
+                          <p className="font-medium">Chỉ số độ khó (p)</p>
+                          <p className="mt-1 text-muted-foreground">p = số lượt đúng / tổng lượt làm. p càng cao thì câu càng dễ; khoảng 0,30–0,80 thường hữu ích để phân loại.</p>
+                          <p className="mt-1 font-medium">Hiện tại: {currentMetric?.difficulty !== null && currentMetric?.difficulty !== undefined ? currentMetric.difficulty.toFixed(2) : "Chưa đủ dữ liệu"}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium">Chỉ số phân biệt (D)</p>
+                          <p className="mt-1 text-muted-foreground">D đo mức độ câu hỏi tách được nhóm làm tốt và nhóm làm yếu. D ≥ 0,30 là tốt; D thấp cần xem lại cách diễn đạt hoặc đáp án nhiễu.</p>
+                          <p className="mt-1 font-medium">Hiện tại: {currentMetric?.discrimination !== null && currentMetric?.discrimination !== undefined ? currentMetric.discrimination.toFixed(2) : "Chưa đủ dữ liệu"}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium">Độ tin cậy ước tính</p>
+                          <p className="mt-1 text-muted-foreground">Chỉ số tham khảo được suy ra từ độ phân biệt, chỉ hiển thị khi có ít nhất 10 lượt làm. Giá trị cao hơn cho thấy kết quả ổn định hơn.</p>
+                          <p className="mt-1 font-medium">Hiện tại: {currentMetric?.reliability !== null && currentMetric?.reliability !== undefined ? currentMetric.reliability.toFixed(2) : "Chưa đủ dữ liệu"}</p>
+                        </div>
                       </CardContent>
                     </Card>
 
@@ -363,7 +396,7 @@ export default function QuestionHistoryAnalysis() {
                                 <div className="flex items-center gap-1">
                                   {trendIcon(row.trend)}
                                   <StatusBadge variant={row.trend === "improving" ? "success" : row.trend === "degrading" ? "destructive" : "default"}>
-                                    {row.trend}
+                                  {trendLabel(row.trend)}
                                   </StatusBadge>
                                 </div>
                               </TableCell>
