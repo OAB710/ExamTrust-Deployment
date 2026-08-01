@@ -62,4 +62,26 @@ export class RateLimiterService {
       return { allowed: true, remaining: 0, retryAfter: 0 };
     }
   }
+
+  /**
+   * Strict (fail-closed) variant. Throws when Redis is unavailable instead of
+   * allowing the request through. Use ONLY on security-critical paths such as
+   * login, where blocking is safer than opening the door during an outage.
+   */
+  async consumeStrict(key: string, capacity: number, refillPerSecond: number, tokens = 1) {
+    const now = Date.now();
+    const res: any = await this.redis.eval(
+      this.tokenBucketScript,
+      1,
+      key,
+      capacity,
+      refillPerSecond,
+      now,
+      tokens,
+    );
+    const allowed = Number(res[0]) === 1;
+    const remaining = Number(res[1]);
+    const retryAfter = Number(res[2]);
+    return { allowed, remaining, retryAfter };
+  }
 }

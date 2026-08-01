@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { ArrowLeft, Loader2, Save, UserCheck } from "lucide-react";
+import { ArrowLeft, Loader2, Save, UserCheck, Plus, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -57,6 +57,10 @@ export default function ManualGradingDetail() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [submission, setSubmission] = useState<any | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftGrade>>({});
+  const [adjustmentAmount, setAdjustmentAmount] = useState("");
+  const [adjustmentCategory, setAdjustmentCategory] = useState<"QUESTION_ERROR" | "PARTICIPATION" | "OTHER">("QUESTION_ERROR");
+  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [isAdjusting, setIsAdjusting] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -142,6 +146,55 @@ export default function ManualGradingDetail() {
     }
   };
 
+  const refreshSubmission = async () => {
+    if (!submissionId) return;
+    const data = await api.getManualGradingSubmission(submissionId);
+    setSubmission(data);
+  };
+
+  const createAdjustment = async () => {
+    const amount = Number(adjustmentAmount);
+    if (!Number.isFinite(amount) || amount === 0) {
+      toast.error("Nhập số điểm điều chỉnh khác 0.");
+      return;
+    }
+    if (adjustmentReason.trim().length < 3) {
+      toast.error("Cần ghi rõ lý do điều chỉnh điểm.");
+      return;
+    }
+    try {
+      setIsAdjusting(true);
+      await api.createScoreAdjustment(String(submissionId), {
+        amount,
+        category: adjustmentCategory,
+        reason: adjustmentReason.trim(),
+      });
+      setAdjustmentAmount("");
+      setAdjustmentReason("");
+      await refreshSubmission();
+      toast.success("Đã lưu điều chỉnh điểm và nhật ký kiểm toán.");
+    } catch (err: any) {
+      toast.error(err?.message || "Không thể điều chỉnh điểm.");
+    } finally {
+      setIsAdjusting(false);
+    }
+  };
+
+  const revokeAdjustment = async (adjustmentId: string) => {
+    const reason = window.prompt("Lý do thu hồi điều chỉnh này:");
+    if (!reason?.trim()) return;
+    try {
+      setIsAdjusting(true);
+      await api.revokeScoreAdjustment(String(submissionId), adjustmentId, reason.trim());
+      await refreshSubmission();
+      toast.success("Đã thu hồi điều chỉnh; lịch sử vẫn được bảo toàn.");
+    } catch (err: any) {
+      toast.error(err?.message || "Không thể thu hồi điều chỉnh.");
+    } finally {
+      setIsAdjusting(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-5xl space-y-5 rounded-3xl bg-gradient-to-b from-slate-50/90 via-background to-background px-4 py-5 sm:px-6 lg:px-8">
@@ -186,6 +239,54 @@ export default function ManualGradingDetail() {
                   </Badge>
                 </div>
               </CardHeader>
+            </Card>
+
+            <Card className="border-indigo-200 bg-indigo-50/40 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Điều chỉnh điểm hậu kiểm</CardTitle>
+                <CardDescription>
+                  Không sửa snapshot hay điểm gốc của bài thi. Dùng cho câu hỏi sai, điểm phát biểu hoặc lý do đã được đối chiếu.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-[140px_190px_1fr_auto] md:items-end">
+                  <div>
+                    <label className="text-sm font-medium">Điểm +/-</label>
+                    <Input className="mt-2" type="number" step="0.01" min={-10} max={10} value={adjustmentAmount} onChange={(event) => setAdjustmentAmount(event.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Loại</label>
+                    <select className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={adjustmentCategory} onChange={(event) => setAdjustmentCategory(event.target.value as typeof adjustmentCategory)}>
+                      <option value="QUESTION_ERROR">Câu hỏi sai</option>
+                      <option value="PARTICIPATION">Điểm phát biểu</option>
+                      <option value="OTHER">Khác</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Lý do bắt buộc</label>
+                    <Input className="mt-2" value={adjustmentReason} onChange={(event) => setAdjustmentReason(event.target.value)} placeholder="Ví dụ: Câu 4 có hai đáp án đúng, cộng 0.5 điểm" />
+                  </div>
+                  <Button className="gap-2" onClick={createAdjustment} disabled={isAdjusting}>
+                    {isAdjusting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Điều chỉnh
+                  </Button>
+                </div>
+                <div className="rounded-lg border border-indigo-100 bg-white/80 p-3 text-sm">
+                  Điểm gốc: <strong>{Number(submission?.academicScore ?? submission?.score ?? 0).toFixed(2)}</strong> · Điều chỉnh đang hiệu lực: <strong>{Number(submission?.activeAdjustmentTotal ?? 0).toFixed(2)}</strong> · Điểm học thuật sau điều chỉnh: <strong>{Number(submission?.adjustedAcademicScore ?? submission?.score ?? 0).toFixed(2)}</strong>/10
+                </div>
+                {(submission?.scoreAdjustments || []).length > 0 ? (
+                  <div className="space-y-2">
+                    {submission.scoreAdjustments.map((adjustment: any) => (
+                      <div key={adjustment.id} className="flex flex-col gap-2 rounded-lg border bg-white p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <strong className={Number(adjustment.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}>{Number(adjustment.amount) >= 0 ? "+" : ""}{Number(adjustment.amount).toFixed(2)}</strong> · {adjustment.category} · {adjustment.reason}
+                          <p className="mt-1 text-xs text-muted-foreground">{adjustment.createdBy?.fullName || "Giảng viên"} · {new Date(adjustment.createdAt).toLocaleString("vi-VN")}{adjustment.revokedAt ? ` · Đã thu hồi: ${adjustment.revocationReason || ""}` : ""}</p>
+                        </div>
+                        {!adjustment.revokedAt ? <Button size="sm" variant="outline" className="gap-1" onClick={() => revokeAdjustment(adjustment.id)} disabled={isAdjusting}><Undo2 className="h-3.5 w-3.5" /> Thu hồi</Button> : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </CardContent>
             </Card>
 
             {(submission?.manualAnswers || []).length === 0 ? (

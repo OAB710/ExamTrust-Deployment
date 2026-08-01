@@ -135,6 +135,12 @@ enum IntegrityReviewStatus {
   CONFIRMED
 }
 
+enum ScoreAdjustmentCategory {
+  QUESTION_ERROR
+  PARTICIPATION
+  OTHER
+}
+
 model User {
   id         String   @id @default(uuid())
   email      String   @unique
@@ -143,12 +149,14 @@ model User {
   role       String   @default("STUDENT") // ADMIN, LECTURER, STUDENT
   studentId  String? // Only for students
   department String?
-  avatar     String?
-  status     String   @default("active")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  avatar             String?
+  status             String   @default("active")
+  passwordChangedAt  DateTime? // set whenever a password is created or changed
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   // relations
+  authSessions               AuthSession[]
   coursesTaught              Course[]                   @relation("CourseLecturer")
   examsCreated               Exam[]                     @relation("ExamCreator")
   enrollments                Enrollment[]
@@ -163,6 +171,8 @@ model User {
   anomalyFlagsReviewed       AnomalyFlag[]              @relation("AnomalyFlagReviewer")
   integrityReviews           IntegrityReview[]          @relation("IntegrityReviewReviewer")
   integrityReviewAudits      IntegrityReviewAudit[]     @relation("IntegrityReviewAuditActor")
+  scoreAdjustmentsCreated    ScoreAdjustment[]          @relation("ScoreAdjustmentCreator")
+  scoreAdjustmentsRevoked    ScoreAdjustment[]          @relation("ScoreAdjustmentRevoker")
 
   @@map("users")
 }
@@ -234,6 +244,7 @@ model Exam {
   archivedFromStatus      String?
   deletedAt               DateTime?
   deletedById             String?
+  resultsPublishedAt      DateTime?
   mode                    ExamMode              @default(NORMAL)
   settings                Json?
   maxAttempts             Int?
@@ -261,6 +272,7 @@ model Exam {
   @@index([status])
   @@index([archivedAt])
   @@index([deletedAt])
+  @@index([resultsPublishedAt])
   @@index([gradingStrategy])
   @@map("exams")
 }
@@ -588,6 +600,7 @@ model ExamSubmission {
   proctoring         ProctoringSession?
   riskAssessmentJobs AIGenerationRecord[]       @relation("ExamRiskAssessmentJobs")
   integrityReview     IntegrityReview?
+  scoreAdjustments    ScoreAdjustment[]
 
   @@unique([examId, studentId, attemptNo])
   @@index([examId])
@@ -618,6 +631,29 @@ model ExamSubmissionRegradeLog {
   @@index([submissionAnswerId])
   @@index([reviewerId])
   @@map("exam_submission_regrade_logs")
+}
+
+/// Immutable, post-exam adjustment ledger. Records are revoked rather than edited
+/// so the original score snapshot and the reason for every later change remain auditable.
+model ScoreAdjustment {
+  id               String                  @id @default(uuid())
+  submissionId     String
+  submission       ExamSubmission          @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  amount           Decimal                 @db.Decimal(5, 2)
+  category         ScoreAdjustmentCategory
+  reason           String                  @db.Text
+  createdById      String
+  createdBy        User                    @relation("ScoreAdjustmentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt        DateTime                @default(now())
+  revokedAt        DateTime?
+  revokedById      String?
+  revokedBy        User?                   @relation("ScoreAdjustmentRevoker", fields: [revokedById], references: [id], onDelete: Restrict)
+  revocationReason String?                 @db.Text
+
+  @@index([submissionId, createdAt])
+  @@index([createdById])
+  @@index([revokedById])
+  @@map("score_adjustments")
 }
 
 model ExamInstance {
@@ -889,4 +925,22 @@ model EventStore {
   @@index([dedupId])
   @@index([kind])
   @@map("event_store")
+}
+
+/// Refresh-token sessions. Stores only the SHA-256 hash of the refresh token
+/// (never the token itself) so sessions can be listed and revoked.
+model AuthSession {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshHash String    @db.VarChar(64)
+  userAgent   String?   @db.VarChar(500)
+  ip          String?   @db.VarChar(64)
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([refreshHash])
+  @@map("auth_sessions")
 }

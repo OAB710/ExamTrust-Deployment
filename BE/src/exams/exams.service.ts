@@ -738,9 +738,19 @@ export class ExamsService {
       throw new ForbiddenException('You are not enrolled in this course');
     }
 
-    // Check if exam is published and within time range
+    // A scheduled/published exam must not disclose its question payload before
+    // its server-side opening time, nor after its closing time.  The schedule
+    // endpoint supplies metadata for those states without exposing questions.
     if (exam.status !== 'PUBLISHED' && exam.status !== 'ONGOING') {
       throw new ForbiddenException('Exam is not available');
+    }
+
+    const now = new Date();
+    if (exam.startTime && exam.startTime > now) {
+      throw new ForbiddenException('Exam has not started yet');
+    }
+    if (exam.endTime && exam.endTime < now) {
+      throw new ForbiddenException('Exam has ended');
     }
 
     const examQuestions = await this.loadExamQuestionsCompat(id, false);
@@ -768,6 +778,10 @@ export class ExamsService {
 
     if (updateExamDto.status !== undefined) {
       throw new BadRequestException('Use the dedicated publish, archive, or restore action to change exam lifecycle status');
+    }
+
+    if (exam.status !== 'DRAFT') {
+      throw new ConflictException('Only draft exams can be edited. Archive and create a new draft for a changed published exam.');
     }
 
     const updateData: any = { ...updateExamDto };
@@ -929,6 +943,9 @@ export class ExamsService {
     if (!exam) {
       throw new NotFoundException('Exam not found');
     }
+    if (exam.status !== 'DRAFT') {
+      throw new ConflictException('Questions can only be changed while the exam is a draft');
+    }
 
     // Get current max order index
     const maxOrder = await this.prisma.examQuestion.findFirst({
@@ -1000,6 +1017,12 @@ export class ExamsService {
   }
 
   async removeQuestionFromExam(examId: string, questionId: string) {
+    const exam = await this.prisma.exam.findUnique({ where: { id: examId }, select: { status: true } });
+    if (!exam) throw new NotFoundException('Exam not found');
+    if (exam.status !== 'DRAFT') {
+      throw new ConflictException('Questions can only be changed while the exam is a draft');
+    }
+
     const examQuestion = await this.prisma.examQuestion.findUnique({
       where: {
         examId_questionId: { examId, questionId },
@@ -1022,6 +1045,12 @@ export class ExamsService {
     questionId: string,
     updateDto: UpdateExamQuestionDto,
   ) {
+    const exam = await this.prisma.exam.findUnique({ where: { id: examId }, select: { status: true } });
+    if (!exam) throw new NotFoundException('Exam not found');
+    if (exam.status !== 'DRAFT') {
+      throw new ConflictException('Questions can only be changed while the exam is a draft');
+    }
+
     const examQuestion = await this.prisma.examQuestion.findUnique({
       where: {
         examId_questionId: { examId, questionId },
@@ -1062,6 +1091,10 @@ export class ExamsService {
 
     if (!exam) {
       throw new NotFoundException('Exam not found');
+    }
+
+    if (exam.status !== 'DRAFT') {
+      throw new ConflictException('Only draft exams can be published');
     }
 
     if (exam.examQuestions.length === 0) {

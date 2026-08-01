@@ -18,7 +18,7 @@ import {
 import { Response } from 'express';
 import { SubmissionsService } from './submissions.service';
 import { ExamRiskAssessmentService } from './exam-risk-assessment.service';
-import { StartExamDto, SubmitExamDto, GradeAnswerDto, UpdateSubmissionStatusDto, AddLogsDto, AutosaveExamDto } from './dto/submission.dto';
+import { StartExamDto, SubmitExamDto, GradeAnswerDto, UpdateSubmissionStatusDto, AddLogsDto, AutosaveExamDto, CreateScoreAdjustmentDto, RevokeScoreAdjustmentDto } from './dto/submission.dto';
 import { ReviewAnomalyFlagDto, ReviewIntegrityCaseDto } from './dto/risk-assessment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -293,7 +293,7 @@ export class SubmissionsController {
     // Return sanitized view for the student: include proctoring summary but not raw logs
     return this.submissionsService.getStudentSubmission(examId, req.user.id).then((submission) => {
       if (!submission) return submission;
-      const sanitized = { ...submission } as any;
+      const sanitized = this.submissionsService.sanitizeStudentSubmissionView(submission) as any;
       if (sanitized.proctoring) {
         sanitized.proctoring = {
           tabSwitchCount: sanitized.proctoring.tabSwitchCount ?? 0,
@@ -336,6 +336,25 @@ export class SubmissionsController {
   @Roles('LECTURER', 'ADMIN')
   getManualGradingSubmission(@Param('id') id: string, @Request() req) {
     return this.submissionsService.getManualGradingSubmission(id, req.user);
+  }
+
+  @Post(':id/score-adjustments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  createScoreAdjustment(@Param('id') id: string, @Body() dto: CreateScoreAdjustmentDto, @Request() req) {
+    return this.submissionsService.createScoreAdjustment(id, dto, req.user);
+  }
+
+  @Patch(':id/score-adjustments/:adjustmentId/revoke')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  revokeScoreAdjustment(
+    @Param('id') id: string,
+    @Param('adjustmentId') adjustmentId: string,
+    @Body() dto: RevokeScoreAdjustmentDto,
+    @Request() req,
+  ) {
+    return this.submissionsService.revokeScoreAdjustment(id, adjustmentId, dto, req.user);
   }
 
   @Get(':id')

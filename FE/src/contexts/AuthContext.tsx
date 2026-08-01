@@ -33,25 +33,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check for existing token on mount
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('accessToken');
-      if (token) {
-        try {
-          const user = await api.getMe();
-          setAuthState({
-            user,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-        } catch (error) {
-          // Token invalid, clear it
-          api.clearToken();
-          setAuthState({
-            user: null,
-            isAuthenticated: false,
-            isLoading: false,
-          });
-        }
-      } else {
+      try {
+        // The API client transparently refreshes via the httpOnly cookie when
+        // the in-memory access token is missing or expired.
+        const user = await api.getMe();
+        setAuthState({
+          user,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      } catch {
+        api.clearToken();
         setAuthState({
           user: null,
           isAuthenticated: false,
@@ -112,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    void api.logout(); // revokes the refresh token server-side, then clears local state
     api.clearToken();
     setAuthState({
       user: null,

@@ -60,7 +60,6 @@ describe('SubmissionsService snapshot and score normalization', () => {
     const service = new SubmissionsService(
       prisma as any,
       { publishSubmissionEvent: jest.fn() } as any,
-      { notify: jest.fn(), create: jest.fn() } as any,
       accessPolicy as any,
       { isQueueOverloaded: jest.fn().mockResolvedValue(false) } as any,
     );
@@ -246,6 +245,7 @@ describe('SubmissionsService snapshot and score normalization', () => {
     ]);
     prisma.examSubmission.update.mockResolvedValue({});
     prisma.examInstance.update.mockResolvedValue({});
+    prisma.exam = { update: jest.fn().mockResolvedValue({}) } as any;
     prisma.$transaction.mockResolvedValue([]);
 
     await service.publishExamResults('exam-1', { id: 'lecturer-1', role: 'LECTURER' });

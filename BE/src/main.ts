@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { PerfInterceptor } from './common/interceptors/perf.interceptor';
+import * as cookieParser from 'cookie-parser';
 
 function parseCsvList(value?: string | null): string[] {
   return String(value || '')
@@ -13,6 +14,9 @@ function parseCsvList(value?: string | null): string[] {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Parse httpOnly refresh-token cookies (used by /auth/refresh & /auth/logout).
+  app.use(cookieParser());
   
   const defaultOrigins = ['http://localhost:3000'];
   const frontendUrl = process.env.FRONTEND_URL?.trim();

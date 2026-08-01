@@ -184,6 +184,7 @@ export class EnrollmentsService {
             data: {
               email: email.toLowerCase().trim(),
               password: tempPassword,
+              passwordChangedAt: new Date(),
               fullName: emailPrefix,
               role: 'STUDENT',
             },
@@ -247,6 +248,7 @@ export class EnrollmentsService {
             data: {
               email,
               password: tempPassword,
+              passwordChangedAt: new Date(),
               fullName: row.fullName?.trim() || emailPrefix,
               role: 'STUDENT',
               studentId: row.studentId?.trim() || null,

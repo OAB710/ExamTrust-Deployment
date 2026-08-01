@@ -31,42 +31,89 @@ export class ApiRequestError extends Error {
 
 class ApiClient {
   private baseUrl: string;
+  // Access token is kept in memory only (not localStorage) to reduce XSS exposure.
+  private memoryToken: string | null = null;
+  private refreshPromise: Promise<boolean> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
   }
 
-  private getToken(): string | null {
-    return localStorage.getItem('accessToken');
+  /** Public read access for callers that build raw requests (e.g. SSE). */
+  getToken(): string | null {
+    return this.memoryToken;
   }
 
   setToken(token: string): void {
-    localStorage.setItem('accessToken', token);
+    this.memoryToken = token;
   }
 
   clearToken(): void {
-    localStorage.removeItem('accessToken');
+    this.memoryToken = null;
+  }
+
+  private async refreshAccessToken(): Promise<boolean> {
+    if (!this.refreshPromise) {
+      this.refreshPromise = (async () => {
+        try {
+          const res = await fetch(`${this.baseUrl}/auth/refresh`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          if (!res.ok) {
+            this.memoryToken = null;
+            return false;
+          }
+          const data = await res.json();
+          if (data?.accessToken) {
+            this.memoryToken = data.accessToken;
+            return true;
+          }
+          this.memoryToken = null;
+          return false;
+        } catch {
+          this.memoryToken = null;
+          return false;
+        } finally {
+          this.refreshPromise = null;
+        }
+      })();
+    }
+    return this.refreshPromise;
   }
 
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const { method = 'GET', body, headers = {} } = options;
     const startedAt = nowMs();
 
-    const token = this.getToken();
-    const requestHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...headers,
+    const doFetch = (): Promise<Response> => {
+      const token = this.getToken();
+      const requestHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...headers,
+      };
+      if (token) {
+        requestHeaders['Authorization'] = `Bearer ${token}`;
+      }
+      return fetch(`${this.baseUrl}${endpoint}`, {
+        method,
+        headers: requestHeaders,
+        credentials: 'include',
+        body: body ? JSON.stringify(body) : undefined,
+      });
     };
 
-    if (token) {
-      requestHeaders['Authorization'] = `Bearer ${token}`;
+    let response = await doFetch();
+
+    // Access token expired: refresh once via the httpOnly cookie, then retry.
+    if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+      const refreshed = await this.refreshAccessToken();
+      if (refreshed) {
+        response = await doFetch();
+      }
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method,
-      headers: requestHeaders,
-      body: body ? JSON.stringify(body) : undefined,
-    });
     const responseReceivedMs = elapsedMs(startedAt);
 
     if (!response.ok) {
@@ -152,10 +199,12 @@ class ApiClient {
 
   // Auth endpoints
   async login(email: string, password: string) {
-    return this.request<{ accessToken: string; user: any }>('/auth/login', {
+    const data = await this.request<{ accessToken: string; user: any }>('/auth/login', {
       method: 'POST',
       body: { email, password },
     });
+    this.memoryToken = data.accessToken;
+    return data;
   }
 
   async register(data: {
@@ -166,14 +215,49 @@ class ApiClient {
     studentId?: string;
     department?: string;
   }) {
-    return this.request<{ accessToken: string; user: any }>('/auth/register', {
+    const result = await this.request<{ accessToken: string; user: any }>('/auth/register', {
       method: 'POST',
       body: data,
     });
+    this.memoryToken = result.accessToken;
+    return result;
   }
 
   async getMe() {
     return this.request<any>('/auth/me');
+  }
+
+  async logout() {
+    try {
+      await this.request<{ message: string }>('/auth/logout', { method: 'POST' });
+    } catch {
+      // Ignore network errors; always clear the local session below.
+    } finally {
+      this.memoryToken = null;
+    }
+  }
+
+  async listSessions() {
+    return this.request<any[]>('/auth/sessions');
+  }
+
+  async revokeSession(sessionId: string) {
+    return this.request<{ message: string }>(`/auth/sessions/${sessionId}/revoke`, {
+      method: 'POST',
+    });
+  }
+
+  async revokeAllSessions() {
+    return this.request<{ message: string }>('/auth/sessions/revoke-all', {
+      method: 'POST',
+    });
+  }
+
+  /** Admin-only: force-revoke every session of a user (e.g. after confirmed cheating). */
+  async revokeUserSessions(userId: string) {
+    return this.request<{ message: string }>(`/auth/users/${userId}/sessions/revoke`, {
+      method: 'POST',
+    });
   }
 
   async getLecturerAttention() {
@@ -1078,6 +1162,23 @@ class ApiClient {
     return this.request<any>('/submissions/grade-answer', {
       method: 'POST',
       body: { submissionAnswerId, pointsAwarded, feedback },
+    });
+  }
+
+  async createScoreAdjustment(
+    submissionId: string,
+    data: { amount: number; category: "QUESTION_ERROR" | "PARTICIPATION" | "OTHER"; reason: string },
+  ) {
+    return this.request<any>(`/submissions/${submissionId}/score-adjustments`, {
+      method: "POST",
+      body: data,
+    });
+  }
+
+  async revokeScoreAdjustment(submissionId: string, adjustmentId: string, reason: string) {
+    return this.request<any>(`/submissions/${submissionId}/score-adjustments/${adjustmentId}/revoke`, {
+      method: "PATCH",
+      body: { reason },
     });
   }
 

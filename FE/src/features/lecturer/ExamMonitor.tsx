@@ -481,7 +481,7 @@ export default function ExamMonitor() {
 
   useEffect(() => {
     if (!id) return;
-    const token = localStorage.getItem("accessToken");
+    const token = api.getToken();
     if (!token) return;
 
     const streamUrl = `${API_BASE_URL}/submissions/exam/${encodeURIComponent(id)}/events?token=${encodeURIComponent(token)}`;

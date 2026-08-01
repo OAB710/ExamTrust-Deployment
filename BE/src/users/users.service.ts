@@ -26,6 +26,7 @@ export class UsersService {
       data: {
         ...createUserDto,
         password: hashedPassword,
+        passwordChangedAt: new Date(),
         status: createUserDto.status || 'active',
       },
       select: {
@@ -149,6 +150,7 @@ export class UsersService {
 
     if (updateUserDto.password) {
       data.password = await bcrypt.hash(updateUserDto.password, 10);
+      data.passwordChangedAt = new Date();
     }
 
     const updatedUser = await this.prisma.user.update({

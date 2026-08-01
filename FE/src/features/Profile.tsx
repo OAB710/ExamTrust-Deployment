@@ -38,6 +38,9 @@ export default function Profile() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
   useEffect(() => {
     if (!user) return;
 
@@ -138,6 +141,42 @@ export default function Profile() {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
+  };
+
+  const loadSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const data = await api.listSessions();
+      setSessions(Array.isArray(data) ? data : []);
+    } catch {
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) void loadSessions();
+  }, [user]);
+
+  const handleRevokeSession = async (sessionId: string) => {
+    try {
+      await api.revokeSession(sessionId);
+      toast.success("Đã thu hồi phiên đăng nhập");
+      await loadSessions();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Không thể thu hồi phiên");
+    }
+  };
+
+  const handleRevokeAllSessions = async () => {
+    try {
+      await api.revokeAllSessions();
+      toast.success("Đã đăng xuất tất cả thiết bị khác");
+      await loadSessions();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Không thể thu hồi phiên");
+    }
   };
 
   const roleLabel =
@@ -324,6 +363,75 @@ export default function Profile() {
             </Card>
           </div>
         </div>
+
+        {/* Session management */}
+        <Card className="mt-6">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="text-lg">Phiên đăng nhập</CardTitle>
+              <CardDescription>
+                Các thiết bị/trình duyệt đang đăng nhập tài khoản này
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={sessionsLoading || sessions.length === 0}
+              onClick={handleRevokeAllSessions}
+            >
+              Đăng xuất tất cả thiết bị
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {sessionsLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Đang tải phiên đăng
+                nhập...
+              </div>
+            ) : sessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Chưa có phiên đăng nhập nào.
+              </p>
+            ) : (
+              sessions.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0 text-sm">
+                    <p className="truncate font-medium text-foreground">
+                      {s.userAgent || "Trình duyệt không xác định"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      IP: {s.ip || "không xác định"} · Đăng nhập:{" "}
+                      {new Date(s.createdAt).toLocaleString("vi-VN")}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                        s.active
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {s.active ? "Hoạt động" : "Đã thu hồi"}
+                    </span>
+                    {s.active && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRevokeSession(s.id)}
+                      >
+                        Thu hồi
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

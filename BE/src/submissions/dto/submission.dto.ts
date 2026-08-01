@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject, IsArray, IsInt, Min, Max, IsEnum, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsArray, IsInt, Min, Max, IsEnum, IsBoolean, IsNumber, MaxLength, MinLength } from 'class-validator';
 
 export class StartExamDto {
   @IsString()
@@ -81,6 +81,28 @@ export class GradeAnswerDto {
   @IsOptional()
   @IsString()
   reason?: string;
+}
+
+export class CreateScoreAdjustmentDto {
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(-10)
+  @Max(10)
+  amount: number;
+
+  @IsEnum(['QUESTION_ERROR', 'PARTICIPATION', 'OTHER'])
+  category: 'QUESTION_ERROR' | 'PARTICIPATION' | 'OTHER';
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(2000)
+  reason: string;
+}
+
+export class RevokeScoreAdjustmentDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(2000)
+  reason: string;
 }
 
 export class UpdateSubmissionStatusDto {

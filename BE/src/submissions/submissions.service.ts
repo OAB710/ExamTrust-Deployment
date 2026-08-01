@@ -155,6 +155,68 @@ export class SubmissionsService {
     return result;
   }
 
+  /**
+   * The backend is the clock authority.  An attempt cannot outlive either its
+   * own duration or the scheduled exam window, whichever ends first.
+   */
+  private resolveSubmissionDeadline(submission: {
+    startedAt?: Date | null;
+    exam?: { endTime?: Date | null; timeLimitMinutes?: number | null; duration?: number | null } | null;
+  }): Date | null {
+    const candidates: Date[] = [];
+    const scheduledEnd = submission.exam?.endTime;
+    if (scheduledEnd) candidates.push(new Date(scheduledEnd));
+
+    const limitMinutes = submission.exam?.timeLimitMinutes ?? submission.exam?.duration;
+    if (submission.startedAt && limitMinutes && Number(limitMinutes) > 0) {
+      candidates.push(new Date(new Date(submission.startedAt).getTime() + Number(limitMinutes) * 60_000));
+    }
+
+    if (candidates.length === 0) return null;
+    return new Date(Math.min(...candidates.map((date) => date.getTime())));
+  }
+
+  sanitizeStudentSubmissionView(submission: any) {
+    const resultsPublished = Boolean(submission?.exam?.resultsPublishedAt);
+    const answers = Array.isArray(submission?.answers) ? submission.answers.map((answer: any) => {
+      const snapshot = this.parseJsonValue(answer?.questionSnapshot?.payload, {});
+      const question = answer?.question || {};
+      const { correctAnswer: _correctAnswer, explanation: _explanation, ...safeQuestion } = question;
+      const answerKey = snapshot.answerKey ?? snapshot.correctAnswer;
+
+      return {
+        ...answer,
+        questionSnapshot: undefined,
+        ...(resultsPublished ? {} : {
+          isCorrect: undefined,
+          pointsAwarded: undefined,
+          manualGradedAt: undefined,
+          feedback: undefined,
+        }),
+        question: {
+          ...safeQuestion,
+          content: snapshot.stem ?? snapshot.content ?? safeQuestion.content,
+          options: snapshot.options ?? safeQuestion.options,
+          ...(resultsPublished && typeof answerKey !== 'undefined' ? { correctAnswer: answerKey } : {}),
+          ...(resultsPublished && typeof snapshot.explanation !== 'undefined' ? { explanation: snapshot.explanation } : {}),
+        },
+      };
+    }) : [];
+
+    const adjustmentTotal = (submission?.scoreAdjustments || [])
+      .filter((adjustment: any) => !adjustment.revokedAt)
+      .reduce((total: number, adjustment: any) => total + this.toNumber(adjustment.amount), 0);
+    const adjustedScore = Number(Math.max(0, Math.min(10, this.toNumber(submission?.score) + adjustmentTotal)).toFixed(2));
+
+    return {
+      ...submission,
+      answers,
+      ...(resultsPublished
+        ? { academicScore: submission.score, adjustmentTotal: Number(adjustmentTotal.toFixed(2)), score: adjustedScore }
+        : { score: null, gradedAt: null }),
+    };
+  }
+
   private parseLogDetails(details: string | null | undefined): any {
     if (!details) return null;
     try {
@@ -340,7 +402,6 @@ export class SubmissionsService {
         update: {
           status: 'IN_PROGRESS',
           lastActivityAt: now,
-          examSnapshotId: latestSnapshot.id,
           userAgent: context?.userAgent ?? undefined,
         },
       });
@@ -435,10 +496,9 @@ export class SubmissionsService {
       ? await this.prisma.examInstance.update({
           where: { id: existingExamInstance.id },
           data: {
-            examSnapshotId: latestSnapshot.id,
-            snapshotPayload,
-            randomizationSeed,
-            questionOrder: mappedSnapshotQuestions.map((item) => item.questionSnapshotId ?? item.questionId),
+            // An instance is the immutable per-student randomization record.
+            // Re-opening/retrying an exam may update activity state, never the
+            // chosen snapshot, seed, or question order.
             status: 'IN_PROGRESS',
             lastActivityAt: now,
             userAgent: context?.userAgent ?? undefined,
@@ -575,6 +635,7 @@ export class SubmissionsService {
         submittedAt: true,
         gradedAt: true,
         score: true,
+        startedAt: true,
         examInstanceId: true,
         examSnapshotId: true,
         submitIdempotencyKey: true,
@@ -595,6 +656,7 @@ export class SubmissionsService {
             maxAttempts: true,
             timeLimitMinutes: true,
             duration: true,
+            endTime: true,
           },
         },
       },
@@ -643,7 +705,12 @@ export class SubmissionsService {
       throw new BadRequestException('Proctoring logs payload too large');
     }
 
-    const answers = (submitExamDto.answers || []).slice(0, 1000);
+    // After the deadline, ignore client-supplied changes and finalize only the
+    // server-persisted autosave state. This prevents a direct API call from
+    // extending an attempt while still preserving the student's saved work.
+    const deadline = this.resolveSubmissionDeadline(submission);
+    const autoSubmitted = Boolean(deadline && deadline.getTime() <= now.getTime());
+    const answers = autoSubmitted ? [] : (submitExamDto.answers || []).slice(0, 1000);
     const result = await this.prisma.$transaction(async (tx) => {
       const locked = await tx.examSubmission.updateMany({
         where: {
@@ -717,6 +784,9 @@ export class SubmissionsService {
             select: {
               id: true,
               title: true,
+              endTime: true,
+              timeLimitMinutes: true,
+              duration: true,
             },
           },
           examSnapshot: {
@@ -735,6 +805,8 @@ export class SubmissionsService {
               sequence: true,
               clientBatchId: true,
               serverVersion: true,
+              answer: true,
+              timeTaken: true,
             },
           },
         },
@@ -756,8 +828,19 @@ export class SubmissionsService {
         (lockedSubmission.answers || []).map((answer) => [answer.questionId, answer as AutosaveAnswerMeta]),
       );
 
-      const normalizedAnswers = answers.filter((answer) => validQuestions.has(answer.questionId));
-      const finalAnswerRows = normalizedAnswers.map((answerDto) => {
+      const effectiveAnswers = new Map<string, any>();
+      for (const savedAnswer of lockedSubmission.answers || []) {
+        if (validQuestions.has(savedAnswer.questionId)) {
+          effectiveAnswers.set(savedAnswer.questionId, savedAnswer);
+        }
+      }
+      for (const submittedAnswer of answers) {
+        if (validQuestions.has(submittedAnswer.questionId)) {
+          effectiveAnswers.set(submittedAnswer.questionId, submittedAnswer);
+        }
+      }
+
+      const finalAnswerRows = Array.from(effectiveAnswers.values()).map((answerDto: any) => {
         const examQuestion = validQuestions.get(answerDto.questionId)!;
         const answerMeta = answerMetaByQuestionId.get(answerDto.questionId);
         let pointsAwarded = 0;
@@ -982,6 +1065,7 @@ export class SubmissionsService {
       rawScore: result.totalScore,
       normalizedScore: result.normalizedScore,
       maxRawScore: result.maxRawScore,
+      autoSubmitted,
     };
   }
 
@@ -1002,13 +1086,22 @@ export class SubmissionsService {
             status: true,
             version: true,
             examSnapshotId: true,
+            startedAt: true,
             exam: {
               select: {
                 id: true,
-                examQuestions: {
+                endTime: true,
+                timeLimitMinutes: true,
+                duration: true,
+              },
+            },
+            examSnapshot: {
+              select: {
+                questions: {
                   select: {
                     questionId: true,
                     questionVersionId: true,
+                    questionSnapshotId: true,
                   },
                 },
               },
@@ -1028,9 +1121,22 @@ export class SubmissionsService {
       throw new BadRequestException('Exam already submitted, cannot autosave');
     }
 
-    const validQuestionIds = new Set(submission.exam.examQuestions.map((eq) => eq.questionId));
+    const deadline = this.resolveSubmissionDeadline(submission);
+    if (deadline && deadline.getTime() <= Date.now()) {
+      throw new ConflictException('Exam time has expired; answers can no longer be changed');
+    }
+
+    const snapshotQuestions = submission.examSnapshot?.questions || [];
+    if (!submission.examSnapshotId || snapshotQuestions.length === 0) {
+      throw new ConflictException('Submission snapshot is unavailable');
+    }
+
+    const validQuestionIds = new Set(snapshotQuestions.map((eq) => eq.questionId));
     const versionByQuestionId = new Map(
-      submission.exam.examQuestions.map((eq) => [eq.questionId, eq.questionVersionId || null]),
+      snapshotQuestions.map((eq) => [eq.questionId, eq.questionVersionId || null]),
+    );
+    const questionSnapshotByQuestionId = new Map(
+      snapshotQuestions.map((eq) => [eq.questionId, eq.questionSnapshotId || null]),
     );
     const normalizedAnswers = new Map<string, { questionId: string; sequence: number; answer: any; timeTaken?: number }>();
 
@@ -1110,16 +1216,6 @@ export class SubmissionsService {
           sequence: true,
         },
       });
-
-      // map questionId -> questionSnapshotId if submission references an examSnapshot
-      const questionSnapshotByQuestionId = new Map<string, string | null>();
-      if (submission.examSnapshotId) {
-        const eqSnapshots = await tx.examQuestionSnapshot.findMany({
-          where: { examSnapshotId: submission.examSnapshotId, questionId: { in: incomingQuestionIds } },
-          select: { questionId: true, questionSnapshotId: true },
-        });
-        for (const r of eqSnapshots) questionSnapshotByQuestionId.set(r.questionId, r.questionSnapshotId || null);
-      }
 
       const existingByQuestionId = new Map<string, ExistingAutosaveAnswer>(
         existingAnswers.map((row) => [row.questionId, row]),
@@ -1607,10 +1703,17 @@ export class SubmissionsService {
       }
     }
 
+    const activeAdjustments = await this.prisma.scoreAdjustment.aggregate({
+      where: { submissionId, revokedAt: null },
+      _sum: { amount: true },
+    });
+
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.integrityReview.findUnique({ where: { submissionId } });
       const now = new Date();
-      const academicScore = Number(Math.max(0, Math.min(10, this.toNumber(submission.score, 0))).toFixed(2));
+      const academicScore = Number(Math.max(0, Math.min(10,
+        this.toNumber(submission.score, 0) + this.toNumber(activeAdjustments._sum.amount, 0),
+      )).toFixed(2));
       const keepsExistingPenalty = dto.status === 'REVIEWED' && existing?.status === 'CONFIRMED';
       const penaltyPercent = dto.status === 'CONFIRMED'
         ? Number(dto.deductionPercent)
@@ -1719,6 +1822,11 @@ export class SubmissionsService {
               points: true,
             },
           },
+          questionSnapshot: {
+            select: {
+              payload: true,
+            },
+          },
         },
       });
 
@@ -1726,7 +1834,10 @@ export class SubmissionsService {
         throw new NotFoundException('Answer not found');
       }
 
+      const snapshotPayload = this.parseJsonValue(existing.questionSnapshot?.payload, {});
       const maxPoints = Number(
+        snapshotPayload.assignedScore ??
+        snapshotPayload.points ??
         existing.questionVersion?.points ??
           existing.question.points ??
           existing.question.defaultPoints ??
@@ -2006,6 +2117,13 @@ export class SubmissionsService {
             },
           },
         },
+        scoreAdjustments: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            createdBy: { select: { id: true, fullName: true } },
+            revokedBy: { select: { id: true, fullName: true } },
+          },
+        },
       },
     });
 
@@ -2028,19 +2146,119 @@ export class SubmissionsService {
         updatedAt: answer.updatedAt,
       }));
 
+    const activeAdjustmentTotal = submission.scoreAdjustments
+      .filter((adjustment) => !adjustment.revokedAt)
+      .reduce((total, adjustment) => total + this.toNumber(adjustment.amount), 0);
+    const academicScore = this.toNumber(submission.score);
+
     return {
       ...submission,
       manualAnswers,
       manualTotal: manualAnswers.length,
       manualGraded: manualAnswers.filter((answer) => answer.manualGradedAt !== null && answer.manualGradedAt !== undefined).length,
+      academicScore,
+      activeAdjustmentTotal: Number(activeAdjustmentTotal.toFixed(2)),
+      adjustedAcademicScore: Number(Math.max(0, Math.min(10, academicScore + activeAdjustmentTotal)).toFixed(2)),
     };
+  }
+
+  private async refreshIntegrityScoreAfterAdjustment(tx: any, submissionId: string, baseScore: number) {
+    const review = await tx.integrityReview.findUnique({ where: { submissionId } });
+    if (!review?.penaltyPercent) return;
+
+    const adjustments = await tx.scoreAdjustment.findMany({
+      where: { submissionId, revokedAt: null },
+      select: { amount: true },
+    });
+    const adjustedAcademicScore = Math.max(0, Math.min(10, baseScore + adjustments.reduce(
+      (total: number, adjustment: { amount: any }) => total + this.toNumber(adjustment.amount),
+      0,
+    )));
+    const deductedScore = Number((adjustedAcademicScore * Number(review.penaltyPercent) / 100).toFixed(2));
+    const finalScore = Number(Math.max(0, adjustedAcademicScore - deductedScore).toFixed(2));
+
+    await tx.integrityReview.update({
+      where: { submissionId },
+      data: { academicScore: adjustedAcademicScore, deductedScore, finalScore, penaltyAppliedAt: new Date() },
+    });
+  }
+
+  async createScoreAdjustment(
+    submissionId: string,
+    dto: { amount: number; category: 'QUESTION_ERROR' | 'PARTICIPATION' | 'OTHER'; reason: string },
+    user: RequestUser,
+  ) {
+    const amount = Number(dto.amount);
+    const reason = String(dto.reason || '').trim();
+    if (!Number.isFinite(amount) || amount === 0) {
+      throw new BadRequestException('Score adjustment amount must be non-zero');
+    }
+    if (!reason) throw new BadRequestException('A reason is required for a score adjustment');
+
+    const submission = await this.prisma.examSubmission.findUnique({
+      where: { id: submissionId },
+      select: { id: true, examId: true, score: true, status: true },
+    });
+    if (!submission) throw new NotFoundException('Submission not found');
+    await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
+    if (!['SUBMITTED', 'GRADED', 'FLAGGED', 'FINALIZED'].includes(String(submission.status).toUpperCase())) {
+      throw new ConflictException('Score can only be adjusted after the attempt has been submitted');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const adjustment = await tx.scoreAdjustment.create({
+        data: { submissionId, amount, category: dto.category, reason, createdById: user.id },
+        include: { createdBy: { select: { id: true, fullName: true } } },
+      });
+      await this.refreshIntegrityScoreAfterAdjustment(tx, submissionId, this.toNumber(submission.score));
+      return adjustment;
+    });
+  }
+
+  async revokeScoreAdjustment(
+    submissionId: string,
+    adjustmentId: string,
+    dto: { reason: string },
+    user: RequestUser,
+  ) {
+    const reason = String(dto.reason || '').trim();
+    if (!reason) throw new BadRequestException('A revocation reason is required');
+
+    const submission = await this.prisma.examSubmission.findUnique({
+      where: { id: submissionId },
+      select: { id: true, examId: true, score: true },
+    });
+    if (!submission) throw new NotFoundException('Submission not found');
+    await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.scoreAdjustment.findFirst({ where: { id: adjustmentId, submissionId } });
+      if (!existing) throw new NotFoundException('Score adjustment not found');
+      if (existing.revokedAt) throw new ConflictException('Score adjustment has already been revoked');
+
+      const revoked = await tx.scoreAdjustment.update({
+        where: { id: adjustmentId },
+        data: { revokedAt: new Date(), revokedById: user.id, revocationReason: reason },
+        include: { revokedBy: { select: { id: true, fullName: true } } },
+      });
+      await this.refreshIntegrityScoreAfterAdjustment(tx, submissionId, this.toNumber(submission.score));
+      return revoked;
+    });
   }
 
   async publishExamResults(examId: string, user?: RequestUser) {
     const status = await this.getManualGradingStatus(examId, user);
+    const publishedAt = new Date();
+    // Automatically graded exams still need an explicit publication decision
+    // before answer keys are made available to students.
     if (!status.hasManualGrading) {
-      throw new BadRequestException('This exam does not have manually graded answers.');
+      await this.prisma.exam.update({
+        where: { id: examId },
+        data: { resultsPublishedAt: publishedAt },
+      });
+      return this.getManualGradingStatus(examId, user);
     }
+
     if (!status.canPublish) {
       throw new BadRequestException('All manually graded answers must be scored before publishing results.');
     }
@@ -2084,7 +2302,7 @@ export class SubmissionsService {
       maxRawScoreBySubmission.set(submission.id, maxRawScore);
     }
 
-    const now = new Date();
+    const now = publishedAt;
     await this.prisma.$transaction(
       submissions.flatMap((submission) => {
         const rawScore = scoreBySubmission.get(submission.id) || 0;
@@ -2119,6 +2337,11 @@ export class SubmissionsService {
         return updates;
       }),
     );
+
+    await this.prisma.exam.update({
+      where: { id: examId },
+      data: { resultsPublishedAt: publishedAt },
+    });
 
     return this.getManualGradingStatus(examId, user);
   }
@@ -3087,7 +3310,7 @@ export class SubmissionsService {
   }
 
   async findByStudent(studentId: string) {
-    return this.prisma.examSubmission.findMany({
+    const submissions = await this.prisma.examSubmission.findMany({
       where: { studentId },
       include: {
         exam: {
@@ -3095,6 +3318,7 @@ export class SubmissionsService {
             id: true,
             title: true,
             totalPoints: true,
+            resultsPublishedAt: true,
             course: {
               select: {
                 id: true,
@@ -3111,13 +3335,40 @@ export class SubmissionsService {
             finalScore: true,
           },
         },
+        scoreAdjustments: {
+          where: { revokedAt: null },
+          select: { amount: true },
+        },
       },
       orderBy: { submittedAt: 'desc' },
+    });
+
+    return submissions.map((submission) => {
+      const adjustmentTotal = submission.scoreAdjustments.reduce(
+        (total, adjustment) => total + this.toNumber(adjustment.amount),
+        0,
+      );
+      if (submission.exam.resultsPublishedAt) {
+        return {
+          ...submission,
+          academicScore: submission.score,
+          score: Number(Math.max(0, Math.min(10, this.toNumber(submission.score) + adjustmentTotal)).toFixed(2)),
+          adjustmentTotal: Number(adjustmentTotal.toFixed(2)),
+        };
+      }
+      return {
+        ...submission,
+        score: null,
+        gradedAt: null,
+        integrityReview: submission.integrityReview
+          ? { ...submission.integrityReview, finalScore: null }
+          : submission.integrityReview,
+      };
     });
   }
 
   async getMySubmissionById(submissionId: string, studentId: string) {
-    return this.prisma.examSubmission.findFirst({
+    const submission = await this.prisma.examSubmission.findFirst({
       where: {
         id: submissionId,
         studentId,
@@ -3128,6 +3379,7 @@ export class SubmissionsService {
             id: true,
             title: true,
             totalPoints: true,
+            resultsPublishedAt: true,
             maxAttempts: true,
             settings: true,
             course: {
@@ -3157,6 +3409,7 @@ export class SubmissionsService {
                 correctAnswer: true,
               },
             },
+            questionSnapshot: { select: { payload: true } },
           },
         },
         proctoring: {
@@ -3179,6 +3432,12 @@ export class SubmissionsService {
         },
       },
     });
+    if (!submission) return submission;
+    const scoreAdjustments = await this.prisma.scoreAdjustment.findMany({
+      where: { submissionId: submission.id, revokedAt: null },
+      select: { amount: true },
+    });
+    return this.sanitizeStudentSubmissionView({ ...submission, scoreAdjustments });
   }
 
   async findOne(id: string, user?: RequestUser) {
@@ -3206,11 +3465,13 @@ export class SubmissionsService {
             title: true,
             totalPoints: true,
             passingScore: true,
+            resultsPublishedAt: true,
           },
         },
         answers: {
           include: {
             question: true,
+            questionSnapshot: { select: { payload: true } },
           },
         },
       },
@@ -3224,7 +3485,9 @@ export class SubmissionsService {
       throw new ForbiddenException('You are not allowed to access this submission');
     }
 
-    return submission;
+    return user && String(user.role || '').toUpperCase() === 'STUDENT'
+      ? this.sanitizeStudentSubmissionView(submission)
+      : submission;
   }
 
   /**
@@ -3283,6 +3546,7 @@ export class SubmissionsService {
             totalPoints: true,
             maxAttempts: true,
             settings: true,
+            resultsPublishedAt: true,
           },
         },
         answers: {
@@ -3304,6 +3568,7 @@ export class SubmissionsService {
                 correctAnswer: true,
               },
             },
+            questionSnapshot: { select: { payload: true } },
           },
         },
         proctoring: {
@@ -3312,6 +3577,10 @@ export class SubmissionsService {
             mouseAnomalies: true,
             logs: true,
           },
+        },
+        scoreAdjustments: {
+          where: { revokedAt: null },
+          select: { amount: true },
         },
         integrityReview: {
           select: {

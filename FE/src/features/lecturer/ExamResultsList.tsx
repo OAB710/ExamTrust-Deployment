@@ -192,7 +192,7 @@ export default function ExamResultsList() {
   const handleExport = async (format = "csv") => {
     if (!examId) return;
     try {
-      const token = localStorage.getItem("accessToken");
+      const token = api.getToken();
       const res = await fetch(
         `${API_BASE_URL}/submissions/exam/${examId}/export`,
         {
@@ -570,7 +570,15 @@ export default function ExamResultsList() {
                                 : `Chấm còn ${manualRow.manualPending}/${manualRow.manualTotal}`}
                             </Button>
                           ) : (
-                            <span className="text-xs text-muted-foreground">Chỉ chấm tự động</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                router.push(`${basePath}/exam/${examId}/submissions/${s.id}/manual-grading`)
+                              }
+                            >
+                              Điều chỉnh điểm
+                            </Button>
                           )}
                         </TableCell>
                       </TableRow>

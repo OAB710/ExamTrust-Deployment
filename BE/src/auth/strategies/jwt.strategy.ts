@@ -9,11 +9,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'examtrust-secret-key-2024',
+      secretOrKey: process.env.JWT_SECRET as string,
     });
   }
 
-  async validate(payload: { sub: string; email: string; role: string }) {
+  async validate(payload: { sub: string; email: string; role: string; iat?: number }) {
     const user = await this.prisma.user.findFirst({
       where: {
         id: payload.sub,
@@ -28,11 +28,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         department: true,
         avatar: true,
         status: true,
+        passwordChangedAt: true,
       },
     });
 
     if (!user) {
       throw new UnauthorizedException('User not found or inactive');
+    }
+
+    // Tokens issued before the last password change are no longer valid.
+    if (user.passwordChangedAt) {
+      const issuedAtSec = payload.iat ?? 0;
+      const changedAtSec = Math.floor(user.passwordChangedAt.getTime() / 1000);
+      if (issuedAtSec < changedAtSec) {
+        throw new UnauthorizedException('Session expired due to a password change. Please login again.');
+      }
     }
 
     return user;

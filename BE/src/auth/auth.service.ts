@@ -1,11 +1,26 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { randomBytes, createHash } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto, DeleteProfileDto, UpdateProfileDto } from './dto/update-profile.dto';
 import { elapsedMs, logPerf, measurePerf, nowMs } from '../common/utils/perf-log';
+
+const REFRESH_TOKEN_BYTES = 48;
+const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+export interface SessionMeta {
+  userAgent?: string;
+  ip?: string;
+}
+
+interface TokenUser {
+  id: string;
+  email: string;
+  role: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -14,7 +29,46 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async login(loginDto: LoginDto) {
+  private hashRefreshToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private generateRefreshToken(): string {
+    return randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');
+  }
+
+  private signAccessToken(user: TokenUser): string {
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    return this.jwtService.sign(payload);
+  }
+
+  private toSafeUser(user: any) {
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      studentId: user.studentId,
+      department: user.department,
+      avatar: user.avatar,
+    };
+  }
+
+  private async createSession(user: TokenUser, meta?: SessionMeta): Promise<string> {
+    const refreshToken = this.generateRefreshToken();
+    await this.prisma.authSession.create({
+      data: {
+        userId: user.id,
+        refreshHash: this.hashRefreshToken(refreshToken),
+        userAgent: meta?.userAgent?.slice(0, 500) ?? null,
+        ip: meta?.ip ?? null,
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      },
+    });
+    return refreshToken;
+  }
+
+  async login(loginDto: LoginDto, meta?: SessionMeta) {
     const startedAt = nowMs();
     const parts: Record<string, number> = {};
 
@@ -44,12 +98,12 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
     const accessToken = await measurePerf(
       'jwtSign',
-      async () => this.jwtService.sign(payload),
+      async () => this.signAccessToken(user),
       parts,
     );
+    const refreshToken = await this.createSession(user, meta);
     logPerf(
       `AuthService.login total=${elapsedMs(startedAt)}ms ` +
         Object.entries(parts)
@@ -59,19 +113,18 @@ export class AuthService {
 
     return {
       accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        studentId: user.studentId,
-        department: user.department,
-        avatar: user.avatar,
-      },
+      refreshToken,
+      user: this.toSafeUser(user),
     };
   }
 
-  async register(registerDto: RegisterDto) {
+  async register(registerDto: RegisterDto, meta?: SessionMeta) {
+    // This is a public endpoint.  Roles with operational privileges must only
+    // be provisioned by the administrative user-management flow.
+    if (registerDto.role && registerDto.role !== 'STUDENT') {
+      throw new ForbiddenException('Public registration can only create student accounts');
+    }
+
     const existingUser = await this.prisma.user.findUnique({
       where: { email: registerDto.email },
     });
@@ -86,26 +139,21 @@ export class AuthService {
       data: {
         email: registerDto.email,
         password: hashedPassword,
+        passwordChangedAt: new Date(),
         fullName: registerDto.fullName,
-        role: registerDto.role || 'STUDENT',
+        role: 'STUDENT',
         studentId: registerDto.studentId,
         department: registerDto.department,
       },
     });
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
-    const accessToken = this.jwtService.sign(payload);
+    const accessToken = this.signAccessToken(user);
+    const refreshToken = await this.createSession(user, meta);
 
     return {
       accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        studentId: user.studentId,
-        department: user.department,
-      },
+      refreshToken,
+      user: this.toSafeUser(user),
     };
   }
 
@@ -207,10 +255,13 @@ export class AuthService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { password: newHashedPassword },
+      data: { password: newHashedPassword, passwordChangedAt: new Date() },
     });
 
-    return { message: 'Password updated successfully' };
+    // A password change invalidates every existing session and token.
+    await this.revokeAllUserSessions(userId);
+
+    return { message: 'Password updated successfully. Please login again.' };
   }
 
   async deleteProfile(userId: string, deleteProfileDto: DeleteProfileDto) {
@@ -234,5 +285,85 @@ export class AuthService {
     });
 
     return { message: 'Profile deleted successfully' };
+  }
+
+  async rotateSession(refreshToken: string, meta?: SessionMeta) {
+    const refreshHash = this.hashRefreshToken(refreshToken);
+    const session = await this.prisma.authSession.findFirst({ where: { refreshHash } });
+
+    if (!session || session.revokedAt) {
+      throw new UnauthorizedException('Invalid or already-used refresh token');
+    }
+    if (session.expiresAt.getTime() < Date.now()) {
+      throw new UnauthorizedException('Refresh token expired. Please login again.');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: session.userId } });
+    if (!user || user.status !== 'active') {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
+    // Rotation: the old refresh token is single-use; issue a fresh pair.
+    await this.prisma.authSession.update({
+      where: { id: session.id },
+      data: { revokedAt: new Date() },
+    });
+    const newRefreshToken = await this.createSession(user, meta);
+
+    return {
+      accessToken: this.signAccessToken(user),
+      refreshToken: newRefreshToken,
+      user: this.toSafeUser(user),
+    };
+  }
+
+  async logout(refreshToken?: string) {
+    if (refreshToken) {
+      const refreshHash = this.hashRefreshToken(refreshToken);
+      await this.prisma.authSession.updateMany({
+        where: { refreshHash, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    return { message: 'Logged out' };
+  }
+
+  async listSessions(userId: string) {
+    const sessions = await this.prisma.authSession.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        userAgent: true,
+        ip: true,
+        createdAt: true,
+        expiresAt: true,
+        revokedAt: true,
+      },
+    });
+    return sessions.map((s) => ({
+      ...s,
+      active: !s.revokedAt && s.expiresAt.getTime() > Date.now(),
+    }));
+  }
+
+  async revokeSession(userId: string, sessionId: string) {
+    const session = await this.prisma.authSession.findFirst({ where: { id: sessionId, userId } });
+    if (!session) {
+      throw new UnauthorizedException('Session not found');
+    }
+    await this.prisma.authSession.update({
+      where: { id: sessionId },
+      data: { revokedAt: new Date() },
+    });
+    return { message: 'Session revoked' };
+  }
+
+  async revokeAllUserSessions(userId: string) {
+    await this.prisma.authSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { message: 'All sessions revoked' };
   }
 }
