@@ -10,13 +10,17 @@ const {
   ZALO_USAGE_BE_COMMAND = "BE Info",
   ZALO_PUBLIC_INFO_COMMAND = "Info",
   ZALO_BUILD_BE_COMMAND = "Build BE",
+  ZALO_AI_DEEPSEEK_COMMAND = "AI Deepseek",
+  ZALO_AI_OPENROUTER_COMMAND = "AI Openrouter",
   ZALO_FE_URL = "https://examtrust-deployment-final-thesis.examtrust.workers.dev",
+  ZALO_BE_API_URL = "https://32-236-182-208.sslip.io/api",
   ZALO_AWS_CONSOLE_URL = "https://ap-southeast-2.console.aws.amazon.com/",
   ZALO_BOT_TOKEN,
   GITHUB_PAT,
   GITHUB_REPO = "OAB710/ExamTrust-Deployment",
   GITHUB_WORKFLOW_FILE = "deploy-fe.yml",
   GITHUB_WORKFLOW_FILE_BE = "deploy-be.yml",
+  GITHUB_WORKFLOW_FILE_SWITCH_AI = "switch-ai.yml",
   CLOUDFLARE_API_TOKEN,
   CLOUDFLARE_ACCOUNT_ID,
   CLOUDFLARE_WORKER_NAME = "examtrust-deployment-final-thesis",
@@ -53,12 +57,12 @@ async function getLastRunAgeMs(workflowFile = GITHUB_WORKFLOW_FILE) {
   return Date.now() - new Date(lastRun.created_at).getTime();
 }
 
-async function triggerDeploy(workflowFile = GITHUB_WORKFLOW_FILE) {
+async function triggerDeploy(workflowFile = GITHUB_WORKFLOW_FILE, inputs) {
   const url = `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${workflowFile}/dispatches`;
   const resp = await fetch(url, {
     method: "POST",
     headers: { ...githubHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ ref: "main" }),
+    body: JSON.stringify({ ref: "main", ...(inputs ? { inputs } : {}) }),
   });
   if (!resp.ok) {
     const text = await resp.text();
@@ -228,12 +232,15 @@ async function getThisMonthBuildMinutes() {
   const startOfMonth = new Date();
   startOfMonth.setUTCDate(1);
   startOfMonth.setUTCHours(0, 0, 0, 0);
+  // AdaptiveGroups datasets implicitly group by day — limit:1 was only
+  // returning a single day's bucket (often 0), not the whole month's total.
+  // Use a limit wide enough to cover every day in the range and sum them all.
   const query = `
     query ($accountTag: string!, $start: Time!, $end: Time!) {
       viewer {
         accounts(filter: { accountTag: $accountTag }) {
           workersBuildsBuildMinutesAdaptiveGroups(
-            limit: 1
+            limit: 100
             filter: { datetime_geq: $start, datetime_leq: $end }
           ) {
             sum { buildMinutes }
@@ -263,6 +270,10 @@ async function buildFeInfoText() {
   ]);
   const fmt = (n, fallback = "?") => (n === null ? fallback : n.toLocaleString("en-US"));
   const statusLabel = enabled === null ? "?" : enabled ? "On" : "Off";
+  // Deploys run `wrangler deploy` directly on the GitHub Actions runner
+  // (see deploy-fe.yml), not Cloudflare's own hosted Workers Builds service —
+  // so this quota is expected to stay at/near 0 regardless of deploy volume.
+  const buildMinutesNote = buildMinutes === 0 ? " (deploy chạy qua GitHub Actions, không tính vào đây)" : "";
   return (
     `🖥️ FE Info\n` +
     `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
@@ -270,33 +281,62 @@ async function buildFeInfoText() {
     `📊 Cloudflare Usage\n` +
     `• Requests today: ${fmt(requests)} / 100,000\n` +
     `• Observability events today: ${fmt(obsEvents)} / 200,000\n` +
-    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000`
+    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}`
   );
 }
 
+async function getAiStatus() {
+  try {
+    const resp = await fetch(`${ZALO_BE_API_URL}/ai-status`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return typeof data?.provider === "string" ? data : null;
+  } catch (err) {
+    console.error("AI status fetch failed", err);
+    return null;
+  }
+}
+
 async function buildBeInfoText() {
-  const beRun = await getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE);
+  const [beRun, aiStatus] = await Promise.all([
+    getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE),
+    getAiStatus(),
+  ]);
+  const aiLine = aiStatus ? `🧠 AI: ${aiStatus.provider} (${aiStatus.model})` : `🧠 AI: ?`;
   return (
     `🖥️ BE Info\n` +
     `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +
+    `${aiLine}\n` +
     `💰 AWS Console: ${ZALO_AWS_CONSOLE_URL}`
   );
 }
 
 async function buildPublicInfoText() {
-  const [enabled, feRun, beRun] = await Promise.all([
+  const [enabled, requests, obsEvents, buildMinutes, feRun, beRun, aiStatus] = await Promise.all([
     getFeSubdomainEnabled(),
+    getTodayRequestCount(),
+    getTodayObservabilityEventCount(),
+    getThisMonthBuildMinutes(),
     getLatestWorkflowRun(GITHUB_WORKFLOW_FILE),
     getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE),
+    getAiStatus(),
   ]);
+  const fmt = (n, fallback = "?") => (n === null ? fallback : n.toLocaleString("en-US"));
   const statusLabel = enabled === null ? "?" : enabled ? "On" : "Off";
+  const buildMinutesNote = buildMinutes === 0 ? " (deploy chạy qua GitHub Actions, không tính vào đây)" : "";
+  const aiLine = aiStatus ? `🧠 AI: ${aiStatus.provider} (${aiStatus.model})` : `🧠 AI: ?`;
   return (
     `🖥️ FE Info\n` +
     `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
     `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
+    `📊 Cloudflare Usage\n` +
+    `• Requests today: ${fmt(requests)} / 100,000\n` +
+    `• Observability events today: ${fmt(obsEvents)} / 200,000\n` +
+    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}\n\n` +
     `--------------------\n\n` +
     `🖥️ BE Info\n` +
-    `🏗️ Build Status: ${formatBuildStatus(beRun)}`
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +
+    `${aiLine}`
   );
 }
 
@@ -399,6 +439,24 @@ export const handler = async (event) => {
       await replyToZalo(chatId, await buildFeInfoText());
     } else if (text === normalizeCommand(ZALO_USAGE_BE_COMMAND)) {
       await replyToZalo(chatId, await buildBeInfoText());
+    } else if (
+      text === normalizeCommand(ZALO_AI_DEEPSEEK_COMMAND) ||
+      text === normalizeCommand(ZALO_AI_OPENROUTER_COMMAND)
+    ) {
+      const provider = text === normalizeCommand(ZALO_AI_DEEPSEEK_COMMAND) ? "deepseek" : "openrouter";
+      const lastRunAgeMs = await getLastRunAgeMs(GITHUB_WORKFLOW_FILE_SWITCH_AI);
+      if (lastRunAgeMs !== null && lastRunAgeMs < COOLDOWN_MS) {
+        const waitSec = Math.ceil((COOLDOWN_MS - lastRunAgeMs) / 1000);
+        await replyToZalo(chatId, `⏳ Vừa đổi xong, đợi ${waitSec}s rồi thử lại nhé`);
+      } else {
+        const dispatched = await triggerDeploy(GITHUB_WORKFLOW_FILE_SWITCH_AI, { provider });
+        await replyToZalo(
+          chatId,
+          dispatched
+            ? `🔄 Đang chuyển AI provider sang ${provider}, BE sẽ tự restart để nhận cấu hình mới...`
+            : "❌ Trigger lỗi rồi",
+        );
+      }
     } else {
       await replyToZalo(
         chatId,
@@ -407,6 +465,7 @@ export const handler = async (event) => {
         `• ${ZALO_BUILD_BE_COMMAND}\n` +
         `• On / Off FE\n` +
         `• ${ZALO_USAGE_FE_COMMAND} / ${ZALO_USAGE_BE_COMMAND}\n` +
+        `• ${ZALO_AI_DEEPSEEK_COMMAND} / ${ZALO_AI_OPENROUTER_COMMAND}\n` +
         `• ${ZALO_PUBLIC_INFO_COMMAND}`,
       );
     }

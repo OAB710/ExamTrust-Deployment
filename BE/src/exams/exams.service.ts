@@ -269,7 +269,10 @@ export class ExamsService {
         creatorId: row.creatorId,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
-        versionNo: row.versionNo,
+        // MySQL's COALESCE(intCol, 0) widens the result to BIGINT, so Prisma
+        // returns this as a JS BigInt even though the schema column is Int —
+        // JSON.stringify can't serialize BigInt, so it must be converted.
+        versionNo: Number(row.versionNo ?? 0),
       },
     }));
   }

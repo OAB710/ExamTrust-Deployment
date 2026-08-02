@@ -109,6 +109,17 @@ export class AiService {
     }
   }
 
+  getProviderStatus(): { provider: string; model: string } {
+    const modelByProvider: Record<string, string | undefined> = {
+      google: 'gemini-2.0-flash',
+      ollama: this.ollamaModel,
+      nvidia: this.nvidiaModel,
+      openrouter: this.openRouterModel,
+      deepseek: this.deepseekModel,
+    };
+    return { provider: this.provider, model: modelByProvider[this.provider] || this.provider };
+  }
+
   /**
    * Question-generation policy: Vietnamese is the default regardless of a
    * caller-supplied locale. English is selected only when the lecturer's

@@ -1,0 +1,41 @@
+name: Switch AI Provider
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: 'AI provider to switch to'
+        required: true
+        type: choice
+        options:
+          - openrouter
+          - deepseek
+
+env:
+  EC2_HOST: 32.236.182.208
+  EC2_USER: ubuntu
+  EC2_DIR: ~/examtrust-be
+
+jobs:
+  switch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+
+      - name: Add EC2 host to known_hosts
+        run: ssh-keyscan -H ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Update AI_PROVIDER on EC2 and restart app + ai-worker
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+            cd ${{ env.EC2_DIR }} &&
+            if grep -q '^AI_PROVIDER=' .env.production; then
+              sed -i 's/^AI_PROVIDER=.*/AI_PROVIDER=${{ inputs.provider }}/' .env.production
+            else
+              echo 'AI_PROVIDER=${{ inputs.provider }}' >> .env.production
+            fi &&
+            docker compose --env-file .env.production -f docker-compose.prod.yml up -d --force-recreate app ai-worker
+          "
