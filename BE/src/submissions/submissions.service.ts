@@ -7,6 +7,7 @@ import { StartExamDto, SubmitExamDto, GradeAnswerDto, UpdateSubmissionStatusDto,
 import { PaginationDto, buildPaginatedResult } from '../common/dto/pagination.dto';
 import { SubmissionsEventsService } from './submissions-events.service';
 import { QueueService } from '../queue/queue.service';
+import { ProctoringEvidenceService } from './proctoring-evidence.service';
 
 type AutosaveAnswerMeta = {
   questionId: string;
@@ -322,6 +323,11 @@ export class SubmissionsService {
       ? Boolean(settings.requiresProctoring)
       : Boolean(settings.proctoringEnabled);
     const requiresDesktop = proctoringEnabled && configuredAttempts !== null && configuredTimeLimit !== null;
+    const webcamPolicyInput = settings.webcamEvidencePolicy;
+    const webcamEvidenceEnabled = Boolean(webcamPolicyInput?.enabled) && String(webcamPolicyInput?.examProfile || '').toUpperCase() === 'THEORY';
+    if (webcamEvidenceEnabled && !startExamDto.webcamReady) {
+      throw new ForbiddenException('This exam requires an active webcam and explicit consent before it can start.');
+    }
     const ua = String(context?.userAgent || '');
     const isMobileOrTablet = Boolean(startExamDto.isMobileOrTablet) || /android|iphone|ipad|ipod|mobile|tablet|silk|kindle/i.test(ua);
     if (requiresDesktop && isMobileOrTablet) {
@@ -457,6 +463,11 @@ export class SubmissionsService {
 
     const mappedSnapshotQuestions = this.mapSnapshotQuestions(snapshotQuestions);
 
+    const webcamEvidencePolicy = ProctoringEvidenceService.normalizePolicy(
+      webcamPolicyInput,
+      randomizationSeed,
+      exam.timeLimitMinutes ?? exam.duration,
+    );
     const snapshotPayload = {
       examId: exam.id,
       examSnapshotId: latestSnapshot.id,
@@ -469,6 +480,7 @@ export class SubmissionsService {
       gradingStrategy: exam.gradingStrategy ?? examSettings?.gradingStrategy ?? 'HIGHEST',
       reviewSettings: exam.reviewSettings ?? examSettings?.reviewSettings ?? null,
       proctoringEnabled: requiresDesktop,
+      webcamEvidencePolicy,
       questionSelectionConfig:
         exam.questionSelectionConfig ?? examSettings?.questionSelectionConfig ?? null,
       questions: mappedSnapshotQuestions.map((item) => ({
@@ -571,6 +583,7 @@ export class SubmissionsService {
             duration: true,
           },
         },
+        examInstance: true,
       },
     }).catch((err: any) => {
       // Handle unique constraint violation (race condition: another request created submission for same attemptNo)
@@ -590,6 +603,7 @@ export class SubmissionsService {
                 duration: true,
               },
             },
+            examInstance: true,
           },
         });
       }
@@ -3328,6 +3342,7 @@ export class SubmissionsService {
             },
           },
         },
+        examInstance: true,
         integrityReview: {
           select: {
             status: true,

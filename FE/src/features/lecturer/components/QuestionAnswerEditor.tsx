@@ -3,12 +3,10 @@
 import { CheckCircle2, ChevronDown, ChevronUp, GripVertical, Pin, PinOff, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getNumericInputError, sanitizeNumericInput } from "@/lib/number-input";
 import type { QuestionOption } from "../question-editor-types";
 
 type Props = {
@@ -17,14 +15,10 @@ type Props = {
   multipleAnswers: boolean;
   tfAnswer: "true" | "false";
   essayRubric: string;
-  essayMaxScore: string;
-  essayMaxScoreError: string;
   pinnedOptions: Set<string>;
   onMultipleAnswersChange: (value: boolean) => void;
   onTfAnswerChange: (value: "true" | "false") => void;
   onEssayRubricChange: (value: string) => void;
-  onEssayMaxScoreChange: (value: string) => void;
-  onEssayMaxScoreErrorChange: (value: string) => void;
   onAddOption: () => void;
   onRemoveOption: (id: string) => void;
   onUpdateOption: (id: string, value: string) => void;
@@ -54,9 +48,9 @@ export function FillBlankGuide() {
 }
 
 export function QuestionAnswerEditor({
-  questionType, options, multipleAnswers, tfAnswer, essayRubric, essayMaxScore,
-  essayMaxScoreError, pinnedOptions, onMultipleAnswersChange, onTfAnswerChange,
-  onEssayRubricChange, onEssayMaxScoreChange, onEssayMaxScoreErrorChange,
+  questionType, options, multipleAnswers, tfAnswer, essayRubric,
+  pinnedOptions, onMultipleAnswersChange, onTfAnswerChange,
+  onEssayRubricChange,
   onAddOption, onRemoveOption, onUpdateOption, onUpdateMatch, onMoveOption,
   onToggleCorrect, onTogglePinned,
 }: Props) {
@@ -122,11 +116,6 @@ export function QuestionAnswerEditor({
             <div className="space-y-2">
               <Label className="text-sm">Rubric / tiêu chí chấm điểm</Label>
               <Textarea placeholder="Mô tả tiêu chí, ý chính cần có..." value={essayRubric} onChange={(event) => onEssayRubricChange(event.target.value)} rows={3} className="resize-none text-sm" />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm">Điểm tối đa</Label>
-              <Input type="number" min={1} max={100} value={essayMaxScore} onChange={(event) => onEssayMaxScoreChange(sanitizeNumericInput(event.target.value))} onBlur={(event) => onEssayMaxScoreErrorChange(getNumericInputError(event.target.value, { min: 1, max: 100, integer: true }) || "")} className="w-24 text-sm" />
-              {essayMaxScoreError ? <p className="text-xs text-destructive">{essayMaxScoreError}</p> : null}
             </div>
           </div>
         ) : null}

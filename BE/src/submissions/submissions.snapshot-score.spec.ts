@@ -266,4 +266,14 @@ describe('SubmissionsService snapshot and score normalization', () => {
       }),
     });
   });
+
+  it('keeps the final score below 7.5 when five missed questions have higher coefficients', () => {
+    const { service } = buildService();
+
+    // 15 correct questions x 1 point; 5 missed questions x 2 points.
+    const rawScore = 15;
+    const maxRawScore = 15 + (5 * 2);
+
+    expect((service as any).normalizeScore(rawScore, maxRawScore)).toBe(6);
+  });
 });

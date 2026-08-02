@@ -8,6 +8,44 @@ export class StartExamDto {
   @IsOptional()
   @IsBoolean()
   isMobileOrTablet?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  webcamReady?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  webcamConsentVersion?: string;
+}
+
+export class RequestEvidenceCaptureDto {
+  @IsEnum(['SCHEDULED', 'SUSPICIOUS_EVENT'])
+  trigger: 'SCHEDULED' | 'SUSPICIOUS_EVENT';
+
+  @IsOptional()
+  @IsArray()
+  signals?: string[];
+}
+
+export class FinalizeEvidenceCaptureDto {
+  @IsString()
+  @MaxLength(200)
+  nonce: string;
+
+  @IsString()
+  @MaxLength(1_500_000)
+  imageDataUrl: string;
+}
+
+export class ReviewEvidenceCaptureDto {
+  @IsEnum(['REVIEWED', 'DISMISSED'])
+  reviewStatus: 'REVIEWED' | 'DISMISSED';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  reviewerNote?: string;
 }
 
 export class SubmitAnswerDto {

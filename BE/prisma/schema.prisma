@@ -135,6 +135,27 @@ enum IntegrityReviewStatus {
   CONFIRMED
 }
 
+enum ProctoringEvidenceStatus {
+  REQUESTED
+  UPLOADED
+  ANALYZING
+  ANALYZED
+  FAILED
+  PURGED
+}
+
+enum ProctoringEvidenceTrigger {
+  IDLE
+  SUSPICIOUS_EVENT
+  SCHEDULED
+}
+
+enum ProctoringEvidenceReviewStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+}
+
 enum ScoreAdjustmentCategory {
   QUESTION_ERROR
   PARTICIPATION
@@ -167,6 +188,7 @@ model User {
   examLinkUsages             ExamLinkUsage[]            @relation("ExamLinkUsageUser")
   aiReviewedRecords          AIGenerationRecord[]       @relation("AIReviewUser")
   examSubmissionRegradeLogs  ExamSubmissionRegradeLog[] @relation("RegradeReviewer")
+  reviewedEvidenceCaptures   ProctoringEvidenceCapture[] @relation("ProctoringEvidenceReviewer")
   qualityReviewItemsReviewed ExamQualityReviewItem[]    @relation("ExamQualityReviewItemReviewer")
   anomalyFlagsReviewed       AnomalyFlag[]              @relation("AnomalyFlagReviewer")
   integrityReviews           IntegrityReview[]          @relation("IntegrityReviewReviewer")
@@ -601,6 +623,7 @@ model ExamSubmission {
   riskAssessmentJobs AIGenerationRecord[]       @relation("ExamRiskAssessmentJobs")
   integrityReview     IntegrityReview?
   scoreAdjustments    ScoreAdjustment[]
+  evidenceCaptures    ProctoringEvidenceCapture[]
 
   @@unique([examId, studentId, attemptNo])
   @@index([examId])
@@ -687,12 +710,54 @@ model ExamInstance {
   tabSwitchEvents TabSwitchEvent[]
   focusEvents     FocusEvent[]
   anomalyFlags    AnomalyFlag[]
+  evidenceCaptures ProctoringEvidenceCapture[]
 
   @@unique([examId, studentId])
   @@index([examId])
   @@index([studentId])
   @@index([examSnapshotId])
   @@map("exam_instances")
+}
+
+/// Metadata-only ledger for webcam evidence. Image bytes live in external storage.
+model ProctoringEvidenceCapture {
+  id                String                         @id @default(uuid())
+  submissionId      String
+  submission        ExamSubmission                 @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  examInstanceId    String
+  examInstance      ExamInstance                   @relation(fields: [examInstanceId], references: [id], onDelete: Cascade)
+  status            ProctoringEvidenceStatus       @default(REQUESTED)
+  trigger           ProctoringEvidenceTrigger
+  triggerDetails    Json?
+  scheduledSlot     Int?
+  scheduledAt       DateTime?
+  captureNonceHash  String                          @unique @db.VarChar(64)
+  nonceExpiresAt    DateTime
+  storageKey        String?                         @unique @db.VarChar(512)
+  contentHash       String?                         @db.VarChar(64)
+  mimeType          String?                         @db.VarChar(100)
+  sizeBytes         Int?
+  aiTags            Json?
+  aiProvider        String?                         @db.VarChar(100)
+  aiAnalyzedAt      DateTime?
+  aiError           String?                         @db.Text
+  reviewStatus      ProctoringEvidenceReviewStatus @default(PENDING)
+  reviewedById      String?
+  reviewedBy        User?                           @relation("ProctoringEvidenceReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewerNote      String?                         @db.Text
+  reviewedAt        DateTime?
+  capturedAt        DateTime?
+  retentionUntil    DateTime
+  purgedAt          DateTime?
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+
+  @@index([submissionId, createdAt])
+  @@unique([submissionId, scheduledSlot])
+  @@index([examInstanceId, createdAt])
+  @@index([status, retentionUntil])
+  @@index([reviewedById])
+  @@map("proctoring_evidence_captures")
 }
 
 model InteractionLog {

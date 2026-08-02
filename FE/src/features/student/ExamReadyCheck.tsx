@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock, FileText, Loader2, Monitor, RefreshCw, Shield, Wifi } from "lucide-react";
+import { AlertTriangle, ArrowRight, Camera, CheckCircle2, Clock, FileText, Loader2, Monitor, RefreshCw, Shield, Wifi } from "lucide-react";
 import { toast } from "sonner";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -78,6 +78,11 @@ export default function ExamReadyCheck() {
   const [checkingAttempt, setCheckingAttempt] = useState(false);
   const [proctoringEnabled, setProctoringEnabled] = useState(false);
   const [deviceBlocked, setDeviceBlocked] = useState(false);
+  const [webcamPolicy, setWebcamPolicy] = useState<{ enabled?: boolean; examProfile?: string; consentVersion?: string } | null>(null);
+  const [webcamReady, setWebcamReady] = useState(false);
+
+  const webcamRequired = Boolean(webcamPolicy?.enabled)
+    && String(webcamPolicy?.examProfile || "").toUpperCase() === "THEORY";
 
   useEffect(() => {
     if (!examId) return;
@@ -85,6 +90,7 @@ export default function ExamReadyCheck() {
       const settings = exam?.settings || {};
       const enabled = settings.proctoringEnabled === undefined ? Boolean(settings.requiresProctoring) : Boolean(settings.proctoringEnabled);
       setProctoringEnabled(enabled);
+      setWebcamPolicy(settings.webcamEvidencePolicy || null);
       setDeviceBlocked(enabled && /android|iphone|ipad|ipod|mobile|tablet|silk|kindle/i.test(navigator.userAgent || ""));
     }).catch(() => {});
   }, [examId]);
@@ -137,8 +143,33 @@ export default function ExamReadyCheck() {
       updateCheck("browser", "failed", "Trình duyệt này không hỗ trợ chế độ toàn màn hình");
     }
 
+    if (webcamRequired) {
+      updateCheck("camera", "checking", "Dang yeu cau quyen truy cap webcam");
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        stream.getTracks().forEach((track) => track.stop());
+        setWebcamReady(true);
+        updateCheck("camera", "passed", "Webcam da san sang va da co su dong y");
+      } catch (error: any) {
+        setWebcamReady(false);
+        const denied = error?.name === "NotAllowedError";
+        updateCheck("camera", "failed", denied ? "Can cho phep truy cap webcam de tiep tuc" : "Khong the truy cap webcam. Hay kiem tra thiet bi va thu lai.");
+      }
+    } else {
+      setWebcamReady(false);
+    }
+
     setIsRunningChecks(false);
-  }, [updateCheck]);
+  }, [updateCheck, webcamRequired]);
+
+  useEffect(() => {
+    setChecks((previous) => {
+      const withoutCamera = previous.filter((check) => check.id !== "camera");
+      return webcamRequired
+        ? [...withoutCamera, { id: "camera", label: "Webcam bai thi", icon: <Camera className="h-4 w-4" />, status: "pending" }]
+        : withoutCamera;
+    });
+  }, [webcamRequired]);
 
   useEffect(() => {
     runSystemChecks();
@@ -158,7 +189,10 @@ export default function ExamReadyCheck() {
     }
 
     try {
-    const res = await api.startExam(examId, { isMobileOrTablet: deviceBlocked });
+    const res = await api.startExam(examId, {
+      isMobileOrTablet: deviceBlocked,
+      ...(webcamRequired ? { webcamReady, webcamConsentVersion: webcamPolicy?.consentVersion } : {}),
+    });
       if (!res?.id) {
         toast.error("Không thể bắt đầu lượt thi. Vui lòng thử lại.");
         return;
@@ -166,6 +200,10 @@ export default function ExamReadyCheck() {
       try {
         localStorage.setItem("currentSubmissionId", res.id);
         localStorage.setItem("currentSubmissionExamId", examId);
+        const startedAt = new Date(res.startedAt || Date.now()).getTime();
+        localStorage.setItem("currentSubmissionStartedAt", String(startedAt));
+        const snapshotPolicy = res?.examInstance?.snapshotPayload?.webcamEvidencePolicy;
+        if (snapshotPolicy) localStorage.setItem("currentSubmissionWebcamPolicy", JSON.stringify(snapshotPolicy));
         localStorage.setItem("examFullscreenGraceStartedAt", String(Date.now()));
       } catch {}
     } catch (err: any) {
@@ -418,7 +456,7 @@ export default function ExamReadyCheck() {
                 onClick={handleStartExam}
                 className="flex-1 h-12 gap-2 text-base"
                 size="lg"
-                disabled={checkingAttempt}
+                disabled={checkingAttempt || (webcamRequired && !webcamReady)}
               >
                 <ArrowRight className="h-5 w-5" />
                 Bắt đầu làm bài

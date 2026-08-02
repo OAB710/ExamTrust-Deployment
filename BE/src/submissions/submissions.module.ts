@@ -8,12 +8,13 @@ import { AiModule } from '../ai/ai.module';
 import { AccessPolicyService } from '../common/services/access-policy.service';
 import { RateLimiterService } from '../common/rate-limiter.service';
 import { RateLimitGuard } from '../common/guards/rate-limit.guard';
+import { ProctoringEvidenceService } from './proctoring-evidence.service';
 
 
 @Module({
   imports: [QueueModule, AiModule],
   controllers: [SubmissionsController],
-  providers: [SubmissionsService, SubmissionsEventsService, AccessPolicyService, RateLimiterService, RateLimitGuard, ExamRiskAssessmentService],
+  providers: [SubmissionsService, SubmissionsEventsService, AccessPolicyService, RateLimiterService, RateLimitGuard, ExamRiskAssessmentService, ProctoringEvidenceService],
   exports: [SubmissionsService],
 })
 export class SubmissionsModule {}

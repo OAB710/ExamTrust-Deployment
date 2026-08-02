@@ -61,6 +61,8 @@ export default function ManualGradingDetail() {
   const [adjustmentCategory, setAdjustmentCategory] = useState<"QUESTION_ERROR" | "PARTICIPATION" | "OTHER">("QUESTION_ERROR");
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [isAdjusting, setIsAdjusting] = useState(false);
+  const [evidenceCaptures, setEvidenceCaptures] = useState<any[]>([]);
+  const [evidenceImageUrls, setEvidenceImageUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let mounted = true;
@@ -75,6 +77,11 @@ export default function ManualGradingDetail() {
         const data = await api.getManualGradingSubmission(submissionId);
         if (!mounted) return;
         setSubmission(data);
+        const captures = await api.getEvidenceCaptures(submissionId).catch(() => []);
+        if (!mounted) return;
+        setEvidenceCaptures(captures);
+        const urls = await Promise.all(captures.filter((capture: any) => capture.status !== "PURGED" && capture.capturedAt).map(async (capture: any) => [capture.id, await api.getEvidenceImageUrl(submissionId, capture.id).catch(() => "")] as const));
+        if (mounted) setEvidenceImageUrls(Object.fromEntries(urls.filter(([, url]) => url)));
         const nextDrafts: Record<string, DraftGrade> = {};
         (data.manualAnswers || []).forEach((answer: any) => {
           nextDrafts[answer.id] = {
@@ -97,6 +104,16 @@ export default function ManualGradingDetail() {
       mounted = false;
     };
   }, [submissionId]);
+
+  const reviewEvidence = async (captureId: string, reviewStatus: "REVIEWED" | "DISMISSED") => {
+    if (!submissionId) return;
+    try {
+      await api.reviewEvidenceCapture(submissionId, captureId, { reviewStatus });
+      setEvidenceCaptures((items) => items.map((item) => item.id === captureId ? { ...item, reviewStatus } : item));
+    } catch (error: any) {
+      toast.error(error?.message || "Không thể cập nhật đánh giá bằng chứng.");
+    }
+  };
 
   const gradedCount = useMemo(
     () =>
@@ -288,6 +305,25 @@ export default function ManualGradingDetail() {
                 ) : null}
               </CardContent>
             </Card>
+
+            {evidenceCaptures.length > 0 ? (
+              <Card className="border-amber-200">
+                <CardHeader>
+                  <CardTitle>Bằng chứng webcam</CardTitle>
+                  <CardDescription>Tag AI chỉ là tín hiệu hỗ trợ; giảng viên cần tự xem ảnh trước khi kết luận.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                  {evidenceCaptures.map((capture: any) => (
+                    <div key={capture.id} className="rounded-lg border p-3 space-y-2">
+                      {evidenceImageUrls[capture.id] ? <img src={evidenceImageUrls[capture.id]} alt="Webcam evidence" className="aspect-video w-full rounded bg-black object-cover" /> : <div className="aspect-video rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">{capture.status === "PURGED" ? "Ảnh đã được xóa theo thời hạn lưu trữ" : "Không tải được ảnh"}</div>}
+                      <div className="text-xs text-muted-foreground">{capture.trigger === "SCHEDULED" ? "Chụp theo lịch" : capture.trigger === "IDLE" ? "Không tương tác (lịch sử)" : "Tín hiệu bảo mật"} · {capture.capturedAt ? new Date(capture.capturedAt).toLocaleString("vi-VN") : "Đang chờ ảnh"}</div>
+                      <div className="flex flex-wrap gap-1">{(capture.aiTags || []).map((tag: any) => <Badge key={`${capture.id}-${tag.tag}`} variant="secondary">{tag.tag} {Number.isFinite(Number(tag.confidence)) ? `${Math.round(Number(tag.confidence) * 100)}%` : ""}</Badge>)}</div>
+                      <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void reviewEvidence(capture.id, "REVIEWED")}>Đã xem</Button><Button size="sm" variant="ghost" onClick={() => void reviewEvidence(capture.id, "DISMISSED")}>Bỏ qua</Button><span className="ml-auto text-xs text-muted-foreground">{capture.reviewStatus}</span></div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : null}
 
             {(submission?.manualAnswers || []).length === 0 ? (
               <Card>

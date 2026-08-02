@@ -14,11 +14,14 @@ import {
   MessageEvent,
   ForbiddenException,
   UnauthorizedException,
+  StreamableFile,
 } from '@nestjs/common';
+import { createReadStream } from 'fs';
 import { Response } from 'express';
 import { SubmissionsService } from './submissions.service';
 import { ExamRiskAssessmentService } from './exam-risk-assessment.service';
-import { StartExamDto, SubmitExamDto, GradeAnswerDto, UpdateSubmissionStatusDto, AddLogsDto, AutosaveExamDto, CreateScoreAdjustmentDto, RevokeScoreAdjustmentDto } from './dto/submission.dto';
+import { StartExamDto, SubmitExamDto, GradeAnswerDto, UpdateSubmissionStatusDto, AddLogsDto, AutosaveExamDto, CreateScoreAdjustmentDto, RevokeScoreAdjustmentDto, RequestEvidenceCaptureDto, FinalizeEvidenceCaptureDto, ReviewEvidenceCaptureDto } from './dto/submission.dto';
+import { ProctoringEvidenceService } from './proctoring-evidence.service';
 import { ReviewAnomalyFlagDto, ReviewIntegrityCaseDto } from './dto/risk-assessment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -41,6 +44,7 @@ export class SubmissionsController {
     private readonly submissionsEvents: SubmissionsEventsService,
     private readonly riskAssessmentService: ExamRiskAssessmentService,
     private readonly accessPolicy: AccessPolicyService,
+    private readonly proctoringEvidence: ProctoringEvidenceService,
   ) {}
 
   @Sse('exam/:examId/events')
@@ -147,6 +151,44 @@ export class SubmissionsController {
       timeAnomaly,
       status,
     }, req.user);
+  }
+
+  @Post(':id/evidence-captures/request')
+  @UseGuards(JwtAuthGuard, RateLimitGuard)
+  @RateLimit('integrity')
+  requestEvidenceCapture(@Param('id') id: string, @Body() dto: RequestEvidenceCaptureDto, @Request() req) {
+    return this.proctoringEvidence.requestCapture(id, req.user.id, dto);
+  }
+
+  @Post(':id/evidence-captures/:captureId/finalize')
+  @UseGuards(JwtAuthGuard, RateLimitGuard)
+  @RateLimit('integrity')
+  finalizeEvidenceCapture(@Param('id') id: string, @Param('captureId') captureId: string, @Body() dto: FinalizeEvidenceCaptureDto, @Request() req) {
+    return this.proctoringEvidence.finalizeCapture(id, req.user.id, captureId, dto.nonce, dto.imageDataUrl);
+  }
+
+  @Get(':id/evidence-captures')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  listEvidenceCaptures(@Param('id') id: string, @Request() req) {
+    return this.proctoringEvidence.listForInstructor(id, req.user);
+  }
+
+  @Get(':id/evidence-captures/:captureId/image')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  async getEvidenceImage(@Param('id') id: string, @Param('captureId') captureId: string, @Request() req, @Res({ passthrough: true }) res: Response) {
+    const image = await this.proctoringEvidence.getImagePath(id, captureId, req.user);
+    res.setHeader('Content-Type', image.mimeType);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return new StreamableFile(createReadStream(image.path));
+  }
+
+  @Patch(':id/evidence-captures/:captureId/review')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  reviewEvidenceCapture(@Param('id') id: string, @Param('captureId') captureId: string, @Body() dto: ReviewEvidenceCaptureDto, @Request() req) {
+    return this.proctoringEvidence.reviewCapture(id, captureId, dto, req.user);
   }
 
   @Patch('integrity/cases/:submissionId')

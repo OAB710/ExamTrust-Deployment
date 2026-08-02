@@ -73,6 +73,7 @@ export default function QuestionEditor() {
   const [course, setCourse] = useState("");
   const [topic, setTopic] = useState("");
   const [difficulty, setDifficulty] = useState([0.5]);
+  const [scoreCoefficient, setScoreCoefficient] = useState("1");
   const [hasMedia, setHasMedia] = useState(false);
   const [mediaType, setMediaType] = useState<"image" | "audio">("image");
   const [learningObjective, setLearningObjective] = useState("");
@@ -80,8 +81,7 @@ export default function QuestionEditor() {
   const answerState = useQuestionAnswerState();
   const {
     options, setOptions, multipleAnswers, setMultipleAnswers, pinnedOptions, setPinnedOptions,
-    tfAnswer, setTfAnswer, essayRubric, setEssayRubric, essayMaxScore, setEssayMaxScore,
-    essayMaxScoreError, setEssayMaxScoreError, restoreDraftAnswer, populateAnswer, validateAnswer,
+    tfAnswer, setTfAnswer, essayRubric, setEssayRubric, restoreDraftAnswer, populateAnswer, validateAnswer,
     addOption, removeOption, updateOption, updateOptionMatch, moveOption, toggleCorrectOption,
     togglePinnedOption, resetAnswer,
   } = answerState;
@@ -95,7 +95,7 @@ export default function QuestionEditor() {
     questionType, courseId: course, courses, difficulty,
     onContent: setContent, onExplanation: setExplanation, onDifficulty: setDifficulty,
     onTopic: setTopic, onLearningObjective: setLearningObjective, onOptions: setOptions,
-    onEssayRubric: setEssayRubric, onEssayMaxScore: setEssayMaxScore,
+    onEssayRubric: setEssayRubric,
   });
   const persistence = useQuestionPersistence();
 
@@ -155,6 +155,7 @@ export default function QuestionEditor() {
     if (draft.course) setCourse(draft.course);
     if (draft.topic) setTopic(draft.topic);
     if (draft.difficulty) setDifficulty(draft.difficulty);
+    if (draft.scoreCoefficient) setScoreCoefficient(draft.scoreCoefficient);
     if (draft.questionType) setQuestionType(draft.questionType);
     restoreDraftAnswer(draft);
     if (draft.learningObjective) setLearningObjective(draft.learningObjective);
@@ -174,6 +175,10 @@ export default function QuestionEditor() {
 
     if (!course) {
       errors.push("Course is required");
+    }
+
+    if (!/^[1-5]$/.test(scoreCoefficient)) {
+      errors.push("Hệ số điểm số chỉ nhận số nguyên từ 1 - 5");
     }
 
     errors.push(...validateAnswer(questionType));
@@ -243,7 +248,7 @@ export default function QuestionEditor() {
           multipleAnswers,
           tfAnswer,
           essayRubric,
-          essayMaxScore,
+          scoreCoefficient,
           learningObjective,
           hasMedia,
           mediaType,
@@ -262,7 +267,7 @@ export default function QuestionEditor() {
     multipleAnswers,
     tfAnswer,
     essayRubric,
-    essayMaxScore,
+    scoreCoefficient,
     learningObjective,
     hasMedia,
     mediaType,
@@ -296,6 +301,7 @@ export default function QuestionEditor() {
     setCourse(questionData.course?.id || "");
     setTopic(questionData.topic?.id || "");
     setDifficulty([snapQuestionDifficulty(toEditorDifficulty(questionData.difficulty))]);
+    setScoreCoefficient(String(questionData.defaultPoints ?? questionData.points ?? 1));
 
     populateAnswer(questionData);
 
@@ -306,6 +312,7 @@ export default function QuestionEditor() {
     setContent("");
     setExplanation("");
     setDifficulty([0.5]);
+    setScoreCoefficient("1");
     setHasMedia(false);
     setMediaType("image");
     setLearningObjective("");
@@ -323,7 +330,7 @@ export default function QuestionEditor() {
         return;
       }
       payload = buildQuestionPayload({
-        questionType, multipleAnswers, content, explanation, difficulty, essayMaxScore,
+        questionType, multipleAnswers, content, explanation, difficulty, scoreCoefficient,
         tfAnswer, essayRubric, options,
       });
       await persistence.save({ questionId, courseId: course, topicId: topic, payload });
@@ -572,6 +579,32 @@ export default function QuestionEditor() {
                     </CardContent>
                   </Card>
 
+                  <Card>
+                    <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
+                      <CardTitle className="text-sm sm:text-base">Hệ số điểm số</CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        Giá trị gợi ý khi thêm câu vào đề; điểm trong đề có thể chỉnh riêng và kết quả luôn quy về thang 10.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="score-coefficient" className="text-sm">Hệ số mặc định</Label>
+                        <Input
+                          id="score-coefficient"
+                          type="number"
+                          min={1}
+                          max={5}
+                          step={1}
+                          inputMode="numeric"
+                          value={scoreCoefficient}
+                          onChange={(event) => setScoreCoefficient(event.target.value.replace(/[^0-9]/g, ""))}
+                          className="w-28"
+                        />
+                        <p className="text-xs text-muted-foreground">Chỉ nhận số nguyên từ 1 - 5.</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   {/* Question Content */}
                   <Card>
                     <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
@@ -691,14 +724,10 @@ export default function QuestionEditor() {
                     multipleAnswers={multipleAnswers}
                     tfAnswer={tfAnswer}
                     essayRubric={essayRubric}
-                    essayMaxScore={essayMaxScore}
-                    essayMaxScoreError={essayMaxScoreError}
                     pinnedOptions={pinnedOptions}
                     onMultipleAnswersChange={setMultipleAnswers}
                     onTfAnswerChange={setTfAnswer}
                     onEssayRubricChange={setEssayRubric}
-                    onEssayMaxScoreChange={setEssayMaxScore}
-                    onEssayMaxScoreErrorChange={setEssayMaxScoreError}
                     onAddOption={addOption}
                     onRemoveOption={removeOption}
                     onUpdateOption={updateOption}

@@ -402,7 +402,7 @@ export class ExamsService {
               examId: exam.id,
               questionId,
               orderIndex: i + 1,
-              points: Math.max(1, Math.round(Number(question.points ?? question.defaultPoints ?? 1))),
+              points: Math.max(1, Math.round(Number(question.defaultPoints ?? question.points ?? 1))),
               assignedScore: Number(question.defaultPoints ?? question.points ?? 1) || 1,
               questionVersionId: latestVersionByQuestionId.get(questionId) ?? null,
             });
@@ -559,7 +559,7 @@ export class ExamsService {
                 examId: exam.id,
                 questionId: question.id,
                 orderIndex: (questionIds?.length || 0) + i + 1,
-                points: Math.max(1, Math.round(Number(question.points ?? question.defaultPoints ?? 1))),
+                points: Math.max(1, Math.round(Number(question.defaultPoints ?? question.points ?? 1))),
                 assignedScore: Number(question.defaultPoints ?? question.points ?? 1) || 1,
                 questionVersionId: latestVersionByQuestionId.get(question.id) ?? null,
               });
@@ -997,7 +997,7 @@ export class ExamsService {
           examId,
           questionId,
           orderIndex,
-          points: Math.max(1, Math.round(Number(question.points ?? question.defaultPoints ?? 1))),
+          points: Math.max(1, Math.round(Number(question.defaultPoints ?? question.points ?? 1))),
           assignedScore: Number(question.defaultPoints ?? question.points ?? 1) || 1,
           questionVersionId: latestVersionByQuestionId.get(questionId) ?? null,
         });

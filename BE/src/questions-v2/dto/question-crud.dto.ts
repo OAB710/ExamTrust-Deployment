@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsObject, IsInt, Min, Max, IsArray, IsNumber } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsObject, IsInt, Min, Max, IsArray } from 'class-validator';
 
 export class CopyQuestionBankDto {
   @IsString()
@@ -44,8 +44,9 @@ export class CreateQuestionCrudDto {
   points?: number;
 
   @IsOptional()
-  @IsNumber()
-  @Min(0.1)
+  @IsInt()
+  @Min(1)
+  @Max(5)
   defaultPoints?: number;
 
   @IsOptional()
@@ -90,8 +91,9 @@ export class UpdateQuestionCrudDto {
   points?: number;
 
   @IsOptional()
-  @IsNumber()
-  @Min(0.1)
+  @IsInt()
+  @Min(1)
+  @Max(5)
   defaultPoints?: number;
 
   @IsOptional()

@@ -196,7 +196,8 @@ export class QuestionsService {
         explanation: questionData.explanation,
         difficulty: questionData.difficulty,
         points: questionData.points,
-        defaultPoints: questionData.defaultPoints ?? questionData.points ?? 1,
+        // Suggested coefficient only; the effective score belongs to each ExamQuestion.
+        defaultPoints: questionData.defaultPoints ?? 1,
         courseId: questionData.courseId,
         creatorId: user.id,
       },
@@ -416,7 +417,7 @@ export class QuestionsService {
         explanation: questionData.explanation,
         difficulty: questionData.difficulty,
         points: questionData.points,
-        defaultPoints: questionData.defaultPoints ?? questionData.points ?? question.defaultPoints ?? 1,
+        defaultPoints: questionData.defaultPoints ?? question.defaultPoints ?? 1,
         courseId: effectiveCourseId,
       },
     });
@@ -1645,7 +1646,10 @@ export class QuestionsService {
     const correctAnswer = state?.answers?.correctAnswer || {};
     const explanation = String(state?.answers?.explanation || '').trim() || null;
     const difficulty = this.normalizeDifficultyRaw(state?.classification?.difficulty);
-    const points = Math.max(1, Number(state?.classification?.points || 1));
+    const defaultPoints = Number(state?.classification?.points ?? 1);
+    if (!Number.isInteger(defaultPoints) || defaultPoints < 1 || defaultPoints > 5) {
+      throw new BadRequestException('Default score coefficient must be an integer from 1 to 5');
+    }
     const topicId = String(state?.classification?.topicId || state?.classification?.topic || '').trim();
 
     if (!topicId) {
@@ -1690,7 +1694,8 @@ export class QuestionsService {
           correctAnswer,
           explanation,
           difficulty,
-          points,
+          points: defaultPoints,
+          defaultPoints,
           courseId: requestedCourseId || existingCourseId,
         },
       });
@@ -1708,8 +1713,8 @@ export class QuestionsService {
           correctAnswer,
           explanation,
           difficulty,
-          points,
-          defaultPoints: points ?? 1,
+          points: defaultPoints,
+          defaultPoints,
           courseId: requestedCourseId,
           creatorId: user.id,
         },
@@ -1748,11 +1753,11 @@ export class QuestionsService {
       JSON.stringify(correctAnswer || {}),
       explanation,
       difficulty,
-      points,
+      defaultPoints,
       JSON.stringify({
         learningObjective: state?.classification?.learningObjective || null,
         topic: state?.classification?.topic || null,
-        defaultPoints: points ?? 1,
+        defaultPoints,
       }),
       isAiGeneratedVersion ? 1 : 0,
       user.id,

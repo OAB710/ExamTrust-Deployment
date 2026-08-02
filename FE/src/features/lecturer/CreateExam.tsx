@@ -775,6 +775,16 @@ export default function CreateExam() {
           timeLimitMinutes: form.unlimitedTime ? null : parseNumericInput(form.duration, { min: 5, integer: true }),
           requiresProctoring: effectiveProctoring,
           proctoringEnabled: effectiveProctoring,
+          webcamEvidencePolicy: {
+            enabled: effectiveProctoring && form.webcamEvidenceEnabled,
+            // This control is intentionally theory-only; keeping the profile
+            // fixed prevents a contradictory setting from disabling webcam.
+            examProfile: "THEORY",
+            eventCooldownMs: 120000,
+            eventCaptureLimit: 5,
+            retentionDays: 30,
+            consentVersion: "webcam-evidence-v1",
+          },
           devicePolicy: effectiveProctoring ? "DESKTOP_ONLY" : "ANY",
           allowLateSubmission: form.allowLateSubmission,
           shuffleQuestions: form.shuffleQuestions,
@@ -1450,6 +1460,18 @@ export default function CreateExam() {
                   </p>
                 ) : null}
                 {proctoringForcedOff ? <p className="text-xs text-muted-foreground">Giám sát AI được tự động tắt vì bài kiểm tra không giới hạn thời gian hoặc lượt làm.</p> : null}
+
+                {effectiveProctoring ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label className="text-sm font-medium">Bằng chứng webcam cho bài lý thuyết</Label>
+                        <p className="text-xs text-muted-foreground mt-1">Bắt buộc cấp webcam; hệ thống chụp ngẫu nhiên theo từng 5 phút và khi có tín hiệu đáng ngờ. Ảnh tự xóa sau 30 ngày.</p>
+                      </div>
+                      <Switch checked={form.webcamEvidenceEnabled} onCheckedChange={(v) => set("webcamEvidenceEnabled", v)} />
+                    </div>
+                  </div>
+                ) : null}
 
                 <Separator />
                 <div className="space-y-4">

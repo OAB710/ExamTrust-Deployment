@@ -22,7 +22,7 @@ export function toEditorDifficulty(value: unknown) {
 
 type BuildPayloadParams = {
   questionType: string; multipleAnswers: boolean; content: string; explanation: string;
-  difficulty: number[]; essayMaxScore: string; tfAnswer: "true" | "false";
+  difficulty: number[]; scoreCoefficient: string; tfAnswer: "true" | "false";
   essayRubric: string; options: QuestionOption[];
 };
 
@@ -30,12 +30,16 @@ export function buildQuestionPayload(params: BuildPayloadParams) {
   const backendType = params.questionType === "multiple_choice" && params.multipleAnswers
     ? "MULTI_SELECT" : backendTypeByEditorType[params.questionType] || "MULTIPLE_CHOICE";
   const isOptionQuestion = params.questionType === "multiple_choice" || params.questionType === "find_error";
+  const defaultPoints = Number.parseInt(params.scoreCoefficient, 10);
   return {
     type: backendType,
     content: params.content,
     explanation: params.explanation,
     difficulty: Math.max(1, Math.min(10, Math.round((params.difficulty[0] <= 1 ? params.difficulty[0] * 10 : params.difficulty[0])))),
-    points: params.questionType === "essay" ? parseInt(params.essayMaxScore, 10) || 10 : 10,
+    // `points` remains for legacy readers. Exam scoring uses assignedScore,
+    // initialized from this bank-level suggestion when the question is added.
+    points: defaultPoints,
+    defaultPoints,
     options: isOptionQuestion
       ? params.options.filter((option) => option.text.trim()).reduce<Record<string, string>>((value, option) => ({ ...value, [option.id]: option.text }), {})
       : params.questionType === "true_false" ? { A: "True", B: "False" } : {},

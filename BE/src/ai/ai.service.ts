@@ -20,6 +20,7 @@ export class AiService {
   private localUrl: string | undefined;
   private ollamaUrl: string;
   private ollamaModel: string;
+  private ollamaVisionModel: string;
   private nvidiaModel: string;
   private openRouterModel: string;
   private appName: string;
@@ -33,8 +34,15 @@ export class AiService {
     const apiKey = this.configService.get<string>('GOOGLE_AI_API_KEY');
     this.provider = this.configService.get<string>('AI_PROVIDER') || 'google';
     this.localUrl = this.configService.get<string>('AI_LOCAL_URL') || undefined;
-    this.ollamaUrl = this.configService.get<string>('AI_OLLAMA_URL') || 'http://localhost:11434';
+    // OLLAMA_* aliases make the self-hosted vision worker easy to configure
+    // in Docker/compose while preserving the existing AI_OLLAMA_* contract.
+    this.ollamaUrl = this.configService.get<string>('AI_OLLAMA_URL')
+      || this.configService.get<string>('OLLAMA_BASE_URL')
+      || 'http://localhost:11434';
     this.ollamaModel = this.configService.get<string>('AI_OLLAMA_MODEL') || 'gemma3:4b';
+    this.ollamaVisionModel = this.configService.get<string>('AI_OLLAMA_VISION_MODEL')
+      || this.configService.get<string>('OLLAMA_VISION_MODEL')
+      || 'moondream';
     this.nvidiaModel = this.configService.get<string>('AI_NVIDIA_MODEL') || 'z-ai/glm-5.2';
     this.openRouterModel = this.configService.get<string>('AI_OPENROUTER_MODEL') || 'nvidia/nemotron-3-ultra-550b-a55b:free';
     this.appName = this.configService.get<string>('AI_APP_NAME') || 'Academic Trust Suite';
@@ -51,7 +59,7 @@ export class AiService {
       this.genAI = new GoogleGenerativeAI(apiKey || '');
       this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     } else if (this.provider === 'ollama') {
-      this.logger.log(`AI provider: Ollama @ ${this.ollamaUrl} (model: ${this.ollamaModel})`);
+      this.logger.log(`AI provider: Ollama @ ${this.ollamaUrl} (model: ${this.ollamaModel}, vision: ${this.ollamaVisionModel})`);
     } else if (this.provider === 'nvidia') {
       const nvidiaApiKey = this.configService.get<string>('NVIDIA_API_KEY');
       const nvidiaBaseUrl = this.configService.get<string>('AI_NVIDIA_BASE_URL') || 'https://integrate.api.nvidia.com/v1';
@@ -207,6 +215,12 @@ Rules:
           points: 1,
           options: questionType === 'MULTIPLE_CHOICE' || questionType === 'FIND_ERROR' ? { A: 'Option A', B: 'Option B', C: 'Option C', D: 'Option D' } : null,
           correctAnswer: questionType === 'MULTIPLE_CHOICE' || questionType === 'FIND_ERROR' ? { answer: 'A' } : null,
+          pairs: questionType === 'MATCHING' ? [
+            { left: 'Term 1', right: 'Matching definition 1' },
+            { left: 'Term 2', right: 'Matching definition 2' },
+            { left: 'Term 3', right: 'Matching definition 3' },
+            { left: 'Term 4', right: 'Matching definition 4' },
+          ] : null,
         });
       } else {
         const result = await this.model.generateContent(systemPrompt);
@@ -218,7 +232,36 @@ Rules:
         .replace(/```\s*/gi, '')
         .trim();
 
-      const parsed = JSON.parse(cleaned);
+      let parsed = JSON.parse(cleaned);
+
+      const hasCompleteMatchingPairs = (value: unknown) =>
+        Array.isArray(value)
+        && value.length === 4
+        && value.every((pair) =>
+          typeof pair === 'object'
+          && pair !== null
+          && String((pair as { left?: unknown }).left || '').trim()
+          && String((pair as { right?: unknown }).right || '').trim(),
+        );
+
+      // Smaller local models occasionally omit every `right` value despite
+      // returning valid JSON. Retry once with an explicit repair instruction
+      // so the editor never receives half-complete matching rows.
+      if (String(questionType).toUpperCase() === 'MATCHING' && !hasCompleteMatchingPairs(parsed.pairs)) {
+        if (this.provider !== 'ollama') {
+          throw new Error('AI returned incomplete matching pairs; each of the 4 pairs must contain both left and right values');
+        }
+        const repairedText = await this._callOllama(
+          `${systemPrompt}\n\nYour previous response was invalid because one or more matching pairs had an empty or missing \"right\" value. Generate the complete question again. Each of the exactly 4 pairs MUST have non-empty \"left\" and non-empty \"right\" strings.`,
+          this.buildOllamaOptions('question_generation'),
+        );
+        parsed = JSON.parse(
+          repairedText.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim(),
+        );
+        if (!hasCompleteMatchingPairs(parsed.pairs)) {
+          throw new Error('AI returned incomplete matching pairs after retry; please generate again');
+        }
+      }
 
       const normalizeDifficulty = (val: any): number | undefined => {
         if (val === undefined || val === null) return undefined;
@@ -405,6 +448,29 @@ ${typeInstruction}
       this.logger.error('Failed to generate exam questions:', error);
       throw new Error(`AI generation failed: ${error.message}`);
     }
+  }
+
+  async analyzeProctoringImage(params: { image: Buffer; mimeType: string }) {
+    const prompt = `Analyze this webcam frame for an academic exam. Return ONLY JSON: {"tags":[{"tag":"FACE_NOT_VISIBLE|MULTIPLE_PEOPLE|FACE_PARTIALLY_OCCLUDED|CAMERA_COVERED_OR_DARK|IMAGE_TOO_BLURRY|CAMERA_FRAME_CHANGED|POSSIBLE_FROZEN_VIDEO|POSSIBLE_PHONE|PROHIBITED_MATERIAL_VISIBLE","confidence":0-1,"note":"short factual Vietnamese description"}]}. Tags are advisory evidence only. Do not claim cheating. Include only visually supported tags.`;
+    if (this.provider === 'mock') return { tags: [] };
+    let text: string;
+    if (this.provider === 'ollama') {
+      text = await this._callOllamaVision(prompt, params.image);
+    } else if (this.provider === 'google') {
+      const result = await this.model.generateContent([
+        { text: prompt },
+        { inlineData: { data: params.image.toString('base64'), mimeType: params.mimeType } },
+      ]);
+      text = String(result.response.text() || '');
+    } else {
+      throw new Error(`Vision analysis is not configured for AI provider '${this.provider}'`);
+    }
+
+    const parsed = JSON.parse(text.replace(/```json\s*/gi, '').replace(/```/g, '').trim());
+    const allowed = new Set(['FACE_NOT_VISIBLE', 'MULTIPLE_PEOPLE', 'FACE_PARTIALLY_OCCLUDED', 'CAMERA_COVERED_OR_DARK', 'IMAGE_TOO_BLURRY', 'CAMERA_FRAME_CHANGED', 'POSSIBLE_FROZEN_VIDEO', 'POSSIBLE_PHONE', 'PROHIBITED_MATERIAL_VISIBLE']);
+    return {
+      tags: Array.isArray(parsed?.tags) ? parsed.tags.filter((item: any) => allowed.has(String(item?.tag))).slice(0, 5).map((item: any) => ({ tag: String(item.tag), confidence: Math.max(0, Math.min(1, Number(item.confidence) || 0)), note: String(item.note || '').slice(0, 300) })) : [],
+    };
   }
 
   async generateExamQualityReview(params: {
@@ -1073,6 +1139,7 @@ Rules:
         model: this.ollamaModel,
         prompt,
         stream: false,
+        format: 'json',
         options: {
           temperature: options?.temperature ?? this.ollamaTemperature,
           top_p: options?.top_p ?? this.ollamaTopP,
@@ -1090,6 +1157,37 @@ Rules:
       `Ollama generation completed model=${this.ollamaModel} duration=${Date.now() - startedAt}ms`,
     );
     return data.response || data.choices?.[0]?.text || '';
+  }
+
+  /**
+   * Sends evidence to a self-hosted Ollama instance. The image remains on the
+   * application network; no third-party API key or external upload is used.
+   */
+  private async _callOllamaVision(prompt: string, image: Buffer): Promise<string> {
+    const startedAt = Date.now();
+    const response = await fetch(`${this.ollamaUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: this.ollamaVisionModel,
+        prompt,
+        images: [image.toString('base64')],
+        stream: false,
+        format: 'json',
+        options: {
+          temperature: 0.1,
+          top_p: this.ollamaTopP,
+          num_ctx: this.ollamaNumCtx,
+        },
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Ollama vision returned ${response.status}: ${body}`);
+    }
+    const payload: any = await response.json();
+    this.logger.log(`Ollama vision completed model=${this.ollamaVisionModel} duration=${Date.now() - startedAt}ms`);
+    return String(payload.response || payload.choices?.[0]?.text || '');
   }
 
   private async _callNvidia(prompt: string): Promise<string> {

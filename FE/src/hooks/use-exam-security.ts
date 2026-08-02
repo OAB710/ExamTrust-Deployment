@@ -66,7 +66,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   });
   const [isBlocked, setIsBlocked] = useState<boolean>(() => {
     if (typeof document === "undefined") return false;
-    return !document.fullscreenElement;
+    return enabled && !document.fullscreenElement;
   });
   const [isEscalated, setIsEscalated] = useState(false);
   const [violationCount, setViolationCount] = useState(0);
@@ -155,7 +155,10 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   }, [requestFullscreen]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setIsBlocked(false);
+      return;
+    }
     const active = Boolean(document.fullscreenElement);
     setIsFullscreen(active);
     setIsBlocked(!active);

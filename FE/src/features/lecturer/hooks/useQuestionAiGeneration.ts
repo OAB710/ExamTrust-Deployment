@@ -29,7 +29,6 @@ type Params = {
   onLearningObjective: (value: string) => void;
   onOptions: (value: QuestionOption[]) => void;
   onEssayRubric: (value: string) => void;
-  onEssayMaxScore: (value: string) => void;
 };
 
 const typeMap: Record<string, string> = {
@@ -79,7 +78,6 @@ export function useQuestionAiGeneration(params: Params) {
     }
     if (params.questionType === "essay" && result.correctAnswer?.answer) {
       params.onEssayRubric(result.correctAnswer.answer);
-      if (result.points) params.onEssayMaxScore(String(result.points));
     }
     if (params.questionType === "matching" && Array.isArray(result.pairs)) {
       params.onOptions(result.pairs.map((pair, index) => ({ id: String.fromCharCode(65 + index), text: pair.left || "", match: pair.right || "", isCorrect: false })));

@@ -33,6 +33,7 @@ export interface ExamForm {
   endDate: string;
   endTime: string;
   requiresProctoring: boolean;
+  webcamEvidenceEnabled: boolean;
   allowLateSubmission: boolean;
   shuffleQuestions: boolean;
   showResultImmediately: boolean;
@@ -153,6 +154,7 @@ export const createDefaultForm = (): ExamForm => {
     endDate: examWindow.endDate,
     endTime: examWindow.endTime,
     requiresProctoring: true,
+    webcamEvidenceEnabled: false,
     allowLateSubmission: false,
     shuffleQuestions: true,
     showResultImmediately: false,
@@ -301,4 +303,3 @@ export const normalizeDifficultyForQuestion = (value: unknown) => {
   if (n <= 1) return Math.max(1, Math.min(10, Math.round(n * 9 + 1)));
   return Math.max(1, Math.min(10, Math.round(n)));
 };
-

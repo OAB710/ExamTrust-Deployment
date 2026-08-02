@@ -20,6 +20,7 @@ import {
   X,
   Shield,
   CheckCircle2,
+  Camera,
 } from "lucide-react";
 
 import { api } from "@/lib/api";
@@ -31,7 +32,6 @@ import {
 import {
   EXAM_DURATION,
   MAX_VIOLATIONS,
-  MOUSE_IDLE_THRESHOLD_MS,
   isAnswered,
   mapBackendToUiQuestion,
   normalizeSubmissionAnswer,
@@ -72,12 +72,17 @@ export default function ExamTaking() {
     "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED"
   >("NOT_STARTED");
   const [fullscreenRequestedAt, setFullscreenRequestedAt] = useState<number | null>(null);
+  const [webcamPolicy, setWebcamPolicy] = useState<any>(null);
+  const [examStartedAt, setExamStartedAt] = useState<number | null>(null);
+  const [webcamReady, setWebcamReady] = useState(false);
+  const [isStartingWebcam, setIsStartingWebcam] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const logRef = useRef<{ type: string; ts: number; detail?: string }[]>([]);
-  const lastMouseActivityRef = useRef<number>(Date.now());
-  const mouseIdleLoggedRef = useRef<boolean>(false);
   const startSessionRequestedRef = useRef(false);
+  const webcamStreamRef = useRef<MediaStream | null>(null);
+  const webcamVideoRef = useRef<HTMLVideoElement | null>(null);
+  const evidenceCaptureInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!examId || isPreviewMode) return;
@@ -86,6 +91,12 @@ export default function ExamTaking() {
     if (storedSubmissionId && storedExamId === examId) {
       setSubmissionId(storedSubmissionId);
       setExamSessionStatus("IN_PROGRESS");
+      const storedStartedAt = Number(localStorage.getItem("currentSubmissionStartedAt") || 0);
+      if (storedStartedAt > 0) setExamStartedAt(storedStartedAt);
+      try {
+        const storedPolicy = localStorage.getItem("currentSubmissionWebcamPolicy");
+        if (storedPolicy) setWebcamPolicy(JSON.parse(storedPolicy));
+      } catch {}
     }
     const graceStartedAt = Number(localStorage.getItem("examFullscreenGraceStartedAt") || 0);
     if (graceStartedAt > 0 && Date.now() - graceStartedAt < 5000) {
@@ -96,18 +107,25 @@ export default function ExamTaking() {
 
   useEffect(() => {
     if (!examId || isPreviewMode || isLoadingExam || submissionId) return;
+    if (webcamPolicy?.enabled && !webcamReady) return;
     if (startSessionRequestedRef.current) return;
     startSessionRequestedRef.current = true;
 
     let cancelled = false;
     api
-      .startExam(examId)
+      .startExam(examId, webcamPolicy?.enabled ? { webcamReady: true, webcamConsentVersion: webcamPolicy.consentVersion } : undefined)
       .then((started) => {
         if (cancelled || !started?.id) return;
         setSubmissionId(started.id);
+        const snapshotPolicy = started?.examInstance?.snapshotPayload?.webcamEvidencePolicy;
+        if (snapshotPolicy?.enabled) setWebcamPolicy(snapshotPolicy);
+        const startedAt = new Date(started?.startedAt || Date.now()).getTime();
+        setExamStartedAt(startedAt);
         setExamSessionStatus("IN_PROGRESS");
         localStorage.setItem("currentSubmissionId", started.id);
         localStorage.setItem("currentSubmissionExamId", examId);
+        localStorage.setItem("currentSubmissionStartedAt", String(startedAt));
+        if (snapshotPolicy) localStorage.setItem("currentSubmissionWebcamPolicy", JSON.stringify(snapshotPolicy));
       })
       .catch((error) => {
         startSessionRequestedRef.current = false;
@@ -117,7 +135,7 @@ export default function ExamTaking() {
     return () => {
       cancelled = true;
     };
-  }, [examId, isLoadingExam, isPreviewMode, submissionId]);
+  }, [examId, isLoadingExam, isPreviewMode, submissionId, webcamPolicy, webcamReady]);
 
   useEffect(() => {
     let mounted = true;
@@ -155,6 +173,8 @@ export default function ExamTaking() {
 
         if (!mounted) return;
         setExamTitle(exam?.title || "Phiên thi");
+        const configuredPolicy = exam?.settings?.webcamEvidencePolicy?.enabled ? exam.settings.webcamEvidencePolicy : null;
+        setWebcamPolicy((current: any) => current?.scheduledCaptureOffsetsMs?.length ? current : configuredPolicy);
         setQuestions(mapped.length > 0 ? mapped : []);
       } catch (err) {
         console.error("Failed to load exam questions:", err);
@@ -185,6 +205,51 @@ export default function ExamTaking() {
     logRef.current.push({ type, ts: Date.now(), detail });
   }, []);
 
+  const startWebcam = useCallback(async () => {
+    if (!webcamPolicy?.enabled) return;
+    setIsStartingWebcam(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: false });
+      webcamStreamRef.current = stream;
+      if (webcamVideoRef.current) {
+        webcamVideoRef.current.srcObject = stream;
+        await webcamVideoRef.current.play();
+      }
+      stream.getVideoTracks().forEach((track) => track.addEventListener("ended", () => {
+        setWebcamReady(false);
+        log("camera_stream_ended", "Webcam stream ended during the exam");
+      }));
+      setWebcamReady(true);
+    } catch {
+      log("webcam_permission_denied", "Student did not grant usable webcam permission");
+      toast.error("Bài thi này yêu cầu bạn cấp quyền webcam trước khi bắt đầu.");
+    } finally {
+      setIsStartingWebcam(false);
+    }
+  }, [log, webcamPolicy]);
+
+  const requestWebcamEvidence = useCallback(async (trigger: "SCHEDULED" | "SUSPICIOUS_EVENT", options?: { signals?: string[] }) => {
+    const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
+    const video = webcamVideoRef.current;
+    if (!webcamPolicy?.enabled || !webcamReady || !activeSubmissionId || !video || evidenceCaptureInFlightRef.current || video.videoWidth < 1) return;
+    evidenceCaptureInFlightRef.current = true;
+    try {
+      const permit = await api.requestEvidenceCapture(activeSubmissionId, { trigger, ...options });
+      const canvas = document.createElement("canvas");
+      const ratio = Math.min(1, 640 / video.videoWidth);
+      canvas.width = Math.max(1, Math.floor(video.videoWidth * ratio));
+      canvas.height = Math.max(1, Math.floor(video.videoHeight * ratio));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Unable to prepare webcam frame");
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      await api.finalizeEvidenceCapture(activeSubmissionId, permit.captureId, { nonce: permit.nonce, imageDataUrl: canvas.toDataURL("image/jpeg", 0.72) });
+    } catch (error) {
+      console.warn("Webcam evidence capture was skipped:", error);
+    } finally {
+      evidenceCaptureInFlightRef.current = false;
+    }
+  }, [submissionId, webcamPolicy, webcamReady]);
+
   useEffect(() => {
     log("exam_start");
   }, [log]);
@@ -213,6 +278,11 @@ export default function ExamTaking() {
           setExamSessionStatus("IN_PROGRESS");
           localStorage.setItem("currentSubmissionId", activeSubmissionId);
           localStorage.setItem("currentSubmissionExamId", examId);
+          const startedAt = new Date(started.startedAt || Date.now()).getTime();
+          setExamStartedAt(startedAt);
+          localStorage.setItem("currentSubmissionStartedAt", String(startedAt));
+          const snapshotPolicy = started?.examInstance?.snapshotPayload?.webcamEvidencePolicy;
+          if (snapshotPolicy) localStorage.setItem("currentSubmissionWebcamPolicy", JSON.stringify(snapshotPolicy));
         }
       }
 
@@ -252,6 +322,8 @@ export default function ExamTaking() {
       try {
         localStorage.removeItem("currentSubmissionId");
         localStorage.removeItem("currentSubmissionExamId");
+        localStorage.removeItem("currentSubmissionStartedAt");
+        localStorage.removeItem("currentSubmissionWebcamPolicy");
       } catch {}
     } catch (err) {
       console.error("Failed to submit to server:", err);
@@ -289,8 +361,11 @@ export default function ExamTaking() {
       } catch (e) {
         console.error("Failed to send violation log", e);
       }
+      if (["tab_switch", "window_blur", "blur", "fullscreen_exit"].includes(entry.type)) {
+        void requestWebcamEvidence("SUSPICIOUS_EVENT", { signals: [entry.type] });
+      }
     },
-    [log, submissionId, proctoringEnabled],
+    [log, submissionId, proctoringEnabled, requestWebcamEvidence],
   );
 
   const {
@@ -301,13 +376,15 @@ export default function ExamTaking() {
     returnToExam,
     canFullscreen,
   } = useExamSecurity({
-    enabled: proctoringEnabled && !isPreviewMode && !isLoadingExam && examSessionStatus === "IN_PROGRESS",
+    // Preview still enforces fullscreen when explicitly requested, but it is a
+    // safe rehearsal: no proctoring events are persisted and it cannot submit.
+    enabled: proctoringEnabled && !isLoadingExam && (isPreviewMode || examSessionStatus === "IN_PROGRESS"),
     maxViolations: MAX_VIOLATIONS,
-    sessionStatus: examSessionStatus,
+    sessionStatus: isPreviewMode ? "IN_PROGRESS" : examSessionStatus,
     isSubmitting,
     initialFullscreenRequestedAt: fullscreenRequestedAt,
-    onViolation: handleViolation,
-    onEscalate: () => {
+    onViolation: isPreviewMode ? undefined : handleViolation,
+    onEscalate: isPreviewMode ? undefined : () => {
       if (isSubmitting) return;
       log("violation_escalation", `Reached ${MAX_VIOLATIONS} violations`);
       doSubmit();
@@ -315,7 +392,7 @@ export default function ExamTaking() {
   });
 
   useEffect(() => {
-    if (!isSecurityBlocked || isSubmitting) {
+    if (isPreviewMode || !isSecurityBlocked || isSubmitting) {
       setFullscreenCountdown(15);
       return;
     }
@@ -332,7 +409,7 @@ export default function ExamTaking() {
     }, 200);
 
     return () => window.clearInterval(id);
-  }, [isSecurityBlocked, isSubmitting, doSubmit]);
+  }, [isPreviewMode, isSecurityBlocked, isSubmitting, doSubmit]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -347,60 +424,47 @@ export default function ExamTaking() {
     return () => clearInterval(id);
   }, [doSubmit]);
 
-  // Mouse idle tracking (silent for student): logs when no activity for a threshold period.
   useEffect(() => {
-    if (isPreviewMode || examSessionStatus !== "IN_PROGRESS" || isSubmitting) return;
-    const markActivity = () => {
-      lastMouseActivityRef.current = Date.now();
-      mouseIdleLoggedRef.current = false;
+    if (isPreviewMode || examSessionStatus !== "IN_PROGRESS" || isSubmitting || !webcamPolicy?.enabled || !webcamReady || !examStartedAt) return;
+    const offsets = Array.isArray(webcamPolicy.scheduledCaptureOffsetsMs)
+      ? webcamPolicy.scheduledCaptureOffsetsMs.map(Number).filter(Number.isFinite).sort((a: number, b: number) => a - b)
+      : [];
+    if (offsets.length === 0) return;
+
+    // Sync once after opening/reloading so the server can record already-missed
+    // slots. The server alone decides whether a slot is currently due.
+    let timer: number | undefined;
+    let cancelled = false;
+    const scheduleNext = () => {
+      if (cancelled) return;
+      const nextOffset = offsets.find((offset: number) => examStartedAt + offset > Date.now());
+      if (nextOffset === undefined) return;
+      timer = window.setTimeout(async () => {
+        await requestWebcamEvidence("SCHEDULED");
+        scheduleNext();
+      // A small buffer prevents client/server clock skew from submitting a
+      // request a few milliseconds before the server considers the slot due.
+      }, Math.max(0, examStartedAt + nextOffset + 3_000 - Date.now()));
     };
-
-    const onActivityEvents: Array<keyof DocumentEventMap> = [
-      "mousemove",
-      "mousedown",
-      "wheel",
-      "keydown",
-      "touchstart",
-    ];
-
-    onActivityEvents.forEach((evt) =>
-      document.addEventListener(evt, markActivity, { passive: true }),
-    );
-
-    const idleCheckId = window.setInterval(() => {
-      const now = Date.now();
-      const idleMs = now - lastMouseActivityRef.current;
-      if (idleMs < MOUSE_IDLE_THRESHOLD_MS) return;
-      if (mouseIdleLoggedRef.current) return;
-
-      mouseIdleLoggedRef.current = true;
-      const idleSeconds = Math.floor(idleMs / 1000);
-      const detail = `No mouse activity for ${idleSeconds}s`;
-
-      log("mouse_idle", detail);
-
-      try {
-        const activeSubmissionId =
-          submissionId || localStorage.getItem("currentSubmissionId");
-        if (activeSubmissionId) {
-          api
-            .sendExamLogs(activeSubmissionId, [
-              { type: "mouse_idle", details: detail, ts: now },
-            ])
-            .catch((e) => console.error("sendExamLogs mouse_idle failed", e));
-        }
-      } catch (e) {
-        console.error("Failed to send mouse idle log", e);
-      }
-    }, 5000);
-
+    void requestWebcamEvidence("SCHEDULED");
+    scheduleNext();
     return () => {
-      onActivityEvents.forEach((evt) =>
-        document.removeEventListener(evt, markActivity),
-      );
-      window.clearInterval(idleCheckId);
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [examSessionStatus, isPreviewMode, isSubmitting, log, submissionId]);
+  }, [examSessionStatus, isPreviewMode, isSubmitting, webcamPolicy, webcamReady, examStartedAt, requestWebcamEvidence]);
+
+  useEffect(() => () => {
+    webcamStreamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
+
+  useEffect(() => {
+    const video = webcamVideoRef.current;
+    if (webcamReady && video && webcamStreamRef.current) {
+      video.srcObject = webcamStreamRef.current;
+      void video.play().catch(() => undefined);
+    }
+  }, [webcamReady]);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60),
@@ -417,6 +481,23 @@ export default function ExamTaking() {
     return (
       <div className="min-h-screen flex items-center justify-center text-muted-foreground">
         Đang tải bài thi...
+      </div>
+    );
+  }
+
+  if (webcamPolicy?.enabled && !webcamReady && !isPreviewMode) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 px-6">
+        <Card className="max-w-lg w-full">
+          <CardHeader className="space-y-3">
+            <div className="flex items-center gap-2 text-primary"><Camera className="h-5 w-5" /><span className="font-semibold">Xác nhận webcam giám sát</span></div>
+            <p className="text-sm text-muted-foreground">Bài thi lý thuyết này yêu cầu webcam. Hệ thống chỉ chụp tối đa 5 ảnh khi bạn không tương tác trong một khoảng ngẫu nhiên hoặc có sự kiện bảo mật; ảnh dùng để giảng viên xem xét và tự xóa sau 30 ngày.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <video ref={webcamVideoRef} muted playsInline className="w-full aspect-video rounded-md bg-black object-cover" />
+            <Button onClick={() => void startWebcam()} disabled={isStartingWebcam} className="w-full gap-2"><Camera className="h-4 w-4" />{isStartingWebcam ? "Đang mở webcam…" : "Tôi đồng ý và bật webcam"}</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -523,6 +604,7 @@ export default function ExamTaking() {
 
   return (
     <div className="min-h-screen bg-background">
+      {webcamPolicy?.enabled ? <video ref={webcamVideoRef} muted playsInline className="hidden" /> : null}
       {/* ── Top Bar ─────────────────────────────────────────────── */}
       <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b bg-card/95 px-3 shadow-sm backdrop-blur sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">

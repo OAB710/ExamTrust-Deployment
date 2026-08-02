@@ -5,8 +5,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../../ai/ai.service';
 import { AISection } from '../../questions-v2/dto/question-draft.dto';
 import { ExamTrustAiContext } from '../../ai/ai-profile';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 
-type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement';
+type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement' | 'proctoring-evidence';
 
 @Processor('ai-generation')
 export class AIGenerationProcessor {
@@ -254,6 +256,17 @@ export class AIGenerationProcessor {
     });
 
     try {
+      if (task === 'proctoring-evidence') {
+        const captureId = String(payload.captureId || '');
+        const capture = await this.prisma.proctoringEvidenceCapture.findUnique({ where: { id: captureId } });
+        if (!capture?.storageKey || capture.status === 'PURGED') throw new Error('Evidence image is unavailable');
+        await this.prisma.proctoringEvidenceCapture.update({ where: { id: capture.id }, data: { status: 'ANALYZING', aiError: null } });
+        const root = process.env.PROCTORING_EVIDENCE_DIR || join(process.cwd(), 'var', 'proctoring-evidence');
+        const result = await this.aiService.analyzeProctoringImage({ image: await readFile(join(root, capture.storageKey)), mimeType: capture.mimeType || 'image/jpeg' });
+        await this.prisma.proctoringEvidenceCapture.update({ where: { id: capture.id }, data: { status: 'ANALYZED', aiTags: result.tags, aiProvider: process.env.AI_PROVIDER || 'google', aiAnalyzedAt: new Date() } });
+        await this.prisma.aIGenerationRecord.update({ where: { id: jobId }, data: { status: 'SUCCEEDED', output: result, completedAt: new Date() } });
+        return;
+      }
       const context = await this.buildContext(task, payload);
 
       if (task === 'single-question') {
@@ -448,6 +461,12 @@ export class AIGenerationProcessor {
       });
     } catch (error: any) {
       this.logger.error(`AI job failed: ${jobId}`, error?.stack || String(error));
+      if (task === 'proctoring-evidence' && payload?.captureId) {
+        await this.prisma.proctoringEvidenceCapture.updateMany({
+          where: { id: String(payload.captureId), status: { not: 'PURGED' } },
+          data: { status: 'FAILED', aiError: String(error?.message || error).slice(0, 2000) },
+        });
+      }
       await this.prisma.aIGenerationRecord.update({
         where: { id: jobId },
         data: {

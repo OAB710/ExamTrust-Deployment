@@ -29,15 +29,12 @@ export function useQuestionAnswerState() {
   const [pinnedOptions, setPinnedOptions] = useState<Set<string>>(new Set());
   const [tfAnswer, setTfAnswer] = useState<"true" | "false">("true");
   const [essayRubric, setEssayRubric] = useState("");
-  const [essayMaxScore, setEssayMaxScore] = useState("10");
-  const [essayMaxScoreError, setEssayMaxScoreError] = useState("");
 
   const restoreDraftAnswer = (draft: QuestionDraft) => {
     if (draft.options) setOptions(draft.options);
     if (draft.multipleAnswers !== undefined) setMultipleAnswers(draft.multipleAnswers);
     if (draft.tfAnswer) setTfAnswer(draft.tfAnswer);
     if (draft.essayRubric) setEssayRubric(draft.essayRubric);
-    if (draft.essayMaxScore) setEssayMaxScore(draft.essayMaxScore);
   };
 
   const populateAnswer = (question: EditableQuestion) => {
@@ -112,7 +109,6 @@ export function useQuestionAnswerState() {
     if (question.type === "ESSAY" || question.type === "SHORT_ANSWER") {
       const answer = isAnswerObject(correctAnswer) ? correctAnswer.answer : undefined;
       setEssayRubric(typeof answer === "string" ? answer : "");
-      setEssayMaxScore(String(question.points || 10));
     }
   };
 
@@ -171,14 +167,11 @@ export function useQuestionAnswerState() {
     setPinnedOptions(new Set());
     setTfAnswer("true");
     setEssayRubric("");
-    setEssayMaxScore("10");
-    setEssayMaxScoreError("");
   };
 
   return {
     options, setOptions, multipleAnswers, setMultipleAnswers, pinnedOptions, setPinnedOptions,
-    tfAnswer, setTfAnswer, essayRubric, setEssayRubric, essayMaxScore, setEssayMaxScore,
-    essayMaxScoreError, setEssayMaxScoreError, restoreDraftAnswer, populateAnswer, validateAnswer,
+    tfAnswer, setTfAnswer, essayRubric, setEssayRubric, restoreDraftAnswer, populateAnswer, validateAnswer,
     addOption, removeOption, updateOption, updateOptionMatch, moveOption, toggleCorrectOption,
     togglePinnedOption, resetAnswer,
   };

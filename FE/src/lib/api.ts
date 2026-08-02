@@ -1032,7 +1032,7 @@ class ApiClient {
     return this.request<any>(`/submissions${query}`);
   }
 
-  async startExam(examId: string, options?: { isMobileOrTablet?: boolean }) {
+  async startExam(examId: string, options?: { isMobileOrTablet?: boolean; webcamReady?: boolean; webcamConsentVersion?: string }) {
     return this.request<any>('/submissions/start', {
       method: 'POST',
       body: { examId, ...options },
@@ -1163,6 +1163,30 @@ class ApiClient {
       method: 'POST',
       body: { submissionAnswerId, pointsAwarded, feedback },
     });
+  }
+
+  async requestEvidenceCapture(submissionId: string, data: { trigger: 'SCHEDULED' | 'SUSPICIOUS_EVENT'; signals?: string[] }) {
+    return this.request<{ captureId: string; nonce: string; expiresAt: string; maxBytes: number }>(`/submissions/${submissionId}/evidence-captures/request`, { method: 'POST', body: data });
+  }
+
+  async finalizeEvidenceCapture(submissionId: string, captureId: string, data: { nonce: string; imageDataUrl: string }) {
+    return this.request<any>(`/submissions/${submissionId}/evidence-captures/${captureId}/finalize`, { method: 'POST', body: data });
+  }
+
+  async getEvidenceCaptures(submissionId: string) {
+    return this.request<any[]>(`/submissions/${submissionId}/evidence-captures`);
+  }
+
+  async reviewEvidenceCapture(submissionId: string, captureId: string, data: { reviewStatus: 'REVIEWED' | 'DISMISSED'; reviewerNote?: string }) {
+    return this.request<any>(`/submissions/${submissionId}/evidence-captures/${captureId}/review`, { method: 'PATCH', body: data });
+  }
+
+  async getEvidenceImageUrl(submissionId: string, captureId: string) {
+    const response = await fetch(`${this.baseUrl}/submissions/${submissionId}/evidence-captures/${captureId}/image`, {
+      headers: this.memoryToken ? { Authorization: `Bearer ${this.memoryToken}` } : {}, credentials: 'include',
+    });
+    if (!response.ok) throw new ApiRequestError('Không thể tải ảnh bằng chứng.', response.status);
+    return URL.createObjectURL(await response.blob());
   }
 
   async createScoreAdjustment(
