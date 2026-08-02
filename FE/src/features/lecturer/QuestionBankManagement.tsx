@@ -28,6 +28,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -72,6 +73,7 @@ import {
   Loader2,
   ChevronRight,
   FolderInput,
+  ScanSearch,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -238,6 +240,15 @@ export default function QuestionBankManagement() {
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [copySourceCourseId, setCopySourceCourseId] = useState<string>("");
   const [copyLoading, setCopyLoading] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateLoading, setDuplicateLoading] = useState(false);
+  const [duplicateThreshold, setDuplicateThreshold] = useState(80);
+  const [duplicatePairs, setDuplicatePairs] = useState<Array<{
+    questionA: { id: string; type: string; content: string };
+    questionB: { id: string; type: string; content: string };
+    similarityPercent: number; matchMethod: 'EXACT' | 'TEXT' | 'AI'; reason: string;
+  }>>([]);
+  const [duplicateScanCount, setDuplicateScanCount] = useState(0);
 
   useQuestionBankRouteState({
     courses, questions, searchParams, selectedCourse, setSelectedCourse,
@@ -251,6 +262,14 @@ export default function QuestionBankManagement() {
     } catch {
       setQuestionDraft(null);
     }
+  }, []);
+
+  useEffect(() => {
+    // Use the stable generic API method so Fast Refresh does not retain an
+    // older ApiClient prototype after this feature adds convenience methods.
+    api.request<{ similarityThreshold: number }>('/questions/duplicate-preference')
+      .then((preference) => setDuplicateThreshold(preference.similarityThreshold))
+      .catch(() => undefined);
   }, []);
 
   const discardQuestionDraft = () => {
@@ -335,6 +354,41 @@ export default function QuestionBankManagement() {
       toast.error("Sao chép ngân hàng câu hỏi thất bại. Vui lòng thử lại.");
     } finally {
       setCopyLoading(false);
+    }
+  };
+
+  const handleDuplicateScan = async () => {
+    const courseId = courses.find((course) => course.code === selectedCourse)?.id;
+    if (!courseId) {
+      toast.error("Vui lòng chọn học phần trước khi lọc câu trùng lặp.");
+      return;
+    }
+    setDuplicateDialogOpen(true);
+    setDuplicateLoading(true);
+    try {
+      const result = await api.request<{
+        scannedQuestionCount: number;
+        pairs: typeof duplicatePairs;
+      }>('/questions/duplicate-check', { method: 'POST', body: { courseId } });
+      setDuplicatePairs(result.pairs);
+      setDuplicateScanCount(result.scannedQuestionCount);
+    } catch (error) {
+      console.warn("Failed to check duplicate questions", error);
+      toast.error("Không thể quét câu hỏi trùng lặp. Vui lòng thử lại.");
+    } finally {
+      setDuplicateLoading(false);
+    }
+  };
+
+  const saveDuplicateThreshold = async (value: string) => {
+    const next = Math.max(1, Math.min(100, Number.parseInt(value, 10) || 80));
+    setDuplicateThreshold(next);
+    try {
+      await api.request('/questions/duplicate-preference', {
+        method: 'PATCH', body: { similarityThreshold: next },
+      });
+    } catch {
+      toast.error("Không thể lưu ngưỡng tương đồng.");
     }
   };
 
@@ -800,6 +854,9 @@ export default function QuestionBankManagement() {
                 >
                   <FolderInput className="h-4 w-4" /> Sao chép từ khóa học khác
                 </Button>
+                <Button variant="outline" className="gap-2" onClick={handleDuplicateScan}>
+                  <ScanSearch className="h-4 w-4" /> Lọc câu trùng lặp
+                </Button>
                 <Button
                   className="gap-2"
                   onClick={() =>
@@ -1051,6 +1108,39 @@ export default function QuestionBankManagement() {
                 )}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+          <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Lọc các câu trùng lặp</DialogTitle>
+              <DialogDescription>
+                Đối chiếu {duplicateScanCount} câu hỏi cùng học phần. Kết quả chỉ là gợi ý để giảng viên xem xét.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-end gap-3 rounded-lg border bg-muted/30 p-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Ngưỡng tương đồng (%)</label>
+                <Input type="number" min={1} max={100} value={duplicateThreshold} onChange={(event) => setDuplicateThreshold(event.target.value.replace(/[^0-9]/g, ""))} onBlur={(event) => saveDuplicateThreshold(event.target.value)} className="w-28" />
+              </div>
+              <p className="pb-1 text-xs text-muted-foreground">Cài đặt được lưu theo tài khoản.</p>
+            </div>
+            {duplicateLoading ? (
+              <div className="flex min-h-44 items-center justify-center gap-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Đang phân tích câu hỏi...</div>
+            ) : duplicatePairs.filter((pair) => pair.similarityPercent >= Number(duplicateThreshold || 80)).length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Không tìm thấy cặp câu hỏi nào đạt ngưỡng hiện tại.</div>
+            ) : (
+              <div className="space-y-3">
+                {duplicatePairs.filter((pair) => pair.similarityPercent >= Number(duplicateThreshold || 80)).map((pair) => (
+                  <div key={`${pair.questionA.id}-${pair.questionB.id}`} className="rounded-lg border p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><span className="font-semibold">Tương đồng {pair.similarityPercent}%</span><StatusBadge status={pair.matchMethod === 'AI' ? 'success' : pair.matchMethod === 'EXACT' ? 'info' : 'warning'}>{pair.matchMethod === 'AI' ? 'AI xác nhận' : pair.matchMethod === 'EXACT' ? 'Trùng chính xác' : 'So khớp văn bản'}</StatusBadge></div>
+                    <div className="grid gap-3 md:grid-cols-2"><div className="rounded-md bg-muted/50 p-3 text-sm"><p className="mb-1 text-xs font-medium text-muted-foreground">Câu A</p>{pair.questionA.content}</div><div className="rounded-md bg-muted/50 p-3 text-sm"><p className="mb-1 text-xs font-medium text-muted-foreground">Câu B</p>{pair.questionB.content}</div></div>
+                    <p className="mt-3 text-xs text-muted-foreground">{pair.reason}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 

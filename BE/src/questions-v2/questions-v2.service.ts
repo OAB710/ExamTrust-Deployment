@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiJobsService } from '../ai/ai-jobs.service';
+import { AiService } from '../ai/ai.service';
 import {
   AIGenerateSectionDto,
   AISection,
@@ -60,7 +61,113 @@ export class QuestionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiJobsService: AiJobsService,
+    private readonly aiService: AiService,
   ) {}
+
+  private normalizeDuplicateText(value: string) {
+    return String(value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private lexicalSimilarity(left: string, right: string) {
+    const normalizedLeft = this.normalizeDuplicateText(left);
+    const normalizedRight = this.normalizeDuplicateText(right);
+    if (!normalizedLeft || !normalizedRight) return 0;
+    if (normalizedLeft === normalizedRight) return 1;
+    if (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft)) return 0.9;
+    const leftTokens = new Set(normalizedLeft.split(' '));
+    const rightTokens = new Set(normalizedRight.split(' '));
+    let overlap = 0;
+    leftTokens.forEach((token) => { if (rightTokens.has(token)) overlap += 1; });
+    return overlap / Math.max(1, new Set([...leftTokens, ...rightTokens]).size);
+  }
+
+  async getDuplicatePreference(user: AuthUser) {
+    const rows = await this.prisma.$queryRawUnsafe(
+      'SELECT similarityThreshold FROM question_bank_preferences WHERE userId = ? LIMIT 1', user.id,
+    ) as Array<{ similarityThreshold: number }>;
+    return { similarityThreshold: Math.max(1, Math.min(100, Number(rows[0]?.similarityThreshold || 80))) };
+  }
+
+  async updateDuplicatePreference(threshold: number, user: AuthUser) {
+    const similarityThreshold = Math.max(1, Math.min(100, Math.round(threshold)));
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO question_bank_preferences (id, userId, similarityThreshold, createdAt, updatedAt)
+       VALUES (UUID(), ?, ?, NOW(3), NOW(3))
+       ON DUPLICATE KEY UPDATE similarityThreshold = VALUES(similarityThreshold), updatedAt = NOW(3)`,
+      user.id, similarityThreshold,
+    );
+    return { similarityThreshold };
+  }
+
+  async checkDuplicateQuestions(courseId: string, user: AuthUser) {
+    await this.assertCourseAccessible(courseId, user);
+    const questions = await this.prisma.question.findMany({
+      where: { courseId, status: 'PUBLISHED' },
+      select: { id: true, type: true, content: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const candidates: Array<{ left: any; right: any; lexical: number }> = [];
+    for (let index = 0; index < questions.length; index += 1) {
+      for (let otherIndex = index + 1; otherIndex < questions.length; otherIndex += 1) {
+        const left = questions[index];
+        const right = questions[otherIndex];
+        if (left.type !== right.type) continue;
+        const lexical = this.lexicalSimilarity(left.content, right.content);
+        if (lexical >= 0.35) candidates.push({ left, right, lexical });
+      }
+    }
+
+    // Ollama commonly allows one inference at a time; serialize a bounded set
+    // of close candidates instead of flooding its request queue.
+    const aiCandidates = candidates.slice(0, 12);
+    const matches: any[] = [];
+    for (const { left, right, lexical } of aiCandidates) {
+      if (lexical === 1) {
+        matches.push({ left, right, score: 1, matchMethod: 'EXACT', reason: 'Nội dung trùng khớp sau khi chuẩn hoá.' });
+        continue;
+      }
+      try {
+        const response = await this.aiService.suggestSimilarTopics({
+          topicName: left.content,
+          existingTopics: [right.content],
+          language: 'vi',
+        });
+        const aiMatch = response.matches?.[0];
+        const aiScore = Number(aiMatch?.score || 0);
+        const isAiResult = !String(aiMatch?.reason || '').toLowerCase().includes('heuristic');
+        const score = Math.max(lexical, aiScore);
+        matches.push({
+          left, right, score,
+          matchMethod: isAiResult ? 'AI' : 'TEXT',
+          reason: isAiResult ? String(aiMatch?.reason || 'AI xác nhận hai câu có nội dung tương tự.') : 'Tương đồng theo nội dung văn bản; AI chưa khả dụng.',
+        });
+      } catch {
+        matches.push({ left, right, score: lexical, matchMethod: 'TEXT', reason: 'Tương đồng theo nội dung văn bản; AI chưa khả dụng.' });
+      }
+    }
+
+    const unreviewed = candidates.slice(12).map(({ left, right, lexical }) => ({
+      left, right, score: lexical, matchMethod: 'TEXT', reason: 'Tương đồng theo nội dung văn bản.',
+    }));
+    const pairs = [...matches, ...unreviewed]
+      .filter((item) => item.score >= 0.35)
+      .sort((a, b) => b.score - a.score)
+      .map((item) => ({
+        questionA: { id: item.left.id, type: item.left.type, content: item.left.content },
+        questionB: { id: item.right.id, type: item.right.type, content: item.right.content },
+        similarityPercent: Number((item.score * 100).toFixed(0)),
+        matchMethod: item.matchMethod,
+        reason: item.reason,
+      }));
+    return { courseId, scannedQuestionCount: questions.length, pairs, aiReviewedPairs: aiCandidates.length };
+  }
 
   private parseJson(value: any, fallback: any = null) {
     if (value === null || typeof value === 'undefined') return fallback;

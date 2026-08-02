@@ -500,6 +500,31 @@ class ApiClient {
     return this.request<any>('/questions/stats');
   }
 
+  async checkDuplicateQuestions(courseId: string) {
+    return this.request<{
+      courseId: string;
+      scannedQuestionCount: number;
+      aiReviewedPairs: number;
+      pairs: Array<{
+        questionA: { id: string; type: string; content: string };
+        questionB: { id: string; type: string; content: string };
+        similarityPercent: number;
+        matchMethod: 'EXACT' | 'TEXT' | 'AI';
+        reason: string;
+      }>;
+    }>('/questions/duplicate-check', { method: 'POST', body: { courseId } });
+  }
+
+  async getQuestionDuplicatePreference() {
+    return this.request<{ similarityThreshold: number }>('/questions/duplicate-preference');
+  }
+
+  async updateQuestionDuplicatePreference(similarityThreshold: number) {
+    return this.request<{ similarityThreshold: number }>('/questions/duplicate-preference', {
+      method: 'PATCH', body: { similarityThreshold },
+    });
+  }
+
   async deleteQuestion(id: string) {
     return this.request<any>(`/questions/${id}`, { method: 'DELETE' });
   }

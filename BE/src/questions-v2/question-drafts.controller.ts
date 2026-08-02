@@ -29,6 +29,7 @@ import {
   UpdateQuestionAiImprovementDraftDto,
 } from './dto/question-ai-improvement.dto';
 import { CopyQuestionBankDto, CreateQuestionCrudDto, UpdateQuestionCrudDto } from './dto/question-crud.dto';
+import { DuplicateQuestionCheckDto, UpdateDuplicatePreferenceDto } from './dto/question-duplicate.dto';
 import { ListQuestionsQueryDto } from './dto/question-v2-query.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { QuestionsService } from './questions-v2.service';
@@ -54,6 +55,21 @@ export class QuestionDraftsController {
   @Post('copy-bank')
   copyQuestionBank(@Body() dto: CopyQuestionBankDto, @Request() req) {
     return this.questionsService.copyQuestionBank(dto, req.user);
+  }
+
+  @Post('duplicate-check')
+  checkDuplicates(@Body() dto: DuplicateQuestionCheckDto, @Request() req) {
+    return this.questionsService.checkDuplicateQuestions(dto.courseId, req.user);
+  }
+
+  @Get('duplicate-preference')
+  getDuplicatePreference(@Request() req) {
+    return this.questionsService.getDuplicatePreference(req.user);
+  }
+
+  @Patch('duplicate-preference')
+  updateDuplicatePreference(@Body() dto: UpdateDuplicatePreferenceDto, @Request() req) {
+    return this.questionsService.updateDuplicatePreference(dto.similarityThreshold, req.user);
   }
 
   @Patch('drafts/:draftId/steps/:stepKey')
