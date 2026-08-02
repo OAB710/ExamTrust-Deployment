@@ -270,6 +270,10 @@ async function buildFeInfoText() {
   ]);
   const fmt = (n, fallback = "?") => (n === null ? fallback : n.toLocaleString("en-US"));
   const statusLabel = enabled === null ? "?" : enabled ? "On" : "Off";
+  // Deploys run `wrangler deploy` directly on the GitHub Actions runner
+  // (see deploy-fe.yml), not Cloudflare's own hosted Workers Builds service —
+  // so this quota is expected to stay at/near 0 regardless of deploy volume.
+  const buildMinutesNote = buildMinutes === 0 ? " (deploy chạy qua GitHub Actions, không tính vào đây)" : "";
   return (
     `🖥️ FE Info\n` +
     `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
@@ -277,7 +281,7 @@ async function buildFeInfoText() {
     `📊 Cloudflare Usage\n` +
     `• Requests today: ${fmt(requests)} / 100,000\n` +
     `• Observability events today: ${fmt(obsEvents)} / 200,000\n` +
-    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000`
+    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}`
   );
 }
 
@@ -308,16 +312,19 @@ async function buildBeInfoText() {
 }
 
 async function buildPublicInfoText() {
-  const [enabled, requests, obsEvents, buildMinutes, feRun, beRun] = await Promise.all([
+  const [enabled, requests, obsEvents, buildMinutes, feRun, beRun, aiStatus] = await Promise.all([
     getFeSubdomainEnabled(),
     getTodayRequestCount(),
     getTodayObservabilityEventCount(),
     getThisMonthBuildMinutes(),
     getLatestWorkflowRun(GITHUB_WORKFLOW_FILE),
     getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE),
+    getAiStatus(),
   ]);
   const fmt = (n, fallback = "?") => (n === null ? fallback : n.toLocaleString("en-US"));
   const statusLabel = enabled === null ? "?" : enabled ? "On" : "Off";
+  const buildMinutesNote = buildMinutes === 0 ? " (deploy chạy qua GitHub Actions, không tính vào đây)" : "";
+  const aiLine = aiStatus ? `🧠 AI: ${aiStatus.provider} (${aiStatus.model})` : `🧠 AI: ?`;
   return (
     `🖥️ FE Info\n` +
     `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
@@ -325,10 +332,11 @@ async function buildPublicInfoText() {
     `📊 Cloudflare Usage\n` +
     `• Requests today: ${fmt(requests)} / 100,000\n` +
     `• Observability events today: ${fmt(obsEvents)} / 200,000\n` +
-    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000\n\n` +
+    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}\n\n` +
     `--------------------\n\n` +
     `🖥️ BE Info\n` +
-    `🏗️ Build Status: ${formatBuildStatus(beRun)}`
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +
+    `${aiLine}`
   );
 }
 
