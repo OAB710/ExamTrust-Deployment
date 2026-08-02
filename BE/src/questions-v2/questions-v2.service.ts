@@ -1660,8 +1660,12 @@ export class QuestionsService {
 
     if (query.courseId) {
       if (await this.hasTable('question_course_scopes')) {
-        where.push('EXISTS (SELECT 1 FROM question_course_scopes qcs WHERE qcs.questionId COLLATE utf8mb4_unicode_ci = q.id COLLATE utf8mb4_unicode_ci AND qcs.courseId COLLATE utf8mb4_unicode_ci = ?)');
-        args.push(query.courseId);
+        // A question always belongs to its own home course (q.courseId) even when it
+        // has no row in question_course_scopes yet — that table only adds extra courses
+        // a question is shared into (e.g. via AI draft publish), it isn't the sole source
+        // of truth for a question's primary course.
+        where.push('(q.courseId COLLATE utf8mb4_unicode_ci = ? OR EXISTS (SELECT 1 FROM question_course_scopes qcs WHERE qcs.questionId COLLATE utf8mb4_unicode_ci = q.id COLLATE utf8mb4_unicode_ci AND qcs.courseId COLLATE utf8mb4_unicode_ci = ?))');
+        args.push(query.courseId, query.courseId);
       } else {
         where.push('q.courseId COLLATE utf8mb4_unicode_ci = ?');
         args.push(query.courseId);

@@ -26,7 +26,6 @@ type Question = {
   feedback?: string;
 };
 
-const AUTO_TYPES = new Set(["MULTIPLE_CHOICE", "MULTI_SELECT", "TRUE_FALSE"]);
 const formatPoints = (value: number) => Number(value || 0).toFixed(1);
 
 function textValue(value: unknown): string {
@@ -38,6 +37,40 @@ function textValue(value: unknown): string {
     return textValue(item.answer ?? item.text ?? item.content ?? JSON.stringify(item));
   }
   return String(value);
+}
+
+function parseOptionTexts(options: unknown): string[] {
+  if (Array.isArray(options)) return options.map((option) => textValue(option)).filter(Boolean);
+  if (options && typeof options === "object") {
+    return Object.keys(options as Record<string, unknown>)
+      .sort()
+      .map((key) => textValue((options as Record<string, unknown>)[key]))
+      .filter(Boolean);
+  }
+  return [];
+}
+
+// Renders a student's MATCHING/ORDERING answer as readable text instead of
+// the raw JSON object it's stored as. Mirrors the same options-splitting
+// convention exam-taking-model.ts uses to present these question types.
+function formatStructuredAnswer(type: string, rawAnswer: unknown, questionOptions: unknown): string | null {
+  if (rawAnswer == null || typeof rawAnswer !== "object" || Array.isArray(rawAnswer)) return null;
+  const answerMap = rawAnswer as Record<string, unknown>;
+
+  if (type === "MATCHING") {
+    const options = parseOptionTexts(questionOptions);
+    if (options.length === 0) return null;
+    const half = Math.max(1, Math.floor(options.length / 2));
+    const left = options.slice(0, half);
+    return left
+      .map((leftText, index) => {
+        const chosen = textValue(answerMap[String(index)]);
+        return `${leftText} → ${chosen || "Chưa ghép"}`;
+      })
+      .join("; ");
+  }
+
+  return null;
 }
 
 export default function GradingBreakdown() {
@@ -69,8 +102,14 @@ export default function GradingBreakdown() {
     return {
       id: String(answer.id || question.id || index), number: index + 1,
       content: textValue(question.content || question.text) || "Nội dung câu hỏi chưa khả dụng",
-      type: AUTO_TYPES.has(question.type) ? "auto" : "manual",
-      answer: textValue(answer.answer), correctAnswer: textValue(question.correctAnswer),
+      // Backend only leaves pointsAwarded null for question types it can't
+      // grade objectively (see SubmissionsService.isAutoGradable) — reading
+      // that signal directly stays correct as auto-gradable types are added,
+      // instead of duplicating a type allowlist here that can silently
+      // drift out of sync with the backend's.
+      type: answer.pointsAwarded === null || answer.pointsAwarded === undefined ? "manual" : "auto",
+      answer: formatStructuredAnswer(question.type, answer.answer, question.options) ?? textValue(answer.answer),
+      correctAnswer: textValue(question.correctAnswer),
       points: Number(answer.pointsAwarded ?? 0), maxPoints: Number(question.points ?? 0),
       isCorrect: Boolean(answer.isCorrect),
       isGraded: Boolean(answer.manualGradedAt),

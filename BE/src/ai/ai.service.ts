@@ -15,6 +15,7 @@ export class AiService {
   private genAI: GoogleGenerativeAI;
   private nvidiaAI: OpenAI;
   private openRouterAI: OpenAI;
+  private deepseekAI: OpenAI;
   private model: any;
   private provider: string;
   private localUrl: string | undefined;
@@ -23,6 +24,7 @@ export class AiService {
   private ollamaVisionModel: string;
   private nvidiaModel: string;
   private openRouterModel: string;
+  private deepseekModel: string;
   private appName: string;
   private defaultLanguage: string;
   private ollamaTemperature: number;
@@ -45,6 +47,7 @@ export class AiService {
       || 'moondream';
     this.nvidiaModel = this.configService.get<string>('AI_NVIDIA_MODEL') || 'z-ai/glm-5.2';
     this.openRouterModel = this.configService.get<string>('AI_OPENROUTER_MODEL') || 'nvidia/nemotron-3-ultra-550b-a55b:free';
+    this.deepseekModel = this.configService.get<string>('AI_DEEPSEEK_MODEL') || 'deepseek-chat';
     this.appName = this.configService.get<string>('AI_APP_NAME') || 'Academic Trust Suite';
     this.defaultLanguage = this.configService.get<string>('AI_DEFAULT_LANGUAGE') || 'vi';
     this.ollamaTemperature = Number(this.configService.get<string>('AI_OLLAMA_TEMPERATURE') || 0.2);
@@ -90,6 +93,17 @@ export class AiService {
         },
       });
       this.logger.log(`AI provider: OpenRouter @ ${openRouterBaseUrl} (model: ${this.openRouterModel})`);
+    } else if (this.provider === 'deepseek') {
+      const deepseekApiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
+      const deepseekBaseUrl = this.configService.get<string>('AI_DEEPSEEK_BASE_URL') || 'https://api.deepseek.com';
+      if (!deepseekApiKey) {
+        this.logger.warn('DEEPSEEK_API_KEY not set. DeepSeek AI features will not work.');
+      }
+      this.deepseekAI = new OpenAI({
+        apiKey: deepseekApiKey || '',
+        baseURL: deepseekBaseUrl,
+      });
+      this.logger.log(`AI provider: DeepSeek @ ${deepseekBaseUrl} (model: ${this.deepseekModel})`);
     } else {
       this.logger.log(`AI provider set to '${this.provider}'. Using local/mock mode.`);
     }
@@ -198,6 +212,8 @@ Rules:
         responseText = await this._callNvidia(systemPrompt);
       } else if (this.provider === 'openrouter') {
         responseText = await this._callOpenRouter(systemPrompt);
+      } else if (this.provider === 'deepseek') {
+        responseText = await this._callDeepSeek(systemPrompt);
       } else if (this.provider === 'local' && this.localUrl) {
         const resp = await fetch(this.localUrl, {
           method: 'POST',
@@ -391,6 +407,8 @@ ${typeInstruction}
         responseText = await this._callNvidia(systemPrompt);
       } else if (this.provider === 'openrouter') {
         responseText = await this._callOpenRouter(systemPrompt);
+      } else if (this.provider === 'deepseek') {
+        responseText = await this._callDeepSeek(systemPrompt);
       } else if (this.provider === 'local' && this.localUrl) {
         const resp = await fetch(this.localUrl, {
           method: 'POST',
@@ -579,6 +597,8 @@ Rules:
         responseText = await this._callNvidia(systemPrompt);
       } else if (this.provider === 'openrouter') {
         responseText = await this._callOpenRouter(systemPrompt);
+      } else if (this.provider === 'deepseek') {
+        responseText = await this._callDeepSeek(systemPrompt);
       } else if (this.provider === 'local' && this.localUrl) {
         const resp = await fetch(this.localUrl, {
           method: 'POST',
@@ -728,6 +748,8 @@ Rules:
         responseText = await this._callNvidia(systemPrompt);
       } else if (this.provider === 'openrouter') {
         responseText = await this._callOpenRouter(systemPrompt);
+      } else if (this.provider === 'deepseek') {
+        responseText = await this._callDeepSeek(systemPrompt);
       } else if (this.provider === 'local' && this.localUrl) {
         const resp = await fetch(this.localUrl, {
           method: 'POST',
@@ -881,6 +903,9 @@ Rules:
       }
       if (this.provider === 'openrouter') {
         return this._callOpenRouter(prompt);
+      }
+      if (this.provider === 'deepseek') {
+        return this._callDeepSeek(prompt);
       }
       if (this.provider === 'local' && this.localUrl) {
         const resp = await fetch(this.localUrl, {
@@ -1085,6 +1110,8 @@ Rules:
         responseText = await this._callNvidia(prompt);
       } else if (this.provider === 'openrouter') {
         responseText = await this._callOpenRouter(prompt);
+      } else if (this.provider === 'deepseek') {
+        responseText = await this._callDeepSeek(prompt);
       } else if (this.provider === 'local' && this.localUrl) {
         const resp = await fetch(this.localUrl, {
           method: 'POST',
@@ -1238,6 +1265,23 @@ Rules:
       if (typeof reasoningTokens !== 'undefined') {
         this.logger.debug(`OpenRouter reasoning tokens: ${reasoningTokens}`);
       }
+    }
+    return text;
+  }
+
+  private async _callDeepSeek(prompt: string): Promise<string> {
+    const completion = await this.deepseekAI.chat.completions.create({
+      model: this.deepseekModel,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 1,
+      top_p: 0.95,
+      max_tokens: 8192,
+      stream: true,
+    });
+
+    let text = '';
+    for await (const chunk of completion as any) {
+      text += chunk.choices?.[0]?.delta?.content || '';
     }
     return text;
   }

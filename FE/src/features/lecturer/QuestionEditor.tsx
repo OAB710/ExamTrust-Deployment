@@ -556,23 +556,23 @@ export default function QuestionEditor() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="multiple_choice">
-                            Multiple Choice
+                            Trắc nghiệm nhiều lựa chọn
                           </SelectItem>
                           <SelectItem value="true_false">
-                            True / False
+                            Đúng / Sai
                           </SelectItem>
                           <SelectItem value="fill_blank">
-                            Fill in the Blank
+                            Điền vào chỗ trống
                           </SelectItem>
-                          <SelectItem value="matching">Matching</SelectItem>
+                          <SelectItem value="matching">Ghép đôi</SelectItem>
                           <SelectItem value="find_error">
-                            Find the Error
+                            Tìm lỗi sai
                           </SelectItem>
                           <SelectItem value="ordering">
-                            Ordering / Sequencing
+                            Sắp xếp theo thứ tự
                           </SelectItem>
                           <SelectItem value="essay">
-                            Short Answer / Essay
+                            Trả lời ngắn / Tự luận
                           </SelectItem>
                         </SelectContent>
                       </Select>

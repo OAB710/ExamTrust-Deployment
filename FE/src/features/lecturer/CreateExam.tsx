@@ -65,6 +65,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
+import { useQuestionAnswerState } from "./hooks/useQuestionAnswerState";
+import { FillBlankGuide, QuestionAnswerEditor } from "./components/QuestionAnswerEditor";
+import { buildQuestionPayload } from "./question-editor-persistence";
 import {
   getNumericInputError,
   parseNumericInput,
@@ -74,7 +77,6 @@ import {
   COURSE_TERM_OPTIONS,
   formatCourseTerm,
   getAcademicYearOptions,
-  getDefaultAcademicYear,
   type CourseTerm,
 } from "@/lib/course-term";
 import { cn } from "@/lib/utils";
@@ -86,12 +88,11 @@ import {
   WHOLE_COURSE_LABEL,
   buildReviewSettingsPayload,
   createDefaultForm,
-  createDefaultManualOptions,
   createDefaultReviewSettingsDraft,
   difficultyLabelFromValue,
+  difficultyLabelViFromValue,
   difficultyOptionToBankValue,
   difficultyOptionToValue,
-  getCurrentCourseTerm,
   getDefaultExamWindow,
   mapQuestionTypeToAiApi,
   mapQuestionTypeToDb,
@@ -104,7 +105,6 @@ import {
   type BankTopic,
   type CourseOption,
   type ExamForm,
-  type ManualQuestionOption,
   type QuestionSourceMode,
   type ReviewSettingsDraft,
   type Step,
@@ -133,11 +133,27 @@ export default function CreateExam() {
   const [isLoadingBankQuestions, setIsLoadingBankQuestions] = useState(false);
   const [manualQuestionContent, setManualQuestionContent] = useState("");
   const [manualQuestionType, setManualQuestionType] = useState("multiple_choice");
-  const [manualOptions, setManualOptions] = useState<ManualQuestionOption[]>(createDefaultManualOptions);
-  const [manualMultipleAnswers, setManualMultipleAnswers] = useState(false);
-  const [manualTrueFalseAnswer, setManualTrueFalseAnswer] = useState<"true" | "false">("true");
+  const {
+    options: manualOptions,
+    setOptions: setManualOptions,
+    multipleAnswers: manualMultipleAnswers,
+    setMultipleAnswers: setManualMultipleAnswers,
+    pinnedOptions: manualPinnedOptions,
+    setPinnedOptions: setManualPinnedOptions,
+    tfAnswer: manualTrueFalseAnswer,
+    setTfAnswer: setManualTrueFalseAnswer,
+    essayRubric: manualEssayRubric,
+    setEssayRubric: setManualEssayRubric,
+    addOption: addManualOption,
+    removeOption: removeManualOption,
+    updateOption: updateManualOption,
+    updateOptionMatch: updateManualOptionMatch,
+    moveOption: moveManualOption,
+    toggleCorrectOption: toggleManualCorrectOption,
+    togglePinnedOption: toggleManualPinnedOption,
+    resetAnswer: resetManualAnswer,
+  } = useQuestionAnswerState();
   const [manualExplanation, setManualExplanation] = useState("");
-  const [manualEssayRubric, setManualEssayRubric] = useState("");
   const [manualDifficulty, setManualDifficulty] = useState("medium");
   const [manualTopicId, setManualTopicId] = useState("");
   const [manualLearningObjective, setManualLearningObjective] = useState("");
@@ -146,12 +162,12 @@ export default function CreateExam() {
   const [courseComboboxOpen, setCourseComboboxOpen] = useState(false);
   const [courseSearch, setCourseSearch] = useState("");
   const skipNextCourseFocusRef = useRef(false);
-  const [courseAcademicYearFilter, setCourseAcademicYearFilter] = useState(() =>
-    getDefaultAcademicYear(),
-  );
-  const [courseTermFilter, setCourseTermFilter] = useState<CourseTerm | "all">(
-    () => getCurrentCourseTerm(),
-  );
+  // Default both course filters to "all" rather than guessing the current
+  // academic year/term from today's date: a course tagged for a different
+  // term/year would otherwise silently disappear from the list even though
+  // it was loaded fine, with no visible hint that a filter is hiding it.
+  const [courseAcademicYearFilter, setCourseAcademicYearFilter] = useState("all");
+  const [courseTermFilter, setCourseTermFilter] = useState<CourseTerm | "all">("all");
   const isSingleAttempt = form.maxAttempts === "1";
   const hasUnlimitedAttempts = form.maxAttempts === "unlimited";
   const proctoringForcedOff = hasUnlimitedAttempts || form.unlimitedTime;
@@ -191,7 +207,7 @@ export default function CreateExam() {
     return courses.filter((course) =>
       (!query ||
         `${course.code} ${course.name}`.toLowerCase().includes(query)) &&
-      (!courseAcademicYearFilter ||
+      (courseAcademicYearFilter === "all" ||
         course.academicYear === courseAcademicYearFilter) &&
       (courseTermFilter === "all" || course.term === courseTermFilter),
     );
@@ -208,8 +224,8 @@ export default function CreateExam() {
 
   const resetCourseFilters = () => {
     setCourseSearch("");
-    setCourseAcademicYearFilter(getDefaultAcademicYear());
-    setCourseTermFilter(getCurrentCourseTerm());
+    setCourseAcademicYearFilter("all");
+    setCourseTermFilter("all");
   };
 
   const bankSelectionWarning = useMemo(() => {
@@ -228,8 +244,8 @@ export default function CreateExam() {
         : Number(topic.count || 0);
 
       if (requested > available) {
-        const label = typeFilter ? `for ${typeFilter}` : "in this topic";
-        return `Topic "${topic.topic}" only has ${available} questions ${label}, but ${requested} were requested.`;
+        const label = typeFilter ? `loại ${typeFilter}` : "trong chủ đề này";
+        return `Chủ đề "${topic.topic}" chỉ có ${available} câu hỏi ${label}, nhưng bạn yêu cầu ${requested} câu.`;
       }
     }
 
@@ -239,7 +255,11 @@ export default function CreateExam() {
   useEffect(() => {
     const loadCourses = async () => {
       try {
-        const data = unwrapPaginatedData(await api.getCourses());
+        // GET /courses already scopes STUDENT/LECTURER requests to their own
+        // courses server-side; only the ADMIN branch falls back to the
+        // system-wide, paginated list (default limit 20). Pass a generous
+        // limit so an admin's course picker isn't silently truncated.
+        const data = unwrapPaginatedData(await api.getCourses({ limit: 200 }));
         const mappedCourses = data.map((course: any) => ({
           id: course.id,
           code: course.code,
@@ -442,6 +462,19 @@ export default function CreateExam() {
     });
   }, [bankQuestions, form.bankDifficulty, form.questionType]);
 
+  const isAllFilteredBankQuestionsSelected =
+    filteredBankQuestions.length > 0 &&
+    filteredBankQuestions.every((question) => selectedBankQuestionIds.includes(question.id));
+
+  const toggleSelectAllBankQuestions = () => {
+    const filteredIds = filteredBankQuestions.map((question) => question.id);
+    setSelectedBankQuestionIds((ids) =>
+      isAllFilteredBankQuestionsSelected
+        ? ids.filter((id) => !filteredIds.includes(id))
+        : [...new Set([...ids, ...filteredIds])],
+    );
+  };
+
   const randomQuestionCount = useMemo(
     () =>
       bankTopics.reduce(
@@ -462,17 +495,21 @@ export default function CreateExam() {
 
     const filledOptions = manualOptions.filter((option) => option.text.trim());
     if (
-      ["multiple_choice", "matching", "ordering"].includes(manualQuestionType) &&
+      ["multiple_choice", "matching", "ordering", "find_error"].includes(manualQuestionType) &&
       filledOptions.length < 2
     ) {
       toast.error("At least two options or items are required.");
       return;
     }
     if (
-      manualQuestionType === "multiple_choice" &&
+      ["multiple_choice", "find_error"].includes(manualQuestionType) &&
       !filledOptions.some((option) => option.isCorrect)
     ) {
-      toast.error("Select at least one correct answer.");
+      toast.error(
+        manualQuestionType === "find_error"
+          ? "Select the line that contains the error."
+          : "Select at least one correct answer.",
+      );
       return;
     }
     if (manualQuestionType === "essay" && !manualEssayRubric.trim()) {
@@ -480,54 +517,35 @@ export default function CreateExam() {
       return;
     }
 
-    const backendType =
-      manualQuestionType === "multiple_choice"
-        ? manualMultipleAnswers
-          ? "MULTI_SELECT"
-          : "MULTIPLE_CHOICE"
-        : manualQuestionType === "true_false"
-          ? "TRUE_FALSE"
-          : manualQuestionType === "fill_blank"
-            ? "FILL_IN_BLANK"
-            : manualQuestionType === "matching"
-              ? "MATCHING"
-              : manualQuestionType === "ordering"
-                ? "ORDERING"
-                : "ESSAY";
-    const options =
-      manualQuestionType === "matching"
-        ? filledOptions.reduce<Record<string, string>>((result, option) => {
-            result[option.text] = option.match || "";
-            return result;
-          }, {})
-        : ["multiple_choice", "ordering"].includes(manualQuestionType)
-          ? filledOptions.reduce<Record<string, string>>((result, option) => {
-              result[option.id] = option.text;
-              return result;
-            }, {})
-          : undefined;
-    const correctAnswer =
-      manualQuestionType === "multiple_choice"
+    // Fill-in-the-blank has no equivalent branch in buildQuestionPayload (the
+    // shared builder used by the question bank editor), so its answer is
+    // still derived here from the [[...]] markers in the question content.
+    // Every other type is built the exact same way the question bank editor
+    // builds it, so a manually-added exam question is never out of sync with
+    // one created via /lecturer/question-editor.
+    const { type: backendType, options, correctAnswer } =
+      manualQuestionType === "fill_blank"
         ? {
-            answer: filledOptions
-              .filter((option) => option.isCorrect)
-              .map((option) => option.id)
-              .join(","),
+            type: "FILL_IN_BLANK",
+            options: undefined as Record<string, string> | undefined,
+            correctAnswer: {
+              answers: Array.from(
+                manualQuestionContent.matchAll(/\[\[(.*?)\]\]/g),
+                (match) => match[1],
+              ),
+            },
           }
-        : manualQuestionType === "true_false"
-          ? { answer: manualTrueFalseAnswer === "true" }
-          : manualQuestionType === "fill_blank"
-            ? {
-                answers: Array.from(
-                  manualQuestionContent.matchAll(/\[\[(.*?)\]\]/g),
-                  (match) => match[1],
-                ),
-              }
-            : manualQuestionType === "ordering"
-              ? { order: filledOptions.map((option) => option.id) }
-              : manualQuestionType === "matching"
-                ? { pairs: options }
-                : { rubric: manualEssayRubric.trim() };
+        : buildQuestionPayload({
+            questionType: manualQuestionType,
+            multipleAnswers: manualMultipleAnswers,
+            content: manualQuestionContent,
+            explanation: manualExplanation,
+            difficulty: [difficultyOptionToValue(manualDifficulty)],
+            scoreCoefficient: "1",
+            tfAnswer: manualTrueFalseAnswer,
+            essayRubric: manualEssayRubric,
+            options: manualOptions,
+          });
 
     setAiGeneratedQuestions((questions) => [
       ...questions,
@@ -545,10 +563,7 @@ export default function CreateExam() {
     ]);
     setManualQuestionContent("");
     setManualExplanation("");
-    setManualEssayRubric("");
-    setManualOptions(createDefaultManualOptions());
-    setManualMultipleAnswers(false);
-    setManualTrueFalseAnswer("true");
+    resetManualAnswer();
   };
 
   const applyGeneratedQuestionToManualForm = (question: any) => {
@@ -562,9 +577,11 @@ export default function CreateExam() {
             ? "matching"
             : type === "ORDERING"
               ? "ordering"
-              : type === "ESSAY" || type === "SHORT_ANSWER"
-                ? "essay"
-                : "multiple_choice";
+              : type === "FIND_ERROR"
+                ? "find_error"
+                : type === "ESSAY" || type === "SHORT_ANSWER"
+                  ? "essay"
+                  : "multiple_choice";
 
     setManualQuestionType(nextType);
     setManualQuestionContent(String(question?.content || ""));
@@ -574,7 +591,24 @@ export default function CreateExam() {
     if (nextType === "true_false") {
       setManualTrueFalseAnswer(question?.correctAnswer?.answer === false ? "false" : "true");
     } else if (nextType === "essay") {
-      setManualEssayRubric(String(question?.correctAnswer?.rubric || question?.explanation || ""));
+      setManualEssayRubric(String(question?.correctAnswer?.answer || question?.explanation || ""));
+    } else if (nextType === "matching" && Array.isArray(question?.pairs)) {
+      setManualOptions(
+        question.pairs.map((pair: any, index: number) => ({
+          id: String.fromCharCode(65 + index),
+          text: String(pair?.left || ""),
+          match: String(pair?.right || ""),
+          isCorrect: false,
+        })),
+      );
+    } else if (nextType === "ordering" && Array.isArray(question?.items)) {
+      setManualOptions(
+        question.items.map((item: any, index: number) => ({
+          id: String.fromCharCode(65 + index),
+          text: String(item || ""),
+          isCorrect: false,
+        })),
+      );
     } else if (question?.options && typeof question.options === "object") {
       const answer = String(question?.correctAnswer?.answer || "");
       setManualOptions(
@@ -592,10 +626,12 @@ export default function CreateExam() {
     if (!manualAiPrompt.trim()) return;
     setIsManualAiGenerating(true);
     try {
-      const result = await api.aiGenerateExamQuestions({
+      // Uses the same single-question generator (and prompt, which has proper
+      // MATCHING/ORDERING/FILL_IN_BLANK instructions) as /lecturer/question-editor,
+      // instead of the batch exam-questions generator whose prompt only covers
+      // MULTIPLE_CHOICE/TRUE_FALSE/SHORT_ANSWER/ESSAY.
+      const generated = await api.aiGenerateQuestion({
         prompt: manualAiPrompt,
-        questionCount: 1,
-        difficulty: difficultyOptionToValue(manualDifficulty),
         questionType: mapQuestionTypeToAiApi(
           manualQuestionType === "multiple_choice"
             ? "multiple-choice"
@@ -603,13 +639,16 @@ export default function CreateExam() {
               ? "true-false"
               : manualQuestionType === "fill_blank"
                 ? "fill-blank"
-                : manualQuestionType === "essay"
-                  ? "short-answer"
-                  : manualQuestionType,
+                : manualQuestionType === "find_error"
+                  ? "find-error"
+                  : manualQuestionType === "essay"
+                    ? "short-answer"
+                    : manualQuestionType,
         ),
-        language: "en",
+        difficulty: difficultyOptionToValue(manualDifficulty),
+        language: "vi",
         courseName: courses.find((course) => course.id === form.course)?.name,
-        useCase: "exam",
+        useCase: "question_bank",
         context: {
           courseId: form.course,
           courseName: courses.find((course) => course.id === form.course)?.name,
@@ -618,8 +657,7 @@ export default function CreateExam() {
           source: "create_exam_manual_ai",
         },
       });
-      const generated = Array.isArray(result?.questions) ? result.questions[0] : null;
-      if (!generated) throw new Error("AI did not return a question.");
+      if (!generated?.content) throw new Error("AI did not return a question.");
       applyGeneratedQuestionToManualForm(generated);
       toast.success("AI generated a draft question. Review it before adding.");
     } catch (error: any) {
@@ -1072,6 +1110,7 @@ export default function CreateExam() {
                           <SelectValue placeholder="Năm học" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="all">Tất cả năm học</SelectItem>
                           {courseAcademicYearOptions.map((year) => (
                             <SelectItem key={year} value={year}>
                               {year}
@@ -1713,7 +1752,7 @@ export default function CreateExam() {
                                 value={manualQuestionType}
                                 onValueChange={(value) => {
                                   setManualQuestionType(value);
-                                  setManualOptions(createDefaultManualOptions());
+                                  setManualPinnedOptions(new Set());
                                 }}
                               >
                                 <SelectTrigger className="w-full sm:w-[280px]"><SelectValue /></SelectTrigger>
@@ -1723,6 +1762,7 @@ export default function CreateExam() {
                                   <SelectItem value="fill_blank">Điền vào chỗ trống</SelectItem>
                                   <SelectItem value="matching">Ghép đôi</SelectItem>
                                   <SelectItem value="ordering">Sắp xếp theo thứ tự</SelectItem>
+                                  <SelectItem value="find_error">Tìm lỗi sai</SelectItem>
                                   <SelectItem value="essay">Trả lời ngắn / Tự luận</SelectItem>
                                 </SelectContent>
                               </Select>
@@ -1735,11 +1775,7 @@ export default function CreateExam() {
                               <CardDescription>Nhập nội dung hiển thị cho sinh viên.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-3">
-                              {manualQuestionType === "fill_blank" && (
-                                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
-                                  Đánh dấu đáp án bằng hai dấu ngoặc vuông, ví dụ: Thủ đô của Pháp là [[Paris]].
-                                </div>
-                              )}
+                              {manualQuestionType === "fill_blank" && <FillBlankGuide />}
                               <Textarea
                                 className="min-h-32 text-base"
                                 value={manualQuestionContent}
@@ -1749,132 +1785,24 @@ export default function CreateExam() {
                             </CardContent>
                           </Card>
 
-                          {manualQuestionType !== "fill_blank" && (
-                            <Card>
-                              <CardHeader className="pb-3">
-                                <div className="flex items-center justify-between gap-3">
-                                  <CardTitle className="text-base">
-                                    {manualQuestionType === "multiple_choice" && "Các phương án trả lời"}
-                                    {manualQuestionType === "true_false" && "Đáp án đúng"}
-                                    {manualQuestionType === "matching" && "Các cặp ghép đôi"}
-                                    {manualQuestionType === "ordering" && "Các mục cần sắp xếp"}
-                                    {manualQuestionType === "essay" && "Tiêu chí chấm điểm"}
-                                  </CardTitle>
-                                  {["multiple_choice", "matching", "ordering"].includes(manualQuestionType) && manualOptions.length < 8 && (
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        setManualOptions((options) => [
-                                          ...options,
-                                          {
-                                            id: String.fromCharCode(65 + options.length),
-                                            text: "",
-                                            isCorrect: false,
-                                          },
-                                        ])
-                                      }
-                                    >
-                                      <Plus className="mr-1 h-4 w-4" /> Thêm
-                                    </Button>
-                                  )}
-                                </div>
-                              </CardHeader>
-                              <CardContent className="space-y-3">
-                                {manualQuestionType === "multiple_choice" && (
-                                  <div className="flex items-center gap-3">
-                                    <Label>Cho phép nhiều đáp án đúng</Label>
-                                    <Switch checked={manualMultipleAnswers} onCheckedChange={setManualMultipleAnswers} />
-                                  </div>
-                                )}
-
-                                {["multiple_choice", "matching", "ordering"].includes(manualQuestionType) &&
-                                  manualOptions.map((option, index) => (
-                                    <div key={option.id} className="flex items-center gap-3">
-                                      {manualQuestionType === "multiple_choice" ? (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            setManualOptions((options) =>
-                                              options.map((item) => ({
-                                                ...item,
-                                                isCorrect: manualMultipleAnswers
-                                                  ? item.id === option.id
-                                                    ? !item.isCorrect
-                                                    : item.isCorrect
-                                                  : item.id === option.id,
-                                              })),
-                                            )
-                                          }
-                                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-medium ${
-                                            option.isCorrect ? "border-green-500 bg-green-100 text-green-700" : "border-border"
-                                          }`}
-                                        >
-                                          {option.id}
-                                        </button>
-                                      ) : (
-                                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
-                                          {index + 1}
-                                        </span>
-                                      )}
-                                      <Input
-                                        value={option.text}
-                                        placeholder={manualQuestionType === "matching" ? "Khái niệm" : `Phương án ${option.id}`}
-                                        onChange={(event) =>
-                                          setManualOptions((options) =>
-                                            options.map((item) => item.id === option.id ? { ...item, text: event.target.value } : item),
-                                          )
-                                        }
-                                      />
-                                      {manualQuestionType === "matching" && (
-                                        <Input
-                                          value={option.match || ""}
-                                          placeholder="Giá trị tương ứng"
-                                          onChange={(event) =>
-                                            setManualOptions((options) =>
-                                              options.map((item) => item.id === option.id ? { ...item, match: event.target.value } : item),
-                                            )
-                                          }
-                                        />
-                                      )}
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        disabled={manualOptions.length <= 2}
-                                        onClick={() => setManualOptions((options) => options.filter((item) => item.id !== option.id))}
-                                      >
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                      </Button>
-                                    </div>
-                                  ))}
-
-                                {manualQuestionType === "true_false" && (
-                                  <div className="grid grid-cols-2 gap-3">
-                                    {(["true", "false"] as const).map((value) => (
-                                      <Button
-                                        key={value}
-                                        type="button"
-                                        variant={manualTrueFalseAnswer === value ? "default" : "outline"}
-                                        onClick={() => setManualTrueFalseAnswer(value)}
-                                      >
-                                        {value === "true" ? "Đúng" : "Sai"}
-                                      </Button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {manualQuestionType === "essay" && (
-                                  <Textarea
-                                    value={manualEssayRubric}
-                                    onChange={(event) => setManualEssayRubric(event.target.value)}
-                                    placeholder="Mô tả tiêu chí chấm điểm và các ý chính cần có..."
-                                  />
-                                )}
-                              </CardContent>
-                            </Card>
-                          )}
+                          <QuestionAnswerEditor
+                            questionType={manualQuestionType}
+                            options={manualOptions}
+                            multipleAnswers={manualMultipleAnswers}
+                            tfAnswer={manualTrueFalseAnswer}
+                            essayRubric={manualEssayRubric}
+                            pinnedOptions={manualPinnedOptions}
+                            onMultipleAnswersChange={setManualMultipleAnswers}
+                            onTfAnswerChange={setManualTrueFalseAnswer}
+                            onEssayRubricChange={setManualEssayRubric}
+                            onAddOption={addManualOption}
+                            onRemoveOption={removeManualOption}
+                            onUpdateOption={updateManualOption}
+                            onUpdateMatch={updateManualOptionMatch}
+                            onMoveOption={moveManualOption}
+                            onToggleCorrect={toggleManualCorrectOption}
+                            onTogglePinned={toggleManualPinnedOption}
+                          />
 
                           <Card>
                             <CardHeader className="pb-3">
@@ -1981,7 +1909,7 @@ export default function CreateExam() {
                       <div className="space-y-4 rounded-xl border p-5">
                         <div>
                           <div className="inline-flex items-center gap-1.5">
-                            <Label>Select topic first</Label>
+                            <Label>Chọn chủ đề trước</Label>
                             <ContextHelp content={{
                               description: "Chọn chủ đề để giới hạn danh sách câu hỏi theo nhóm kiến thức cần đưa vào đề.",
                               usedBy: "Dùng khi lấy câu hỏi từ ngân hàng thay vì tạo mới.",
@@ -1989,9 +1917,9 @@ export default function CreateExam() {
                             }} />
                           </div>
                           <Select value={selectedBankTopicId} onValueChange={setSelectedBankTopicId}>
-                            <SelectTrigger className="mt-1"><SelectValue placeholder="Choose a topic" /></SelectTrigger>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn chủ đề" /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="__all__">All course questions</SelectItem>
+                              <SelectItem value="__all__">Tất cả câu hỏi trong học phần</SelectItem>
                               {bankTopics.filter((topic) => topic.topicId).map((topic) => (
                                 <SelectItem key={topic.topicId} value={topic.topicId}>{topic.topic} ({topic.count})</SelectItem>
                               ))}
@@ -2003,7 +1931,7 @@ export default function CreateExam() {
                             <div className="grid gap-4 md:grid-cols-2">
                               <div>
                                 <div className="inline-flex items-center gap-1.5">
-                                  <Label>Question type</Label>
+                                  <Label>Loại câu hỏi</Label>
                                   <ContextHelp content={{
                                     description: "Lọc ngân hàng theo dạng câu hỏi như trắc nghiệm, đúng/sai hoặc tự luận.",
                                     usedBy: "Dùng khi muốn đề thi có đúng cấu trúc câu hỏi đã thiết kế.",
@@ -2021,7 +1949,7 @@ export default function CreateExam() {
                               </div>
                               <div>
                                 <div className="inline-flex items-center gap-1.5">
-                                  <Label>Difficulty</Label>
+                                  <Label>Độ khó</Label>
                                   <ContextHelp content={{
                                     description: "Lọc câu hỏi theo mức độ khó đã gắn trong ngân hàng.",
                                     usedBy: "Dùng để cân bằng đề hoặc tạo đề theo một mức độ cụ thể.",
@@ -2031,17 +1959,25 @@ export default function CreateExam() {
                                 <Select value={form.bankDifficulty} onValueChange={(value) => set("bankDifficulty", value)}>
                                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="mixed">Mixed (all levels)</SelectItem>
-                                    <SelectItem value="easy">Easy</SelectItem>
-                                    <SelectItem value="medium">Medium</SelectItem>
-                                    <SelectItem value="hard">Hard</SelectItem>
+                                    <SelectItem value="mixed">Trộn tất cả mức độ</SelectItem>
+                                    <SelectItem value="easy">Dễ</SelectItem>
+                                    <SelectItem value="medium">Trung bình</SelectItem>
+                                    <SelectItem value="hard">Khó</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
                             </div>
+                            {!isLoadingBankQuestions && filteredBankQuestions.length > 0 && (
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs text-muted-foreground">{filteredBankQuestions.length} câu hỏi khả dụng</p>
+                                <Button type="button" variant="outline" size="sm" onClick={toggleSelectAllBankQuestions}>
+                                  {isAllFilteredBankQuestionsSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+                                </Button>
+                              </div>
+                            )}
                             <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
                               {isLoadingBankQuestions ? (
-                                <p className="py-8 text-center text-sm text-muted-foreground">Loading questions...</p>
+                                <p className="py-8 text-center text-sm text-muted-foreground">Đang tải câu hỏi...</p>
                               ) : filteredBankQuestions.map((question) => {
                                 const checked = selectedBankQuestionIds.includes(question.id);
                                 return (
@@ -2054,14 +1990,14 @@ export default function CreateExam() {
                                       <p className="text-sm font-medium">{question.content}</p>
                                       <div className="mt-2 flex gap-2">
                                         <Badge variant="outline">{question.type}</Badge>
-                                        <Badge variant="outline">{difficultyLabelFromValue(question.difficulty)}</Badge>
+                                        <Badge variant="outline">{difficultyLabelViFromValue(question.difficulty)}</Badge>
                                       </div>
                                     </div>
                                   </label>
                                 );
                               })}
                             </div>
-                            <p className="text-sm font-medium">{selectedBankQuestionIds.length} questions selected</p>
+                            <p className="text-sm font-medium">{selectedBankQuestionIds.length} câu hỏi đã chọn</p>
                           </>
                         )}
                       </div>
@@ -2070,12 +2006,12 @@ export default function CreateExam() {
                     {questionSourceMode === "bank-random" && (
                       <div className="space-y-4 rounded-xl border p-5">
                         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                          Topic quotas are saved as the randomization policy for student exam instances.
+                          Số lượng câu hỏi theo mỗi chủ đề sẽ được lưu làm chính sách trộn ngẫu nhiên cho từng lượt thi của sinh viên.
                         </div>
                         <div className="grid gap-4 md:grid-cols-2">
                           <div>
                             <div className="inline-flex items-center gap-1.5">
-                              <Label>Question type</Label>
+                              <Label>Loại câu hỏi</Label>
                               <ContextHelp content="Phân loại cách trả lời của câu hỏi, dùng khi tạo đề và phân tích kết quả." />
                             </div>
                             <Select value={form.questionType} onValueChange={(value) => set("questionType", value)}>
@@ -2085,23 +2021,23 @@ export default function CreateExam() {
                           </div>
                           <div>
                             <div className="inline-flex items-center gap-1.5">
-                              <Label>Difficulty</Label>
+                              <Label>Độ khó</Label>
                               <ContextHelp content="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích." />
                             </div>
                             <Select value={form.bankDifficulty} onValueChange={(value) => set("bankDifficulty", value)}>
                               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                              <SelectContent><SelectItem value="mixed">Mixed (all levels)</SelectItem><SelectItem value="easy">Easy</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="hard">Hard</SelectItem></SelectContent>
+                              <SelectContent><SelectItem value="mixed">Trộn tất cả mức độ</SelectItem><SelectItem value="easy">Dễ</SelectItem><SelectItem value="medium">Trung bình</SelectItem><SelectItem value="hard">Khó</SelectItem></SelectContent>
                             </Select>
                           </div>
                         </div>
                         <p className="text-sm font-medium">
-                          Random pool contribution: {randomQuestionCount} questions
+                          Số câu hỏi ngẫu nhiên: {randomQuestionCount} câu
                         </p>
                         <div className="space-y-2">
                           {bankTopics.map((topic) => (
                             <label key={topic.topicId || topic.topic} className={`flex items-center gap-3 rounded-lg border p-3 ${topic.selected ? "border-primary bg-primary/5" : ""}`}>
                               <Checkbox checked={topic.selected} onCheckedChange={(value) => setBankTopics((topics) => topics.map((item) => item.topicId === topic.topicId ? { ...item, selected: Boolean(value), requestedCount: value ? (item.requestedCount === "0" ? "1" : item.requestedCount) : "0" } : item))} />
-                              <div className="flex-1"><p className="text-sm font-medium">{topic.topic}</p><p className="text-xs text-muted-foreground">{topic.count} available</p></div>
+                              <div className="flex-1"><p className="text-sm font-medium">{topic.topic}</p><p className="text-xs text-muted-foreground">{topic.count} câu khả dụng</p></div>
                               <Input className="w-24" type="number" min={0} value={topic.requestedCount} onChange={(event) => setBankTopics((topics) => topics.map((item) => item.topicId === topic.topicId ? { ...item, requestedCount: sanitizeNumericInput(event.target.value, { min: 0 }), selected: Number(event.target.value || 0) > 0 } : item))} />
                             </label>
                           ))}
@@ -2188,7 +2124,7 @@ export default function CreateExam() {
                       </div>
                       <div>
                         <div className="inline-flex items-center gap-1.5">
-                          <Label>Difficulty</Label>
+                          <Label>Độ khó</Label>
                           <ContextHelp content="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích." />
                         </div>
                         <Select
@@ -2468,8 +2404,8 @@ export default function CreateExam() {
                                   variant="outline"
                                   className="text-[10px] h-4"
                                 >
-                                  Difficulty:{" "}
-                                  {difficultyLabelFromValue(q.difficulty)}
+                                  Độ khó:{" "}
+                                  {difficultyLabelViFromValue(q.difficulty)}
                                 </Badge>
                               </div>
                             </div>
@@ -2556,7 +2492,7 @@ export default function CreateExam() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label>Difficulty</Label>
+                          <Label>Độ khó</Label>
                           <Select
                             value={form.aiDifficulty}
                             onValueChange={(v) => set("aiDifficulty", v)}
@@ -2633,8 +2569,8 @@ export default function CreateExam() {
                                     variant="outline"
                                     className="text-[10px] h-4"
                                   >
-                                    Difficulty:{" "}
-                                    {difficultyLabelFromValue(q.difficulty)}
+                                    Độ khó:{" "}
+                                    {difficultyLabelViFromValue(q.difficulty)}
                                   </Badge>
                                 </div>
                               </div>

@@ -92,8 +92,8 @@ export class ExamsService {
       if (hasAssignedScoreColumn) {
         await client.$executeRawUnsafe(
           `
-          INSERT INTO exam_questions (id, examId, questionId, questionVersionId, orderIndex, points, assignedScore)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO exam_questions (id, examId, questionId, questionVersionId, orderIndex, points, assignedScore, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, NOW(3))
           `,
           id,
           data.examId,
@@ -106,8 +106,8 @@ export class ExamsService {
       } else {
         await client.$executeRawUnsafe(
           `
-          INSERT INTO exam_questions (id, examId, questionId, questionVersionId, orderIndex, points)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO exam_questions (id, examId, questionId, questionVersionId, orderIndex, points, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, NOW(3))
           `,
           id,
           data.examId,
@@ -121,8 +121,8 @@ export class ExamsService {
       if (hasAssignedScoreColumn) {
         await client.$executeRawUnsafe(
           `
-          INSERT INTO exam_questions (id, examId, questionId, orderIndex, points, assignedScore)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO exam_questions (id, examId, questionId, orderIndex, points, assignedScore, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, NOW(3))
           `,
           id,
           data.examId,
@@ -134,8 +134,8 @@ export class ExamsService {
       } else {
         await client.$executeRawUnsafe(
           `
-          INSERT INTO exam_questions (id, examId, questionId, orderIndex, points)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO exam_questions (id, examId, questionId, orderIndex, points, updatedAt)
+          VALUES (?, ?, ?, ?, ?, NOW(3))
           `,
           id,
           data.examId,

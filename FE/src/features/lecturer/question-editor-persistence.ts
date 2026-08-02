@@ -26,11 +26,30 @@ type BuildPayloadParams = {
   essayRubric: string; options: QuestionOption[];
 };
 
+function shuffle<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 export function buildQuestionPayload(params: BuildPayloadParams) {
   const backendType = params.questionType === "multiple_choice" && params.multipleAnswers
     ? "MULTI_SELECT" : backendTypeByEditorType[params.questionType] || "MULTIPLE_CHOICE";
   const isOptionQuestion = params.questionType === "multiple_choice" || params.questionType === "find_error";
   const defaultPoints = Number.parseInt(params.scoreCoefficient, 10);
+
+  const matchingPairs = params.questionType === "matching"
+    ? params.options
+        .filter((option) => option.text.trim() && option.match?.trim())
+        .map((option) => ({ left: option.text, right: option.match as string }))
+    : [];
+  const orderingItems = params.questionType === "ordering"
+    ? params.options.filter((option) => option.text.trim()).map((option) => option.text)
+    : [];
+
   return {
     type: backendType,
     content: params.content,
@@ -40,14 +59,27 @@ export function buildQuestionPayload(params: BuildPayloadParams) {
     // initialized from this bank-level suggestion when the question is added.
     points: defaultPoints,
     defaultPoints,
+    // Matching/ordering must carry their student-facing material in `options`
+    // too, not only in `correctAnswer`: the exam-taking screen builds what it
+    // shows students from `options` alone (`correctAnswer` is the hidden
+    // grading key, stripped before reaching the student).
     options: isOptionQuestion
       ? params.options.filter((option) => option.text.trim()).reduce<Record<string, string>>((value, option) => ({ ...value, [option.id]: option.text }), {})
-      : params.questionType === "true_false" ? { A: "True", B: "False" } : {},
+      : params.questionType === "true_false" ? { A: "True", B: "False" }
+        : params.questionType === "matching" ? {
+            left: matchingPairs.map((pair) => pair.left),
+            // Shuffled once here since the exam-taking screen doesn't
+            // re-shuffle options at render time for real exams (only the
+            // practice-mode fallback does) — an unshuffled 1:1 order would
+            // trivially give the correct pairing away by position.
+            right: shuffle(matchingPairs.map((pair) => pair.right)),
+          }
+          : params.questionType === "ordering" ? orderingItems : {},
     correctAnswer: isOptionQuestion
       ? { answer: params.options.filter((option) => option.isCorrect).map((option) => option.id).join(",") }
       : params.questionType === "true_false" ? { answer: params.tfAnswer === "true" ? "A" : "B" }
-        : params.questionType === "matching" ? { pairs: params.options.filter((option) => option.text.trim() && option.match?.trim()).map((option) => ({ left: option.text, right: option.match })) }
-          : params.questionType === "ordering" ? { items: params.options.filter((option) => option.text.trim()).map((option) => option.text) }
+        : params.questionType === "matching" ? { pairs: matchingPairs }
+          : params.questionType === "ordering" ? { items: orderingItems }
             : params.questionType === "essay" ? { answer: params.essayRubric } : {},
   };
 }

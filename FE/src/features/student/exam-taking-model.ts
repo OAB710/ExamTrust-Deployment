@@ -247,7 +247,7 @@ export function mapBackendToUiQuestion(q: any, index: number): Question {
     return {
       ...base,
       type: "find-error",
-      content: String(q?.content || "Find the line that contains the error:"),
+      content: String(q?.content || "Tìm dòng chứa lỗi:"),
       segments: codeLines.map((code, idx) => ({
         label: String.fromCharCode(65 + idx),
         code,
@@ -255,7 +255,7 @@ export function mapBackendToUiQuestion(q: any, index: number): Question {
     } as FindErrorQ;
   }
   if (type === "FILL_IN_BLANK") {
-    const text = String(q?.content || "Fill in the blank");
+    const text = String(q?.content || "Điền vào chỗ trống");
     return {
       ...base,
       type: "fill-blank",
@@ -267,19 +267,45 @@ export function mapBackendToUiQuestion(q: any, index: number): Question {
     return {
       ...base,
       type: "ordering",
-      content: String(q?.content || "Arrange in order"),
+      content: String(q?.content || "Sắp xếp theo đúng thứ tự"),
       items: parseOptions(q?.options),
     } as OrderingQ;
   }
   if (type === "MATCHING") {
-    const options = parseOptions(q?.options);
-    const half = Math.max(1, Math.floor(options.length / 2));
+    const rawOptions = q?.options;
+    // Preferred shape (questions created/re-saved after this fix): options
+    // is `{ left: string[], right: string[] }`, both student-facing and
+    // answer-safe (the left→right key lives only in the hidden correctAnswer).
+    const hasStructuredShape =
+      rawOptions && typeof rawOptions === "object" && !Array.isArray(rawOptions) &&
+      Array.isArray(rawOptions.left) && Array.isArray(rawOptions.right);
+    const left = hasStructuredShape
+      ? rawOptions.left.map((item: unknown) => String(item ?? "")).filter(Boolean)
+      : [];
+    const right = hasStructuredShape
+      ? rawOptions.right.map((item: unknown) => String(item ?? "")).filter(Boolean)
+      : [];
+
+    if (left.length > 0 && right.length > 0) {
+      return {
+        ...base,
+        type: "matching",
+        content: String(q?.content || "Ghép các mục sau"),
+        left,
+        right,
+      } as MatchingQ;
+    }
+
+    // Legacy fallback for questions saved before this fix, which crammed a
+    // flat option list into `options` and split it down the middle.
+    const flatOptions = parseOptions(rawOptions);
+    const half = Math.max(1, Math.floor(flatOptions.length / 2));
     return {
       ...base,
       type: "matching",
-      content: String(q?.content || "Match the following"),
-      left: options.slice(0, half),
-      right: options.slice(half),
+      content: String(q?.content || "Ghép các mục sau"),
+      left: flatOptions.slice(0, half),
+      right: flatOptions.slice(half),
     } as MatchingQ;
   }
 

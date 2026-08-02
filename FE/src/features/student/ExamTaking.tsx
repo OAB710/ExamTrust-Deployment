@@ -193,12 +193,24 @@ export default function ExamTaking() {
 
   useEffect(() => {
     const init: Record<number, string[]> = {};
-    questions
-      .filter((q): q is OrderingQ => q.type === "ordering")
-      .forEach((q) => {
-        init[q.id] = shuffleArray(q.items);
-      });
+    const orderingQuestions = questions.filter((q): q is OrderingQ => q.type === "ordering");
+    orderingQuestions.forEach((q) => {
+      init[q.id] = shuffleArray(q.items);
+    });
     setOrderState(init);
+    // Ordering answers are only ever recorded via drag/reorder interactions
+    // (see OrderingRenderer's setAnswer calls). Seed the shown shuffled order
+    // as the initial answer too, so a student who never touches an ordering
+    // question still submits the arrangement they were actually shown.
+    if (orderingQuestions.length > 0) {
+      setAnswers((prev) => {
+        const next = { ...prev };
+        orderingQuestions.forEach((q) => {
+          if (next[q.id] === undefined) next[q.id] = init[q.id];
+        });
+        return next;
+      });
+    }
   }, [questions]);
 
   const log = useCallback((type: string, detail?: string) => {

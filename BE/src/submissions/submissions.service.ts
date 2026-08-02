@@ -860,9 +860,9 @@ export class SubmissionsService {
         let pointsAwarded = 0;
         let isCorrect = false;
 
-        if (AUTO_GRADED_TYPES.has(examQuestion.type)) {
-          const correctAnswer = examQuestion.answerKey ?? null;
-          if (correctAnswer && this.compareAnswers(answerDto.answer, correctAnswer)) {
+        const correctAnswer = examQuestion.answerKey ?? null;
+        if (this.isAutoGradable(examQuestion.type, correctAnswer)) {
+          if (correctAnswer && this.compareAnswers(answerDto.answer, correctAnswer, examQuestion.type)) {
             pointsAwarded = examQuestion.assignedScore;
             isCorrect = true;
           }
@@ -881,7 +881,7 @@ export class SubmissionsService {
           isCorrect,
           // A zero point is a legitimate manual score. Leave it null until an
           // instructor explicitly grades the response.
-          pointsAwarded: AUTO_GRADED_TYPES.has(examQuestion.type) ? pointsAwarded : null,
+          pointsAwarded: this.isAutoGradable(examQuestion.type, correctAnswer) ? pointsAwarded : null,
         };
       });
 
@@ -892,7 +892,7 @@ export class SubmissionsService {
       );
       const normalizedScore = this.normalizeScore(totalScore, maxRawScore);
       const hasManualGrading = examQuestions.some(
-        (eq) => !AUTO_GRADED_TYPES.has(eq.type),
+        (eq) => !this.isAutoGradable(eq.type, eq.answerKey),
       );
 
       await tx.submissionAnswer.deleteMany({
@@ -1451,7 +1451,46 @@ export class SubmissionsService {
   }
 
 
-  private compareAnswers(submitted: any, correct: any): boolean {
+  // Whether a question of this type/correctAnswer shape can be graded
+  // objectively. MATCHING/ORDERING are only auto-gradable when their
+  // correctAnswer actually has the expected pairs/items array — older
+  // questions saved before that format existed fall back to manual grading
+  // instead of being silently (and incorrectly) marked wrong.
+  private isAutoGradable(type: string, correctAnswer: any): boolean {
+    if (AUTO_GRADED_TYPES.has(type)) return true;
+    if (type === 'MATCHING') {
+      return Array.isArray(correctAnswer?.pairs) && correctAnswer.pairs.length > 0;
+    }
+    if (type === 'ORDERING') {
+      return Array.isArray(correctAnswer?.items) && correctAnswer.items.length > 0;
+    }
+    return false;
+  }
+
+  private normalizeAnswerText(value: unknown): string {
+    return String(value ?? '').trim().toLowerCase();
+  }
+
+  private compareMatchingAnswer(submitted: any, pairs: Array<{ left?: string; right?: string }>): boolean {
+    if (!submitted || typeof submitted !== 'object') return false;
+    return pairs.every((pair, index) => {
+      const chosen = submitted[String(index)] ?? submitted[index];
+      return this.normalizeAnswerText(chosen) === this.normalizeAnswerText(pair?.right);
+    });
+  }
+
+  private compareOrderingAnswer(submitted: any, items: unknown[]): boolean {
+    if (!Array.isArray(submitted) || submitted.length !== items.length) return false;
+    return submitted.every((value, index) => this.normalizeAnswerText(value) === this.normalizeAnswerText(items[index]));
+  }
+
+  private compareAnswers(submitted: any, correct: any, type?: string): boolean {
+    if (type === 'MATCHING' && Array.isArray(correct?.pairs)) {
+      return this.compareMatchingAnswer(submitted, correct.pairs);
+    }
+    if (type === 'ORDERING' && Array.isArray(correct?.items)) {
+      return this.compareOrderingAnswer(submitted, correct.items);
+    }
     if (typeof submitted === 'object' && typeof correct === 'object') {
       return JSON.stringify(submitted) === JSON.stringify(correct);
     }
@@ -2025,6 +2064,7 @@ export class SubmissionsService {
                 points: true,
                 defaultPoints: true,
                 content: true,
+                correctAnswer: true,
               },
             },
             questionVersion: {
@@ -2042,7 +2082,10 @@ export class SubmissionsService {
 
     const rows = submissions.map((submission) => {
       const manualAnswers = submission.answers.filter(
-        (answer) => !AUTO_GRADED_TYPES.has(String(answer.question?.type || '').toUpperCase()),
+        (answer) => !this.isAutoGradable(
+          String(answer.question?.type || '').toUpperCase(),
+          this.parseJsonValue(answer.question?.correctAnswer, null),
+        ),
       );
       const graded = manualAnswers.filter((answer) => answer.manualGradedAt !== null && answer.manualGradedAt !== undefined);
       return {
@@ -2119,6 +2162,7 @@ export class SubmissionsService {
                 content: true,
                 points: true,
                 defaultPoints: true,
+                correctAnswer: true,
               },
             },
             questionVersion: {
@@ -2146,7 +2190,10 @@ export class SubmissionsService {
     }
 
     const manualAnswers = submission.answers
-      .filter((answer) => !AUTO_GRADED_TYPES.has(String(answer.question?.type || '').toUpperCase()))
+      .filter((answer) => !this.isAutoGradable(
+        String(answer.question?.type || '').toUpperCase(),
+        this.parseJsonValue(answer.question?.correctAnswer, null),
+      ))
       .map((answer) => ({
         id: answer.id,
         questionId: answer.questionId,

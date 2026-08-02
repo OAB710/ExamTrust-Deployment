@@ -221,15 +221,16 @@ export const createDefaultManualOptions = (): ManualQuestionOption[] => [
 ];
 
 export const QUESTION_TYPE_OPTIONS = [
-  { value: "mixed", label: "Mixed (all types)" },
-  { value: "single-choice", label: "Single Choice only" },
-  { value: "multiple-choice", label: "Multiple Choice only" },
-  { value: "true-false", label: "True / False only" },
-  { value: "fill-blank", label: "Fill in the Blank only" },
-  { value: "matching", label: "Matching only" },
-  { value: "ordering", label: "Ordering only" },
-  { value: "short-answer", label: "Short Answer / Essay only" },
-  { value: "custom", label: "Custom Selection (Other)" },
+  { value: "mixed", label: "Trộn tất cả các loại" },
+  { value: "single-choice", label: "Chỉ một lựa chọn" },
+  { value: "multiple-choice", label: "Chỉ trắc nghiệm nhiều lựa chọn" },
+  { value: "true-false", label: "Chỉ Đúng / Sai" },
+  { value: "fill-blank", label: "Chỉ điền vào chỗ trống" },
+  { value: "matching", label: "Chỉ ghép đôi" },
+  { value: "ordering", label: "Chỉ sắp xếp theo thứ tự" },
+  { value: "find-error", label: "Chỉ tìm lỗi sai" },
+  { value: "short-answer", label: "Chỉ trả lời ngắn / tự luận" },
+  { value: "custom", label: "Tùy chỉnh (Khác)" },
 ] as const;
 
 export const difficultyOptionToValue = (option: string): number => {
@@ -255,6 +256,18 @@ export const difficultyLabelFromValue = (
   return "Hard";
 };
 
+const DIFFICULTY_LABEL_VI: Record<"Easy" | "Medium" | "Hard", string> = {
+  Easy: "Dễ",
+  Medium: "Trung bình",
+  Hard: "Khó",
+};
+
+// Vietnamese display text for a difficulty badge. difficultyLabelFromValue's
+// own return value stays in English since it also doubles as an internal
+// matching key (e.g. compared against form.bankDifficulty / manualDifficulty).
+export const difficultyLabelViFromValue = (value: unknown) =>
+  DIFFICULTY_LABEL_VI[difficultyLabelFromValue(value)];
+
 export const mapQuestionTypeToAiApi = (value: string) => {
   const map: Record<string, string> = {
     mixed: "MIXED",
@@ -265,6 +278,7 @@ export const mapQuestionTypeToAiApi = (value: string) => {
     "fill-blank": "FILL_IN_BLANK",
     matching: "MATCHING",
     ordering: "ORDERING",
+    "find-error": "FIND_ERROR",
     "short-answer": "SHORT_ANSWER",
   };
   return map[value] || "MIXED";
@@ -280,11 +294,13 @@ export const mapQuestionTypeToDb = (value: string) => {
     FILL_IN_BLANK: "FILL_IN_BLANK",
     MATCHING: "MATCHING",
     ORDERING: "ORDERING",
+    FIND_ERROR: "FIND_ERROR",
     "single-choice": "MULTIPLE_CHOICE",
     "multiple-choice": "MULTIPLE_CHOICE",
     "true-false": "TRUE_FALSE",
     "short-answer": "SHORT_ANSWER",
     "fill-blank": "FILL_IN_BLANK",
+    "find-error": "FIND_ERROR",
     mixed: "MULTIPLE_CHOICE",
     custom: "MULTIPLE_CHOICE",
   };
@@ -295,7 +311,7 @@ export const mapQuestionTypeToDb = (value: string) => {
 
 // Tags removed from question model
 
-export const WHOLE_COURSE_LABEL = "All questions in course";
+export const WHOLE_COURSE_LABEL = "Tất cả câu hỏi trong học phần";
 
 export const normalizeDifficultyForQuestion = (value: unknown) => {
   const n = Number(value);

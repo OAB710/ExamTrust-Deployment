@@ -206,12 +206,12 @@ function FillBlankRenderer({
           .map((_, i) => (
             <div key={i}>
               <label className="text-xs text-muted-foreground mb-1 block">
-                Blank {i + 1}
+                Chỗ trống {i + 1}
               </label>
               <Input
                 value={vals[i] ?? ""}
                 onChange={(e) => setVal(i, e.target.value)}
-                placeholder={`Answer ${i + 1}…`}
+                placeholder={`Đáp án ${i + 1}…`}
                 className="text-sm"
               />
             </div>
@@ -243,10 +243,10 @@ function MatchingRenderer({
       <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-blue-700">
-            Left column
+            Cột trái
           </div>
           <div className="rounded-lg border border-violet-100 bg-violet-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-violet-700">
-            Match with
+            Ghép với
           </div>
         </div>
         <div className="mt-4 space-y-3">
@@ -275,7 +275,7 @@ function MatchingRenderer({
                         : "border-slate-300 bg-white"
                     }`}
                   >
-                    <SelectValue placeholder="Select a match" />
+                    <SelectValue placeholder="Chọn đáp án ghép" />
                   </SelectTrigger>
                   <SelectContent>
                     {q.right.map((rightItem, j) => (
@@ -310,7 +310,7 @@ function FindErrorRenderer({
         {q.content}
       </p>
       <p className="text-xs font-medium text-primary mb-3">
-        Click on the segment you believe contains the error:
+        Nhấp vào dòng bạn cho là có chứa lỗi:
       </p>
       <div className="bg-zinc-950 rounded-lg p-4 space-y-1 font-mono text-sm border border-zinc-800">
         {q.segments.map((seg) => {
@@ -339,7 +339,7 @@ function FindErrorRenderer({
       </div>
       {selected && (
         <p className="text-xs text-amber-600 mt-2 font-medium">
-          Selected: Segment <strong>{selected}</strong>
+          Đã chọn: Dòng <strong>{selected}</strong>
         </p>
       )}
     </div>
@@ -351,10 +351,12 @@ function OrderingRenderer({
   q,
   orderState,
   setOrderState,
+  setAnswer,
 }: {
   q: OrderingQ;
   orderState: Record<number, string[]>;
   setOrderState: React.Dispatch<React.SetStateAction<Record<number, string[]>>>;
+  setAnswer: (id: number, value: unknown) => void;
 }) {
   const items = orderState[q.id] ?? q.items;
   const move = (idx: number, dir: "up" | "down") => {
@@ -363,6 +365,7 @@ function OrderingRenderer({
     if (swap < 0 || swap >= next.length) return;
     [next[idx], next[swap]] = [next[swap], next[idx]];
     setOrderState((prev) => ({ ...prev, [q.id]: next }));
+    setAnswer(q.id, next);
   };
   return (
     <div>
@@ -370,7 +373,7 @@ function OrderingRenderer({
         {q.content}
       </p>
       <p className="text-xs font-medium text-primary mb-3">
-        Use the arrow buttons to arrange items in the correct order:
+        Dùng các nút mũi tên để sắp xếp các mục theo đúng thứ tự:
       </p>
       <div className="space-y-2">
         {items.map((item, idx) => (
@@ -426,7 +429,7 @@ function ShortAnswerRenderer({
         {q.content}
       </p>
       <Textarea
-        placeholder="Write your answer here…"
+        placeholder="Nhập câu trả lời của bạn tại đây…"
         value={val}
         onChange={(e) => setAnswer(q.id, e.target.value)}
         className={`min-h-[180px] text-sm resize-y ${isOver ? "border-red-500 focus-visible:ring-red-500" : ""}`}
@@ -469,7 +472,7 @@ export function QuestionRenderer({
     case "fill-blank": return <FillBlankRenderer q={question} answers={answers} setAnswer={setAnswer} />;
     case "matching": return <MatchingRenderer q={question} answers={answers} setAnswer={setAnswer} />;
     case "find-error": return <FindErrorRenderer q={question} answers={answers} setAnswer={setAnswer} />;
-    case "ordering": return <OrderingRenderer q={question} orderState={orderState} setOrderState={setOrderState} />;
+    case "ordering": return <OrderingRenderer q={question} orderState={orderState} setOrderState={setOrderState} setAnswer={setAnswer} />;
     case "short-answer": return <ShortAnswerRenderer q={question} answers={answers} setAnswer={setAnswer} />;
   }
 }
