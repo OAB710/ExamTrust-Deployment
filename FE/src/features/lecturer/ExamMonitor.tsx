@@ -763,7 +763,10 @@ export default function ExamMonitor() {
               className={`h-2 w-2 rounded-full ${autoRefresh ? "bg-green-500 animate-pulse" : "bg-muted"}`}
             />
             <span>Last refresh: {lastRefresh}</span>
-            {isRefreshing && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Loader2
+              className={`h-4 w-4 animate-spin ${isRefreshing ? "opacity-100" : "opacity-0"}`}
+              aria-hidden={!isRefreshing}
+            />
             <Button
               variant="outline"
               size="sm"
