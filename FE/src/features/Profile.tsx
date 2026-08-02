@@ -56,6 +56,22 @@ export default function Profile() {
     }
   }, [isAuthenticated, isLoading, router, user]);
 
+  const loadSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const data = await api.listSessions();
+      setSessions(Array.isArray(data) ? data : []);
+    } catch {
+      setSessions([]);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) void loadSessions();
+  }, [user]);
+
   if (isLoading) {
     return (
       <main
@@ -142,22 +158,6 @@ export default function Profile() {
     setNewPassword("");
     setConfirmPassword("");
   };
-
-  const loadSessions = async () => {
-    setSessionsLoading(true);
-    try {
-      const data = await api.listSessions();
-      setSessions(Array.isArray(data) ? data : []);
-    } catch {
-      setSessions([]);
-    } finally {
-      setSessionsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (user) void loadSessions();
-  }, [user]);
 
   const handleRevokeSession = async (sessionId: string) => {
     try {
