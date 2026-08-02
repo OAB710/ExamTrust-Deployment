@@ -4,8 +4,8 @@
 
 ## 1. Việc BẮT BUỘC phải làm khi deploy
 
-### 1.1. Chạy Prisma migration
-Repo đã có sẵn 6 migration file (đã commit vào `BE/prisma/migrations/`), nhưng **chưa chắc đã được áp dụng** lên DB đích:
+### 1.1. Chạy Prisma migration — [ĐÃ XONG trên EC2 ngày 2026-08-02]
+Repo đã có sẵn 6 migration file (đã commit vào `BE/prisma/migrations/`):
 
 ```
 20260731120000_add_auth_sessions_and_password_changed_at
@@ -16,23 +16,42 @@ Repo đã có sẵn 6 migration file (đã commit vào `BE/prisma/migrations/`),
 20260802100000_add_question_bank_preferences
 ```
 
-Chạy trên EC2 sau khi build:
+LƯU Ý: `npx prisma migrate deploy` KHÔNG chạy được trên repo này (lịch sử
+migration bị thiếu baseline cho 16 bảng cũ, xem CLOUDFLARE_DEPLOY_NOTES.txt
+mục 8.4). Cách đã dùng thực tế trên EC2 (giống runbook mục 8.8):
 ```bash
-cd BE
-npx prisma migrate deploy --schema prisma/schema.prisma
+cd ~/examtrust-be
+docker compose --env-file .env.production -f docker-compose.prod.yml \
+  run --rm app npx prisma db push --schema prisma/schema.prisma \
+  --accept-data-loss --skip-generate
 ```
-Migration `20260731120000_...` tạo bảng `auth_sessions` + cột `users.passwordChangedAt` — **thiếu migration này thì đăng nhập sẽ lỗi 500** (`TypeError: Cannot read properties of undefined (reading 'create')` / cột không tồn tại).
+Đã chạy thành công ngày 2026-08-02 — "database is now in sync" — cùng lúc
+deploy code BE mới nhất (code cũ trên EC2 trước đó chưa có các thay đổi này
+chút nào, không chỉ thiếu migration). Migration `20260731120000_...` tạo
+bảng `auth_sessions` + cột `users.passwordChangedAt` — thiếu migration này
+thì đăng nhập sẽ lỗi 500 (`TypeError: Cannot read properties of undefined
+(reading 'create')` / cột không tồn tại) — đã xác nhận hết lỗi sau khi push.
 
-### 1.2. Biến môi trường `.env` (không nằm trong git)
+### 1.2. Biến môi trường `.env` (không nằm trong git) — [ĐÃ XONG trên EC2 ngày 2026-08-02]
 
-Bổ sung/kiểm tra các biến sau trên EC2 (file `.env` không được commit, phải set thủ công):
+Đã set trên EC2 (file `.env.production`, không commit, set qua SSH thủ công):
 
 ```env
-# Đang dùng DeepSeek làm AI provider chính (đã tắt Ollama)
+# Đang dùng DeepSeek làm AI provider chính (đã tắt Ollama, đã tắt OpenRouter)
 AI_PROVIDER=deepseek
-DEEPSEEK_API_KEY=<API_KEY_THẬT — key hiện tại trong dev là key thử nghiệm, không dùng lại cho prod>
+DEEPSEEK_API_KEY=<key thật, đã điền trên EC2 — xem CLOUDFLARE_DEPLOY_NOTES.txt mục 9.8 để lấy lại nếu cần>
 AI_DEEPSEEK_BASE_URL=https://api.deepseek.com
 AI_DEEPSEEK_MODEL=deepseek-chat
+```
+
+Đã force-recreate container `app` + `ai-worker`, log xác nhận
+"AI provider: DeepSeek @ https://api.deepseek.com (model: deepseek-chat)".
+
+CẢNH BÁO: GitHub Actions secret `BE_ENV_PRODUCTION` (dùng bởi workflow
+"Build BE") **CHƯA được cập nhật** theo thay đổi này — vẫn còn giá trị
+OpenRouter cũ. Lần tới bấm "Build BE" sẽ ghi đè `.env.production` trên EC2
+về lại OpenRouter. Cần tự cập nhật secret này trên GitHub trước khi dùng lại
+"Build BE" — xem chi tiết ở CLOUDFLARE_DEPLOY_NOTES.txt mục 9.8(c).
 ```
 
 Nếu muốn dùng lại Ollama trên EC2 thay vì DeepSeek: đổi `AI_PROVIDER=ollama` và đảm bảo có Ollama server chạy được từ EC2 (khó khả thi nếu không tự host model trên cùng máy/mạng nội bộ).
