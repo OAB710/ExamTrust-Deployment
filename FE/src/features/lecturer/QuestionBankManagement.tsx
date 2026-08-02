@@ -1122,7 +1122,7 @@ export default function QuestionBankManagement() {
             <div className="flex items-end gap-3 rounded-lg border bg-muted/30 p-3">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Ngưỡng tương đồng (%)</label>
-                <Input type="number" min={1} max={100} value={duplicateThreshold} onChange={(event) => setDuplicateThreshold(event.target.value.replace(/[^0-9]/g, ""))} onBlur={(event) => saveDuplicateThreshold(event.target.value)} className="w-28" />
+                <Input type="number" min={1} max={100} value={duplicateThreshold} onChange={(event) => setDuplicateThreshold(Number(event.target.value.replace(/[^0-9]/g, "")) || 0)} onBlur={(event) => saveDuplicateThreshold(event.target.value)} className="w-28" />
               </div>
               <p className="pb-1 text-xs text-muted-foreground">Cài đặt được lưu theo tài khoản.</p>
             </div>
