@@ -66,6 +66,7 @@ import {
   BarChart3,
   Activity,
   Eye,
+  Clock,
   ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -1068,30 +1069,38 @@ export default function CourseDetail() {
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex flex-wrap justify-end gap-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="gap-2"
-                                      onClick={() =>
-                                        router.push(
-                                          `${basePath}/exam/${exam.id}/results`,
-                                        )
-                                      }
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                      Xem kết quả
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        router.push(
-                                          `${basePath}/exam/${exam.id}/monitor`,
-                                        )
-                                      }
-                                    >
-                                      Theo dõi
-                                    </Button>
+                                    {(exam.status === "ONGOING" ||
+                                      exam.status === "PUBLISHED") && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2 border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8] shadow-none hover:border-[#93C5FD] hover:bg-[#DBEAFE] hover:text-[#1E40AF] [&>svg]:text-[#2563EB]"
+                                        onClick={() =>
+                                          router.push(
+                                            `${basePath}/exam/${exam.id}/monitor`,
+                                          )
+                                        }
+                                      >
+                                        <Clock className="h-4 w-4" />
+                                        Theo dõi
+                                      </Button>
+                                    )}
+                                    {(exam.status === "COMPLETED" ||
+                                      exam.submissionCount > 0) && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2 border-[#BBF7D0] bg-[#F0FDF4] font-semibold text-[#047857] shadow-sm hover:border-[#86EFAC] hover:bg-[#DCFCE7] hover:text-[#065F46] [&>svg]:text-[#059669]"
+                                        onClick={() =>
+                                          router.push(
+                                            `${basePath}/exam/${exam.id}/results`,
+                                          )
+                                        }
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                        Xem kết quả
+                                      </Button>
+                                    )}
                                     <Button
                                       variant="ghost"
                                       size="sm"

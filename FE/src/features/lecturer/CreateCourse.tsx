@@ -2299,6 +2299,7 @@ export default function CreateCourse() {
                                         type="button"
                                         variant="outline"
                                         size="sm"
+                                        className="border-[#E5E7EB] bg-white text-[#374151] shadow-none hover:border-[#D1D5DB] hover:bg-[#F9FAFB] hover:text-[#111827] [&>svg]:text-[#6B7280]"
                                         onClick={(event) =>
                                           goToNestedExamRoute(
                                             event,
@@ -2314,6 +2315,7 @@ export default function CreateCourse() {
                                           type="button"
                                           variant="outline"
                                           size="sm"
+                                          className="border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8] shadow-none hover:border-[#93C5FD] hover:bg-[#DBEAFE] hover:text-[#1E40AF] [&>svg]:text-[#2563EB]"
                                           onClick={(event) =>
                                             goToNestedExamRoute(
                                               event,
@@ -2321,6 +2323,7 @@ export default function CreateCourse() {
                                             )
                                           }
                                         >
+                                          <Clock className="mr-1.5 h-4 w-4" />
                                           Theo dõi
                                         </Button>
                                       )}
@@ -2329,6 +2332,7 @@ export default function CreateCourse() {
                                           type="button"
                                           variant="outline"
                                           size="sm"
+                                          className="border-[#BBF7D0] bg-[#F0FDF4] font-semibold text-[#047857] shadow-sm hover:border-[#86EFAC] hover:bg-[#DCFCE7] hover:text-[#065F46] [&>svg]:text-[#059669]"
                                           onClick={(event) =>
                                             goToNestedExamRoute(
                                               event,

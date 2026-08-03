@@ -757,7 +757,7 @@ export default function ExamManagement() {
                                     `/lecturer/exam/${exam.id}/preview`,
                                   )
                                 }
-                                className="h-8 gap-1.5 border-sky-200 bg-sky-50 px-2.5 text-sky-700 shadow-none hover:border-sky-300 hover:bg-sky-100 hover:text-sky-800"
+                                className="h-8 gap-1.5 border-[#E5E7EB] bg-white px-2.5 text-[#374151] shadow-none hover:border-[#D1D5DB] hover:bg-[#F9FAFB] hover:text-[#111827] [&>svg]:text-[#6B7280]"
                               >
                                 <Eye className="h-3.5 w-3.5" />
                                 Xem trước
@@ -772,7 +772,7 @@ export default function ExamManagement() {
                                       `/lecturer/exam/${exam.id}/monitor`,
                                     )
                                   }
-                                  className="h-8 gap-1.5 border-amber-200 bg-amber-50 px-2.5 text-amber-700 shadow-none hover:border-amber-300 hover:bg-amber-100 hover:text-amber-800"
+                                  className="h-8 gap-1.5 border-[#BFDBFE] bg-[#EFF6FF] px-2.5 text-[#1D4ED8] shadow-none hover:border-[#93C5FD] hover:bg-[#DBEAFE] hover:text-[#1E40AF] [&>svg]:text-[#2563EB]"
                                 >
                                   <Clock className="h-3.5 w-3.5" />
                                   Theo dõi
@@ -789,7 +789,7 @@ export default function ExamManagement() {
                                       `/lecturer/exam/${exam.id}/results`,
                                     )
                                   }
-                                  className="h-8 gap-1.5 border-violet-200 bg-violet-50 px-2.5 text-violet-700 shadow-none hover:border-violet-300 hover:bg-violet-100 hover:text-violet-800"
+                                  className="h-8 gap-1.5 border-[#BBF7D0] bg-[#F0FDF4] px-2.5 font-semibold text-[#047857] shadow-sm hover:border-[#86EFAC] hover:bg-[#DCFCE7] hover:text-[#065F46] [&>svg]:text-[#059669]"
                                 >
                                   <BarChart3 className="h-3.5 w-3.5" />
                                   Kết quả

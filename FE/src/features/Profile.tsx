@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -18,9 +18,94 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Loader2 } from "lucide-react";
+import {
+  Globe2,
+  Laptop,
+  Loader2,
+  Monitor,
+  Smartphone,
+} from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+
+type Session = {
+  id: string;
+  userAgent?: string | null;
+  ip?: string | null;
+  createdAt: string;
+  active: boolean;
+};
+
+function getSessionDevice(userAgent?: string | null) {
+  const agent = userAgent || "";
+  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(agent);
+  const platform = /windows/i.test(agent)
+    ? "Windows"
+    : /mac os|macintosh/i.test(agent)
+      ? "macOS"
+      : /android/i.test(agent)
+        ? "Android"
+        : /iphone|ipad|ipod/i.test(agent)
+          ? "iOS"
+          : /linux/i.test(agent)
+            ? "Linux"
+            : "Thiết bị không xác định";
+  const browser = /edg\//i.test(agent)
+    ? "Microsoft Edge"
+    : /firefox\//i.test(agent)
+      ? "Firefox"
+      : /chrome\//i.test(agent)
+        ? "Chrome"
+        : /safari\//i.test(agent)
+          ? "Safari"
+          : "Trình duyệt";
+
+  return {
+    browser,
+    platform,
+    label: `${browser} trên ${platform}`,
+    icon: isMobile ? Smartphone : /windows|mac os|linux/i.test(agent) ? Laptop : Monitor,
+  };
+}
+
+type SessionGroup = Session & {
+  activeSessionIds: string[];
+};
+
+function groupSessionsByDevice(sessions: Session[]): SessionGroup[] {
+  const groups = new Map<string, SessionGroup>();
+
+  for (const session of sessions) {
+    const device = getSessionDevice(session.userAgent);
+    const key = `${device.label}|${session.ip || "unknown"}`;
+    const existing = groups.get(key);
+
+    if (!existing) {
+      groups.set(key, {
+        ...session,
+        active: session.active,
+        activeSessionIds: session.active ? [session.id] : [],
+      });
+      continue;
+    }
+
+    if (session.active) {
+      existing.active = true;
+      existing.activeSessionIds.push(session.id);
+    }
+
+    if (new Date(session.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
+      existing.createdAt = session.createdAt;
+      existing.userAgent = session.userAgent;
+      existing.ip = session.ip;
+    }
+  }
+
+  return Array.from(groups.values()).sort(
+    (first, second) =>
+      new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime(),
+  );
+}
 
 export default function Profile() {
   const { user, isAuthenticated, isLoading, applyProfileToSession } = useAuth();
@@ -38,8 +123,9 @@ export default function Profile() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const deviceSessions = useMemo(() => groupSessionsByDevice(sessions), [sessions]);
 
   useEffect(() => {
     if (!user) return;
@@ -60,7 +146,7 @@ export default function Profile() {
     setSessionsLoading(true);
     try {
       const data = await api.listSessions();
-      setSessions(Array.isArray(data) ? data : []);
+      setSessions(Array.isArray(data) ? (data as Session[]) : []);
     } catch {
       setSessions([]);
     } finally {
@@ -159,10 +245,14 @@ export default function Profile() {
     setConfirmPassword("");
   };
 
-  const handleRevokeSession = async (sessionId: string) => {
+  const handleRevokeSessions = async (sessionIds: string[]) => {
     try {
-      await api.revokeSession(sessionId);
-      toast.success("Đã thu hồi phiên đăng nhập");
+      await Promise.all(sessionIds.map((sessionId) => api.revokeSession(sessionId)));
+      toast.success(
+        sessionIds.length > 1
+          ? "Đã thu hồi các phiên trên thiết bị này"
+          : "Đã thu hồi phiên đăng nhập",
+      );
       await loadSessions();
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Không thể thu hồi phiên");
@@ -376,59 +466,71 @@ export default function Profile() {
             <Button
               variant="outline"
               size="sm"
-              disabled={sessionsLoading || sessions.length === 0}
+              disabled={sessionsLoading || deviceSessions.length === 0}
               onClick={handleRevokeAllSessions}
             >
               Đăng xuất tất cả thiết bị
             </Button>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {sessionsLoading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Đang tải phiên đăng
                 nhập...
               </div>
-            ) : sessions.length === 0 ? (
+            ) : deviceSessions.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Chưa có phiên đăng nhập nào.
               </p>
             ) : (
-              sessions.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0 text-sm">
-                    <p className="truncate font-medium text-foreground">
-                      {s.userAgent || "Trình duyệt không xác định"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      IP: {s.ip || "không xác định"} · Đăng nhập:{" "}
-                      {new Date(s.createdAt).toLocaleString("vi-VN")}
-                    </p>
+              deviceSessions.map((s) => {
+                const device = getSessionDevice(s.userAgent);
+                const DeviceIcon = device.icon;
+
+                return (
+                  <div
+                    key={s.id}
+                    className="grid gap-3 rounded-xl border border-border/80 bg-card p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                      <DeviceIcon className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <p className="font-medium text-foreground">{device.label}</p>
+                        {s.active && (
+                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            Đang hoạt động
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+                        <Globe2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>{s.ip || "Không xác định IP"}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Đăng nhập {new Date(s.createdAt).toLocaleString("vi-VN")}</span>
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
+                      {!s.active && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          Đã thu hồi
+                        </span>
+                      )}
+                      {s.active && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-[#E5E7EB] bg-white text-[#374151] shadow-none hover:bg-[#F9FAFB] hover:text-[#111827]"
+                          onClick={() => handleRevokeSessions(s.activeSessionIds)}
+                        >
+                          Thu hồi
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        s.active
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {s.active ? "Hoạt động" : "Đã thu hồi"}
-                    </span>
-                    {s.active && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRevokeSession(s.id)}
-                      >
-                        Thu hồi
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </CardContent>
         </Card>

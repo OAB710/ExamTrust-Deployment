@@ -655,16 +655,18 @@ export default function QuestionEditor() {
                           className="text-sm sm:text-base resize-none"
                           ref={contentRef}
                         />
-                        <div className="flex justify-end mt-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={insertBlankAtCursor}
-                            className="gap-1"
-                          >
-                            <Plus className="h-3.5 w-3.5" /> Thêm chỗ trống
-                          </Button>
-                        </div>
+                        {questionType === "fill_blank" && (
+                          <div className="mt-2 flex justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={insertBlankAtCursor}
+                              className="gap-1"
+                            >
+                              <Plus className="h-3.5 w-3.5" /> Thêm chỗ trống
+                            </Button>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-4">
