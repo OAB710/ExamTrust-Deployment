@@ -23,6 +23,7 @@ type Props = {
   onAddOption: () => void;
   onRemoveOption: (id: string) => void;
   onUpdateOption: (id: string, value: string) => void;
+  onReplaceOptions: (options: QuestionOption[]) => void;
   onUpdateMatch: (id: string, value: string) => void;
   onMoveOption: (id: string, direction: "up" | "down") => void;
   onToggleCorrect: (id: string) => void;
@@ -53,18 +54,19 @@ export function QuestionAnswerEditor({
   pinnedOptions, onMultipleAnswersChange, onTfAnswerChange,
   onEssayRubricChange,
   onAddOption, onRemoveOption, onUpdateOption, onUpdateMatch, onMoveOption,
-  onToggleCorrect, onTogglePinned,
+  onToggleCorrect, onTogglePinned, onReplaceOptions,
 }: Props) {
   if (questionType === "fill_blank") return null;
   const isOptionType = ["multiple_choice", "ordering", "matching", "find_error"].includes(questionType);
+  const findErrorEditorTitle = questionType === "find_error" ? "Nội dung theo dòng" : null;
   const title = answerTitles[questionType] ?? "Đáp án";
 
   return (
     <Card>
       <CardHeader className="px-3 pb-2 pt-3 sm:px-6 sm:pb-3 sm:pt-6">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm sm:text-base">{title}</CardTitle>
-          {isOptionType && options.length < 8 ? (
+          <CardTitle className="text-sm sm:text-base">{findErrorEditorTitle || title}</CardTitle>
+          {isOptionType && questionType !== "find_error" && options.length < 8 ? (
             <Button variant="outline" size="sm" onClick={onAddOption} className="gap-1 text-xs">
               <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> Thêm
             </Button>
@@ -88,7 +90,9 @@ export function QuestionAnswerEditor({
           </div>
         ) : null}
 
-        {isOptionType ? options.map((option, index) => (
+        {questionType === "find_error" ? <FindErrorLineEditor options={options} onReplaceOptions={onReplaceOptions} /> : null}
+
+        {isOptionType && questionType !== "find_error" ? options.map((option, index) => (
           <OptionRow
             key={option.id}
             questionType={questionType}
@@ -123,6 +127,34 @@ export function QuestionAnswerEditor({
       </CardContent>
     </Card>
   );
+}
+
+function FindErrorLineEditor({ options, onReplaceOptions }: { options: QuestionOption[]; onReplaceOptions: (options: QuestionOption[]) => void }) {
+  const lines = options.filter((option) => option.text.trim());
+  const updateLines = (value: string) => {
+    const parsed = value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const next = parsed.map((text, index) => ({ id: String.fromCharCode(65 + index), text, isCorrect: options[index]?.isCorrect || false }));
+    while (next.length < 2) next.push({ id: String.fromCharCode(65 + next.length), text: "", isCorrect: false });
+    onReplaceOptions(next);
+  };
+  const toggleLine = (id: string) => onReplaceOptions(options.map((option) => option.id === id ? { ...option, isCorrect: !option.isCorrect } : option));
+
+  return <div className="space-y-4">
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Nhập một dòng cho mỗi câu, lượt thoại hoặc dòng code. Trong bản xem trước, chọn tất cả các dòng có lỗi.</div>
+    <div className="space-y-2">
+      <Label>Nội dung theo dòng</Label>
+      <Textarea value={options.map((option) => option.text).join("\n")} onChange={(event) => updateLines(event.target.value)} rows={Math.max(5, options.length + 1)} placeholder={"A: I has finished my homework.\nB: She has already checked it.\nC: They goes home together."} className="resize-y font-mono text-sm" />
+      <p className="text-xs text-muted-foreground">Cần ít nhất 2 dòng không trống.</p>
+    </div>
+    <div className="overflow-hidden rounded-lg border bg-muted/20">
+      <div className="border-b bg-muted/60 px-3 py-2 text-sm font-medium">Bản xem trước — chọn dòng lỗi</div>
+      {lines.map((option, index) => <button type="button" key={option.id} onClick={() => toggleLine(option.id)} className={`flex w-full items-start gap-3 border-b px-3 py-2.5 text-left last:border-b-0 ${option.isCorrect ? "bg-red-50 text-red-900" : "hover:bg-muted/50"}`}>
+        <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${option.isCorrect ? "border-red-500 bg-red-500 text-white" : "bg-background"}`}>{index + 1}</span>
+        <span className="whitespace-pre-wrap font-mono text-sm">{option.text}</span>
+      </button>)}
+    </div>
+    {!lines.some((option) => option.isCorrect) ? <p className="text-sm text-destructive">Hãy chọn ít nhất một dòng có lỗi.</p> : null}
+  </div>;
 }
 
 type OptionRowProps = {

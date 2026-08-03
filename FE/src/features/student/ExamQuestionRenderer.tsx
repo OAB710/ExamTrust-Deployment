@@ -303,7 +303,8 @@ function FindErrorRenderer({
   answers: AnswerMap;
   setAnswer: (id: number, v: unknown) => void;
 }) {
-  const selected = answers[q.id] as string | undefined;
+  const selected = (answers[q.id] as string[] | undefined) ?? [];
+  const toggle = (label: string) => setAnswer(q.id, selected.includes(label) ? selected.filter((item) => item !== label) : [...selected, label]);
   return (
     <div>
       <p className="text-sm text-muted-foreground leading-relaxed mb-3">
@@ -314,11 +315,11 @@ function FindErrorRenderer({
       </p>
       <div className="bg-zinc-950 rounded-lg p-4 space-y-1 font-mono text-sm border border-zinc-800">
         {q.segments.map((seg) => {
-          const isSel = selected === seg.label;
+          const isSel = selected.includes(seg.label);
           return (
             <button
               key={seg.label}
-              onClick={() => setAnswer(q.id, seg.label)}
+              onClick={() => toggle(seg.label)}
               className={`w-full text-left flex items-start gap-3 rounded px-3 py-2 transition-all border
                 ${
                   isSel
@@ -330,14 +331,14 @@ function FindErrorRenderer({
                 className={`shrink-0 text-xs rounded px-1.5 py-0.5 font-bold mt-0.5
                 ${isSel ? "bg-red-500 text-white" : "bg-zinc-700 text-zinc-300"}`}
               >
-                {seg.label}
+                {q.segments.indexOf(seg) + 1}
               </span>
               <code className="leading-relaxed">{seg.code}</code>
             </button>
           );
         })}
       </div>
-      {selected && (
+      {selected.length > 0 && (
         <p className="text-xs text-amber-600 mt-2 font-medium">
           Đã chọn: Dòng <strong>{selected}</strong>
         </p>

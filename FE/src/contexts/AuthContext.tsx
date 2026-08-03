@@ -34,9 +34,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // The API client transparently refreshes via the httpOnly cookie when
-        // the in-memory access token is missing or expired.
-        const user = await api.getMe();
+        // Access tokens live only in memory. Restore them from the httpOnly
+        // refresh cookie before rendering protected pages after a full reload.
+        const user = await api.restoreSession();
         setAuthState({
           user,
           isAuthenticated: true,

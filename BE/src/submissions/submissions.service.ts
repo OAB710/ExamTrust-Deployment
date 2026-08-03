@@ -1484,7 +1484,25 @@ export class SubmissionsService {
     return submitted.every((value, index) => this.normalizeAnswerText(value) === this.normalizeAnswerText(items[index]));
   }
 
+  private findErrorLineSet(value: any): Set<string> {
+    const raw = Array.isArray(value)
+      ? value
+      : Array.isArray(value?.answers)
+        ? value.answers
+        : String(value?.answer ?? value ?? '').split(',');
+    return new Set(raw.map((item: unknown) => String(item).trim().toUpperCase()).filter(Boolean));
+  }
+
+  private compareFindErrorAnswer(submitted: any, correct: any): boolean {
+    const submittedLines = this.findErrorLineSet(submitted);
+    const correctLines = this.findErrorLineSet(correct);
+    return submittedLines.size === correctLines.size && [...correctLines].every((line) => submittedLines.has(line));
+  }
+
   private compareAnswers(submitted: any, correct: any, type?: string): boolean {
+    if (type === 'FIND_ERROR') {
+      return this.compareFindErrorAnswer(submitted, correct);
+    }
     if (type === 'MATCHING' && Array.isArray(correct?.pairs)) {
       return this.compareMatchingAnswer(submitted, correct.pairs);
     }
@@ -2160,6 +2178,7 @@ export class SubmissionsService {
                 id: true,
                 type: true,
                 content: true,
+                options: true,
                 points: true,
                 defaultPoints: true,
                 correctAnswer: true,
@@ -2172,6 +2191,9 @@ export class SubmissionsService {
                 payload: true,
                 points: true,
               },
+            },
+            questionSnapshot: {
+              select: { payload: true },
             },
           },
         },
@@ -2194,18 +2216,23 @@ export class SubmissionsService {
         String(answer.question?.type || '').toUpperCase(),
         this.parseJsonValue(answer.question?.correctAnswer, null),
       ))
-      .map((answer) => ({
+      .map((answer) => {
+        const snapshotPayload = this.parseJsonValue(answer.questionSnapshot?.payload, {});
+        const versionPayload = this.parseJsonValue(answer.questionVersion?.payload, {});
+        return {
         id: answer.id,
         questionId: answer.questionId,
         questionType: answer.question?.type,
         questionText: answer.questionVersion?.stem || answer.question?.content || 'Question text unavailable',
+        questionOptions: snapshotPayload.options ?? versionPayload.options ?? answer.question?.options ?? null,
         answer: answer.answer,
         pointsAwarded: answer.pointsAwarded,
         manualGradedAt: answer.manualGradedAt,
         maxPoints: Number(answer.questionVersion?.points ?? answer.question?.points ?? answer.question?.defaultPoints ?? 1),
         feedback: answer.feedback || '',
         updatedAt: answer.updatedAt,
-      }));
+        };
+      });
 
     const activeAdjustmentTotal = submission.scoreAdjustments
       .filter((adjustment) => !adjustment.revokedAt)

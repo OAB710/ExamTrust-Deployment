@@ -73,7 +73,9 @@ export function useQuestionAiGeneration(params: Params) {
     if (result.topic) params.onTopic(result.topic);
     if (result.learningObjective) params.onLearningObjective(result.learningObjective);
     if (result.options && ["multiple_choice", "true_false", "find_error"].includes(params.questionType)) {
-      const correctIds = String(result.correctAnswer?.answer || "").split(",");
+      const correctIds = Array.isArray((result.correctAnswer as any)?.answers)
+        ? (result.correctAnswer as any).answers.map(String)
+        : String(result.correctAnswer?.answer || "").split(",");
       params.onOptions(Object.entries(result.options).map(([id, text]) => ({ id, text, isCorrect: correctIds.includes(id) })));
     }
     if (params.questionType === "essay" && result.correctAnswer?.answer) {

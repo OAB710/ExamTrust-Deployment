@@ -340,8 +340,9 @@ export function normalizeSubmissionAnswer(
     return { answer };
   }
 
-  if (question.type === "find-error" && typeof answer === "string") {
-    return { answer };
+  if (question.type === "find-error") {
+    const selected = Array.isArray(answer) ? answer : typeof answer === "string" ? [answer] : [];
+    return { answers: [...new Set(selected.map(String))] };
   }
 
   return answer;
@@ -371,6 +372,7 @@ export function isAnswered(q: Question, answers: AnswerMap): boolean {
     return (
       typeof a === "object" && Object.values(a as object).some((v) => v !== "")
     );
+  if (q.type === "find-error") return Array.isArray(a) ? a.length > 0 : typeof a === "string" && Boolean(a);
   if (q.type === "short-answer")
     return typeof a === "string" && (a as string).trim().length > 0;
   return true;

@@ -36,7 +36,7 @@ interface ParsedRow {
   email: string;
   studentId?: string;
   fullName?: string;
-  className?: string;
+  department?: string;
 }
 
 interface ValidationError {
@@ -89,10 +89,12 @@ const COLUMN_ALIASES: Record<string, string> = {
   "họ và tên": "fullName",
   "ho ten": "fullName",
   "họ tên": "fullName",
-  classname: "className",
-  class_name: "className",
-  "class name": "className",
-  class: "className",
+  department: "department",
+  faculty: "department",
+  classname: "department",
+  class_name: "department",
+  "class name": "department",
+  class: "department",
   lớp: "className",
   "tên lớp": "className",
 };
@@ -198,7 +200,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
           columnMap["email"] = 0;
           if (headerRow.length > 1) columnMap["studentId"] = 1;
           if (headerRow.length > 2) columnMap["fullName"] = 2;
-          if (headerRow.length > 3) columnMap["className"] = 3;
+          if (headerRow.length > 3) columnMap["department"] = 3;
           // Re-include first row as data
           rawData.unshift([]); // shift index so data starts at 1
         } else {
@@ -223,8 +225,8 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
         const fullName = columnMap["fullName"] !== undefined
           ? String(row[columnMap["fullName"]] || "").trim()
           : undefined;
-        const className = columnMap["className"] !== undefined
-          ? String(row[columnMap["className"]] || "").trim()
+        const department = columnMap["department"] !== undefined
+          ? String(row[columnMap["department"]] || "").trim()
           : undefined;
 
         const rowErrors: string[] = [];
@@ -238,6 +240,10 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
           rowErrors.push(`Email bị trùng với dòng ${emailsSeen.get(email)}`);
         }
 
+        if (!studentId) rowErrors.push("Student ID is required");
+        if (!fullName) rowErrors.push("Full name is required");
+        if (!department) rowErrors.push("Department is required");
+
         if (rowErrors.length > 0) {
           errorRows.push({ row: i, email: email || "(empty)", errors: rowErrors });
         } else {
@@ -247,7 +253,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
             email,
             studentId: studentId || undefined,
             fullName: fullName || undefined,
-            className: className || undefined,
+            department: department || undefined,
           });
         }
       }
@@ -279,7 +285,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
           email: r.email,
           studentId: r.studentId,
           fullName: r.fullName,
-          className: r.className,
+          department: r.department || '',
         })),
       );
 
@@ -299,7 +305,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
   // ─── Download Sample ─────────────────────────────────────────────
   const downloadSample = useCallback(() => {
     const sampleData = [
-      ["email", "studentId", "fullName", "className"],
+      ["email", "studentId", "fullName", "department"],
       ["student1@university.edu", "SV001", "Nguyen Van A", "CNTT-01"],
       ["student2@university.edu", "SV002", "Tran Thi B", "CNTT-01"],
       ["student3@university.edu", "SV003", "Le Van C", "CNTT-02"],
@@ -311,7 +317,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
       { wch: 30 }, // email
       { wch: 15 }, // studentId
       { wch: 25 }, // fullName
-      { wch: 15 }, // className
+      { wch: 28 }, // department
     ];
 
     const wb = XLSX.utils.book_new();
@@ -391,7 +397,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
           <div className="text-xs text-muted-foreground space-y-1.5 flex-1">
             <p className="font-medium text-foreground/80">Supported columns:</p>
             <div className="flex flex-wrap gap-1.5">
-              {["email *", "studentId", "fullName", "className"].map((col) => (
+              {["email *", "studentId", "fullName", "department"].map((col) => (
                 <code
                   key={col}
                   className={`px-1.5 py-0.5 rounded text-[11px] ${
@@ -574,7 +580,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
                       <TableHead className="text-xs bg-background">Email</TableHead>
                       <TableHead className="text-xs bg-background">Student ID</TableHead>
                       <TableHead className="text-xs bg-background">Full Name</TableHead>
-                      <TableHead className="text-xs bg-background">Class</TableHead>
+                      <TableHead className="text-xs bg-background">Department</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -586,7 +592,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
                         </TableCell>
                         <TableCell>{row.studentId || "—"}</TableCell>
                         <TableCell>{row.fullName || "—"}</TableCell>
-                        <TableCell>{row.className || "—"}</TableCell>
+                        <TableCell>{row.department || "—"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

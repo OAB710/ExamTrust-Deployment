@@ -610,15 +610,17 @@ export default function CreateExam() {
         })),
       );
     } else if (question?.options && typeof question.options === "object") {
-      const answer = String(question?.correctAnswer?.answer || "");
+      const selectedAnswers = Array.isArray(question?.correctAnswer?.answers)
+        ? question.correctAnswer.answers.map(String)
+        : String(question?.correctAnswer?.answer || "").split(",");
       setManualOptions(
         Object.entries(question.options).map(([id, text]) => ({
           id,
           text: String(text || ""),
-          isCorrect: answer.split(",").includes(id),
+          isCorrect: selectedAnswers.includes(id),
         })),
       );
-      setManualMultipleAnswers(answer.includes(","));
+      setManualMultipleAnswers(selectedAnswers.length > 1);
     }
   };
 
@@ -1798,6 +1800,7 @@ export default function CreateExam() {
                             onAddOption={addManualOption}
                             onRemoveOption={removeManualOption}
                             onUpdateOption={updateManualOption}
+                            onReplaceOptions={setManualOptions}
                             onUpdateMatch={updateManualOptionMatch}
                             onMoveOption={moveManualOption}
                             onToggleCorrect={toggleManualCorrectOption}

@@ -43,7 +43,7 @@ export class AiJobsService {
   async createJob(params: CreateAiJobParams) {
     const provider = process.env.AI_PROVIDER || 'google';
     const ollamaModel = process.env.AI_OLLAMA_MODEL || 'gemma3:4b';
-    const ollamaVisionModel = process.env.AI_OLLAMA_VISION_MODEL || process.env.OLLAMA_VISION_MODEL || 'moondream';
+    const ollamaVisionModel = process.env.AI_OLLAMA_VISION_MODEL || process.env.OLLAMA_VISION_MODEL || 'gemma3:4b';
     const googleModel = process.env.AI_MODEL || 'gemini-2.0-flash';
     const nvidiaModel = process.env.AI_NVIDIA_MODEL || 'z-ai/glm-5.2';
     const openRouterModel = process.env.AI_OPENROUTER_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free';

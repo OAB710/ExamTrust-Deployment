@@ -164,6 +164,10 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     setIsBlocked(!active);
     if (active) {
       hasEnteredFullscreenOnceRef.current = true;
+      // The fullscreen request has completed. Any later exit, even if it
+      // happens immediately, is a real exit and must not be hidden by the
+      // request grace period.
+      fullscreenRequestedAtRef.current = null;
     }
   }, [enabled]);
 
@@ -174,6 +178,9 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       setIsFullscreen(active);
       if (active) {
         hasEnteredFullscreenOnceRef.current = true;
+        // Clear the grace window as soon as fullscreen is restored. Keeping
+        // it would suppress a subsequent Escape/fullscreen exit for 5 seconds.
+        fullscreenRequestedAtRef.current = null;
         setIsBlocked(false);
         allowClearRef.current = false;
         return;

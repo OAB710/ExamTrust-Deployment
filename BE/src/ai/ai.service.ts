@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
@@ -10,7 +10,7 @@ import {
 } from './ai-profile';
 
 @Injectable()
-export class AiService {
+export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
   private genAI: GoogleGenerativeAI;
   private nvidiaAI: OpenAI;
@@ -22,6 +22,7 @@ export class AiService {
   private ollamaUrl: string;
   private ollamaModel: string;
   private ollamaVisionModel: string;
+  private ollamaVisionFallbackModel: string;
   private nvidiaModel: string;
   private openRouterModel: string;
   private deepseekModel: string;
@@ -44,6 +45,9 @@ export class AiService {
     this.ollamaModel = this.configService.get<string>('AI_OLLAMA_MODEL') || 'gemma3:4b';
     this.ollamaVisionModel = this.configService.get<string>('AI_OLLAMA_VISION_MODEL')
       || this.configService.get<string>('OLLAMA_VISION_MODEL')
+      || 'gemma3:4b';
+    this.ollamaVisionFallbackModel = this.configService.get<string>('AI_OLLAMA_VISION_FALLBACK_MODEL')
+      || this.configService.get<string>('OLLAMA_VISION_FALLBACK_MODEL')
       || 'moondream';
     this.nvidiaModel = this.configService.get<string>('AI_NVIDIA_MODEL') || 'z-ai/glm-5.2';
     this.openRouterModel = this.configService.get<string>('AI_OPENROUTER_MODEL') || 'nvidia/nemotron-3-ultra-550b-a55b:free';
@@ -62,7 +66,7 @@ export class AiService {
       this.genAI = new GoogleGenerativeAI(apiKey || '');
       this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     } else if (this.provider === 'ollama') {
-      this.logger.log(`AI provider: Ollama @ ${this.ollamaUrl} (model: ${this.ollamaModel}, vision: ${this.ollamaVisionModel})`);
+      this.logger.log(`AI provider: Ollama @ ${this.ollamaUrl} (model: ${this.ollamaModel}, vision: ${this.ollamaVisionModel}, fallback: ${this.ollamaVisionFallbackModel})`);
     } else if (this.provider === 'nvidia') {
       const nvidiaApiKey = this.configService.get<string>('NVIDIA_API_KEY');
       const nvidiaBaseUrl = this.configService.get<string>('AI_NVIDIA_BASE_URL') || 'https://integrate.api.nvidia.com/v1';
@@ -106,6 +110,35 @@ export class AiService {
       this.logger.log(`AI provider: DeepSeek @ ${deepseekBaseUrl} (model: ${this.deepseekModel})`);
     } else {
       this.logger.log(`AI provider set to '${this.provider}'. Using local/mock mode.`);
+    }
+  }
+
+  async onModuleInit() {
+    if (this.provider !== 'ollama') return;
+    await Promise.all([this.ollamaVisionModel, this.ollamaVisionFallbackModel]
+      .filter((model, index, models) => Boolean(model) && models.indexOf(model) === index)
+      .map((model) => this.checkOllamaVisionModel(model)));
+  }
+
+  private async checkOllamaVisionModel(model: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.ollamaUrl}/api/show`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: model }),
+      });
+      if (!response.ok) {
+        this.logger.warn(`Ollama vision model '${model}' is unavailable (${response.status}). Pull it or update AI_OLLAMA_VISION_MODEL.`);
+        return;
+      }
+      const details: any = await response.json();
+      if (!Array.isArray(details.capabilities) || !details.capabilities.includes('vision')) {
+        this.logger.warn(`Ollama model '${model}' is available but does not advertise vision capability.`);
+      } else {
+        this.logger.log(`Ollama vision model ready: ${model}`);
+      }
+    } catch (error: any) {
+      this.logger.warn(`Unable to verify Ollama vision model '${model}': ${String(error?.message || error)}`);
     }
   }
 
@@ -481,16 +514,26 @@ ${typeInstruction}
 
   async analyzeProctoringImage(params: { image: Buffer; mimeType: string }) {
     const prompt = `Analyze this webcam frame for an academic exam. Return ONLY JSON: {"tags":[{"tag":"FACE_NOT_VISIBLE|MULTIPLE_PEOPLE|FACE_PARTIALLY_OCCLUDED|CAMERA_COVERED_OR_DARK|IMAGE_TOO_BLURRY|CAMERA_FRAME_CHANGED|POSSIBLE_FROZEN_VIDEO|POSSIBLE_PHONE|PROHIBITED_MATERIAL_VISIBLE","confidence":0-1,"note":"short factual Vietnamese description"}]}. Tags are advisory evidence only. Do not claim cheating. Include only visually supported tags.`;
-    if (this.provider === 'mock') return { tags: [] };
+    if (this.provider === 'mock') return { tags: [], model: 'mock' };
     let text: string;
+    let model: string;
     if (this.provider === 'ollama') {
-      text = await this._callOllamaVision(prompt, params.image);
+      model = this.ollamaVisionModel;
+      try {
+        text = await this._callOllamaVision(prompt, params.image, model);
+      } catch (primaryError: any) {
+        if (!this.ollamaVisionFallbackModel || this.ollamaVisionFallbackModel === model) throw primaryError;
+        this.logger.warn(`Ollama vision primary '${model}' failed; retrying fallback '${this.ollamaVisionFallbackModel}': ${String(primaryError?.message || primaryError)}`);
+        model = this.ollamaVisionFallbackModel;
+        text = await this._callOllamaVision(prompt, params.image, model);
+      }
     } else if (this.provider === 'google') {
       const result = await this.model.generateContent([
         { text: prompt },
         { inlineData: { data: params.image.toString('base64'), mimeType: params.mimeType } },
       ]);
       text = String(result.response.text() || '');
+      model = 'gemini-2.0-flash';
     } else {
       throw new Error(`Vision analysis is not configured for AI provider '${this.provider}'`);
     }
@@ -499,6 +542,7 @@ ${typeInstruction}
     const allowed = new Set(['FACE_NOT_VISIBLE', 'MULTIPLE_PEOPLE', 'FACE_PARTIALLY_OCCLUDED', 'CAMERA_COVERED_OR_DARK', 'IMAGE_TOO_BLURRY', 'CAMERA_FRAME_CHANGED', 'POSSIBLE_FROZEN_VIDEO', 'POSSIBLE_PHONE', 'PROHIBITED_MATERIAL_VISIBLE']);
     return {
       tags: Array.isArray(parsed?.tags) ? parsed.tags.filter((item: any) => allowed.has(String(item?.tag))).slice(0, 5).map((item: any) => ({ tag: String(item.tag), confidence: Math.max(0, Math.min(1, Number(item.confidence) || 0)), note: String(item.note || '').slice(0, 300) })) : [],
+      model,
     };
   }
 
@@ -898,6 +942,7 @@ You MUST respond with a valid JSON object (no markdown, no code fences, just pur
 
 Rules:
 - Preserve the original question type unless there is a clear quality reason to adjust only wording/options.
+- Return only the student-facing question text in "suggestion.content"; never append editorial notes such as "(đã hiệu chỉnh để làm rõ yêu cầu)" or any equivalent status annotation.
 - Keep the answer schema compatible with the original options and correctAnswer shape.
 - Do not include student names, emails, or individual answer records.
 - "difficulty" must be an integer from 1 to 10.
@@ -1201,13 +1246,13 @@ Rules:
    * Sends evidence to a self-hosted Ollama instance. The image remains on the
    * application network; no third-party API key or external upload is used.
    */
-  private async _callOllamaVision(prompt: string, image: Buffer): Promise<string> {
+  private async _callOllamaVision(prompt: string, image: Buffer, model: string): Promise<string> {
     const startedAt = Date.now();
     const response = await fetch(`${this.ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: this.ollamaVisionModel,
+        model,
         prompt,
         images: [image.toString('base64')],
         stream: false,
@@ -1224,7 +1269,7 @@ Rules:
       throw new Error(`Ollama vision returned ${response.status}: ${body}`);
     }
     const payload: any = await response.json();
-    this.logger.log(`Ollama vision completed model=${this.ollamaVisionModel} duration=${Date.now() - startedAt}ms`);
+    this.logger.log(`Ollama vision completed model=${model} duration=${Date.now() - startedAt}ms`);
     return String(payload.response || payload.choices?.[0]?.text || '');
   }
 
@@ -1319,8 +1364,9 @@ Rules:
   private getOptionsInstruction(type: string): string {
     switch (type) {
       case 'MULTIPLE_CHOICE':
-      case 'FIND_ERROR':
         return '"options": {"A": "option text", "B": "option text", "C": "option text", "D": "option text"},\n  "correctAnswer": {"answer": "B"}';
+      case 'FIND_ERROR':
+        return '"options": {"A": "line or dialogue item", "B": "line or dialogue item", "C": "line or dialogue item", "D": "line or dialogue item"},\n  "correctAnswer": {"answers": ["B", "D"]}';
       case 'TRUE_FALSE':
         return '"options": {"A": "True", "B": "False"},\n  "correctAnswer": {"answer": "A"}';
       case 'ESSAY':

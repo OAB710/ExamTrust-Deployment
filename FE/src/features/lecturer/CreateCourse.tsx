@@ -93,6 +93,7 @@ import {
 } from "lucide-react";
 import api, { unwrapPaginatedData } from "@/lib/api";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -183,6 +184,13 @@ interface EnrollResult {
   studentId?: string | null;
   status: "success" | "failed" | "provisioned";
   reason?: string;
+}
+
+interface ImportedStudent {
+  email: string;
+  fullName: string;
+  studentId: string;
+  department: string;
 }
 
 const toAsciiUpper = (value: string) =>
@@ -278,7 +286,8 @@ export default function CreateCourse() {
   const [enrollResults, setEnrollResults] = useState<EnrollResult[]>([]);
   const [provisionedCount, setProvisionedCount] = useState(0);
   const [csvText, setCsvText] = useState("");
-  const [csvEmails, setCsvEmails] = useState<string[]>([]);
+  const [importedStudents, setImportedStudents] = useState<ImportedStudent[]>([]);
+  const [importError, setImportError] = useState("");
   const [csvFileName, setCsvFileName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -633,42 +642,92 @@ export default function CreateCourse() {
     setSelectedTrainingStudents((prev) => prev.filter((s) => s.id !== studentId));
   };
 
-  // CSV / Excel file handler
+  const importHeaderAliases: Record<keyof ImportedStudent, string[]> = {
+    fullName: ["fullname", "hoten", "ten", "hovaten"],
+    email: ["email", "emailaddress"],
+    studentId: ["studentid", "masinhvien", "mssv"],
+    department: ["department", "khoa", "donvi"],
+  };
+
+  const normalizeImportHeader = (value: unknown) => String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+  const parseImportRows = (rows: unknown[][]): ImportedStudent[] => {
+    const nonEmptyRows = rows.filter((row) => row.some((cell) => String(cell ?? "").trim()));
+    if (nonEmptyRows.length < 2) throw new Error("Tệp phải có hàng tiêu đề và ít nhất một sinh viên.");
+    const headers = nonEmptyRows[0].map(normalizeImportHeader);
+    const columnIndex = Object.fromEntries(Object.entries(importHeaderAliases).map(([field, aliases]) => [
+      field,
+      headers.findIndex((header) => aliases.includes(header)),
+    ])) as Record<keyof ImportedStudent, number>;
+    const missing = Object.entries(columnIndex).filter(([, index]) => index < 0).map(([field]) => field);
+    if (missing.length) throw new Error(`Thiếu cột bắt buộc: ${missing.join(", ")}.`);
+
+    const students = nonEmptyRows.slice(1).map((row, index) => {
+      const student = Object.fromEntries(Object.entries(columnIndex).map(([field, column]) => [
+        field,
+        String(row[column] ?? "").trim(),
+      ])) as unknown as ImportedStudent;
+      if (!student.fullName || !student.email || !student.studentId || !student.department) {
+        throw new Error(`Dòng ${index + 2} phải có đủ fullName, email, studentId và department.`);
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(student.email)) {
+        throw new Error(`Email ở dòng ${index + 2} không hợp lệ.`);
+      }
+      return { ...student, email: student.email.toLowerCase() };
+    });
+    const duplicateEmails = students.length !== new Set(students.map((student) => student.email)).size;
+    if (duplicateEmails) throw new Error("Tệp có email bị trùng.");
+    return students;
+  };
+
+  const parseImportText = (text: string) => {
+    const lines = text.split(/\r?\n/).filter((line) => line.trim());
+    const delimiter = lines[0]?.includes("\t") ? "\t" : lines[0]?.includes(";") ? ";" : ",";
+    return parseImportRows(lines.map((line) => line.split(delimiter).map((cell) => cell.trim().replace(/^['"]|['"]$/g, ""))));
+  };
+
+  const applyImportedStudents = (students: ImportedStudent[], text: string, fileName = "") => {
+    setImportedStudents(students);
+    setCsvText(text);
+    setCsvFileName(fileName);
+    setImportError("");
+  };
+
+  const importStudentFile = async (file: File) => {
+    try {
+      const isSpreadsheet = /\.(xlsx|xls)$/i.test(file.name);
+      if (isSpreadsheet) {
+        const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
+        applyImportedStudents(parseImportRows(rows), "", file.name);
+      } else {
+        const text = await file.text();
+        applyImportedStudents(parseImportText(text), text, file.name);
+      }
+    } catch (error: any) {
+      setImportedStudents([]);
+      setImportError(error?.message || "Không thể đọc tệp import.");
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setCsvFileName(file.name);
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const emails = parseEmailsFromCSV(text);
-      setCsvEmails(emails);
-      setCsvText(text);
-    };
-    reader.readAsText(file);
+    if (file) void importStudentFile(file);
   };
 
-  const parseEmailsFromCSV = (text: string): string[] => {
-    const lines = text.split(/\r?\n/).filter((l) => l.trim());
-    const emails: string[] = [];
-    for (const line of lines) {
-      const parts = line
-        .split(/[,;\t]/)
-        .map((p) => p.trim().replace(/^["']|["']$/g, ""));
-      for (const part of parts) {
-        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(part)) {
-          emails.push(part.toLowerCase());
-        }
-      }
-    }
-    return [...new Set(emails)];
-  };
-
-  const handlePasteEmails = (text: string) => {
+  const handlePasteImport = (text: string) => {
     setCsvText(text);
-    const emails = parseEmailsFromCSV(text);
-    setCsvEmails(emails);
+    try {
+      applyImportedStudents(parseImportText(text), text);
+    } catch (error: any) {
+      setImportedStudents([]);
+      setImportError(error?.message || "Dữ liệu import không hợp lệ.");
+    }
   };
 
   const validateCreditsField = (rawValue: string) =>
@@ -969,8 +1028,8 @@ export default function CreateCourse() {
               : c,
           ),
         );
-      } else if (enrollTab === "import" && csvEmails.length > 0) {
-        const result = await api.bulkEnrollByEmails(createdCourseId, csvEmails);
+      } else if (enrollTab === "import" && importedStudents.length > 0) {
+        const result = await api.bulkImportStudents(createdCourseId, importedStudents);
         const results: EnrollResult[] = [
           ...result.success.map((s: any) => ({
             email: s.email,
@@ -1023,7 +1082,8 @@ export default function CreateCourse() {
       setStudentSearch("");
       setTrainingSearch("");
       setCsvText("");
-      setCsvEmails([]);
+      setImportedStudents([]);
+      setImportError("");
       setCsvFileName("");
       setEnrollResults([]);
       setProvisionedCount(0);
@@ -1054,12 +1114,12 @@ export default function CreateCourse() {
 
   const downloadTemplate = () => {
     const csvContent =
-      "email\nstudent@examtrust.edu\nstudent2@examtrust.edu\nstudent3@examtrust.edu";
+      "fullName,email,studentId,department\nNguyễn Văn An,an.nguyen@examtrust.edu,SV001,Công nghệ thông tin\nTrần Thị Bình,binh.tran@examtrust.edu,SV002,Kỹ thuật phần mềm";
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "student_import_template.csv";
+    a.download = "mau_import_sinh_vien.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1107,7 +1167,7 @@ export default function CreateCourse() {
                   <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">
                     1
                   </span>
-                  Course Info
+                  Thông tin khóa học
                 </div>
                 <div className="h-px w-8 bg-border" />
                 <div
@@ -1116,7 +1176,7 @@ export default function CreateCourse() {
                   <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">
                     2
                   </span>
-                  Add Students
+                  Thêm sinh viên
                 </div>
               </div>
 
@@ -1125,18 +1185,17 @@ export default function CreateCourse() {
                 <>
                   <DialogHeader>
                     <DialogTitle className="text-xl">
-                      Create New Course
+                      Tạo khóa học mới
                     </DialogTitle>
                     <DialogDescription>
-                      Fill in the course details. You can add students in the
-                      next step.
+                      Nhập thông tin khóa học. Bạn có thể thêm sinh viên ở bước tiếp theo.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-5 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="courseCode">
-                          Course Code (auto-generated)
+                          Mã khóa học (tự động tạo)
                         </Label>
                         <Input
                           id="courseCode"
@@ -1146,7 +1205,7 @@ export default function CreateCourse() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="academicYear">Academic year</Label>
+                        <Label htmlFor="academicYear">Năm học</Label>
                         <Select
                           value={newCourse.academicYear}
                           onValueChange={(v) =>
@@ -1166,10 +1225,10 @@ export default function CreateCourse() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="courseName">Course Name *</Label>
+                        <Label htmlFor="courseName">Tên khóa học *</Label>
                         <Input
                           id="courseName"
-                          placeholder="e.g., Advanced Algorithms"
+                          placeholder="Ví dụ: Thuật toán nâng cao"
                           value={newCourse.name}
                           onChange={(e) =>
                             setNewCourse({ ...newCourse, name: e.target.value })
@@ -1177,7 +1236,7 @@ export default function CreateCourse() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="term">Term</Label>
+                        <Label htmlFor="term">Học kỳ</Label>
                         <Select
                           value={newCourse.term}
                           onValueChange={(v) =>
@@ -1204,13 +1263,13 @@ export default function CreateCourse() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="credits">Credits</Label>
+                      <Label htmlFor="credits">Số tín chỉ</Label>
                       <Input
                         id="credits"
                         type="number"
                         min={1}
                         max={10}
-                        placeholder="e.g., 3"
+                        placeholder="Ví dụ: 3"
                         value={newCourse.credits}
                         onChange={(e) =>
                           setNewCourse({
@@ -1235,11 +1294,11 @@ export default function CreateCourse() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="description">
-                        Description (optional)
+                        Mô tả (không bắt buộc)
                       </Label>
                       <Textarea
                         id="description"
-                        placeholder="Brief course description..."
+                        placeholder="Nhập mô tả ngắn về khóa học..."
                         value={newCourse.description}
                         onChange={(e) =>
                           setNewCourse({
@@ -1253,7 +1312,7 @@ export default function CreateCourse() {
                   </div>
                   <DialogFooter className="gap-2">
                     <Button variant="outline" onClick={handleCloseDialog}>
-                      Cancel
+                      Hủy
                     </Button>
                     <Button
                       onClick={handleSaveCourseInfo}
@@ -1270,7 +1329,7 @@ export default function CreateCourse() {
                       ) : (
                         <ArrowRight className="h-4 w-4" />
                       )}
-                      {createdCourseId ? "Save & Continue" : "Create & Add Students"}
+                      {createdCourseId ? "Lưu & tiếp tục" : "Tạo & thêm sinh viên"}
                     </Button>
                   </DialogFooter>
                 </>
@@ -1282,14 +1341,20 @@ export default function CreateCourse() {
                   <DialogHeader>
                     <DialogTitle className="text-xl flex items-center gap-2">
                       <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      <span className="hidden">
                       Course Created — Add Students
+                      </span>
+                      Đã tạo khóa học — Thêm sinh viên
                     </DialogTitle>
                     <DialogDescription>
                       <span className="font-semibold text-foreground">
                         {createdCourseCode || previewCourseCode}
                       </span>{" "}
+                      <span className="hidden">
                       — {newCourse.name} has been created. Now add students to
                       this course.
+                      </span>
+                      — Khóa học {newCourse.name} đã được tạo. Hãy thêm sinh viên vào khóa học này.
                     </DialogDescription>
                   </DialogHeader>
 
@@ -1302,14 +1367,13 @@ export default function CreateCourse() {
                   >
                     <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="manual" className="gap-2">
-                      <UserPlus className="h-4 w-4" /> Manual Search
+                      <UserPlus className="h-4 w-4" /> Tìm kiếm thủ công
                     </TabsTrigger>
                     <TabsTrigger value="training" className="gap-2">
-                      <GraduationCap className="h-4 w-4" /> Training System
+                      <GraduationCap className="h-4 w-4" /> Hệ thống đào tạo
                     </TabsTrigger>
                     <TabsTrigger value="import" className="gap-2">
-                      <FileSpreadsheet className="h-4 w-4" /> Import CSV /
-                        Excel
+                      <FileSpreadsheet className="h-4 w-4" /> Nhập CSV / Excel
                     </TabsTrigger>
                   </TabsList>
 
@@ -1318,7 +1382,7 @@ export default function CreateCourse() {
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="Search students by name, email, or student ID..."
+                          placeholder="Tìm sinh viên theo tên, email hoặc mã sinh viên..."
                           value={studentSearch}
                           onChange={(e) => setStudentSearch(e.target.value)}
                           className="bg-white pl-9"
@@ -1362,7 +1426,7 @@ export default function CreateCourse() {
                       {selectedStudents.length > 0 && (
                         <div className="space-y-2">
                           <Label className="text-sm font-medium">
-                            Selected Students ({selectedStudents.length})
+                            Sinh viên đã chọn ({selectedStudents.length})
                           </Label>
                           <div className="border rounded-lg max-h-48 overflow-y-auto">
                             <Table>
@@ -1375,7 +1439,7 @@ export default function CreateCourse() {
                                     Email
                                   </TableHead>
                                   <TableHead className="text-xs">
-                                    Student ID
+                                    Mã sinh viên
                                   </TableHead>
                                   <TableHead className="text-xs w-10"></TableHead>
                                 </TableRow>
@@ -1416,7 +1480,7 @@ export default function CreateCourse() {
                         <div className="text-center py-8 text-muted-foreground">
                           <UserPlus className="h-10 w-10 mx-auto mb-2 opacity-40" />
                           <p className="text-sm">
-                            Search and add students to this course
+                            Tìm kiếm và thêm sinh viên vào khóa học này
                           </p>
                         </div>
                       )}
@@ -1440,7 +1504,7 @@ export default function CreateCourse() {
                       <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/40 border">
                         <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                         <p className="text-sm text-muted-foreground">
-                          This uses a training-system abstraction so we can swap in a real external API later without changing the enrollment workflow.
+                          Hệ thống đang dùng lớp tích hợp đào tạo để có thể kết nối API bên ngoài sau này mà không thay đổi quy trình ghi danh.
                         </p>
                       </div>
 
@@ -1482,7 +1546,7 @@ export default function CreateCourse() {
                                 <TableRow>
                                   <TableHead className="text-xs">Student</TableHead>
                                   <TableHead className="text-xs">Email</TableHead>
-                                  <TableHead className="text-xs">Student ID</TableHead>
+                                  <TableHead className="text-xs">Mã sinh viên</TableHead>
                                   <TableHead className="text-xs w-10"></TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -1520,7 +1584,7 @@ export default function CreateCourse() {
                         <div className="text-center py-8 text-muted-foreground">
                           <GraduationCap className="h-10 w-10 mx-auto mb-2 opacity-40" />
                           <p className="text-sm">
-                            Search and add students from the training system
+                            Tìm kiếm và thêm sinh viên từ hệ thống đào tạo
                           </p>
                         </div>
                       )}
@@ -1533,21 +1597,13 @@ export default function CreateCourse() {
                         <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
                         <div className="text-sm text-blue-800 dark:text-blue-200">
                           <p className="font-medium mb-1">
-                            CSV / Excel Convention
+                            Quy ước tệp CSV / Excel
                           </p>
                           <p className="text-xs leading-relaxed">
-                            Upload a{" "}
-                            <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">
-                              .csv
-                            </code>{" "}
-                            or{" "}
-                            <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">
-                              .txt
-                            </code>{" "}
-                            file with student emails. Each row should contain an
-                            email address. Columns can be separated by commas,
-                            semicolons, or tabs. The system will automatically
-                            detect email addresses from the file.
+                            Tệp phải có đủ 4 cột: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">fullName</code>,{" "}
+                            <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">email</code>,{" "}
+                            <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">studentId</code> và{" "}
+                            <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">department</code>. Hỗ trợ CSV, TXT, XLS và XLSX; cột CSV có thể cách nhau bằng dấu phẩy, chấm phẩy hoặc tab.
                           </p>
                           <Button
                             variant="link"
@@ -1555,7 +1611,7 @@ export default function CreateCourse() {
                             className="h-auto p-0 text-blue-600 gap-1 mt-1"
                             onClick={downloadTemplate}
                           >
-                            <Download className="h-3 w-3" /> Download template
+                            <Download className="h-3 w-3" /> Tải tệp mẫu
                           </Button>
                         </div>
                       </div>
@@ -1576,24 +1632,14 @@ export default function CreateCourse() {
                           onDrop={(e) => {
                             e.preventDefault();
                             const file = e.dataTransfer.files[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (event) => {
-                                const text = event.target?.result as string;
-                                const emails = parseEmailsFromCSV(text);
-                                setCsvEmails(emails);
-                                setCsvText(text);
-                                setCsvFileName(file.name);
-                              };
-                              reader.readAsText(file);
-                            }
+                            if (file) void importStudentFile(file);
                           }}
                         >
                           <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                           <p className="text-sm font-medium">
                             {csvFileName
                               ? csvFileName
-                              : "Click to upload or drag & drop"}
+                              : "Nhấn để tải tệp lên hoặc kéo thả vào đây"}
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
                             CSV, TXT, XLS, XLSX
@@ -1604,39 +1650,41 @@ export default function CreateCourse() {
                       {/* Or paste emails */}
                       <div className="space-y-2">
                         <Label className="text-sm">
-                          Or paste emails directly
+                          Hoặc dán dữ liệu CSV trực tiếp
                         </Label>
                         <Textarea
                           placeholder={
-                            "student1@examtrust.edu\nstudent2@examtrust.edu\nstudent3@examtrust.edu"
+                            "fullName,email,studentId,department\nNguyễn Văn An,an.nguyen@examtrust.edu,SV001,Công nghệ thông tin"
                           }
                           value={csvText}
-                          onChange={(e) => handlePasteEmails(e.target.value)}
+                          onChange={(e) => handlePasteImport(e.target.value)}
                           rows={4}
                           className="font-mono text-sm"
                         />
                       </div>
 
-                      {/* Parsed emails preview */}
-                      {csvEmails.length > 0 && (
+                      {importError ? <p className="text-sm text-destructive">{importError}</p> : null}
+
+                      {/* Parsed student preview */}
+                      {importedStudents.length > 0 && (
                         <div className="space-y-2">
                           <Label className="text-sm font-medium flex items-center gap-2">
                             <CheckCircle2 className="h-4 w-4 text-green-500" />
-                            {csvEmails.length} email(s) detected
+                            Đã nhận diện {importedStudents.length} sinh viên hợp lệ
                           </Label>
                           <div className="border rounded-lg max-h-32 overflow-y-auto p-2">
                             <div className="flex flex-wrap gap-1.5">
-                              {csvEmails.map((email) => (
+                              {importedStudents.map((student) => (
                                 <span
-                                  key={email}
+                                  key={student.email}
                                   className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-muted font-mono"
                                 >
-                                  {email}
+                                  {student.fullName} · {student.studentId} · {student.department}
                                   <button
                                     className="ml-0.5 hover:text-destructive"
                                     onClick={() =>
-                                      setCsvEmails((prev) =>
-                                        prev.filter((e) => e !== email),
+                                      setImportedStudents((prev) =>
+                                        prev.filter((item) => item.email !== student.email),
                                       )
                                     }
                                   >
@@ -1655,7 +1703,7 @@ export default function CreateCourse() {
                   {enrollResults.length > 0 && (
                     <div className="space-y-2 mt-4">
                       <Label className="text-sm font-medium">
-                        Enrollment Results
+                        Kết quả ghi danh
                       </Label>
                       <div className="border rounded-lg max-h-40 overflow-y-auto">
                         {enrollResults.map((result, idx) => (
@@ -1689,24 +1737,27 @@ export default function CreateCourse() {
                           enrollResults.filter((r) => r.status === "success")
                             .length
                         }{" "}
-                        enrolled successfully
+                        đã được ghi danh thành công
                         {provisionedCount > 0 && (
                           <span className="text-amber-600 font-medium">
                             {" "}
-                            ({provisionedCount} new accounts auto-created with
-                            password <code>Examtrust@123</code>)
+                            ({provisionedCount} tài khoản mới được tạo tự động với
+                            mật khẩu <code>Examtrust@123</code>)
                           </span>
                         )}
                         {enrollResults.filter((r) => r.status === "failed")
                           .length > 0 &&
-                          `, ${enrollResults.filter((r) => r.status === "failed").length} failed`}
+                          `, ${enrollResults.filter((r) => r.status === "failed").length} thất bại`}
                       </p>
                     </div>
                   )}
 
                   <DialogFooter className="gap-2 mt-4">
                     <Button variant="outline" onClick={handleCloseDialog}>
+                      <span className="hidden">
                       {enrollResults.length > 0 ? "Done" : "Skip — Add Later"}
+                      </span>
+                      {enrollResults.length > 0 ? "Hoàn tất" : "Bỏ qua — Thêm sau"}
                     </Button>
                     {enrollResults.length === 0 && (
                       <Button
@@ -1715,7 +1766,7 @@ export default function CreateCourse() {
                         className="gap-2"
                       >
                         <ArrowLeft className="h-4 w-4" />
-                        Back to Course Info
+                        Quay lại thông tin khóa học
                       </Button>
                     )}
                     {enrollResults.length === 0 && (
@@ -1725,7 +1776,7 @@ export default function CreateCourse() {
                           isEnrolling ||
                           (enrollTab === "manual"
                             ? selectedStudents.length === 0
-                            : csvEmails.length === 0)
+                            : importedStudents.length === 0)
                         }
                         className="gap-2"
                       >
@@ -1734,11 +1785,11 @@ export default function CreateCourse() {
                         ) : (
                           <Users className="h-4 w-4" />
                         )}
-                        Enroll{" "}
+                        Ghi danh{" "}
                         {enrollTab === "manual"
                           ? selectedStudents.length
-                          : csvEmails.length}{" "}
-                        Student(s)
+                          : importedStudents.length}{" "}
+                        sinh viên
                       </Button>
                     )}
                   </DialogFooter>

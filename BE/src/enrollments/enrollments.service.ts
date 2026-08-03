@@ -252,6 +252,7 @@ export class EnrollmentsService {
               fullName: row.fullName?.trim() || emailPrefix,
               role: 'STUDENT',
               studentId: row.studentId?.trim() || null,
+              department: row.department?.trim() || null,
             },
           });
           results.provisioned++;
@@ -269,6 +270,9 @@ export class EnrollmentsService {
         }
         if (row.studentId?.trim() && !student.studentId) {
           updateData.studentId = row.studentId.trim();
+        }
+        if (row.department?.trim() && !student.department) {
+          updateData.department = row.department.trim();
         }
         if (Object.keys(updateData).length > 0) {
           await this.prisma.user.update({ where: { id: student.id }, data: updateData });

@@ -263,8 +263,10 @@ export class AIGenerationProcessor {
         await this.prisma.proctoringEvidenceCapture.update({ where: { id: capture.id }, data: { status: 'ANALYZING', aiError: null } });
         const root = process.env.PROCTORING_EVIDENCE_DIR || join(process.cwd(), 'var', 'proctoring-evidence');
         const result = await this.aiService.analyzeProctoringImage({ image: await readFile(join(root, capture.storageKey)), mimeType: capture.mimeType || 'image/jpeg' });
-        await this.prisma.proctoringEvidenceCapture.update({ where: { id: capture.id }, data: { status: 'ANALYZED', aiTags: result.tags, aiProvider: process.env.AI_PROVIDER || 'google', aiAnalyzedAt: new Date() } });
-        await this.prisma.aIGenerationRecord.update({ where: { id: jobId }, data: { status: 'SUCCEEDED', output: result, completedAt: new Date() } });
+        const provider = process.env.AI_PROVIDER || 'google';
+        const model = result.model ? `${provider}:${result.model}` : provider;
+        await this.prisma.proctoringEvidenceCapture.update({ where: { id: capture.id }, data: { status: 'ANALYZED', aiTags: result.tags, aiProvider: model, aiAnalyzedAt: new Date() } });
+        await this.prisma.aIGenerationRecord.update({ where: { id: jobId }, data: { status: 'SUCCEEDED', model: result.model || undefined, output: result, completedAt: new Date() } });
         return;
       }
       const context = await this.buildContext(task, payload);

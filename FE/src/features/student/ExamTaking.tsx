@@ -596,6 +596,12 @@ export default function ExamTaking() {
       return <span>{blanks.filter((v) => v?.trim()).join(" | ")}</span>;
     }
 
+    if (question.type === "find-error") {
+      const selected = Array.isArray(answer) ? answer.map(String) : typeof answer === "string" ? [answer] : [];
+      const lineNumbers = selected.map((label) => question.segments.findIndex((segment) => segment.label === label) + 1).filter((line) => line > 0);
+      return <span>Dòng {lineNumbers.join(", ")}</span>;
+    }
+
     if (question.type === "short-answer") {
       return <span>{String(answer)}</span>;
     }

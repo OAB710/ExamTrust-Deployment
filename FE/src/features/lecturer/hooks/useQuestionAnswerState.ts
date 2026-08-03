@@ -60,8 +60,10 @@ export function useQuestionAnswerState() {
         }));
       }
 
-      if (isAnswerObject(correctAnswer) && "answer" in correctAnswer) {
-        const selected = String(correctAnswer.answer ?? "").split(",");
+      if (isAnswerObject(correctAnswer) && ("answer" in correctAnswer || "answers" in correctAnswer)) {
+        const selected = Array.isArray(correctAnswer.answers)
+          ? correctAnswer.answers.map(String)
+          : String(correctAnswer.answer ?? "").split(",");
         populatedOptions = populatedOptions.map((option) => ({
           ...option,
           isCorrect: selected.includes(option.id),

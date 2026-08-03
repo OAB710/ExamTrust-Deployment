@@ -18,6 +18,11 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
+interface RefreshedSession {
+  accessToken: string;
+  user: any;
+}
+
 export class ApiRequestError extends Error {
   constructor(
     message: string,
@@ -33,7 +38,7 @@ class ApiClient {
   private baseUrl: string;
   // Access token is kept in memory only (not localStorage) to reduce XSS exposure.
   private memoryToken: string | null = null;
-  private refreshPromise: Promise<boolean> | null = null;
+  private refreshPromise: Promise<RefreshedSession | null> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -52,7 +57,7 @@ class ApiClient {
     this.memoryToken = null;
   }
 
-  private async refreshAccessToken(): Promise<boolean> {
+  private async refreshAccessToken(): Promise<RefreshedSession | null> {
     if (!this.refreshPromise) {
       this.refreshPromise = (async () => {
         try {
@@ -63,24 +68,36 @@ class ApiClient {
           });
           if (!res.ok) {
             this.memoryToken = null;
-            return false;
+            return null;
           }
-          const data = await res.json();
+          const data = (await res.json()) as Partial<RefreshedSession>;
           if (data?.accessToken) {
             this.memoryToken = data.accessToken;
-            return true;
+            return { accessToken: data.accessToken, user: data.user };
           }
           this.memoryToken = null;
-          return false;
+          return null;
         } catch {
           this.memoryToken = null;
-          return false;
+          return null;
         } finally {
           this.refreshPromise = null;
         }
       })();
     }
     return this.refreshPromise;
+  }
+
+  /**
+   * Restores an authenticated browser session after a page reload without
+   * first issuing a protected request that would inevitably return 401.
+   */
+  async restoreSession(): Promise<any> {
+    const session = await this.refreshAccessToken();
+    if (!session?.user) {
+      throw new ApiRequestError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 401);
+    }
+    return session.user;
   }
 
   async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
@@ -106,8 +123,11 @@ class ApiClient {
 
     let response = await doFetch();
 
-    // Access token expired: refresh once via the httpOnly cookie, then retry.
-    if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+    // Access token is stored in memory, so /auth/me also needs a refresh after
+    // a full page reload. Only endpoints that create, rotate, or revoke a
+    // session are excluded to prevent a refresh loop.
+    const refreshExcludedEndpoints = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'];
+    if (response.status === 401 && !refreshExcludedEndpoints.includes(endpoint)) {
       const refreshed = await this.refreshAccessToken();
       if (refreshed) {
         response = await doFetch();
@@ -446,7 +466,7 @@ class ApiClient {
     });
   }
 
-  async bulkImportStudents(courseId: string, students: { email: string; studentId?: string; fullName?: string; className?: string }[]) {
+  async bulkImportStudents(courseId: string, students: { email: string; studentId: string; fullName: string; department: string }[]) {
     return this.request<{
       success: { email: string; fullName: string; studentId: string | null; row: number }[];
       failed: { email: string; reason: string; row: number }[];

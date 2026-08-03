@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
+import { formatManualAnswer } from "./manual-grading-formatters";
 
 function toDisplayText(value: any): string {
   if (value == null) return "Chưa nộp câu trả lời";
@@ -25,7 +26,7 @@ function toDisplayText(value: any): string {
     if ("answer" in value) return toDisplayText(value.answer);
     if ("text" in value) return toDisplayText(value.text);
     if ("content" in value) return toDisplayText(value.content);
-    return JSON.stringify(value);
+    return Object.entries(value).map(([key, item]) => `${key}: ${toDisplayText(item)}`).join(", ");
   }
   return String(value);
 }
@@ -342,6 +343,7 @@ export default function ManualGradingDetail() {
                     draft.pointsAwarded !== savedPoints ||
                     draft.feedback !== savedFeedback;
                   const isSaving = savingId === answer.id;
+                  const answerLines = formatManualAnswer(answer.questionType, answer.answer, answer.questionOptions);
                   return (
                     <Card key={answer.id} className="border-slate-200 bg-white/95 shadow-sm">
                       <CardHeader className="border-b border-slate-100 bg-slate-50/70">
@@ -371,7 +373,7 @@ export default function ManualGradingDetail() {
                             Câu trả lời của sinh viên
                           </p>
                           <p className="mt-2 whitespace-pre-wrap text-sm text-slate-900">
-                            {toDisplayText(answer.answer)}
+                            {answerLines.map((line, lineIndex) => <span key={lineIndex} className="block">{line}</span>)}
                           </p>
                         </div>
 

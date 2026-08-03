@@ -75,7 +75,9 @@ export function buildQuestionPayload(params: BuildPayloadParams) {
             right: shuffle(matchingPairs.map((pair) => pair.right)),
           }
           : params.questionType === "ordering" ? orderingItems : {},
-    correctAnswer: isOptionQuestion
+    correctAnswer: params.questionType === "find_error"
+      ? { answers: params.options.filter((option) => option.isCorrect).map((option) => option.id) }
+      : isOptionQuestion
       ? { answer: params.options.filter((option) => option.isCorrect).map((option) => option.id).join(",") }
       : params.questionType === "true_false" ? { answer: params.tfAnswer === "true" ? "A" : "B" }
         : params.questionType === "matching" ? { pairs: matchingPairs }

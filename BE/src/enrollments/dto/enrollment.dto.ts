@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsOptional, IsEnum, IsEmail, ValidateNested } from 'class-validator';
+import { IsString, IsArray, IsOptional, IsEnum, IsEmail, IsNotEmpty, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateEnrollmentDto {
@@ -36,17 +36,17 @@ export class BulkImportStudentRow {
   @IsEmail()
   email: string;
 
-  @IsOptional()
   @IsString()
-  studentId?: string;
+  @IsNotEmpty()
+  studentId: string;
 
-  @IsOptional()
   @IsString()
-  fullName?: string;
+  @IsNotEmpty()
+  fullName: string;
 
-  @IsOptional()
   @IsString()
-  className?: string;
+  @IsNotEmpty()
+  department: string;
 }
 
 export class BulkImportStudentsDto {

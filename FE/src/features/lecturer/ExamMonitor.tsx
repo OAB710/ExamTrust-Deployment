@@ -60,6 +60,9 @@ import {
   XCircle,
   Activity,
   MousePointerClick,
+  Camera,
+  ImageOff,
+  Sparkles,
 } from "lucide-react";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
 import { Textarea } from "@/components/ui/textarea";
@@ -120,6 +123,24 @@ interface IntegrityAlert {
   message: string;
   severity: "low" | "warning" | "critical";
   time: string;
+}
+
+interface EvidenceCapture {
+  id: string;
+  status: "REQUESTED" | "UPLOADED" | "ANALYZING" | "ANALYZED" | "FAILED" | "PURGED";
+  trigger: "SCHEDULED" | "SUSPICIOUS_EVENT";
+  triggerDetails?: unknown;
+  scheduledSlot?: number | null;
+  scheduledAt?: string | null;
+  capturedAt?: string | null;
+  createdAt: string;
+  aiTags?: Array<{ tag?: string; confidence?: number; note?: string }> | null;
+  aiProvider?: string | null;
+  aiAnalyzedAt?: string | null;
+  aiError?: string | null;
+  reviewStatus?: "PENDING" | "REVIEWED" | "DISMISSED" | null;
+  reviewerNote?: string | null;
+  reviewedAt?: string | null;
 }
 
 type ExamOverview = {
@@ -216,6 +237,15 @@ export default function ExamMonitor() {
   const [riskEligibility, setRiskEligibility] = useState<any | null>(null);
   const [riskEligibilityLoading, setRiskEligibilityLoading] = useState(false);
   const [reviewNotes, setReviewNotes] = useState("");
+  const [evidenceDialogSubmission, setEvidenceDialogSubmission] = useState<{ id: string; name: string } | null>(null);
+  const [evidenceCaptures, setEvidenceCaptures] = useState<EvidenceCapture[]>([]);
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
+  const [evidenceImageUrls, setEvidenceImageUrls] = useState<Record<string, string>>({});
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [evidenceImageLoading, setEvidenceImageLoading] = useState(false);
+  const [evidenceReviewLoading, setEvidenceReviewLoading] = useState(false);
+  const [evidenceReviewNote, setEvidenceReviewNote] = useState("");
+  const [evidenceError, setEvidenceError] = useState<string | null>(null);
 
   const riskFlagsBySubmission = useMemo(() => {
     const map = new Map<string, any>();
@@ -433,6 +463,71 @@ export default function ExamMonitor() {
     setRiskEligibility(null);
     setRiskEligibilityLoading(false);
   };
+
+  const openEvidenceDialog = async (submissionId: string, studentName: string) => {
+    setEvidenceDialogSubmission({ id: submissionId, name: studentName });
+    setEvidenceCaptures([]);
+    setSelectedEvidenceId(null);
+    setEvidenceReviewNote("");
+    setEvidenceError(null);
+    setEvidenceLoading(true);
+    try {
+      const captures = (await api.getEvidenceCaptures(submissionId)) as EvidenceCapture[];
+      setEvidenceCaptures(captures);
+      const firstAvailable = captures.find((capture) => capture.status !== "REQUESTED" && capture.status !== "PURGED");
+      setSelectedEvidenceId(firstAvailable?.id || captures[0]?.id || null);
+    } catch (err: any) {
+      setEvidenceError(err?.message || "Không thể tải bằng chứng camera.");
+    } finally {
+      setEvidenceLoading(false);
+    }
+  };
+
+  const closeEvidenceDialog = () => {
+    Object.values(evidenceImageUrls).forEach((url) => URL.revokeObjectURL(url));
+    setEvidenceDialogSubmission(null);
+    setEvidenceCaptures([]);
+    setSelectedEvidenceId(null);
+    setEvidenceImageUrls({});
+    setEvidenceReviewNote("");
+    setEvidenceError(null);
+  };
+
+  const selectedEvidence = evidenceCaptures.find((capture) => capture.id === selectedEvidenceId) || null;
+
+  useEffect(() => {
+    if (!evidenceDialogSubmission || !selectedEvidence || evidenceImageUrls[selectedEvidence.id]) return;
+    if (selectedEvidence.status === "REQUESTED" || selectedEvidence.status === "PURGED") return;
+    let active = true;
+    setEvidenceImageLoading(true);
+    api.getEvidenceImageUrl(evidenceDialogSubmission.id, selectedEvidence.id)
+      .then((url) => {
+        if (active) setEvidenceImageUrls((current) => ({ ...current, [selectedEvidence.id]: url }));
+        else URL.revokeObjectURL(url);
+      })
+      .catch((err: any) => active && setEvidenceError(err?.message || "Không thể tải ảnh bằng chứng."))
+      .finally(() => active && setEvidenceImageLoading(false));
+    return () => { active = false; };
+  }, [evidenceDialogSubmission, evidenceImageUrls, selectedEvidence]);
+
+  const reviewEvidence = async (reviewStatus: "REVIEWED" | "DISMISSED") => {
+    if (!evidenceDialogSubmission || !selectedEvidence) return;
+    setEvidenceReviewLoading(true);
+    try {
+      const updated = await api.reviewEvidenceCapture(evidenceDialogSubmission.id, selectedEvidence.id, {
+        reviewStatus,
+        reviewerNote: evidenceReviewNote.trim() || undefined,
+      });
+      setEvidenceCaptures((current) => current.map((capture) => capture.id === updated.id ? { ...capture, ...updated } : capture));
+      toast.success(reviewStatus === "REVIEWED" ? "Đã đánh dấu bằng chứng là đã rà soát." : "Đã bỏ qua bằng chứng này.");
+    } catch (err: any) {
+      toast.error(err?.message || "Không thể cập nhật trạng thái rà soát.");
+    } finally {
+      setEvidenceReviewLoading(false);
+    }
+  };
+
+  const formatEvidenceTime = (value?: string | null) => value ? new Date(value).toLocaleString("vi-VN") : "Chưa có";
 
   const handleGenerateRisk = async () => {
     if (!riskDialogSubmission || !riskEligibility?.eligible) return;
@@ -923,6 +1018,16 @@ export default function ExamMonitor() {
                     >
                       {alert.severity}
                     </StatusBadge>
+                    {alert.submissionId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEvidenceDialog(alert.submissionId as string, alert.studentName)}
+                      >
+                        <Camera className="mr-1 h-3.5 w-3.5" />
+                        Xem camera
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -1065,6 +1170,17 @@ export default function ExamMonitor() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-xs"
+                                onClick={() => openEvidenceDialog(s.submissionId as string, s.name)}
+                              >
+                                <Camera className="mr-1 h-3.5 w-3.5" />
+                                Bằng chứng camera
+                              </Button>
+                            )}
+                            {s.submissionId && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs"
                                 onClick={() => openRiskDialog(s.submissionId as string, s.name)}
                               >
                                 <Eye className="mr-1 h-3.5 w-3.5" />
@@ -1096,6 +1212,93 @@ export default function ExamMonitor() {
             />
           </Card>
         </div>
+
+        <Dialog open={!!evidenceDialogSubmission} onOpenChange={(open) => !open && closeEvidenceDialog()}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5 text-primary" />
+                Bằng chứng camera: {evidenceDialogSubmission?.name}
+              </DialogTitle>
+              <DialogDescription>
+                Ảnh được lưu để hỗ trợ giảng viên rà soát. Nhãn AI chỉ là tín hiệu tham khảo, không kết luận gian lận.
+              </DialogDescription>
+            </DialogHeader>
+
+            {evidenceLoading ? (
+              <div className="flex min-h-48 items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Đang tải bằng chứng camera...
+              </div>
+            ) : evidenceError && evidenceCaptures.length === 0 ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{evidenceError}</div>
+            ) : evidenceCaptures.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center">
+                <ImageOff className="mx-auto h-7 w-7 text-muted-foreground" />
+                <p className="mt-2 text-sm font-medium">Chưa có ảnh bằng chứng</p>
+                <p className="mt-1 text-xs text-muted-foreground">Hệ thống chưa nhận được ảnh camera từ lượt làm bài này.</p>
+              </div>
+            ) : (
+              <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]">
+                <div className="space-y-2 md:max-h-[560px] md:overflow-y-auto md:pr-1">
+                  {evidenceCaptures.map((capture, index) => {
+                    const isSelected = selectedEvidenceId === capture.id;
+                    return (
+                      <button
+                        key={capture.id}
+                        type="button"
+                        onClick={() => { setSelectedEvidenceId(capture.id); setEvidenceReviewNote(capture.reviewerNote || ""); setEvidenceError(null); }}
+                        className={`w-full rounded-lg border p-3 text-left transition-colors ${isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">Lần chụp {index + 1}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${capture.reviewStatus === "REVIEWED" ? "bg-emerald-100 text-emerald-700" : capture.reviewStatus === "DISMISSED" ? "bg-muted text-muted-foreground" : "bg-amber-100 text-amber-700"}`}>
+                            {capture.reviewStatus === "REVIEWED" ? "Đã rà soát" : capture.reviewStatus === "DISMISSED" ? "Đã bỏ qua" : "Chờ rà soát"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">{formatEvidenceTime(capture.capturedAt || capture.scheduledAt || capture.createdAt)}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{capture.trigger === "SCHEDULED" ? "Chụp theo lịch" : "Chụp khi có tín hiệu"}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selectedEvidence && (
+                  <div className="space-y-4">
+                    <div className="overflow-hidden rounded-lg border bg-muted/20">
+                      {evidenceImageLoading && !evidenceImageUrls[selectedEvidence.id] ? (
+                        <div className="flex aspect-video items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải ảnh...</div>
+                      ) : evidenceImageUrls[selectedEvidence.id] ? (
+                        <img src={evidenceImageUrls[selectedEvidence.id]} alt={`Ảnh camera của ${evidenceDialogSubmission?.name}`} className="aspect-video w-full object-contain bg-black" />
+                      ) : (
+                        <div className="flex aspect-video flex-col items-center justify-center gap-2 text-sm text-muted-foreground"><ImageOff className="h-6 w-6" /> Ảnh không còn khả dụng</div>
+                      )}
+                    </div>
+
+                    <div className="grid gap-3 text-sm sm:grid-cols-2">
+                      <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Thời gian chụp</p><p className="mt-1 font-medium">{formatEvidenceTime(selectedEvidence.capturedAt)}</p></div>
+                      <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Nguồn kích hoạt</p><p className="mt-1 font-medium">{selectedEvidence.trigger === "SCHEDULED" ? "Theo lịch" : "Sự kiện đáng chú ý"}</p></div>
+                    </div>
+
+                    <div className="rounded-lg border p-3">
+                      <p className="flex items-center gap-1.5 text-sm font-medium"><Sparkles className="h-4 w-4 text-primary" /> Nhãn phân tích AI</p>
+                      {selectedEvidence.status === "ANALYZING" ? <p className="mt-2 text-sm text-muted-foreground">Đang phân tích ảnh...</p> : selectedEvidence.aiError ? <p className="mt-2 text-sm text-red-600">{selectedEvidence.aiError}</p> : Array.isArray(selectedEvidence.aiTags) && selectedEvidence.aiTags.length > 0 ? <div className="mt-2 space-y-2">{selectedEvidence.aiTags.map((tag, index) => <div key={`${tag.tag}-${index}`} className="rounded-md bg-muted/50 p-2 text-sm"><span className="font-medium">{tag.tag || "Tín hiệu"}</span>{typeof tag.confidence === "number" && <span className="ml-2 text-xs text-muted-foreground">{Math.round(tag.confidence * 100)}%</span>}{tag.note && <p className="mt-1 text-xs text-muted-foreground">{tag.note}</p>}</div>)}</div> : <p className="mt-2 text-sm text-muted-foreground">Chưa có nhãn AI cho ảnh này.</p>}
+                    </div>
+
+                    <div className="rounded-lg border p-3">
+                      <p className="text-sm font-medium">Trạng thái rà soát</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{selectedEvidence.reviewStatus === "REVIEWED" ? `Đã rà soát ${formatEvidenceTime(selectedEvidence.reviewedAt)}` : selectedEvidence.reviewStatus === "DISMISSED" ? "Đã bỏ qua" : "Chưa được rà soát"}</p>
+                      <Textarea value={evidenceReviewNote} onChange={(event) => setEvidenceReviewNote(event.target.value)} placeholder="Ghi chú rà soát (không bắt buộc)..." className="mt-3 min-h-[72px] text-sm" />
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" disabled={evidenceReviewLoading} onClick={() => reviewEvidence("REVIEWED")}>Đánh dấu đã rà soát</Button>
+                        <Button size="sm" variant="outline" disabled={evidenceReviewLoading} onClick={() => reviewEvidence("DISMISSED")}>Bỏ qua</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={showScoreDialog} onOpenChange={setShowScoreDialog}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">

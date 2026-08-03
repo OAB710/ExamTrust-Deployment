@@ -583,7 +583,7 @@ export class QuestionsService {
   }
 
   private validateAiImprovementFinal(final: Record<string, any>, fallbackQuestion: any) {
-    const content = String(final?.content || '').trim();
+    const content = this.removeAiEditorialSuffix(String(final?.content || '').trim());
     if (!content) {
       throw new BadRequestException('Improved question content is required');
     }
@@ -595,6 +595,15 @@ export class QuestionsService {
       explanation: String(final?.explanation ?? fallbackQuestion.explanation ?? ''),
       difficulty,
     };
+  }
+
+  /** AI editorial notes belong in the review record, never in the student-facing stem. */
+  private removeAiEditorialSuffix(content: string): string {
+    return content
+      .replace(/\s*\(\s*đã\s+hiệu\s+chỉnh\s+để\s+làm\s+rõ\s+yêu\s+cầu\s*\)\s*/giu, ' ')
+      .replace(/\s*\(\s*revised\s+to\s+clarify(?:\s+the)?\s+requirements?\s*\)\s*/giu, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
   }
 
   private async findActiveAiImprovement(questionId: string, examId: string) {

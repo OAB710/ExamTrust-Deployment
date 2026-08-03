@@ -731,6 +731,7 @@ export default function QuestionEditor() {
                     onAddOption={addOption}
                     onRemoveOption={removeOption}
                     onUpdateOption={updateOption}
+                    onReplaceOptions={setOptions}
                     onUpdateMatch={updateOptionMatch}
                     onMoveOption={moveOption}
                     onToggleCorrect={toggleCorrectOption}
