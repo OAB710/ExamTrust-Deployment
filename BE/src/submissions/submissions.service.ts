@@ -30,7 +30,18 @@ type SnapshotQuestion = {
   type: string;
   stem: string;
   answerKey: any;
+  explanation?: string | null;
   assignedScore: number;
+};
+
+type DuringReviewFeedback = {
+  questionId: string;
+  unavailable?: boolean;
+  pointsAwarded?: number;
+  maxPoints?: number;
+  isCorrect?: boolean;
+  correctAnswer?: any;
+  explanation?: string;
 };
 
 type IntegrityCaseConfidence = 'High' | 'Medium' | 'Low';
@@ -179,27 +190,41 @@ export class SubmissionsService {
 
   sanitizeStudentSubmissionView(submission: any) {
     const resultsPublished = Boolean(submission?.exam?.resultsPublishedAt);
+    const reviewSettings = submission?.exam?.reviewSettings ?? submission?.exam?.settings?.reviewSettings;
+    const afterReview = reviewSettings?.enabled && reviewSettings?.phases?.after
+      ? reviewSettings.phases.after
+      : null;
+    const canShowScore = resultsPublished && (afterReview ? Boolean(afterReview.showScore) : true);
+    const canShowAnswers = resultsPublished && (afterReview ? Boolean(afterReview.showAnswers) : true);
+    const canShowFeedback = resultsPublished && (afterReview ? Boolean(afterReview.showFeedback) : true);
     const answers = Array.isArray(submission?.answers) ? submission.answers.map((answer: any) => {
       const snapshot = this.parseJsonValue(answer?.questionSnapshot?.payload, {});
       const question = answer?.question || {};
       const { correctAnswer: _correctAnswer, explanation: _explanation, ...safeQuestion } = question;
       const answerKey = snapshot.answerKey ?? snapshot.correctAnswer;
+      const autoGradable = this.isAutoGradable(
+        String(snapshot.type ?? question.type ?? ''),
+        answerKey,
+      );
+      const manualGradeAvailable = Boolean(answer?.manualGradedAt);
+      const showAnswerReview = canShowAnswers && autoGradable;
+      const showScoreReview = canShowScore && (autoGradable || manualGradeAvailable);
+      const showFeedbackReview = canShowFeedback && (autoGradable || manualGradeAvailable);
 
       return {
         ...answer,
         questionSnapshot: undefined,
-        ...(resultsPublished ? {} : {
-          isCorrect: undefined,
-          pointsAwarded: undefined,
-          manualGradedAt: undefined,
-          feedback: undefined,
-        }),
+        ...(showAnswerReview ? {} : { isCorrect: undefined }),
+        ...(showScoreReview ? {} : { pointsAwarded: undefined, manualGradedAt: undefined }),
+        ...(showFeedbackReview ? {} : { feedback: undefined }),
         question: {
           ...safeQuestion,
           content: snapshot.stem ?? snapshot.content ?? safeQuestion.content,
           options: snapshot.options ?? safeQuestion.options,
-          ...(resultsPublished && typeof answerKey !== 'undefined' ? { correctAnswer: answerKey } : {}),
-          ...(resultsPublished && typeof snapshot.explanation !== 'undefined' ? { explanation: snapshot.explanation } : {}),
+          ...(showAnswerReview && typeof answerKey !== 'undefined' ? { correctAnswer: answerKey } : {}),
+          ...(showFeedbackReview && autoGradable && typeof snapshot.explanation !== 'undefined'
+            ? { explanation: snapshot.explanation }
+            : {}),
         },
       };
     }) : [];
@@ -212,9 +237,59 @@ export class SubmissionsService {
     return {
       ...submission,
       answers,
-      ...(resultsPublished
+      ...(canShowScore
         ? { academicScore: submission.score, adjustmentTotal: Number(adjustmentTotal.toFixed(2)), score: adjustedScore }
         : { score: null, gradedAt: null }),
+    };
+  }
+
+  private getDuringReviewSettings(reviewSettings: any) {
+    const during = reviewSettings?.enabled && reviewSettings?.phases?.during;
+    return {
+      enabled: Boolean(during),
+      showScore: Boolean(during?.showScore),
+      showAnswers: Boolean(during?.showAnswers),
+      showFeedback: Boolean(during?.showFeedback),
+    };
+  }
+
+  private buildDuringReviewFeedback(
+    question: SnapshotQuestion,
+    answer: any,
+    reviewSettings: any,
+  ): DuringReviewFeedback | null {
+    const policy = this.getDuringReviewSettings(reviewSettings);
+    if (!policy.enabled) return null;
+
+    if (!this.isAutoGradable(question.type, question.answerKey)) {
+      return { questionId: question.questionId, unavailable: true };
+    }
+
+    const isCorrect = this.compareAnswers(answer, question.answerKey, question.type);
+    const feedback: DuringReviewFeedback = { questionId: question.questionId };
+    if (policy.showScore) {
+      feedback.pointsAwarded = isCorrect ? question.assignedScore : 0;
+      feedback.maxPoints = question.assignedScore;
+    }
+    if (policy.showAnswers) {
+      feedback.isCorrect = isCorrect;
+      feedback.correctAnswer = question.answerKey;
+    }
+    if (policy.showFeedback && question.explanation) {
+      feedback.explanation = question.explanation;
+    }
+    return feedback;
+  }
+
+  private sanitizeExamInstanceForStudent(instance: any, webcamEvidencePolicy?: any) {
+    if (!instance) return instance;
+    const snapshotPayload = this.parseJsonValue(instance.snapshotPayload, {});
+    return {
+      ...instance,
+      snapshotPayload: {
+        webcamEvidencePolicy:
+          snapshotPayload?.webcamEvidencePolicy ?? webcamEvidencePolicy ?? null,
+      },
     };
   }
 
@@ -441,7 +516,13 @@ export class SubmissionsService {
         });
       }
 
-      return updatedSubmission;
+      return {
+        ...updatedSubmission,
+        examInstance: this.sanitizeExamInstanceForStudent(
+          updatedSubmission.examInstance,
+          ProctoringEvidenceService.normalizePolicy(webcamPolicyInput),
+        ),
+      };
     }
 
     const examSettings: any = exam.settings || {};
@@ -625,7 +706,12 @@ export class SubmissionsService {
 
 
 
-    return { ...startedSubmission, proctoringEnabled: requiresDesktop, devicePolicy: requiresDesktop ? 'DESKTOP_ONLY' : 'ANY' };
+    return {
+      ...startedSubmission,
+      examInstance: this.sanitizeExamInstanceForStudent(startedSubmission.examInstance),
+      proctoringEnabled: requiresDesktop,
+      devicePolicy: requiresDesktop ? 'DESKTOP_ONLY' : 'ANY',
+    };
   }
 
   async submitExam(
@@ -1087,7 +1173,13 @@ export class SubmissionsService {
     submissionId: string,
     payload: AutosaveExamDto,
     studentId: string,
-  ): Promise<{ success: boolean; count: number; skipped: number; serverVersion: number }> {
+  ): Promise<{
+    success: boolean;
+    count: number;
+    skipped: number;
+    serverVersion: number;
+    reviewFeedback?: DuringReviewFeedback[];
+  }> {
     const answers = Array.isArray(payload?.answers) ? payload.answers : [];
     const clientBatchId = String(payload?.clientBatchId || '').trim() || null;
 
@@ -1107,6 +1199,8 @@ export class SubmissionsService {
                 endTime: true,
                 timeLimitMinutes: true,
                 duration: true,
+                reviewSettings: true,
+                settings: true,
               },
             },
             examSnapshot: {
@@ -1115,7 +1209,9 @@ export class SubmissionsService {
                   select: {
                     questionId: true,
                     questionVersionId: true,
-                    questionSnapshotId: true,
+                  questionSnapshotId: true,
+                  payload: true,
+                  questionSnapshot: { select: { id: true, payload: true } },
                   },
                 },
               },
@@ -1145,7 +1241,9 @@ export class SubmissionsService {
       throw new ConflictException('Submission snapshot is unavailable');
     }
 
-    const validQuestionIds = new Set(snapshotQuestions.map((eq) => eq.questionId));
+    const examQuestions = this.mapSnapshotQuestions(snapshotQuestions);
+    const questionById = new Map(examQuestions.map((question) => [question.questionId, question]));
+    const validQuestionIds = new Set(questionById.keys());
     const versionByQuestionId = new Map(
       snapshotQuestions.map((eq) => [eq.questionId, eq.questionVersionId || null]),
     );
@@ -1300,10 +1398,28 @@ export class SubmissionsService {
         count: savedCount,
         skipped: normalizedAnswers.size - savedCount,
         serverVersion,
+        // Internal only: review feedback must be based on the answers that were
+        // actually persisted, never a stale answer from the same batch.
+        savedQuestionIds: changedAnswers.map((answer) => answer.questionId),
       };
     });
 
-    return result;
+    const reviewSettings = submission.exam.reviewSettings ?? (submission.exam.settings as any)?.reviewSettings;
+    const { savedQuestionIds = [], ...autosaveResult } = result;
+    const savedQuestionIdSet = new Set(savedQuestionIds);
+    const reviewFeedback = Array.from(normalizedAnswers.values())
+      .filter((answer) => savedQuestionIdSet.has(answer.questionId))
+      .map((answer) => {
+        const question = questionById.get(answer.questionId);
+        return question
+          ? this.buildDuringReviewFeedback(question, answer.answer, reviewSettings)
+          : null;
+      })
+      .filter((feedback): feedback is DuringReviewFeedback => Boolean(feedback));
+
+    return reviewFeedback.length > 0
+      ? { ...autosaveResult, reviewFeedback }
+      : autosaveResult;
   }
 
   async addLogs(
@@ -2483,6 +2599,7 @@ export class SubmissionsService {
             : typeof merged.correctAnswer !== 'undefined'
               ? merged.correctAnswer
               : null,
+        explanation: typeof merged.explanation === 'string' ? merged.explanation : null,
         assignedScore,
       };
     });
@@ -3407,6 +3524,7 @@ export class SubmissionsService {
             title: true,
             totalPoints: true,
             resultsPublishedAt: true,
+            reviewSettings: true,
             course: {
               select: {
                 id: true,
@@ -3437,9 +3555,15 @@ export class SubmissionsService {
         (total, adjustment) => total + this.toNumber(adjustment.amount),
         0,
       );
-      if (submission.exam.resultsPublishedAt) {
+      const afterReview = (submission.exam.reviewSettings as any)?.enabled
+        ? (submission.exam.reviewSettings as any)?.phases?.after
+        : null;
+      const canShowScore = Boolean(submission.exam.resultsPublishedAt)
+        && (afterReview ? Boolean(afterReview.showScore) : true);
+      if (canShowScore) {
         return {
           ...submission,
+          examInstance: this.sanitizeExamInstanceForStudent(submission.examInstance),
           academicScore: submission.score,
           score: Number(Math.max(0, Math.min(10, this.toNumber(submission.score) + adjustmentTotal)).toFixed(2)),
           adjustmentTotal: Number(adjustmentTotal.toFixed(2)),
@@ -3447,6 +3571,7 @@ export class SubmissionsService {
       }
       return {
         ...submission,
+        examInstance: this.sanitizeExamInstanceForStudent(submission.examInstance),
         score: null,
         gradedAt: null,
         integrityReview: submission.integrityReview
@@ -3471,6 +3596,7 @@ export class SubmissionsService {
             resultsPublishedAt: true,
             maxAttempts: true,
             settings: true,
+            reviewSettings: true,
             course: {
               select: {
                 id: true,
@@ -3555,6 +3681,7 @@ export class SubmissionsService {
             totalPoints: true,
             passingScore: true,
             resultsPublishedAt: true,
+            reviewSettings: true,
           },
         },
         answers: {

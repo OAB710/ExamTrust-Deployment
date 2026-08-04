@@ -57,6 +57,28 @@ export const getDefaultAcademicYear = (date = new Date()) => {
   return `${startYear}-${startYear + 1}`;
 };
 
+/**
+ * Default academic period based on the university's annual calendar:
+ * semester 1 runs from August through December, semester 2 from January
+ * through May, and the summer term from June through July.
+ *
+ * This only preselects a value. Lecturers can still choose another term.
+ */
+export const getCurrentAcademicTerm = (date = new Date()) => {
+  const month = date.getMonth() + 1;
+  const term: CourseTerm =
+    month >= 8
+      ? "TERM_1"
+      : month >= 6
+        ? "SUMMER"
+        : "TERM_2";
+
+  return {
+    academicYear: getDefaultAcademicYear(date),
+    term,
+  };
+};
+
 export const getAcademicYearOptions = (date = new Date()) => {
   const year = date.getFullYear();
   const start = year - 1;

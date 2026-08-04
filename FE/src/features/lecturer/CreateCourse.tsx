@@ -101,7 +101,7 @@ import {
   CourseTerm,
   formatCourseTerm,
   getAcademicYearOptions,
-  getDefaultAcademicYear,
+  getCurrentAcademicTerm,
 } from "@/lib/course-term";
 import {
   getNumericInputError,
@@ -206,8 +206,8 @@ const buildToken = (value: string, maxLength: number, fallback: string) => {
 };
 
 const academicYearOptions = getAcademicYearOptions();
-const defaultAcademicYear = getDefaultAcademicYear();
-const defaultTerm: CourseTerm = "TERM_2";
+const { academicYear: defaultAcademicYear, term: defaultTerm } =
+  getCurrentAcademicTerm();
 
 const EMPTY_FILTERS: FilterValues = {
   status: "all",

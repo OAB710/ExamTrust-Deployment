@@ -77,6 +77,7 @@ import {
   COURSE_TERM_OPTIONS,
   formatCourseTerm,
   getAcademicYearOptions,
+  getCurrentAcademicTerm,
   type CourseTerm,
 } from "@/lib/course-term";
 import { cn } from "@/lib/utils";
@@ -162,12 +163,12 @@ export default function CreateExam() {
   const [courseComboboxOpen, setCourseComboboxOpen] = useState(false);
   const [courseSearch, setCourseSearch] = useState("");
   const skipNextCourseFocusRef = useRef(false);
-  // Default both course filters to "all" rather than guessing the current
-  // academic year/term from today's date: a course tagged for a different
-  // term/year would otherwise silently disappear from the list even though
-  // it was loaded fine, with no visible hint that a filter is hiding it.
-  const [courseAcademicYearFilter, setCourseAcademicYearFilter] = useState("all");
-  const [courseTermFilter, setCourseTermFilter] = useState<CourseTerm | "all">("all");
+  const [courseAcademicYearFilter, setCourseAcademicYearFilter] = useState(
+    () => getCurrentAcademicTerm().academicYear,
+  );
+  const [courseTermFilter, setCourseTermFilter] = useState<CourseTerm | "all">(
+    () => getCurrentAcademicTerm().term,
+  );
   const isSingleAttempt = form.maxAttempts === "1";
   const hasUnlimitedAttempts = form.maxAttempts === "unlimited";
   const proctoringForcedOff = hasUnlimitedAttempts || form.unlimitedTime;

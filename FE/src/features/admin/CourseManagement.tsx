@@ -82,7 +82,7 @@ import {
   CourseTerm,
   formatCourseTerm,
   getAcademicYearOptions,
-  getDefaultAcademicYear,
+  getCurrentAcademicTerm,
 } from "@/lib/course-term";
 import {
   getNumericInputError,
@@ -141,12 +141,13 @@ interface CourseForm {
   lecturerId: string;
 }
 
-const defaultTerm: CourseTerm = "TERM_2";
 const academicYearOptions = getAcademicYearOptions();
+const { academicYear: defaultAcademicYear, term: defaultTerm } =
+  getCurrentAcademicTerm();
 
 const defaultForm: CourseForm = {
   name: "",
-  academicYear: getDefaultAcademicYear(),
+  academicYear: defaultAcademicYear,
   term: defaultTerm,
   description: "",
   credits: "",
@@ -726,7 +727,7 @@ export default function AdminCourseManagement() {
     setEditingCourseId(course.id);
     setEditForm({
       name: course.name,
-      academicYear: course.academicYear || getDefaultAcademicYear(),
+      academicYear: course.academicYear || defaultAcademicYear,
       term: course.term || defaultTerm,
       description: course.description || "",
       credits: course.credits ? String(course.credits) : "",

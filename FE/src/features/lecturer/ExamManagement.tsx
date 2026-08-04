@@ -691,9 +691,8 @@ export default function ExamManagement() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="max-w-sm">Tiêu đề</TableHead>
-                      <TableHead>Khóa học</TableHead>
-                      <TableHead>Lịch thi</TableHead>
+                      <TableHead className="min-w-[18rem]">Bài kiểm tra &amp; khóa học</TableHead>
+                      <TableHead className="min-w-[15rem]">Thời gian làm bài</TableHead>
                       <TableHead>Trạng thái</TableHead>
                       <TableHead className="text-right">Thao tác</TableHead>
                     </TableRow>
@@ -702,41 +701,59 @@ export default function ExamManagement() {
                     {paginatedExams.map((exam) => {
                       return (
                         <TableRow key={exam.id} className="hover:bg-muted/50">
-                          <TableCell className="font-medium">
-                            <div>
-                              <div className="truncate">{exam.title}</div>
-                              <div className="text-xs text-muted-foreground mt-1">
+                          <TableCell className="min-w-[18rem]">
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-foreground">
+                                {exam.title}
+                              </div>
+                              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm">
+                                <span className="truncate font-medium text-foreground">
+                                  {exam.course.name}
+                                </span>
+                                <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                  {exam.course.code}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-xs text-muted-foreground">
                                 {formatExamMetadata(exam)}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div className="font-medium text-foreground">
-                                {exam.course.name}
-                              </div>
-                              <div className="text-xs text-muted-foreground font-mono">
-                                {exam.course.code}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-[14rem]">
-                            <div className="text-xs text-muted-foreground leading-5">
+                          <TableCell className="min-w-[15rem]">
+                            <div className="space-y-1.5 text-xs">
                               {exam.startTime ? (
-                                <div className="truncate">
-                                  <span className="font-medium">Bắt đầu:</span>{" "}
-                                  {getScheduleLabel(exam.startTime)}
+                                <div className="flex items-start gap-1.5">
+                                  <span className="shrink-0 font-medium text-foreground">
+                                    Bắt đầu
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {getScheduleLabel(exam.startTime)}
+                                  </span>
                                 </div>
                               ) : (
-                                <div className="truncate">Bắt đầu: Chưa lên lịch</div>
+                                <div className="flex items-start gap-1.5">
+                                  <span className="shrink-0 font-medium text-foreground">
+                                    Bắt đầu
+                                  </span>
+                                  <span className="text-muted-foreground">Chưa lên lịch</span>
+                                </div>
                               )}
                               {exam.endTime ? (
-                                <div className="truncate">
-                                  <span className="font-medium">Kết thúc:</span>{" "}
-                                  {getScheduleLabel(exam.endTime)}
+                                <div className="flex items-start gap-1.5 border-t border-border/60 pt-1.5">
+                                  <span className="shrink-0 font-medium text-foreground">
+                                    Kết thúc
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {getScheduleLabel(exam.endTime)}
+                                  </span>
                                 </div>
                               ) : (
-                                <div className="truncate">Kết thúc: Chưa lên lịch</div>
+                                <div className="flex items-start gap-1.5 border-t border-border/60 pt-1.5">
+                                  <span className="shrink-0 font-medium text-foreground">
+                                    Kết thúc
+                                  </span>
+                                  <span className="text-muted-foreground">Chưa lên lịch</span>
+                                </div>
                               )}
                             </div>
                           </TableCell>

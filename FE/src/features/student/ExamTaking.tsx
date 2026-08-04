@@ -21,6 +21,7 @@ import {
   Shield,
   CheckCircle2,
   Camera,
+  Info,
 } from "lucide-react";
 
 import { api } from "@/lib/api";
@@ -44,6 +45,16 @@ import {
   type Question,
 } from "./exam-taking-model";
 import { QuestionRenderer } from "./ExamQuestionRenderer";
+
+type DuringReviewFeedback = {
+  questionId: string;
+  unavailable?: boolean;
+  pointsAwarded?: number;
+  maxPoints?: number;
+  isCorrect?: boolean;
+  correctAnswer?: unknown;
+  explanation?: string;
+};
 
 // ─── Main component ───────────────────────────────────────────────
 export default function ExamTaking() {
@@ -76,6 +87,9 @@ export default function ExamTaking() {
   const [examStartedAt, setExamStartedAt] = useState<number | null>(null);
   const [webcamReady, setWebcamReady] = useState(false);
   const [isStartingWebcam, setIsStartingWebcam] = useState(false);
+  const [duringReviewFeedback, setDuringReviewFeedback] = useState<
+    Record<string, DuringReviewFeedback>
+  >({});
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const logRef = useRef<{ type: string; ts: number; detail?: string }[]>([]);
@@ -83,6 +97,8 @@ export default function ExamTaking() {
   const webcamStreamRef = useRef<MediaStream | null>(null);
   const webcamVideoRef = useRef<HTMLVideoElement | null>(null);
   const evidenceCaptureInFlightRef = useRef(false);
+  const autosaveSequenceRef = useRef(new Map<string, number>());
+  const autosaveTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   useEffect(() => {
     if (!examId || isPreviewMode) return;
@@ -216,6 +232,37 @@ export default function ExamTaking() {
   const log = useCallback((type: string, detail?: string) => {
     logRef.current.push({ type, ts: Date.now(), detail });
   }, []);
+
+  useEffect(() => () => {
+    autosaveTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+    autosaveTimeoutsRef.current.clear();
+  }, []);
+
+  const saveAnswerForReview = useCallback((question: Question & { questionId?: string }, value: unknown) => {
+    if (isPreviewMode || !submissionId || !question.questionId) return;
+
+    const questionId = String(question.questionId);
+    const sequence = (autosaveSequenceRef.current.get(questionId) || 0) + 1;
+    autosaveSequenceRef.current.set(questionId, sequence);
+    const currentTimeout = autosaveTimeoutsRef.current.get(questionId);
+    if (currentTimeout) clearTimeout(currentTimeout);
+
+    autosaveTimeoutsRef.current.set(questionId, setTimeout(() => {
+      void api.autosaveExamAnswers(submissionId, {
+        answers: [{
+          questionId,
+          sequence,
+          answer: normalizeSubmissionAnswer(question, value),
+        }],
+      }).then((response: { reviewFeedback?: DuringReviewFeedback[] }) => {
+        const feedback = response?.reviewFeedback?.[0];
+        if (!feedback) return;
+        setDuringReviewFeedback((current) => ({ ...current, [feedback.questionId]: feedback }));
+      }).catch((error) => {
+        console.warn("Could not save answer for review feedback:", error);
+      });
+    }, 600));
+  }, [isPreviewMode, submissionId]);
 
   const startWebcam = useCallback(async () => {
     if (!webcamPolicy?.enabled) return;
@@ -535,21 +582,33 @@ export default function ExamTaking() {
     );
   }
 
-  const setAnswer = (qId: number, val: unknown) =>
+  const setAnswer = (qId: number, val: unknown) => {
+    const question = questions.find((item) => item.id === qId) as (Question & { questionId?: string }) | undefined;
     setAnswers((prev) => {
       const next = { ...prev, [qId]: val };
       log("answer", JSON.stringify({ questionId: qId, value: val }));
       return next;
     });
+    if (question) saveAnswerForReview(question, val);
+  };
 
   const handleFlag = () =>
     setFlagged((prev) => ({ ...prev, [q.id]: !prev[q.id] }));
-  const handleClear = () =>
+  const handleClear = () => {
     setAnswers((prev) => {
       const next = { ...prev };
       delete next[q.id];
       return next;
     });
+    const questionId = (q as Question & { questionId?: string }).questionId;
+    if (questionId) {
+      setDuringReviewFeedback((current) => {
+        const next = { ...current };
+        delete next[String(questionId)];
+        return next;
+      });
+    }
+  };
 
   const goToPreview = () => {
     const params = new URLSearchParams(searchParams);
@@ -619,6 +678,23 @@ export default function ExamTaking() {
       setOrderState={setOrderState}
     />
   );
+
+  const formatReviewAnswer = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string" || typeof value === "number") return String(value);
+    if (Array.isArray(value)) return value.map(formatReviewAnswer).filter(Boolean).join(", ");
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if (typeof record.text === "string") return record.text;
+      if (typeof record.answer === "string") return record.answer;
+      return Object.values(record).map(formatReviewAnswer).filter(Boolean).join(", ");
+    }
+    return String(value);
+  };
+
+  const currentReviewFeedback = (q as Question & { questionId?: string }).questionId
+    ? duringReviewFeedback[String((q as Question & { questionId?: string }).questionId)]
+    : undefined;
 
   return (
     <div className="min-h-screen bg-background">
@@ -888,6 +964,52 @@ export default function ExamTaking() {
                   )}
 
                   {renderQuestion(q)}
+
+                  {currentReviewFeedback && (
+                    <div
+                      className={`mt-4 rounded-lg border p-3 text-sm ${
+                        currentReviewFeedback.unavailable
+                          ? "border-amber-200 bg-amber-50 text-amber-900"
+                          : "border-blue-200 bg-blue-50 text-slate-800"
+                      }`}
+                    >
+                      {currentReviewFeedback.unavailable ? (
+                        <div className="flex items-start gap-2">
+                          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                          <p>Câu này cần giảng viên chấm; phản hồi chưa khả dụng.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {typeof currentReviewFeedback.pointsAwarded === "number" && (
+                            <p>
+                              <span className="font-medium">Điểm câu này:</span>{" "}
+                              {currentReviewFeedback.pointsAwarded}
+                              {typeof currentReviewFeedback.maxPoints === "number"
+                                ? `/${currentReviewFeedback.maxPoints}`
+                                : ""}
+                            </p>
+                          )}
+                          {typeof currentReviewFeedback.isCorrect === "boolean" && (
+                            <p className={currentReviewFeedback.isCorrect ? "text-emerald-700" : "text-red-700"}>
+                              {currentReviewFeedback.isCorrect ? "Trả lời đúng." : "Trả lời chưa đúng."}
+                            </p>
+                          )}
+                          {currentReviewFeedback.correctAnswer !== undefined && (
+                            <p>
+                              <span className="font-medium">Đáp án đúng:</span>{" "}
+                              {formatReviewAnswer(currentReviewFeedback.correctAnswer)}
+                            </p>
+                          )}
+                          {currentReviewFeedback.explanation && (
+                            <p>
+                              <span className="font-medium">Giải thích:</span>{" "}
+                              {currentReviewFeedback.explanation}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 mt-5">
                     <Button
