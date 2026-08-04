@@ -203,7 +203,7 @@ export default function ExamMonitor() {
     : "/lecturer";
   const [students, setStudents] = useState<StudentSession[]>([]);
   const [alerts, setAlerts] = useState<IntegrityAlert[]>([]);
-  const [examTitle, setExamTitle] = useState("Live Exam Monitor");
+  const [examTitle, setExamTitle] = useState("Giám sát bài thi trực tiếp");
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -286,7 +286,7 @@ export default function ExamMonitor() {
         api.getExamOverview(id),
       ]);
 
-      setExamTitle(examRes?.title || "Live Exam Monitor");
+      setExamTitle(examRes?.title || "Giám sát bài thi trực tiếp");
 
       const overview = (overviewRes || {}) as ExamOverview;
       const submissions = unwrapPaginatedData<any>(submissionsRes);
@@ -338,7 +338,7 @@ export default function ExamMonitor() {
           id: submission?.id || enrollment.id,
           submissionId: submission?.id || null,
           userId: student?.id || "",
-          name: student?.fullName || "Unknown student",
+          name: student?.fullName || "Sinh viên không xác định",
           studentId: student?.studentId || "-",
           status,
           progress:
@@ -384,12 +384,12 @@ export default function ExamMonitor() {
         (anomaly) => ({
           id: anomaly.id,
           submissionId: anomaly.submissionId || null,
-          studentName: anomaly.student?.fullName || "Unknown student",
+          studentName: anomaly.student?.fullName || "Sinh viên không xác định",
           type: mapEventTypeToAlertType(anomaly.eventType),
           message:
             anomaly.details ||
             anomaly.eventType ||
-            "Suspicious activity detected",
+            "Phát hiện hoạt động đáng ngờ",
           severity:
             anomaly.severity === "high"
               ? "critical"
@@ -409,7 +409,7 @@ export default function ExamMonitor() {
         });
       }
     } catch (err: any) {
-      setError(err?.message || "Failed to load monitor data");
+      setError(err?.message || "Không thể tải dữ liệu giám sát");
     } finally {
       if (silent) {
         setIsRefreshing(false);
@@ -556,13 +556,13 @@ export default function ExamMonitor() {
       await loadRiskFlags();
       toast.success(
         status === "CONFIRMED"
-          ? "Marked as needing further investigation."
+          ? "Đã đánh dấu cần điều tra thêm."
           : status === "DISMISSED"
-            ? "Flag dismissed."
-            : "Flag marked as reviewed.",
+            ? "Đã bỏ qua cảnh báo."
+            : "Đã đánh dấu cảnh báo là đã rà soát.",
       );
     } catch (err: any) {
-      toast.error(err?.message || "Failed to update flag review status.");
+      toast.error(err?.message || "Không thể cập nhật trạng thái rà soát cảnh báo.");
     }
   };
 
@@ -591,9 +591,9 @@ export default function ExamMonitor() {
         const mapped: IntegrityAlert = {
           id: String(data?.id || `${Date.now()}-${Math.random()}`),
           submissionId: data?.submissionId || null,
-          studentName: data?.student?.fullName || "Unknown student",
+          studentName: data?.student?.fullName || "Sinh viên không xác định",
           type: alertType,
-          message: data?.details || eventType,
+          message: data?.details || eventType || "Phát hiện hoạt động đáng ngờ",
           severity:
             data?.severity === "high"
               ? "critical"
@@ -653,26 +653,26 @@ export default function ExamMonitor() {
     () => [
       {
         key: "status",
-        label: "Status",
+        label: "Trạng thái",
         type: "select",
-        allLabel: "All status",
+        allLabel: "Tất cả trạng thái",
         options: [
-          { label: "In Progress", value: "in_progress" },
-          { label: "Submitted", value: "submitted" },
-          { label: "Flagged", value: "flagged" },
-          { label: "Not Joined", value: "not_joined" },
-          { label: "Disconnected", value: "disconnected" },
+          { label: "Đang làm bài", value: "in_progress" },
+          { label: "Đã nộp", value: "submitted" },
+          { label: "Bị gắn cờ", value: "flagged" },
+          { label: "Chưa tham gia", value: "not_joined" },
+          { label: "Mất kết nối", value: "disconnected" },
         ],
       },
       {
         key: "riskLevel",
-        label: "Integrity risk",
+        label: "Mức độ rủi ro",
         type: "select",
-        allLabel: "All risk levels",
+        allLabel: "Tất cả mức rủi ro",
         options: [
-          { label: "Clean", value: "clean" },
-          { label: "Watch", value: "watch" },
-          { label: "High", value: "high" },
+          { label: "Bình thường", value: "clean" },
+          { label: "Cần theo dõi", value: "watch" },
+          { label: "Cao", value: "high" },
         ],
       },
     ],
@@ -753,13 +753,13 @@ export default function ExamMonitor() {
   );
 
   const studentSortOptions = [
-    { field: "name", label: "Name" },
-    { field: "studentId", label: "Student ID" },
-    { field: "status", label: "Status" },
-    { field: "progress", label: "Progress" },
-    { field: "tabSwitches", label: "Tab Switches" },
-    { field: "mouseAnomalies", label: "Mouse Anomalies" },
-    { field: "integrityEvents", label: "Integrity Events" },
+    { field: "name", label: "Họ tên" },
+    { field: "studentId", label: "Mã sinh viên" },
+    { field: "status", label: "Trạng thái" },
+    { field: "progress", label: "Tiến độ" },
+    { field: "tabSwitches", label: "Số lần đổi tab" },
+    { field: "mouseAnomalies", label: "Bất thường chuột" },
+    { field: "integrityEvents", label: "Sự kiện toàn vẹn" },
   ];
 
   const stats = {
@@ -805,7 +805,7 @@ export default function ExamMonitor() {
     labels: ["0-50", "51-60", "61-70", "71-80", "81-90", "91-100"],
     datasets: [
       {
-        label: "Students",
+        label: "Sinh viên",
         data: [
           submittedScores.filter((s) => s <= 50).length,
           submittedScores.filter((s) => s > 50 && s <= 60).length,
@@ -845,19 +845,18 @@ export default function ExamMonitor() {
             <h1 className="text-2xl font-semibold text-foreground mb-1">
               {examTitle}
               <span className="ml-3 text-sm font-normal text-muted-foreground">
-                (Exam #{id})
+                (Bài thi #{id})
               </span>
             </h1>
             <p className="text-muted-foreground">
-              Real-time monitoring of student sessions, integrity alerts, and
-              score distribution
+              Theo dõi thời gian thực phiên làm bài của sinh viên, cảnh báo tính toàn vẹn và phân bố điểm số
             </p>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <div
               className={`h-2 w-2 rounded-full ${autoRefresh ? "bg-green-500 animate-pulse" : "bg-muted"}`}
             />
-            <span>Last refresh: {lastRefresh}</span>
+            <span>Cập nhật lần cuối: {lastRefresh}</span>
             <Loader2
               className={`h-4 w-4 animate-spin ${isRefreshing ? "opacity-100" : "opacity-0"}`}
               aria-hidden={!isRefreshing}
@@ -871,7 +870,7 @@ export default function ExamMonitor() {
               <RefreshCw
                 className={`h-3.5 w-3.5 ${autoRefresh ? "animate-spin" : ""}`}
               />
-              {autoRefresh ? "Auto" : "Manual"}
+              {autoRefresh ? "Tự động" : "Thủ công"}
             </Button>
             <Button
               variant="ghost"
@@ -879,11 +878,11 @@ export default function ExamMonitor() {
               onClick={() => loadMonitorData(true)}
               className="gap-1"
             >
-              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              <RefreshCw className="h-3.5 w-3.5" /> Làm mới
             </Button>
             <Button variant="ghost" size="sm" asChild>
               <Link href={`${basePath}/exam/${id}/qr`} className="gap-1">
-                <QrCode className="h-3.5 w-3.5" /> Show QR
+                <QrCode className="h-3.5 w-3.5" /> Hiện mã QR
               </Link>
             </Button>
             <Button
@@ -892,7 +891,7 @@ export default function ExamMonitor() {
               onClick={() => setShowScoreDialog(true)}
               className="gap-1"
             >
-              <BarChart3 className="h-3.5 w-3.5" /> Score Distribution
+              <BarChart3 className="h-3.5 w-3.5" /> Phân bố điểm
             </Button>
           </div>
         </div>
@@ -908,8 +907,8 @@ export default function ExamMonitor() {
         {loading && (
           <Card className="mb-4">
             <CardContent className="pt-4 flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading monitor
-              data...
+              <Loader2 className="h-4 w-4 animate-spin" /> Đang tải dữ liệu
+              giám sát...
             </CardContent>
           </Card>
         )}
@@ -920,7 +919,7 @@ export default function ExamMonitor() {
             <CardContent className="pt-3 pb-3 text-center">
               <Users className="h-5 w-5 text-primary mx-auto mb-1" />
               <p className="text-xl font-semibold">{stats.total}</p>
-              <p className="text-[10px] text-muted-foreground">Total</p>
+              <p className="text-[10px] text-muted-foreground">Tổng số</p>
             </CardContent>
           </Card>
           <Card>
@@ -929,7 +928,7 @@ export default function ExamMonitor() {
               <p className="text-xl font-semibold text-blue-600">
                 {stats.inProgress}
               </p>
-              <p className="text-[10px] text-muted-foreground">In Progress</p>
+              <p className="text-[10px] text-muted-foreground">Đang làm</p>
             </CardContent>
           </Card>
           <Card>
@@ -938,7 +937,7 @@ export default function ExamMonitor() {
               <p className="text-xl font-semibold text-green-600">
                 {stats.submitted}
               </p>
-              <p className="text-[10px] text-muted-foreground">Submitted</p>
+              <p className="text-[10px] text-muted-foreground">Đã nộp</p>
             </CardContent>
           </Card>
           <Card>
@@ -947,14 +946,14 @@ export default function ExamMonitor() {
               <p className="text-xl font-semibold text-red-600">
                 {stats.flagged}
               </p>
-              <p className="text-[10px] text-muted-foreground">Flagged</p>
+              <p className="text-[10px] text-muted-foreground">Gắn cờ</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-3 pb-3 text-center">
               <Clock className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
               <p className="text-xl font-semibold">{stats.notJoined}</p>
-              <p className="text-[10px] text-muted-foreground">Not Joined</p>
+              <p className="text-[10px] text-muted-foreground">Chưa vào</p>
             </CardContent>
           </Card>
           <Card>
@@ -963,7 +962,7 @@ export default function ExamMonitor() {
               <p className="text-xl font-semibold text-yellow-600">
                 {stats.disconnected}
               </p>
-              <p className="text-[10px] text-muted-foreground">Disconnected</p>
+              <p className="text-[10px] text-muted-foreground">Mất kết nối</p>
             </CardContent>
           </Card>
         </div>
@@ -974,7 +973,7 @@ export default function ExamMonitor() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2 text-red-600">
                 <AlertTriangle className="h-4 w-4" />
-                Integrity Alerts ({unresolvedAlerts.length} unresolved)
+                Cảnh báo toàn vẹn ({unresolvedAlerts.length} chưa xử lý)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -1033,7 +1032,7 @@ export default function ExamMonitor() {
                       size="sm"
                       onClick={() => resolveAlert(alert.id)}
                     >
-                      Resolve
+                      Đã xử lý
                     </Button>
                   </div>
                 </div>
@@ -1047,14 +1046,14 @@ export default function ExamMonitor() {
             <CardHeader className="pb-3">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Student Sessions</CardTitle>
+                  <CardTitle className="text-base">Phiên làm bài</CardTitle>
                 </div>
                 <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
                   <SearchBar
                     value={searchInput}
                     onChange={setSearchInput}
                     onSearch={runSearch}
-                    placeholder="Search student name or student ID"
+                    placeholder="Tìm theo tên hoặc mã sinh viên"
                     className="flex-1"
                   />
                   <SortButton
@@ -1068,8 +1067,8 @@ export default function ExamMonitor() {
                     }}
                   />
                   <FilterPanel
-                    title="Student filters"
-                    description="Filter sessions by status and integrity risk level."
+                    title="Bộ lọc sinh viên"
+                    description="Lọc phiên làm bài theo trạng thái và mức độ rủi ro."
                     filters={studentFilterDefinitions}
                     value={draftFilters}
                     onValueChange={(key, nextValue) =>
@@ -1091,11 +1090,11 @@ export default function ExamMonitor() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[35%]">Student</TableHead>
-                    <TableHead className="w-[22%]">Progress</TableHead>
-                    <TableHead className="w-[12%] text-center">Tab Sw.</TableHead>
-                    <TableHead className="w-[14%]">Status</TableHead>
-                    <TableHead className="w-[8%] text-right">Action</TableHead>
+                    <TableHead className="w-[35%]">Sinh viên</TableHead>
+                    <TableHead className="w-[22%]">Tiến độ</TableHead>
+                    <TableHead className="w-[12%] text-center">Đổi tab</TableHead>
+                    <TableHead className="w-[14%]">Trạng thái</TableHead>
+                    <TableHead className="w-[8%] text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1105,7 +1104,7 @@ export default function ExamMonitor() {
                         colSpan={5}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
-                        No student sessions match your current search or filters.
+                        Không tìm thấy phiên làm bài nào phù hợp với tìm kiếm hoặc bộ lọc hiện tại.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -1127,7 +1126,7 @@ export default function ExamMonitor() {
                             <div className="mb-0.5 flex justify-between text-xs">
                               <span>{s.progress}%</span>
                               {s.score !== null && (
-                                <span className="font-medium">{s.score}pts</span>
+                                <span className="font-medium">{s.score}đ</span>
                               )}
                             </div>
                             <Progress value={s.progress} className="h-1.5" />
@@ -1143,9 +1142,7 @@ export default function ExamMonitor() {
                         <TableCell>
                           <div className="flex items-center gap-1.5">
                             {statusIcon(s.status)}
-                            <StatusBadge status={s.status} domain="session">
-                              {s.status.replace("_", " ")}
-                            </StatusBadge>
+                            <StatusBadge status={s.status} domain="session" />
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -1158,11 +1155,11 @@ export default function ExamMonitor() {
                                 onClick={() =>
                                   flagStudent(
                                     s.submissionId,
-                                    "Manually flagged by instructor",
+                                    "Giảng viên gắn cờ thủ công",
                                   )
                                 }
                               >
-                                <Flag className="mr-1 h-3.5 w-3.5" /> Flag
+                                <Flag className="mr-1 h-3.5 w-3.5" /> Gắn cờ
                               </Button>
                             )}
                             {s.submissionId && (
@@ -1208,7 +1205,7 @@ export default function ExamMonitor() {
               totalPages={totalPages}
               totalItems={sortedStudents.length}
               onPageChange={setPage}
-              itemLabel="students"
+              itemLabel="sinh viên"
             />
           </Card>
         </div>
@@ -1305,10 +1302,10 @@ export default function ExamMonitor() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5" />
-                Score Distribution
+                Phân bố điểm
               </DialogTitle>
               <DialogDescription>
-                Distribution for submitted students in exam {id}. Submitted count: {stats.submitted}
+                Phân bố điểm của sinh viên đã nộp trong bài thi {id}. Số lượng đã nộp: {stats.submitted}
               </DialogDescription>
             </DialogHeader>
 
@@ -1325,10 +1322,10 @@ export default function ExamMonitor() {
                         y: {
                           beginAtZero: true,
                           ticks: { stepSize: 1 },
-                          title: { display: true, text: "Students" },
+                          title: { display: true, text: "Sinh viên" },
                         },
                         x: {
-                          title: { display: true, text: "Score Range" },
+                          title: { display: true, text: "Khoảng điểm" },
                         },
                       },
                     }}
@@ -1340,7 +1337,7 @@ export default function ExamMonitor() {
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-lg border border-border/70 p-3">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Average
+                      Trung bình
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-foreground">
                       {Math.round(
@@ -1351,7 +1348,7 @@ export default function ExamMonitor() {
                   </div>
                   <div className="rounded-lg border border-border/70 p-3">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Highest
+                      Cao nhất
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-green-600">
                       {Math.max(...submittedScores)}
@@ -1359,7 +1356,7 @@ export default function ExamMonitor() {
                   </div>
                   <div className="rounded-lg border border-border/70 p-3">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Lowest
+                      Thấp nhất
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-red-600">
                       {Math.min(...submittedScores)}
@@ -1368,7 +1365,7 @@ export default function ExamMonitor() {
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                  Score distribution will appear once students submit their exams.
+                  Phân bố điểm sẽ hiển thị khi sinh viên bắt đầu nộp bài.
                 </div>
               )}
             </div>
