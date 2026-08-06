@@ -49,9 +49,9 @@ export class ExamsController {
     const exam = await this.examsService.findOne(id);
     const frontend = process.env.FRONTEND_URL || process.env.APP_BASE_URL || 'http://localhost:3000';
     const link = `${frontend}/student/exam-ready?examId=${id}`;
-    const subject = `Invitation to exam: ${exam?.title || 'Exam'}`;
-    const html = `<p>You have been invited to join the exam <strong>${exam?.title || 'Exam'}</strong>.</p>
-      <p>Click to join: <a href="${link}">${link}</a></p>`;
+    const subject = `Thư mời tham gia bài thi: ${exam?.title || 'Bài thi'}`;
+    const html = `<p>Bạn được mời tham gia bài thi <strong>${exam?.title || 'Bài thi'}</strong>.</p>
+      <p>Nhấn để tham gia: <a href="${link}">${link}</a></p>`;
 
     // If sendToCourse, fetch enrolled students for the exam's course
     if (sendToCourse) {
@@ -66,7 +66,7 @@ export class ExamsController {
     }
 
     if (!emails || emails.length === 0) {
-      return { success: false, message: 'No recipient provided' };
+      return { success: false, message: 'Chưa có người nhận nào được cung cấp' };
     }
 
     await this.mailerService.sendExamLink(emails, subject, html);

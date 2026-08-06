@@ -76,7 +76,7 @@ export class AuthController {
   async refresh(@Request() req, @Res({ passthrough: true }) res: Response) {
     const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
     if (!refreshToken) {
-      throw new UnauthorizedException('Missing refresh token');
+      throw new UnauthorizedException('Thiếu refresh token');
     }
     const result = await this.authService.rotateSession(refreshToken, this.sessionMeta(req));
     this.setRefreshCookie(res, result.refreshToken);
@@ -91,7 +91,7 @@ export class AuthController {
       await this.authService.logout(refreshToken);
     }
     this.clearRefreshCookie(res);
-    return { message: 'Logged out' };
+    return { message: 'Đã đăng xuất' };
   }
 
   @UseGuards(JwtAuthGuard)

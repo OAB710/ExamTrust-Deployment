@@ -126,19 +126,19 @@ export default function UploadDocAIGen() {
         const extracted = await mammoth.extractRawText({ arrayBuffer: await selected.arrayBuffer() });
         text = extracted.value || "";
       } else if (isPdf) {
-        throw new Error("PDF text extraction is not enabled in this v1 screen. Please upload .docx, .txt, .md, .csv, or .json.");
+        throw new Error("Trích xuất văn bản PDF chưa được hỗ trợ ở phiên bản này. Vui lòng tải lên .docx, .txt, .md, .csv hoặc .json.");
       } else {
-        throw new Error("Unsupported file type. Please upload .docx, .txt, .md, .csv, or .json.");
+        throw new Error("Loại tệp không được hỗ trợ. Vui lòng tải lên .docx, .txt, .md, .csv hoặc .json.");
       }
 
       const normalized = text.replace(/\s+/g, " ").trim();
-      if (!normalized) throw new Error("The selected document has no extractable text.");
+      if (!normalized) throw new Error("Tài liệu đã chọn không có văn bản để trích xuất.");
       setExtractedText(normalized);
       setStep("configure");
-      toast.success("Document text extracted. Configure AI generation next.");
+      toast.success("Đã trích xuất văn bản tài liệu. Tiếp tục cấu hình tạo câu hỏi bằng AI.");
     } catch (err: any) {
       setExtractedText("");
-      toast.error(err.message || "Could not extract text from this file.");
+      toast.error(err.message || "Không thể trích xuất văn bản từ tệp này.");
     } finally {
       setExtracting(false);
     }
@@ -151,11 +151,11 @@ export default function UploadDocAIGen() {
       return;
     }
     if (!courseId || !topicId) {
-      toast.error("Please select a course and topic before generating questions.");
+      toast.error("Vui lòng chọn học phần và chủ đề trước khi tạo câu hỏi.");
       return;
     }
     if (!extractedText) {
-      toast.error("Please upload and extract a document first.");
+      toast.error("Vui lòng tải lên và trích xuất tài liệu trước.");
       return;
     }
 
@@ -203,10 +203,10 @@ export default function UploadDocAIGen() {
       }));
       setGenerated(questions);
       setStep("review");
-      toast.success(`Generated ${questions.length} questions from real document text.`);
+      toast.success(`Đã tạo ${questions.length} câu hỏi từ nội dung tài liệu.`);
     } catch (err: any) {
       setStep("configure");
-      toast.error(err.message || "AI generation failed.");
+      toast.error(err.message || "Tạo câu hỏi bằng AI thất bại.");
     }
   };
 
@@ -229,10 +229,10 @@ export default function UploadDocAIGen() {
           learningObjective: `Generated from ${file?.name || "uploaded document"}`,
         });
       }
-      toast.success(`Saved ${approved.length} approved question(s) to the versioned question bank.`);
+      toast.success(`Đã lưu ${approved.length} câu hỏi đã duyệt vào ngân hàng câu hỏi.`);
       router.push("/lecturer/question-bank");
     } catch (err: any) {
-      toast.error(err.message || "Failed to save approved questions.");
+      toast.error(err.message || "Lưu câu hỏi đã duyệt thất bại.");
     } finally {
       setSaving(false);
     }
@@ -246,23 +246,23 @@ export default function UploadDocAIGen() {
     <DashboardLayout>
       <div className="max-w-4xl mx-auto">
         <Button variant="ghost" size="sm" className="mb-4 gap-2 text-muted-foreground" onClick={() => router.push("/lecturer/question-bank")}>
-          <ArrowLeft className="h-4 w-4" /> Back to Question Bank
+          <ArrowLeft className="h-4 w-4" /> Quay lại ngân hàng câu hỏi
         </Button>
 
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-foreground mb-1">
-            Upload Document & AI Generate
+            Tải tài liệu & tạo câu hỏi bằng AI
           </h1>
           <p className="text-muted-foreground">
-            Text/docx grounded generation with lecturer review before publishing to the question bank.
+            Tạo câu hỏi dựa trên nội dung tệp văn bản/docx, giảng viên xem lại trước khi xuất bản vào ngân hàng câu hỏi.
           </p>
         </div>
 
         {step === "upload" && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5" /> Upload Documents</CardTitle>
-              <CardDescription>V1 supports .docx, .txt, .md, .csv, and .json. PDF OCR/RAG is intentionally out of scope.</CardDescription>
+              <CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5" /> Tải tài liệu lên</CardTitle>
+              <CardDescription>Phiên bản này hỗ trợ .docx, .txt, .md, .csv và .json. Chưa hỗ trợ OCR/RAG cho PDF.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <input
@@ -279,8 +279,8 @@ export default function UploadDocAIGen() {
               />
               <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => inputRef.current?.click()}>
                 {extracting ? <Loader2 className="h-10 w-10 text-primary mx-auto mb-3 animate-spin" /> : <FileSearch className="h-10 w-10 text-muted-foreground mx-auto mb-3" />}
-                <p className="text-sm font-medium">{extracting ? "Extracting text..." : "Click to upload a real document"}</p>
-                <p className="text-xs text-muted-foreground mt-1">No mock upload. The extracted text is sent to the AI job API.</p>
+                <p className="text-sm font-medium">{extracting ? "Đang trích xuất văn bản..." : "Nhấn để tải tài liệu lên"}</p>
+                <p className="text-xs text-muted-foreground mt-1">Văn bản trích xuất được gửi trực tiếp đến API tạo câu hỏi bằng AI.</p>
               </div>
               {file && (
                 <div className="flex items-center gap-3 p-3 rounded-lg border">
@@ -306,17 +306,17 @@ export default function UploadDocAIGen() {
                   usedBy: "Giảng viên dùng để chọn khóa học, chủ đề, độ khó và loại câu hỏi trước khi sinh bản nháp.",
                   note: "AI output chỉ được lưu vào ngân hàng sau khi giảng viên xem và duyệt.",
                 }}>
-                  AI Generation Settings
+                  Thiết lập tạo câu hỏi bằng AI
                 </HelpedTitle>
               </CardTitle>
-              <CardDescription>{extractedText.length.toLocaleString()} characters extracted from {file?.name}</CardDescription>
+              <CardDescription>Đã trích xuất {extractedText.length.toLocaleString()} ký tự từ {file?.name}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Course</Label>
+                  <Label>Học phần</Label>
                   <Select value={courseId} onValueChange={setCourseId}>
-                    <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Chọn học phần" /></SelectTrigger>
                     <SelectContent>
                       {courses.map((course) => <SelectItem key={course.id} value={course.id}>{course.code || course.name} - {course.name}</SelectItem>)}
                     </SelectContent>
@@ -324,7 +324,7 @@ export default function UploadDocAIGen() {
                 </div>
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-1.5">
-                    <Label>Topic</Label>
+                    <Label>Chủ đề</Label>
                     <ContextHelp content={{
                       description: "Chủ đề mà các câu hỏi AI sinh ra sẽ được gắn vào.",
                       usedBy: "Dùng để tổ chức ngân hàng câu hỏi và phân tích kết quả theo nhóm kiến thức.",
@@ -332,24 +332,24 @@ export default function UploadDocAIGen() {
                     }} />
                   </div>
                   <Select value={topicId} onValueChange={setTopicId}>
-                    <SelectTrigger><SelectValue placeholder="Select topic" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Chọn chủ đề" /></SelectTrigger>
                     <SelectContent>
                       {topics.map((topic) => <SelectItem key={topic.id} value={topic.id}>{topic.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  {courseId && topics.length === 0 && <p className="text-xs text-yellow-600">Create a topic in Question Editor before publishing generated questions.</p>}
+                  {courseId && topics.length === 0 && <p className="text-xs text-yellow-600">Tạo một chủ đề trong Ngân hàng câu hỏi trước khi xuất bản câu hỏi được tạo.</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Number of Questions</Label>
+                  <Label>Số lượng câu hỏi</Label>
                   <Input value={numQuestions} onChange={(event) => setNumQuestions(sanitizeNumericInput(event.target.value))} />
                   {numQuestionsError && <p className="text-xs text-destructive">{numQuestionsError}</p>}
                 </div>
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-1.5">
-                    <Label>Difficulty</Label>
+                    <Label>Độ khó</Label>
                     <ContextHelp content={{
                       description: "Mức độ khó mục tiêu cho câu hỏi AI sẽ tạo.",
                       usedBy: "Dùng khi muốn AI tạo câu hỏi dễ, trung bình, khó hoặc pha trộn.",
@@ -359,16 +359,16 @@ export default function UploadDocAIGen() {
                   <Select value={targetDifficulty} onValueChange={setTargetDifficulty}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                      <SelectItem value="mixed">Mixed</SelectItem>
+                      <SelectItem value="easy">Dễ</SelectItem>
+                      <SelectItem value="medium">Trung bình</SelectItem>
+                      <SelectItem value="hard">Khó</SelectItem>
+                      <SelectItem value="mixed">Kết hợp</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-1.5">
-                    <Label>Question Type</Label>
+                    <Label>Loại câu hỏi</Label>
                     <ContextHelp content={{
                       description: "Dạng câu hỏi AI sẽ ưu tiên tạo từ tài liệu.",
                       usedBy: "Dùng khi cần sinh câu hỏi theo cấu trúc đề thi mong muốn.",
@@ -378,29 +378,29 @@ export default function UploadDocAIGen() {
                   <Select value={questionType} onValueChange={setQuestionType}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="MIXED">Mixed</SelectItem>
-                      <SelectItem value="MULTIPLE_CHOICE">Multiple Choice</SelectItem>
-                      <SelectItem value="TRUE_FALSE">True / False</SelectItem>
-                      <SelectItem value="SHORT_ANSWER">Short Answer</SelectItem>
-                      <SelectItem value="ESSAY">Essay</SelectItem>
+                      <SelectItem value="MIXED">Kết hợp</SelectItem>
+                      <SelectItem value="MULTIPLE_CHOICE">Trắc nghiệm nhiều lựa chọn</SelectItem>
+                      <SelectItem value="TRUE_FALSE">Đúng / Sai</SelectItem>
+                      <SelectItem value="SHORT_ANSWER">Trả lời ngắn</SelectItem>
+                      <SelectItem value="ESSAY">Tự luận</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Lecturer Focus (optional)</Label>
-                <Textarea value={focusTopics} onChange={(event) => setFocusTopics(event.target.value)} rows={2} placeholder="e.g. focus on application questions, avoid pure definition recall..." />
+                <Label>Định hướng của giảng viên (không bắt buộc)</Label>
+                <Textarea value={focusTopics} onChange={(event) => setFocusTopics(event.target.value)} rows={2} placeholder="Ví dụ: tập trung vào câu hỏi ứng dụng, tránh câu hỏi chỉ ghi nhớ định nghĩa..." />
               </div>
 
               <div className="rounded-lg border border-yellow-200 bg-yellow-50/50 p-3 text-sm text-yellow-800 flex gap-2">
                 <AlertTriangle className="h-4 w-4 mt-0.5" />
-                AI output is saved only after you approve it. This supports lecturer review, not automatic publishing.
+                Nội dung do AI tạo chỉ được lưu sau khi bạn duyệt. Đây là bước hỗ trợ giảng viên xem xét, không tự động xuất bản.
               </div>
 
               <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setStep("upload")}>Back</Button>
-                <Button onClick={startGeneration} className="gap-2"><Sparkles className="h-4 w-4" /> Generate Questions</Button>
+                <Button variant="outline" onClick={() => setStep("upload")}>Quay lại</Button>
+                <Button onClick={startGeneration} className="gap-2"><Sparkles className="h-4 w-4" /> Tạo câu hỏi</Button>
               </div>
             </CardContent>
           </Card>
@@ -410,8 +410,8 @@ export default function UploadDocAIGen() {
           <Card>
             <CardContent className="py-12 text-center">
               <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">AI job is generating grounded questions...</h3>
-              <p className="text-sm text-muted-foreground mb-6">Waiting for backend AI queue result</p>
+              <h3 className="text-lg font-semibold mb-2">AI đang tạo câu hỏi dựa trên tài liệu...</h3>
+              <p className="text-sm text-muted-foreground mb-6">Đang chờ kết quả từ hàng đợi xử lý AI</p>
               <Progress value={65} className="max-w-md mx-auto" />
             </CardContent>
           </Card>
@@ -420,15 +420,15 @@ export default function UploadDocAIGen() {
         {step === "review" && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-green-600">{approvedCount}</p><p className="text-xs text-muted-foreground">Approved</p></CardContent></Card>
-              <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-yellow-600">{pendingCount}</p><p className="text-xs text-muted-foreground">Pending Review</p></CardContent></Card>
-              <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-red-600">{rejectedCount}</p><p className="text-xs text-muted-foreground">Rejected</p></CardContent></Card>
+              <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-green-600">{approvedCount}</p><p className="text-xs text-muted-foreground">Đã duyệt</p></CardContent></Card>
+              <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-yellow-600">{pendingCount}</p><p className="text-xs text-muted-foreground">Chờ xem xét</p></CardContent></Card>
+              <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-red-600">{rejectedCount}</p><p className="text-xs text-muted-foreground">Đã từ chối</p></CardContent></Card>
             </div>
 
             <div className="flex justify-between items-center">
-              <Button variant="outline" onClick={() => { setStep("configure"); setGenerated([]); }}>Regenerate</Button>
+              <Button variant="outline" onClick={() => { setStep("configure"); setGenerated([]); }}>Tạo lại</Button>
               <Button onClick={saveApproved} disabled={approvedCount === 0 || saving} className="gap-2">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save {approvedCount} to Question Bank
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Lưu {approvedCount} vào ngân hàng câu hỏi
               </Button>
             </div>
 
@@ -440,12 +440,12 @@ export default function UploadDocAIGen() {
                       <span className="text-sm font-mono text-muted-foreground">#{index + 1}</span>
                       <StatusBadge tone="info">{question.type}</StatusBadge>
                       <StatusBadge variant={(question.difficulty || 0) < 0.4 ? "success" : (question.difficulty || 0) < 0.7 ? "warning" : "destructive"}>
-                        {(question.difficulty || 0) < 0.4 ? "Easy" : (question.difficulty || 0) < 0.7 ? "Medium" : "Hard"}
+                        {(question.difficulty || 0) < 0.4 ? "Dễ" : (question.difficulty || 0) < 0.7 ? "Trung bình" : "Khó"}
                       </StatusBadge>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="outline" size="sm" onClick={() => setGenerated((items) => items.map((item) => item.id === question.id ? { ...item, approved: true } : item))} className="gap-1 text-green-600"><CheckCircle2 className="h-4 w-4" /> Approve</Button>
-                      <Button variant="outline" size="sm" onClick={() => setGenerated((items) => items.map((item) => item.id === question.id ? { ...item, approved: false } : item))} className="gap-1 text-red-600"><XCircle className="h-4 w-4" /> Reject</Button>
+                      <Button variant="outline" size="sm" onClick={() => setGenerated((items) => items.map((item) => item.id === question.id ? { ...item, approved: true } : item))} className="gap-1 text-green-600"><CheckCircle2 className="h-4 w-4" /> Duyệt</Button>
+                      <Button variant="outline" size="sm" onClick={() => setGenerated((items) => items.map((item) => item.id === question.id ? { ...item, approved: false } : item))} className="gap-1 text-red-600"><XCircle className="h-4 w-4" /> Từ chối</Button>
                       <Button variant="ghost" size="sm" onClick={() => setGenerated((items) => items.filter((item) => item.id !== question.id))}><Trash2 className="h-4 w-4" /></Button>
                     </div>
                   </div>

@@ -777,11 +777,11 @@ export default function CreateCourse() {
       setCreatedCourseCode(created.code);
       setStep(2);
       setCreateCreditsError("");
-      toast.success("Course created successfully");
+      toast.success("Đã tạo khóa học thành công");
     } catch (err) {
       console.error("Failed to create course:", err);
       toast.error(
-        err instanceof Error ? err.message : "Failed to create course",
+        err instanceof Error ? err.message : "Tạo khóa học thất bại",
       );
     } finally {
       setIsCreating(false);
@@ -824,7 +824,7 @@ export default function CreateCourse() {
           ),
         );
         setCreatedCourseCode(updated.code);
-        toast.success("Course updated successfully");
+        toast.success("Đã cập nhật khóa học thành công");
       } else {
         const created = await api.createCourse(payload);
         const mapped: Course = {
@@ -856,7 +856,7 @@ export default function CreateCourse() {
     } catch (err) {
       console.error("Failed to save course info:", err);
       toast.error(
-        err instanceof Error ? err.message : "Failed to save course info",
+        err instanceof Error ? err.message : "Lưu thông tin khóa học thất bại",
       );
     } finally {
       setIsCreating(false);
@@ -904,7 +904,7 @@ export default function CreateCourse() {
       );
     } catch (err) {
       console.error("Failed to load course details for edit:", err);
-      toast.error("Failed to load full course details");
+      toast.error("Không thể tải đầy đủ thông tin khóa học");
     }
   };
 
@@ -945,11 +945,11 @@ export default function CreateCourse() {
       );
 
       setShowEditDialog(false);
-      toast.success("Course updated successfully");
+      toast.success("Đã cập nhật khóa học thành công");
     } catch (err) {
       console.error("Failed to update course:", err);
       toast.error(
-        err instanceof Error ? err.message : "Failed to update course",
+        err instanceof Error ? err.message : "Cập nhật khóa học thất bại",
       );
     } finally {
       setIsUpdating(false);
@@ -1103,11 +1103,11 @@ export default function CreateCourse() {
     try {
       await api.deleteCourse(id);
       setCourses((prev) => prev.filter((c) => c.id !== id));
-      toast.success("Course deleted successfully");
+      toast.success("Đã xóa khóa học thành công");
     } catch (err) {
       console.error("Failed to delete course:", err);
       toast.error(
-        err instanceof Error ? err.message : "Failed to delete course",
+        err instanceof Error ? err.message : "Xóa khóa học thất bại",
       );
     }
   };
@@ -1341,19 +1341,12 @@ export default function CreateCourse() {
                   <DialogHeader>
                     <DialogTitle className="text-xl flex items-center gap-2">
                       <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      <span className="hidden">
-                      Course Created — Add Students
-                      </span>
                       Đã tạo khóa học — Thêm sinh viên
                     </DialogTitle>
                     <DialogDescription>
                       <span className="font-semibold text-foreground">
                         {createdCourseCode || previewCourseCode}
                       </span>{" "}
-                      <span className="hidden">
-                      — {newCourse.name} has been created. Now add students to
-                      this course.
-                      </span>
                       — Khóa học {newCourse.name} đã được tạo. Hãy thêm sinh viên vào khóa học này.
                     </DialogDescription>
                   </DialogHeader>
@@ -1433,7 +1426,7 @@ export default function CreateCourse() {
                               <TableHeader>
                                 <TableRow>
                                   <TableHead className="text-xs">
-                                    Student
+                                    Sinh viên
                                   </TableHead>
                                   <TableHead className="text-xs">
                                     Email
@@ -1491,7 +1484,7 @@ export default function CreateCourse() {
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="Search training system students by name, email, or student ID..."
+                          placeholder="Tìm sinh viên trong hệ thống đào tạo theo tên, email hoặc mã sinh viên..."
                           value={trainingSearch}
                           onChange={(e) => setTrainingSearch(e.target.value)}
                           className="bg-white pl-9"
@@ -1538,13 +1531,13 @@ export default function CreateCourse() {
                       {selectedTrainingStudents.length > 0 && (
                         <div className="space-y-2">
                           <Label className="text-sm font-medium">
-                            Selected Training Students ({selectedTrainingStudents.length})
+                            Sinh viên đã chọn từ hệ thống đào tạo ({selectedTrainingStudents.length})
                           </Label>
                           <div className="border rounded-lg max-h-48 overflow-y-auto">
                             <Table>
                               <TableHeader>
                                 <TableRow>
-                                  <TableHead className="text-xs">Student</TableHead>
+                                  <TableHead className="text-xs">Sinh viên</TableHead>
                                   <TableHead className="text-xs">Email</TableHead>
                                   <TableHead className="text-xs">Mã sinh viên</TableHead>
                                   <TableHead className="text-xs w-10"></TableHead>
@@ -1754,9 +1747,6 @@ export default function CreateCourse() {
 
                   <DialogFooter className="gap-2 mt-4">
                     <Button variant="outline" onClick={handleCloseDialog}>
-                      <span className="hidden">
-                      {enrollResults.length > 0 ? "Done" : "Skip — Add Later"}
-                      </span>
                       {enrollResults.length > 0 ? "Hoàn tất" : "Bỏ qua — Thêm sau"}
                     </Button>
                     {enrollResults.length === 0 && (
@@ -1804,16 +1794,16 @@ export default function CreateCourse() {
               onInteractOutside={handleDialogInteractOutside}
             >
               <DialogHeader>
-                <DialogTitle>Edit Course</DialogTitle>
+                <DialogTitle>Sửa khóa học</DialogTitle>
                 <DialogDescription>
-                  Update course information.
+                  Cập nhật thông tin khóa học.
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-2">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-code">Course Code (readonly)</Label>
+                    <Label htmlFor="edit-code">Mã khóa học (chỉ đọc)</Label>
                     <Input
                       id="edit-code"
                       value={editCourse.code}
@@ -1822,7 +1812,7 @@ export default function CreateCourse() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-academicYear">Academic year</Label>
+                    <Label htmlFor="edit-academicYear">Năm học</Label>
                     <Select
                       value={editCourse.academicYear}
                       onValueChange={(v) =>
@@ -1848,7 +1838,7 @@ export default function CreateCourse() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-name">Course Name *</Label>
+                    <Label htmlFor="edit-name">Tên khóa học *</Label>
                     <Input
                       id="edit-name"
                       value={editCourse.name}
@@ -1861,7 +1851,7 @@ export default function CreateCourse() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-term">Term</Label>
+                    <Label htmlFor="edit-term">Học kỳ</Label>
                     <Select
                       value={editCourse.term}
                       onValueChange={(v) =>
@@ -1886,7 +1876,7 @@ export default function CreateCourse() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-credits">Credits</Label>
+                  <Label htmlFor="edit-credits">Số tín chỉ</Label>
                   <Input
                     id="edit-credits"
                     type="number"
@@ -1916,7 +1906,7 @@ export default function CreateCourse() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-description">Description</Label>
+                  <Label htmlFor="edit-description">Mô tả</Label>
                   <Textarea
                     id="edit-description"
                     value={editCourse.description}
@@ -1936,7 +1926,7 @@ export default function CreateCourse() {
                   variant="outline"
                   onClick={() => setShowEditDialog(false)}
                 >
-                  Cancel
+                  Hủy
                 </Button>
                 <Button
                   onClick={handleUpdate}
@@ -1950,7 +1940,7 @@ export default function CreateCourse() {
                   {isUpdating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    "Save Changes"
+                    "Lưu thay đổi"
                   )}
                 </Button>
               </DialogFooter>
@@ -2358,7 +2348,7 @@ export default function CreateCourse() {
 
               {filteredCourses.length === 0 && (
                 <div className="py-12 text-center text-muted-foreground">
-                  No courses found
+                  Không tìm thấy khóa học
                 </div>
               )}
             </div>
@@ -2369,7 +2359,7 @@ export default function CreateCourse() {
             totalPages={totalPages}
             totalItems={filteredCourses.length}
             onPageChange={setPage}
-            itemLabel="courses"
+            itemLabel="khóa học"
             className="border-t-0 px-0"
             syncUrl={false}
           />

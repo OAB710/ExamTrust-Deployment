@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { api, unwrapPaginatedData } from "@/lib/api";
-import { snapQuestionDifficulty } from "../question-editor-utils";
+import { api } from "@/lib/api";
+import { findMostSimilarQuestion, snapQuestionDifficulty } from "../question-editor-utils";
 import type { CourseOption, QuestionOption } from "../question-editor-types";
 
 type GeneratedQuestion = {
@@ -36,35 +36,11 @@ const typeMap: Record<string, string> = {
   fill_blank: "FILL_IN_BLANK", matching: "MATCHING", ordering: "ORDERING", find_error: "FIND_ERROR",
 };
 
-const normalize = (value: string) => String(value || "").toLowerCase().normalize("NFD")
-  .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-
-const similarity = (left: string, right: string) => {
-  const first = normalize(left), second = normalize(right);
-  if (!first || !second) return 0;
-  if (first === second) return 1;
-  if (first.includes(second) || second.includes(first)) return 0.95;
-  const firstTokens = new Set(first.split(" ")), secondTokens = new Set(second.split(" "));
-  let shared = 0;
-  firstTokens.forEach((token) => { if (secondTokens.has(token)) shared += 1; });
-  return shared / Math.max(firstTokens.size, secondTokens.size);
-};
-
 export function useQuestionAiGeneration(params: Params) {
   const [aiPrompt, setAiPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiSimilarityWarning, setAiSimilarityWarning] = useState("");
-
-  const findSimilarQuestion = async (generated: GeneratedQuestion, backendType: string) => {
-    const existing = unwrapPaginatedData(await api.listQuestions({ courseId: params.courseId || undefined, type: backendType, limit: 200 }));
-    const generatedText = `${generated.content} ${generated.options ? Object.values(generated.options).join(" ") : ""}`;
-    return (existing || []).reduce<{ similarity: number } | null>((best, item: any) => {
-      const options = item?.options ? (Array.isArray(item.options) ? item.options.map((option: any) => String(option?.text ?? option ?? "")) : Object.values(item.options)).join(" ") : "";
-      const score = similarity(generatedText, `${item?.content || item?.question || ""} ${options}`);
-      return !best || score > best.similarity ? { similarity: score } : best;
-    }, null);
-  };
 
   const applyGeneratedQuestion = (result: GeneratedQuestion) => {
     params.onContent(result.content);
@@ -100,7 +76,11 @@ export function useQuestionAiGeneration(params: Params) {
         difficulty: snapQuestionDifficulty(Math.max(0, Math.min(1, params.difficulty[0]))), language: "vi", useCase: "question_bank",
         context: { courseId: params.courseId, courseName: params.courses.find((course) => course.id === params.courseId)?.name, courseCode: params.courses.find((course) => course.id === params.courseId)?.code, questionType: backendType, source: "question_editor" },
       }) as GeneratedQuestion;
-      const duplicate = await findSimilarQuestion(result, backendType);
+      const duplicate = await findMostSimilarQuestion({
+        courseId: params.courseId,
+        backendType,
+        generatedText: `${result.content} ${result.options ? Object.values(result.options).join(" ") : ""}`,
+      });
       if (duplicate && duplicate.similarity >= 0.8) {
         const message = `Câu hỏi AI tạo quá giống câu hỏi hiện có (${Math.round(duplicate.similarity * 100)}%). Hãy đổi yêu cầu hoặc tạo lại.`;
         setAiSimilarityWarning(message); toast.error(message); return;

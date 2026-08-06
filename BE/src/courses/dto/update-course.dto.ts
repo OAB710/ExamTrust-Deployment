@@ -18,7 +18,7 @@ export class UpdateCourseDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^\d{4}-\d{4}$/, { message: 'academicYear must be in YYYY-YYYY format' })
+  @Matches(/^\d{4}-\d{4}$/, { message: 'Năm học phải theo định dạng YYYY-YYYY' })
   academicYear?: string;
 
   @IsOptional()

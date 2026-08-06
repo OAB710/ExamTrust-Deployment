@@ -157,7 +157,7 @@ const defaultForm: CourseForm = {
 const toAsciiUpper = (value: string) =>
   value
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-zA-Z0-9\s]/g, " ")
     .toUpperCase();
 
@@ -410,7 +410,7 @@ export default function AdminCourseManagement() {
     } catch (error) {
       console.error("Failed to load course management data", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to load courses",
+        error instanceof Error ? error.message : "Không thể tải danh sách khóa học",
       );
     } finally {
       setLoading(false);
@@ -425,20 +425,20 @@ export default function AdminCourseManagement() {
     () => [
       {
         key: "status",
-        label: "Status",
+        label: "Trạng thái",
         type: "select",
-        allLabel: "All Status",
+        allLabel: "Tất cả trạng thái",
         options: [
-          { label: "Draft", value: "draft" },
-          { label: "Active", value: "active" },
-          { label: "Archived", value: "archived" },
+          { label: "Bản nháp", value: "draft" },
+          { label: "Đang hoạt động", value: "active" },
+          { label: "Đã lưu trữ", value: "archived" },
         ],
       },
       {
         key: "lecturerId",
-        label: "Lecturer",
+        label: "Giảng viên",
         type: "select",
-        allLabel: "All Lecturers",
+        allLabel: "Tất cả giảng viên",
         options: lecturers.map((lecturer) => ({
           label: lecturer.fullName,
           value: lecturer.id,
@@ -446,17 +446,17 @@ export default function AdminCourseManagement() {
       },
       {
         key: "academicYear",
-        label: "Academic year",
+        label: "Năm học",
         type: "text",
-        placeholder: "Filter by academic year",
+        placeholder: "Lọc theo năm học",
         operators: ["contains", "startsWith", "equals"],
         defaultOperator: "contains",
       },
       {
         key: "term",
-        label: "Term",
+        label: "Học kỳ",
         type: "select",
-        allLabel: "All Terms",
+        allLabel: "Tất cả học kỳ",
         options: COURSE_TERM_OPTIONS.map((option) => ({
           label: option.label,
           value: option.value,
@@ -464,7 +464,7 @@ export default function AdminCourseManagement() {
       },
       {
         key: "credits",
-        label: "Credits",
+        label: "Tín chỉ",
         type: "number-range",
         min: 0,
         max: 10,
@@ -475,10 +475,10 @@ export default function AdminCourseManagement() {
   );
 
   const courseSortOptions = [
-    { field: "name", label: "Course Name" },
-    { field: "credits", label: "Credits" },
-    { field: "_count.enrollments", label: "Students" },
-    { field: "status", label: "Status" },
+    { field: "name", label: "Tên khóa học" },
+    { field: "credits", label: "Tín chỉ" },
+    { field: "_count.enrollments", label: "Sinh viên" },
+    { field: "status", label: "Trạng thái" },
   ];
 
   const normalizedSearch = appliedSearch.trim().toLowerCase();
@@ -685,13 +685,13 @@ export default function AdminCourseManagement() {
       const created = await api.createCourse(toPayload(createForm));
       setCourses((prev) => [created, ...prev]);
       setCreateCreditsError("");
-      toast.success("Course created successfully");
+      toast.success("Đã tạo khóa học thành công");
       setCreatedCourse({ id: created.id, name: created.name || createForm.name });
       setCreateStep(2);
     } catch (error) {
       console.error("Failed to create course", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to create course",
+        error instanceof Error ? error.message : "Không thể tạo khóa học",
       );
     } finally {
       setSaving(false);
@@ -716,7 +716,7 @@ export default function AdminCourseManagement() {
       setCreateStep(3);
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to assign lecturer",
+        error instanceof Error ? error.message : "Không thể gán giảng viên",
       );
     } finally {
       setAssigningLecturer(false);
@@ -758,11 +758,11 @@ export default function AdminCourseManagement() {
       );
       setShowEditDialog(false);
       setEditingCourseId(null);
-      toast.success("Course updated successfully");
+      toast.success("Đã cập nhật khóa học thành công");
     } catch (error) {
       console.error("Failed to update course", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to update course",
+        error instanceof Error ? error.message : "Không thể cập nhật khóa học",
       );
     } finally {
       setSaving(false);
@@ -773,11 +773,11 @@ export default function AdminCourseManagement() {
     try {
       await api.deleteCourse(id);
       setCourses((prev) => prev.filter((item) => item.id !== id));
-      toast.success("Course deleted successfully");
+      toast.success("Đã xóa khóa học thành công");
     } catch (error) {
       console.error("Failed to delete course", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to delete course",
+        error instanceof Error ? error.message : "Không thể xóa khóa học",
       );
     }
   };
@@ -817,7 +817,7 @@ export default function AdminCourseManagement() {
     <div className="space-y-4 py-2">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="course-code">Course Code (auto-generated)</Label>
+          <Label htmlFor="course-code">Mã khóa học (tự động tạo)</Label>
           <Input
             id="course-code"
             value={getPreviewCode(form.name)}
@@ -826,13 +826,13 @@ export default function AdminCourseManagement() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="academicYear">Academic year</Label>
+          <Label htmlFor="academicYear">Năm học</Label>
           <Select
             value={form.academicYear}
             onValueChange={(value) => onChange({ academicYear: value })}
           >
             <SelectTrigger id="academicYear">
-              <SelectValue placeholder="Select academic year" />
+              <SelectValue placeholder="Chọn năm học" />
             </SelectTrigger>
             <SelectContent>
               {academicYearOptions.map((year) => (
@@ -847,7 +847,7 @@ export default function AdminCourseManagement() {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="course-name">Course Name *</Label>
+          <Label htmlFor="course-name">Tên khóa học *</Label>
           <Input
             id="course-name"
             value={form.name}
@@ -855,7 +855,7 @@ export default function AdminCourseManagement() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="term">Term</Label>
+          <Label htmlFor="term">Học kỳ</Label>
           <Select
             value={form.term}
             onValueChange={(value) =>
@@ -863,7 +863,7 @@ export default function AdminCourseManagement() {
             }
           >
             <SelectTrigger id="term">
-              <SelectValue placeholder="Select term" />
+              <SelectValue placeholder="Chọn học kỳ" />
             </SelectTrigger>
             <SelectContent>
               {COURSE_TERM_OPTIONS.map((option) => (
@@ -877,7 +877,7 @@ export default function AdminCourseManagement() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="credits">Credits</Label>
+        <Label htmlFor="credits">Tín chỉ</Label>
         <Input
           id="credits"
           type="number"
@@ -897,16 +897,16 @@ export default function AdminCourseManagement() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="lecturer">Lecturer</Label>
+        <Label htmlFor="lecturer">Giảng viên</Label>
         <Select
           value={form.lecturerId}
           onValueChange={(value) => onChange({ lecturerId: value })}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select lecturer" />
+            <SelectValue placeholder="Chọn giảng viên" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="unassigned">Unassigned</SelectItem>
+            <SelectItem value="unassigned">Chưa gán</SelectItem>
             {lecturers.map((lecturer) => (
               <SelectItem key={lecturer.id} value={lecturer.id}>
                 {lecturer.fullName} ({lecturer.email})
@@ -917,7 +917,7 @@ export default function AdminCourseManagement() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
+        <Label htmlFor="description">Mô tả</Label>
         <Textarea
           id="description"
           value={form.description}
@@ -932,7 +932,7 @@ export default function AdminCourseManagement() {
     <DashboardLayout>
       <AdminPageShell>
         <ListPageHeader
-          title="All Courses"
+          title="Tất cả khóa học"
           actions={
             <Dialog
               open={showCreateDialog}
@@ -944,7 +944,7 @@ export default function AdminCourseManagement() {
               <DialogTrigger asChild>
                 <Button className="gap-2">
                   <Plus className="h-4 w-4" />
-                  New Course
+                  Thêm khóa học
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -956,7 +956,7 @@ export default function AdminCourseManagement() {
                     <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">
                       1
                     </span>
-                    Course Info
+                    Thông tin khóa học
                   </div>
                   <div className="h-px w-8 bg-border" />
                   <div
@@ -965,7 +965,7 @@ export default function AdminCourseManagement() {
                     <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">
                       2
                     </span>
-                    Add Lecturer
+                    Thêm giảng viên
                   </div>
                   <div className="h-px w-8 bg-border" />
                   <div
@@ -974,23 +974,23 @@ export default function AdminCourseManagement() {
                     <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">
                       3
                     </span>
-                    Add Students
+                    Thêm sinh viên
                   </div>
                 </div>
 
                 {createStep === 1 && (
                   <>
                     <DialogHeader>
-                      <DialogTitle className="text-xl">Create New Course</DialogTitle>
+                      <DialogTitle className="text-xl">Tạo khóa học mới</DialogTitle>
                       <DialogDescription>
-                        Fill in the course details. You can assign a lecturer and add students in the next steps.
+                        Điền thông tin khóa học. Bạn có thể gán giảng viên và thêm sinh viên ở các bước tiếp theo.
                       </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-5 py-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="course-code">Course Code (auto-generated)</Label>
+                          <Label htmlFor="course-code">Mã khóa học (tự động tạo)</Label>
                           <Input
                             id="course-code"
                             value={getPreviewCode(createForm.name)}
@@ -999,7 +999,7 @@ export default function AdminCourseManagement() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="academicYear">Academic year</Label>
+                          <Label htmlFor="academicYear">Năm học</Label>
                           <Select
                             value={createForm.academicYear}
                             onValueChange={(value) =>
@@ -1007,7 +1007,7 @@ export default function AdminCourseManagement() {
                             }
                           >
                             <SelectTrigger id="academicYear">
-                              <SelectValue placeholder="Select academic year" />
+                              <SelectValue placeholder="Chọn năm học" />
                             </SelectTrigger>
                             <SelectContent>
                               {academicYearOptions.map((year) => (
@@ -1019,10 +1019,10 @@ export default function AdminCourseManagement() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="course-name">Course Name *</Label>
+                          <Label htmlFor="course-name">Tên khóa học *</Label>
                           <Input
                             id="course-name"
-                            placeholder="e.g., Advanced Algorithms"
+                            placeholder="VD: Thuật toán nâng cao"
                             value={createForm.name}
                             onChange={(e) =>
                               setCreateForm((prev) => ({ ...prev, name: e.target.value }))
@@ -1030,7 +1030,7 @@ export default function AdminCourseManagement() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="term">Term</Label>
+                          <Label htmlFor="term">Học kỳ</Label>
                           <Select
                             value={createForm.term}
                             onValueChange={(value) =>
@@ -1038,7 +1038,7 @@ export default function AdminCourseManagement() {
                             }
                           >
                             <SelectTrigger id="term">
-                              <SelectValue placeholder="Select term" />
+                              <SelectValue placeholder="Chọn học kỳ" />
                             </SelectTrigger>
                             <SelectContent>
                               {COURSE_TERM_OPTIONS.map((option) => (
@@ -1052,13 +1052,13 @@ export default function AdminCourseManagement() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="credits">Credits</Label>
+                        <Label htmlFor="credits">Tín chỉ</Label>
                         <Input
                           id="credits"
                           type="number"
                           min={1}
                           max={10}
-                          placeholder="e.g., 3"
+                          placeholder="VD: 3"
                           value={createForm.credits}
                           onChange={(e) =>
                             setCreateForm((prev) => ({
@@ -1076,10 +1076,10 @@ export default function AdminCourseManagement() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="description">Description (optional)</Label>
+                        <Label htmlFor="description">Mô tả (không bắt buộc)</Label>
                         <Textarea
                           id="description"
-                          placeholder="Brief course description..."
+                          placeholder="Mô tả ngắn về khóa học..."
                           value={createForm.description}
                           onChange={(e) =>
                             setCreateForm((prev) => ({ ...prev, description: e.target.value }))
@@ -1094,7 +1094,7 @@ export default function AdminCourseManagement() {
                         variant="outline"
                         onClick={() => setShowCreateDialog(false)}
                       >
-                        Cancel
+                        Hủy
                       </Button>
                       <Button
                         onClick={handleCreate}
@@ -1111,7 +1111,7 @@ export default function AdminCourseManagement() {
                         ) : (
                           <ArrowRight className="h-4 w-4" />
                         )}
-                        {createdCourse ? "Save & Continue" : "Create & Add Lecturer"}
+                        {createdCourse ? "Lưu & tiếp tục" : "Tạo & thêm giảng viên"}
                       </Button>
                     </DialogFooter>
                   </>
@@ -1129,25 +1129,25 @@ export default function AdminCourseManagement() {
                   const selectedLecturer = lecturers.find((l) => l.id === selectedLecturerId);
                   const selectedLabel =
                     selectedLecturerId === "unassigned" || !selectedLecturer
-                      ? "Unassigned"
+                      ? "Chưa gán"
                       : `${selectedLecturer.fullName} (${selectedLecturer.email})`;
 
                   return (
                     <>
                       <DialogHeader>
-                        <DialogTitle className="text-xl">Add Lecturer</DialogTitle>
+                        <DialogTitle className="text-xl">Thêm giảng viên</DialogTitle>
                         <DialogDescription>
                           <span className="font-semibold text-foreground">
                             {createdCourse.name}
                           </span>{" "}
-                          was created. Search and assign a lecturer, or skip.
+                          đã được tạo. Tìm và gán giảng viên, hoặc bỏ qua.
                         </DialogDescription>
                       </DialogHeader>
 
                       <Tabs value="manual" className="mt-2">
                         <TabsList className="grid w-full grid-cols-1">
                           <TabsTrigger value="manual" className="gap-2">
-                            <UserPlus className="h-4 w-4" /> Manual Search
+                            <UserPlus className="h-4 w-4" /> Tìm kiếm thủ công
                           </TabsTrigger>
                         </TabsList>
 
@@ -1158,7 +1158,7 @@ export default function AdminCourseManagement() {
                               id="wizard-lecturer"
                               value={lecturerSearch}
                               onChange={(e) => setLecturerSearch(e.target.value)}
-                              placeholder="Search lecturer by name or email..."
+                              placeholder="Tìm giảng viên theo tên hoặc email..."
                               autoComplete="off"
                               className="pl-9"
                             />
@@ -1172,7 +1172,7 @@ export default function AdminCourseManagement() {
                               )}
                               onClick={() => setSelectedLecturerId("unassigned")}
                             >
-                              <span className="text-sm text-muted-foreground">Unassigned</span>
+                              <span className="text-sm text-muted-foreground">Chưa gán</span>
                               <Check
                                 className={cn(
                                   "h-4 w-4 shrink-0 text-primary",
@@ -1182,7 +1182,7 @@ export default function AdminCourseManagement() {
                             </div>
                             {filteredLecturers.length === 0 ? (
                               <div className="p-3 text-sm text-muted-foreground text-center">
-                                No lecturer found.
+                                Không tìm thấy giảng viên.
                               </div>
                             ) : (
                               filteredLecturers.map((lecturer) => (
@@ -1217,14 +1217,14 @@ export default function AdminCourseManagement() {
                           </div>
 
                           <p className="text-sm">
-                            Selected: <span className="font-medium">{selectedLabel}</span>
+                            Đã chọn: <span className="font-medium">{selectedLabel}</span>
                           </p>
                         </TabsContent>
                       </Tabs>
 
                       <DialogFooter className="gap-2">
                         <Button variant="outline" onClick={() => setCreateStep(1)}>
-                          Back
+                          Quay lại
                         </Button>
                         <Button
                           onClick={handleAssignLecturer}
@@ -1236,7 +1236,7 @@ export default function AdminCourseManagement() {
                           ) : (
                             <ArrowRight className="h-4 w-4" />
                           )}
-                          Next: Add Students
+                          Tiếp: Thêm sinh viên
                         </Button>
                       </DialogFooter>
                     </>
@@ -1248,13 +1248,13 @@ export default function AdminCourseManagement() {
                     <DialogHeader>
                       <DialogTitle className="text-xl flex items-center gap-2">
                         <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        Course Created — Add Students
+                        Đã tạo khóa học — Thêm sinh viên
                       </DialogTitle>
                       <DialogDescription>
                         <span className="font-semibold text-foreground">
                           {createdCourse.name}
                         </span>{" "}
-                        has been created. Now add students to this course.
+                        đã được tạo. Bây giờ hãy thêm sinh viên vào khóa học này.
                       </DialogDescription>
                     </DialogHeader>
 
@@ -1265,10 +1265,10 @@ export default function AdminCourseManagement() {
                     >
                       <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="manual" className="gap-2">
-                          <UserPlus className="h-4 w-4" /> Manual Search
+                          <UserPlus className="h-4 w-4" /> Tìm kiếm thủ công
                         </TabsTrigger>
                         <TabsTrigger value="import" className="gap-2">
-                          <FileSpreadsheet className="h-4 w-4" /> Import CSV / Excel
+                          <FileSpreadsheet className="h-4 w-4" /> Nhập từ CSV / Excel
                         </TabsTrigger>
                       </TabsList>
 
@@ -1277,7 +1277,7 @@ export default function AdminCourseManagement() {
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input
-                            placeholder="Search students by name, email, or student ID..."
+                            placeholder="Tìm sinh viên theo tên, email hoặc mã sinh viên..."
                             value={studentSearch}
                             onChange={(e) => setStudentSearch(e.target.value)}
                             className="bg-white pl-9"
@@ -1316,15 +1316,15 @@ export default function AdminCourseManagement() {
                         {selectedStudents.length > 0 && (
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">
-                              Selected Students ({selectedStudents.length})
+                              Sinh viên đã chọn ({selectedStudents.length})
                             </Label>
                             <div className="border rounded-lg max-h-48 overflow-y-auto">
                               <Table>
                                 <TableHeader>
                                   <TableRow>
-                                    <TableHead className="text-xs">Student</TableHead>
+                                    <TableHead className="text-xs">Sinh viên</TableHead>
                                     <TableHead className="text-xs">Email</TableHead>
-                                    <TableHead className="text-xs">Student ID</TableHead>
+                                    <TableHead className="text-xs">Mã sinh viên</TableHead>
                                     <TableHead className="text-xs w-10"></TableHead>
                                   </TableRow>
                                 </TableHeader>
@@ -1361,7 +1361,7 @@ export default function AdminCourseManagement() {
                         {selectedStudents.length === 0 && !studentSearch && (
                           <div className="text-center py-8 text-muted-foreground">
                             <UserPlus className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                            <p className="text-sm">Search and add students to this course</p>
+                            <p className="text-sm">Tìm và thêm sinh viên vào khóa học này</p>
                           </div>
                         )}
                       </TabsContent>
@@ -1371,13 +1371,13 @@ export default function AdminCourseManagement() {
                         <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900">
                           <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
                           <div className="text-sm text-blue-800 dark:text-blue-200">
-                            <p className="font-medium mb-1">CSV / Excel Convention</p>
+                            <p className="font-medium mb-1">Quy ước tệp CSV / Excel</p>
                             <p className="text-xs leading-relaxed">
-                              Upload a <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">.csv</code>{" "}
-                              or <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">.txt</code> file
-                              with student emails. Each row should contain an email address. Columns can be
-                              separated by commas, semicolons, or tabs. The system will automatically detect
-                              email addresses from the file.
+                              Tải lên tệp <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">.csv</code>{" "}
+                              hoặc <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">.txt</code> chứa
+                              email sinh viên. Mỗi dòng nên chứa một địa chỉ email. Các cột có thể được phân
+                              tách bằng dấu phẩy, chấm phẩy hoặc tab. Hệ thống sẽ tự động nhận diện địa chỉ
+                              email trong tệp.
                             </p>
                             <Button
                               variant="link"
@@ -1385,7 +1385,7 @@ export default function AdminCourseManagement() {
                               className="h-auto p-0 text-blue-600 gap-1 mt-1"
                               onClick={downloadTemplate}
                             >
-                              <Download className="h-3 w-3" /> Download template
+                              <Download className="h-3 w-3" /> Tải mẫu
                             </Button>
                           </div>
                         </div>
@@ -1420,14 +1420,14 @@ export default function AdminCourseManagement() {
                           >
                             <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                             <p className="text-sm font-medium">
-                              {csvFileName ? csvFileName : "Click to upload or drag & drop"}
+                              {csvFileName ? csvFileName : "Nhấp để tải lên hoặc kéo & thả"}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">CSV, TXT, XLS, XLSX</p>
                           </div>
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-sm">Or paste emails directly</Label>
+                          <Label className="text-sm">Hoặc dán email trực tiếp</Label>
                           <Textarea
                             placeholder={
                               "student1@examtrust.edu\nstudent2@examtrust.edu\nstudent3@examtrust.edu"
@@ -1443,7 +1443,7 @@ export default function AdminCourseManagement() {
                           <div className="space-y-2">
                             <Label className="text-sm font-medium flex items-center gap-2">
                               <CheckCircle2 className="h-4 w-4 text-green-500" />
-                              {csvEmails.length} email(s) detected
+                              Đã nhận diện {csvEmails.length} email
                             </Label>
                             <div className="border rounded-lg max-h-32 overflow-y-auto p-2">
                               <div className="flex flex-wrap gap-1.5">
@@ -1472,7 +1472,7 @@ export default function AdminCourseManagement() {
 
                     {enrollResults.length > 0 && (
                       <div className="space-y-2 mt-4">
-                        <Label className="text-sm font-medium">Enrollment Results</Label>
+                        <Label className="text-sm font-medium">Kết quả ghi danh</Label>
                         <div className="border rounded-lg max-h-40 overflow-y-auto">
                           {enrollResults.map((result, idx) => (
                             <div
@@ -1497,17 +1497,16 @@ export default function AdminCourseManagement() {
                           ))}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {enrollResults.filter((r) => r.status === "success").length} enrolled
-                          successfully
+                          {enrollResults.filter((r) => r.status === "success").length} đã ghi danh thành công
                           {provisionedCount > 0 && (
                             <span className="text-amber-600 font-medium">
                               {" "}
-                              ({provisionedCount} new accounts auto-created with password{" "}
+                              ({provisionedCount} tài khoản mới được tự động tạo với mật khẩu{" "}
                               <code>Examtrust@123</code>)
                             </span>
                           )}
                           {enrollResults.filter((r) => r.status === "failed").length > 0 &&
-                            `, ${enrollResults.filter((r) => r.status === "failed").length} failed`}
+                            `, ${enrollResults.filter((r) => r.status === "failed").length} thất bại`}
                         </p>
                       </div>
                     )}
@@ -1520,12 +1519,12 @@ export default function AdminCourseManagement() {
                           resetCreateWizard();
                         }}
                       >
-                        {enrollResults.length > 0 ? "Done" : "Skip — Add Later"}
+                        {enrollResults.length > 0 ? "Xong" : "Bỏ qua — Thêm sau"}
                       </Button>
                       {enrollResults.length === 0 && (
                         <Button variant="outline" onClick={() => setCreateStep(2)} className="gap-2">
                           <ArrowLeft className="h-4 w-4" />
-                          Back
+                          Quay lại
                         </Button>
                       )}
                       {enrollResults.length === 0 && (
@@ -1544,9 +1543,9 @@ export default function AdminCourseManagement() {
                           ) : (
                             <Users className="h-4 w-4" />
                           )}
-                          Enroll{" "}
+                          Ghi danh{" "}
                           {enrollTab === "manual" ? selectedStudents.length : csvEmails.length}{" "}
-                          Student(s)
+                          sinh viên
                         </Button>
                       )}
                     </DialogFooter>
@@ -1561,28 +1560,28 @@ export default function AdminCourseManagement() {
           <AdminStatCard
             icon={BookOpen}
             value={courseStats.totalCourses}
-            label="Total Courses"
+            label="Tổng số khóa học"
             iconWrapClassName="bg-blue-500/10"
             iconClassName="text-blue-600"
           />
           <AdminStatCard
             icon={GraduationCap}
             value={courseStats.assignedLecturers}
-            label="Assigned Lecturers"
+            label="Giảng viên đã gán"
             iconWrapClassName="bg-violet-500/10"
             iconClassName="text-violet-600"
           />
           <AdminStatCard
             icon={Users}
             value={courseStats.totalEnrollments}
-            label="Total Enrollments"
+            label="Tổng số lượt ghi danh"
             iconWrapClassName="bg-emerald-500/10"
             iconClassName="text-emerald-600"
           />
           <AdminStatCard
             icon={Pencil}
             value={courseStats.activeCourses}
-            label="Active Courses"
+            label="Khóa học đang hoạt động"
             iconWrapClassName="bg-amber-500/10"
             iconClassName="text-amber-600"
           />
@@ -1594,7 +1593,7 @@ export default function AdminCourseManagement() {
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Search by code, name, academic year, term, or lecturer"
+              placeholder="Tìm theo mã, tên, năm học, học kỳ hoặc giảng viên"
               className="flex-1"
             />
             <SortButton
@@ -1614,8 +1613,8 @@ export default function AdminCourseManagement() {
               </SelectContent>
             </Select>
             <FilterPanel
-              title="Course filters"
-              description="Filter courses by status, lecturer, academic year, term, and credits."
+              title="Bộ lọc khóa học"
+              description="Lọc khóa học theo trạng thái, giảng viên, năm học, học kỳ và số tín chỉ."
               filters={courseFilterDefinitions}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -1642,19 +1641,19 @@ export default function AdminCourseManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Course Name</TableHead>
-                    <TableHead className="text-center min-w-20">Credits</TableHead>
-                    <TableHead>Term</TableHead>
-                    <TableHead>Lecturer</TableHead>
+                    <TableHead>Mã khóa học</TableHead>
+                    <TableHead>Tên khóa học</TableHead>
+                    <TableHead className="text-center min-w-20">Tín chỉ</TableHead>
+                    <TableHead>Học kỳ</TableHead>
+                    <TableHead>Giảng viên</TableHead>
                     <TableHead className="text-center min-w-20">
-                      Students
+                      Sinh viên
                     </TableHead>
                     <TableHead className="text-center min-w-20">
-                      Exams
+                      Bài thi
                     </TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Trạng thái</TableHead>
+                    <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1688,7 +1687,7 @@ export default function AdminCourseManagement() {
                             </div>
                           ) : (
                             <span className="text-muted-foreground">
-                              Unassigned
+                              Chưa gán
                             </span>
                           )}
                         </TableCell>
@@ -1731,9 +1730,9 @@ export default function AdminCourseManagement() {
                               {course.status === 'archived' ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
                             </Button>
                             <ConfirmActionDialog
-                              title="Delete course"
-                              description="This action cannot be undone. The course will be removed if no dependent data blocks deletion."
-                              confirmText="Delete"
+                              title="Xóa khóa học"
+                              description="Hành động này không thể hoàn tác. Khóa học sẽ bị xóa nếu không có dữ liệu liên quan ngăn cản việc xóa."
+                              confirmText="Xóa"
                               destructive
                               onConfirm={() => handleDelete(course.id)}
                             >
@@ -1755,7 +1754,7 @@ export default function AdminCourseManagement() {
                         colSpan={9}
                         className="text-center py-8 text-muted-foreground"
                       >
-                        No course found.
+                        Không tìm thấy khóa học.
                       </TableCell>
                     </TableRow>
                   )}
@@ -1767,7 +1766,7 @@ export default function AdminCourseManagement() {
               totalPages={totalPages}
               totalItems={filteredCourses.length}
               onPageChange={setPage}
-              itemLabel="courses"
+              itemLabel="khóa học"
             />
           </CardContent>
         </Card>
@@ -1776,9 +1775,9 @@ export default function AdminCourseManagement() {
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit Course</DialogTitle>
+            <DialogTitle>Sửa khóa học</DialogTitle>
             <DialogDescription>
-              Update course details and lecturer assignment.
+              Cập nhật thông tin khóa học và giảng viên phụ trách.
             </DialogDescription>
           </DialogHeader>
 
@@ -1791,7 +1790,7 @@ export default function AdminCourseManagement() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              Cancel
+              Hủy
             </Button>
             <Button
               onClick={handleUpdate}
@@ -1802,7 +1801,7 @@ export default function AdminCourseManagement() {
                 !editForm.term
               }
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lưu"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1827,6 +1826,3 @@ export default function AdminCourseManagement() {
     </DashboardLayout>
   );
 }
-
-
-

@@ -40,9 +40,9 @@ export function useAttentionItems() {
         id: "suspicious-reports",
         icon: AlertTriangle,
         priority: "critical",
-        message: `${suspiciousReports.count} suspicious activity ${suspiciousReports.count === 1 ? "report requires" : "reports require"} instructor review`,
+        message: `${suspiciousReports.count} báo cáo hoạt động nghi vấn cần giảng viên xem xét`,
         count: suspiciousReports.count,
-        actionLabel: "Review flags",
+        actionLabel: "Xem xét cảnh báo",
         href: suspiciousReports.href,
       });
     }
@@ -52,9 +52,9 @@ export function useAttentionItems() {
         id: "pending-ai-questions",
         icon: Sparkles,
         priority: "high",
-        message: `${pendingAiQuestions.count} AI-generated ${pendingAiQuestions.count === 1 ? "question is" : "questions are"} waiting for approval`,
+        message: `${pendingAiQuestions.count} câu hỏi do AI tạo đang chờ duyệt`,
         count: pendingAiQuestions.count,
-        actionLabel: "Review questions",
+        actionLabel: "Xem xét câu hỏi",
         href: pendingAiQuestions.href,
       });
     }
@@ -64,9 +64,9 @@ export function useAttentionItems() {
         id: "draft-exams",
         icon: FileText,
         priority: "high",
-        message: `${draftExams.count} draft ${draftExams.count === 1 ? "exam has" : "exams have"} not been published`,
+        message: `${draftExams.count} bài thi ở dạng bản nháp chưa được công bố`,
         count: draftExams.count,
-        actionLabel: "Continue editing",
+        actionLabel: "Tiếp tục chỉnh sửa",
         href: draftExams.href,
       });
     }
@@ -76,9 +76,9 @@ export function useAttentionItems() {
         id: "upcoming-exams",
         icon: Clock,
         priority: "medium",
-        message: `${upcomingExams.count} ${upcomingExams.count === 1 ? "exam starts" : "exams start"} within the next 24 hours`,
+        message: `${upcomingExams.count} bài thi sẽ diễn ra trong 24 giờ tới`,
         count: upcomingExams.count,
-        actionLabel: "Review schedule",
+        actionLabel: "Xem lịch thi",
         href: upcomingExams.href,
       });
     }

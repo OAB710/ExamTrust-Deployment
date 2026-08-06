@@ -178,7 +178,7 @@ class ApiClient {
 
   private async waitForAiJob<T>(jobId: string, timeoutMs = 120000, intervalMs = 2000): Promise<T> {
     if (!jobId) {
-      throw new Error('Cannot wait for AI job: jobId is missing.');
+      throw new Error('Không thể theo dõi tác vụ AI: thiếu jobId.');
     }
 
     const startedAt = Date.now();
@@ -201,18 +201,18 @@ class ApiClient {
       }
 
       if (status === 'FAILED' || status === 'REJECTED') {
-        throw new Error(job?.errorMessage || `AI job failed with status ${status}`);
+        throw new Error(job?.errorMessage || `Tác vụ AI thất bại với trạng thái ${status}`);
       }
 
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
 
     throw new Error(
-      `AI job timed out after ${timeoutMs}ms. ` +
-      `Job ID: ${jobId}. ` +
-      `Last status: ${lastStatus}. ` +
-      `Poll attempts: ${attempts}. ` +
-      `Make sure the backend and AI worker are running.`,
+      `Tác vụ AI đã hết thời gian chờ sau ${timeoutMs}ms. ` +
+      `Mã tác vụ: ${jobId}. ` +
+      `Trạng thái cuối: ${lastStatus}. ` +
+      `Số lần kiểm tra: ${attempts}. ` +
+      `Hãy đảm bảo backend và AI worker đang chạy.`,
     );
 
   }
@@ -817,7 +817,7 @@ class ApiClient {
 
   async createQuestionTag(name: string) {
     // Tags creation removed
-    throw new Error('Tags are not supported');
+    throw new Error('Không hỗ trợ thẻ (tags)');
   }
 
   async listQuestionTopics(filters?: { search?: string; courseId?: string; page?: number; limit?: number }) {
@@ -977,13 +977,13 @@ class ApiClient {
         return job;
       }
       if (status === 'FAILED' || status === 'REJECTED') {
-        throw new Error(job?.errorMessage || `AI quality review failed with status ${status}`);
+        throw new Error(job?.errorMessage || `Rà soát chất lượng bằng AI thất bại với trạng thái ${status}`);
       }
 
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
 
-    throw new Error(`AI quality review timed out after ${Math.round(timeoutMs / 1000)}s (jobId: ${jobId}, last status: ${lastStatus})`);
+    throw new Error(`Rà soát chất lượng bằng AI đã hết thời gian chờ sau ${Math.round(timeoutMs / 1000)}s (jobId: ${jobId}, trạng thái cuối: ${lastStatus})`);
   }
 
   async generateExamQualityReview(examId: string) {
@@ -1210,6 +1210,19 @@ class ApiClient {
     });
   }
 
+  async suggestGradeForAnswer(submissionAnswerId: string) {
+    return this.request<{
+      summary: string;
+      strengths: string[];
+      gaps: string[];
+      suggestedPoints: number;
+      confidence: number;
+    }>('/submissions/grade-answer/ai-suggest', {
+      method: 'POST',
+      body: { submissionAnswerId },
+    });
+  }
+
   async requestEvidenceCapture(submissionId: string, data: { trigger: 'SCHEDULED' | 'SUSPICIOUS_EVENT'; signals?: string[] }) {
     return this.request<{ captureId: string; nonce: string; expiresAt: string; maxBytes: number }>(`/submissions/${submissionId}/evidence-captures/request`, { method: 'POST', body: data });
   }
@@ -1302,13 +1315,13 @@ class ApiClient {
         return job;
       }
       if (status === 'FAILED' || status === 'REJECTED') {
-        throw new Error(job?.errorMessage || `AI risk assessment failed with status ${status}`);
+        throw new Error(job?.errorMessage || `Đánh giá rủi ro bằng AI thất bại với trạng thái ${status}`);
       }
 
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
 
-    throw new Error(`AI risk assessment timed out after ${Math.round(timeoutMs / 1000)}s (jobId: ${jobId}, last status: ${lastStatus})`);
+    throw new Error(`Đánh giá rủi ro bằng AI đã hết thời gian chờ sau ${Math.round(timeoutMs / 1000)}s (jobId: ${jobId}, trạng thái cuối: ${lastStatus})`);
   }
 
   async generateExamRiskAssessment(submissionId: string) {

@@ -264,22 +264,22 @@ Rules:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: systemPrompt }),
         });
-        if (!resp.ok) throw new Error(`Local model server returned ${resp.status}`);
+        if (!resp.ok) throw new Error(`Máy chủ mô hình cục bộ trả về mã lỗi ${resp.status}`);
         responseText = await resp.text();
       } else if (this.provider === 'mock') {
         responseText = JSON.stringify({
-          content: `Sample question about ${prompt}`,
+          content: `Câu hỏi mẫu về ${prompt}`,
           type: questionType,
-          explanation: 'This is a mocked explanation for development.',
+          explanation: 'Đây là giải thích mẫu dùng cho môi trường phát triển.',
           difficulty: Math.round(difficulty * 4) / 4,
           points: 1,
-          options: questionType === 'MULTIPLE_CHOICE' || questionType === 'FIND_ERROR' ? { A: 'Option A', B: 'Option B', C: 'Option C', D: 'Option D' } : null,
+          options: questionType === 'MULTIPLE_CHOICE' || questionType === 'FIND_ERROR' ? { A: 'Phương án A', B: 'Phương án B', C: 'Phương án C', D: 'Phương án D' } : null,
           correctAnswer: questionType === 'MULTIPLE_CHOICE' || questionType === 'FIND_ERROR' ? { answer: 'A' } : null,
           pairs: questionType === 'MATCHING' ? [
-            { left: 'Term 1', right: 'Matching definition 1' },
-            { left: 'Term 2', right: 'Matching definition 2' },
-            { left: 'Term 3', right: 'Matching definition 3' },
-            { left: 'Term 4', right: 'Matching definition 4' },
+            { left: 'Thuật ngữ 1', right: 'Định nghĩa ghép đôi 1' },
+            { left: 'Thuật ngữ 2', right: 'Định nghĩa ghép đôi 2' },
+            { left: 'Thuật ngữ 3', right: 'Định nghĩa ghép đôi 3' },
+            { left: 'Thuật ngữ 4', right: 'Định nghĩa ghép đôi 4' },
           ] : null,
         });
       } else {
@@ -309,7 +309,7 @@ Rules:
       // so the editor never receives half-complete matching rows.
       if (String(questionType).toUpperCase() === 'MATCHING' && !hasCompleteMatchingPairs(parsed.pairs)) {
         if (this.provider !== 'ollama') {
-          throw new Error('AI returned incomplete matching pairs; each of the 4 pairs must contain both left and right values');
+          throw new Error('AI trả về danh sách ghép cặp chưa đầy đủ; cả 4 cặp đều phải có đủ giá trị bên trái và bên phải');
         }
         const repairedText = await this._callOllama(
           `${systemPrompt}\n\nYour previous response was invalid because one or more matching pairs had an empty or missing \"right\" value. Generate the complete question again. Each of the exactly 4 pairs MUST have non-empty \"left\" and non-empty \"right\" strings.`,
@@ -319,7 +319,7 @@ Rules:
           repairedText.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim(),
         );
         if (!hasCompleteMatchingPairs(parsed.pairs)) {
-          throw new Error('AI returned incomplete matching pairs after retry; please generate again');
+          throw new Error('AI vẫn trả về danh sách ghép cặp chưa đầy đủ sau khi thử lại; vui lòng tạo lại');
         }
       }
 
@@ -350,7 +350,7 @@ Rules:
       };
     } catch (error: any) {
       this.logger.error('Failed to generate question:', error);
-      throw new Error(`AI generation failed: ${error.message}`);
+      throw new Error(`Tạo nội dung bằng AI thất bại: ${error.message}`);
     }
   }
 
@@ -459,14 +459,14 @@ ${typeInstruction}
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: systemPrompt }),
         });
-        if (!resp.ok) throw new Error(`Local model server returned ${resp.status}`);
+        if (!resp.ok) throw new Error(`Máy chủ mô hình cục bộ trả về mã lỗi ${resp.status}`);
         responseText = await resp.text();
       } else if (this.provider === 'mock') {
         const sample = {
           questions: Array.from({ length: questionCount }).map((_, i) => ({
-            content: `Mock question ${i + 1} about ${prompt}`,
+            content: `Câu hỏi mẫu ${i + 1} về ${prompt}`,
             type: sampleType,
-            explanation: 'Mocked explanation',
+            explanation: 'Giải thích mẫu',
             difficulty: Math.round(difficulty * 4) / 4,
             points: 1,
             options: { A: 'A', B: 'B', C: 'C', D: 'D' },
@@ -487,7 +487,7 @@ ${typeInstruction}
       const parsed = JSON.parse(cleaned);
 
       if (!parsed.questions || !Array.isArray(parsed.questions)) {
-        throw new Error('Invalid response format: missing questions array');
+        throw new Error('Định dạng phản hồi không hợp lệ: thiếu danh sách câu hỏi');
       }
 
       const normalizeDifficulty = (val: any): number => {
@@ -508,7 +508,7 @@ ${typeInstruction}
       }));
     } catch (error: any) {
       this.logger.error('Failed to generate exam questions:', error);
-      throw new Error(`AI generation failed: ${error.message}`);
+      throw new Error(`Tạo nội dung bằng AI thất bại: ${error.message}`);
     }
   }
 
@@ -535,7 +535,7 @@ ${typeInstruction}
       text = String(result.response.text() || '');
       model = 'gemini-2.0-flash';
     } else {
-      throw new Error(`Vision analysis is not configured for AI provider '${this.provider}'`);
+      throw new Error(`Phân tích hình ảnh giám sát chưa được cấu hình cho nhà cung cấp AI '${this.provider}'`);
     }
 
     const parsed = JSON.parse(text.replace(/```json\s*/gi, '').replace(/```/g, '').trim());
@@ -660,16 +660,16 @@ Rules:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: systemPrompt }),
         });
-        if (!resp.ok) throw new Error(`Local model server returned ${resp.status}`);
+        if (!resp.ok) throw new Error(`Máy chủ mô hình cục bộ trả về mã lỗi ${resp.status}`);
         responseText = await resp.text();
       } else if (this.provider === 'mock') {
         responseText = JSON.stringify({
-          overallSummary: `Mocked quality review summary for ${examTitle || 'this exam'}.`,
+          overallSummary: `Tóm tắt rà soát chất lượng mẫu cho ${examTitle || 'bài thi này'}.`,
           suggestions: questionStats.slice(0, 1).map((q) => ({
             questionId: q.questionId,
             severity: 'medium',
-            reasonSummary: 'Mocked reason based on provided stats.',
-            recommendation: 'Mocked recommendation for development.',
+            reasonSummary: 'Lý do mẫu dựa trên số liệu đã cung cấp.',
+            recommendation: 'Đề xuất mẫu dùng cho môi trường phát triển.',
           })),
         });
       } else {
@@ -685,7 +685,7 @@ Rules:
       const parsed = JSON.parse(cleaned);
 
       if (typeof parsed.overallSummary !== 'string' || !Array.isArray(parsed.suggestions)) {
-        throw new Error('Invalid response format: missing overallSummary or suggestions array');
+        throw new Error('Định dạng phản hồi không hợp lệ: thiếu tóm tắt tổng quan hoặc danh sách đề xuất');
       }
 
       const validQuestionIds = new Set(questionStats.map((q) => q.questionId));
@@ -707,7 +707,7 @@ Rules:
       };
     } catch (error: any) {
       this.logger.error('Failed to generate exam quality review:', error);
-      throw new Error(`AI generation failed: ${error.message}`);
+      throw new Error(`Tạo nội dung bằng AI thất bại: ${error.message}`);
     }
   }
 
@@ -811,7 +811,7 @@ Rules:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: systemPrompt }),
         });
-        if (!resp.ok) throw new Error(`Local model server returned ${resp.status}`);
+        if (!resp.ok) throw new Error(`Máy chủ mô hình cục bộ trả về mã lỗi ${resp.status}`);
         responseText = await resp.text();
       } else if (this.provider === 'mock') {
         const mockScore = Math.min(100, signals.tabSwitchCount * 10 + signals.fullscreenExitCount * 15 + signals.tooFastAnswerCount * 5);
@@ -819,9 +819,9 @@ Rules:
           riskScore: mockScore,
           riskLevel: mockScore >= 70 ? 'HIGH' : mockScore >= 35 ? 'MEDIUM' : 'LOW',
           signals: signals.tabSwitchCount > 0
-            ? [{ type: 'tab_switch', description: 'Mocked signal for development.', weight: 0.5 }]
+            ? [{ type: 'tab_switch', description: 'Tín hiệu mẫu dùng cho môi trường phát triển.', weight: 0.5 }]
             : [],
-          explanation: `Mocked risk assessment for ${examTitle || 'this exam'}.`,
+          explanation: `Đánh giá rủi ro mẫu cho ${examTitle || 'bài thi này'}.`,
           recommendReview: mockScore >= 35,
         });
       } else {
@@ -843,7 +843,7 @@ Rules:
         || typeof parsed.explanation !== 'string'
         || !Array.isArray(parsed.signals)
       ) {
-        throw new Error('Invalid response format: missing riskScore, riskLevel, explanation, or signals array');
+        throw new Error('Định dạng phản hồi không hợp lệ: thiếu điểm rủi ro, mức độ rủi ro, giải thích hoặc danh sách tín hiệu');
       }
 
       const riskScore = Math.max(0, Math.min(100, Math.round(Number(parsed.riskScore))));
@@ -866,7 +866,7 @@ Rules:
       };
     } catch (error: any) {
       this.logger.error('Failed to generate exam risk assessment:', error);
-      throw new Error(`AI generation failed: ${error.message}`);
+      throw new Error(`Tạo nội dung bằng AI thất bại: ${error.message}`);
     }
   }
 
@@ -969,17 +969,17 @@ Rules:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt }),
         });
-        if (!resp.ok) throw new Error(`Local model server returned ${resp.status}`);
+        if (!resp.ok) throw new Error(`Máy chủ mô hình cục bộ trả về mã lỗi ${resp.status}`);
         return resp.text();
       }
       if (this.provider === 'mock') {
         return JSON.stringify({
           diagnosis: {
-            issues: [{ type: 'AMBIGUOUS_WORDING', description: 'Mock proposal based on high incorrect rate.' }],
-            reason: 'The question may need clearer wording and stronger distractors.',
+            issues: [{ type: 'AMBIGUOUS_WORDING', description: 'Đề xuất mẫu dựa trên tỷ lệ trả lời sai cao.' }],
+            reason: 'Câu hỏi có thể cần diễn đạt rõ hơn và các phương án gây nhiễu chặt chẽ hơn.',
           },
           suggestion: {
-            content: String(original.content || original.stem || '').trim() || 'Improved question content',
+            content: String(original.content || original.stem || '').trim() || 'Nội dung câu hỏi đã cải thiện',
             options: original.options || {},
             correctAnswer: original.correctAnswer || original.answerKey || {},
             explanation: original.explanation || 'Giải thích được bổ sung để làm rõ đáp án đúng.',
@@ -990,7 +990,7 @@ Rules:
               field: 'explanation',
               before: String(original.explanation || ''),
               after: original.explanation || 'Giải thích được bổ sung để làm rõ đáp án đúng.',
-              reason: 'Improve reviewability for lecturers and learners.',
+              reason: 'Giúp giảng viên và sinh viên dễ xem xét lại câu hỏi hơn.',
             },
           ],
           confidence: 0.72,
@@ -1014,7 +1014,7 @@ Rules:
           const suggestion = parsed?.suggestion || {};
           const content = String(suggestion.content || '').trim();
           if (!content || typeof parsed?.diagnosis !== 'object' || !Array.isArray(parsed?.changes)) {
-            throw new Error('Invalid response format: missing diagnosis, suggestion.content, or changes');
+            throw new Error('Định dạng phản hồi không hợp lệ: thiếu chẩn đoán, nội dung đề xuất hoặc danh sách thay đổi');
           }
           const difficulty = Math.max(1, Math.min(10, Math.round(Number(suggestion.difficulty || original.difficulty || 1))));
           return {
@@ -1045,7 +1045,7 @@ Rules:
       throw lastError;
     } catch (error: any) {
       this.logger.error('Failed to generate question improvement:', error);
-      throw new Error(`AI generation failed: ${error.message}`);
+      throw new Error(`Tạo nội dung bằng AI thất bại: ${error.message}`);
     }
   }
 
@@ -1113,7 +1113,7 @@ Rules:
       .map((item) => ({
         name: item.name,
         score: Number(item.score.toFixed(2)),
-        reason: 'Heuristic similarity based on topic text',
+        reason: 'Độ tương đồng ước lượng dựa trên nội dung tên chủ đề',
       }));
 
     const prompt = `${buildExamTrustPromptHeader({
@@ -1174,7 +1174,7 @@ Rules:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt }),
         });
-        if (!resp.ok) throw new Error(`Local model server returned ${resp.status}`);
+        if (!resp.ok) throw new Error(`Máy chủ mô hình cục bộ trả về mã lỗi ${resp.status}`);
         responseText = await resp.text();
       } else if (this.provider === 'mock') {
         responseText = JSON.stringify({ matches: heuristicMatches });
@@ -1199,7 +1199,7 @@ Rules:
         .map((item: any) => ({
           name: String(item?.name || '').trim(),
           score: Math.max(0, Math.min(1, Number(item?.score ?? 0))),
-          reason: String(item?.reason || 'AI similarity match').trim(),
+          reason: String(item?.reason || 'AI xác nhận tương đồng').trim(),
         }))
         .filter((item: any) => item.name)
         .sort((a: any, b: any) => b.score - a.score || a.name.localeCompare(b.name))
@@ -1209,6 +1209,119 @@ Rules:
     } catch (error: any) {
       this.logger.warn(`Falling back to heuristic topic matching: ${error.message}`);
       return { matches: heuristicMatches };
+    }
+  }
+
+  async suggestEssayGrade(params: {
+    questionText: string;
+    studentAnswer: string;
+    maxPoints: number;
+    referenceAnswer?: string;
+    explanation?: string;
+    language?: string;
+    context?: ExamTrustAiContext;
+  }) {
+    const maxPoints = Math.max(0, Number(params.maxPoints) || 0);
+    const language = params.language || this.defaultLanguage;
+    const langInstruction = language === 'vi'
+      ? 'Write the summary and gap/strength notes in Vietnamese.'
+      : 'Write the summary and gap/strength notes in English.';
+
+    const prompt = `${buildExamTrustPromptHeader({
+      appName: this.appName,
+      useCase: 'grading_support',
+      language,
+      questionType: 'ESSAY',
+      context: params.context || {},
+    })}
+${langInstruction}
+
+You are helping a lecturer grade a student's essay/short-answer response. You must produce a suggestion only — the lecturer always makes the final grading decision.
+
+Question:
+${params.questionText}
+
+${params.referenceAnswer ? `Reference/model answer:\n${params.referenceAnswer}\n` : ''}${params.explanation ? `Grading notes/explanation:\n${params.explanation}\n` : ''}
+Student's answer:
+${params.studentAnswer || '(empty answer)'}
+
+Maximum points for this question: ${maxPoints}
+
+Return ONLY a valid JSON object (no markdown, no code fences) with this exact structure:
+{
+  "summary": "short neutral summary of what the student's answer actually says",
+  "strengths": ["string"],
+  "gaps": ["string"],
+  "suggestedPoints": 0,
+  "confidence": 0.0
+}
+
+Rules:
+- "summary" must reflect only what is written in the student's answer, not what the ideal answer should contain.
+- "suggestedPoints" must be a number between 0 and ${maxPoints}.
+- "confidence" must be a number between 0 and 1.
+- If the answer is empty or unrelated to the question, suggestedPoints must be 0.
+- Return ONLY the JSON object, no additional text.`;
+
+    const callModel = async () => {
+      if (this.provider === 'ollama') {
+        return this._callOllama(prompt, this.buildOllamaOptions('grading_support'));
+      }
+      if (this.provider === 'nvidia') {
+        return this._callNvidia(prompt);
+      }
+      if (this.provider === 'openrouter') {
+        return this._callOpenRouter(prompt);
+      }
+      if (this.provider === 'deepseek') {
+        return this._callDeepSeek(prompt);
+      }
+      if (this.provider === 'local' && this.localUrl) {
+        const resp = await fetch(this.localUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt }),
+        });
+        if (!resp.ok) throw new Error(`Máy chủ mô hình cục bộ trả về mã lỗi ${resp.status}`);
+        return resp.text();
+      }
+      if (this.provider === 'mock') {
+        return JSON.stringify({
+          summary: String(params.studentAnswer || '').slice(0, 200) || 'Sinh viên chưa trả lời câu hỏi này.',
+          strengths: [],
+          gaps: [],
+          suggestedPoints: 0,
+          confidence: 0.3,
+        });
+      }
+      const result = await this.model.generateContent(prompt);
+      return result.response.text();
+    };
+
+    try {
+      const responseText = await callModel();
+      const cleaned = responseText
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/gi, '')
+        .trim();
+      const parsed = JSON.parse(cleaned);
+
+      return {
+        summary: String(parsed?.summary || '').trim(),
+        strengths: Array.isArray(parsed?.strengths) ? parsed.strengths.map((item: any) => String(item)) : [],
+        gaps: Array.isArray(parsed?.gaps) ? parsed.gaps.map((item: any) => String(item)) : [],
+        suggestedPoints: Math.max(0, Math.min(maxPoints, Number(parsed?.suggestedPoints) || 0)),
+        confidence: Math.max(0, Math.min(1, Number(parsed?.confidence) || 0)),
+      };
+    } catch (error: any) {
+      this.logger.warn(`Essay grade suggestion failed, returning neutral fallback: ${error.message}`);
+      return {
+        summary: '',
+        strengths: [],
+        gaps: [],
+        suggestedPoints: 0,
+        confidence: 0,
+      };
     }
   }
 
@@ -1233,7 +1346,7 @@ Rules:
     });
     if (!resp.ok) {
       const body = await resp.text();
-      throw new Error(`Ollama returned ${resp.status}: ${body}`);
+      throw new Error(`Ollama trả về mã lỗi ${resp.status}: ${body}`);
     }
     const data: any = await resp.json();
     this.logger.log(
@@ -1266,7 +1379,7 @@ Rules:
     });
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Ollama vision returned ${response.status}: ${body}`);
+      throw new Error(`Ollama (vision) trả về mã lỗi ${response.status}: ${body}`);
     }
     const payload: any = await response.json();
     this.logger.log(`Ollama vision completed model=${model} duration=${Date.now() - startedAt}ms`);

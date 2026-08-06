@@ -82,11 +82,11 @@ export class AuthService {
     );
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
     }
 
     if (user.status !== 'active') {
-      throw new UnauthorizedException('Account is not active');
+      throw new UnauthorizedException('Tài khoản chưa được kích hoạt');
     }
 
     const isPasswordValid = await measurePerf(
@@ -95,7 +95,7 @@ export class AuthService {
       parts,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
     }
 
     const accessToken = await measurePerf(
@@ -122,7 +122,7 @@ export class AuthService {
     // This is a public endpoint.  Roles with operational privileges must only
     // be provisioned by the administrative user-management flow.
     if (registerDto.role && registerDto.role !== 'STUDENT') {
-      throw new ForbiddenException('Public registration can only create student accounts');
+      throw new ForbiddenException('Đăng ký công khai chỉ có thể tạo tài khoản sinh viên');
     }
 
     const existingUser = await this.prisma.user.findUnique({
@@ -130,7 +130,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email already exists');
+      throw new ConflictException('Email đã được sử dụng');
     }
 
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
@@ -179,7 +179,7 @@ export class AuthService {
   async getProfile(userId: string) {
     const user = await this.validateUser(userId);
     if (!user) {
-      throw new UnauthorizedException('User not found or inactive');
+      throw new UnauthorizedException('Không tìm thấy người dùng hoặc tài khoản chưa được kích hoạt');
     }
     return user;
   }
@@ -191,7 +191,7 @@ export class AuthService {
     });
 
     if (!user || user.status !== 'active') {
-      throw new UnauthorizedException('User not found or inactive');
+      throw new UnauthorizedException('Không tìm thấy người dùng hoặc tài khoản chưa được kích hoạt');
     }
 
     if (updateProfileDto.email && updateProfileDto.email !== user.email) {
@@ -199,7 +199,7 @@ export class AuthService {
         where: { email: updateProfileDto.email },
       });
       if (emailInUse) {
-        throw new ConflictException('Email already exists');
+        throw new ConflictException('Email đã được sử dụng');
       }
     }
 
@@ -238,17 +238,17 @@ export class AuthService {
     });
 
     if (!user || user.status !== 'active') {
-      throw new UnauthorizedException('User not found or inactive');
+      throw new UnauthorizedException('Không tìm thấy người dùng hoặc tài khoản chưa được kích hoạt');
     }
 
     const isCurrentPasswordValid = await bcrypt.compare(changePasswordDto.currentPassword, user.password);
     if (!isCurrentPasswordValid) {
-      throw new UnauthorizedException('Current password is incorrect');
+      throw new UnauthorizedException('Mật khẩu hiện tại không đúng');
     }
 
     const isSameAsCurrent = await bcrypt.compare(changePasswordDto.newPassword, user.password);
     if (isSameAsCurrent) {
-      throw new ConflictException('New password must be different from current password');
+      throw new ConflictException('Mật khẩu mới phải khác mật khẩu hiện tại');
     }
 
     const newHashedPassword = await bcrypt.hash(changePasswordDto.newPassword, 10);
@@ -261,7 +261,7 @@ export class AuthService {
     // A password change invalidates every existing session and token.
     await this.revokeAllUserSessions(userId);
 
-    return { message: 'Password updated successfully. Please login again.' };
+    return { message: 'Đã đổi mật khẩu thành công. Vui lòng đăng nhập lại.' };
   }
 
   async deleteProfile(userId: string, deleteProfileDto: DeleteProfileDto) {
@@ -271,12 +271,12 @@ export class AuthService {
     });
 
     if (!user || user.status !== 'active') {
-      throw new UnauthorizedException('User not found or inactive');
+      throw new UnauthorizedException('Không tìm thấy người dùng hoặc tài khoản chưa được kích hoạt');
     }
 
     const isCurrentPasswordValid = await bcrypt.compare(deleteProfileDto.currentPassword, user.password);
     if (!isCurrentPasswordValid) {
-      throw new UnauthorizedException('Current password is incorrect');
+      throw new UnauthorizedException('Mật khẩu hiện tại không đúng');
     }
 
     await this.prisma.user.update({
@@ -284,7 +284,7 @@ export class AuthService {
       data: { status: 'deleted' },
     });
 
-    return { message: 'Profile deleted successfully' };
+    return { message: 'Đã xóa hồ sơ thành công' };
   }
 
   async rotateSession(refreshToken: string, meta?: SessionMeta) {
@@ -292,15 +292,15 @@ export class AuthService {
     const session = await this.prisma.authSession.findFirst({ where: { refreshHash } });
 
     if (!session || session.revokedAt) {
-      throw new UnauthorizedException('Invalid or already-used refresh token');
+      throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã được sử dụng');
     }
     if (session.expiresAt.getTime() < Date.now()) {
-      throw new UnauthorizedException('Refresh token expired. Please login again.');
+      throw new UnauthorizedException('Refresh token đã hết hạn. Vui lòng đăng nhập lại.');
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: session.userId } });
     if (!user || user.status !== 'active') {
-      throw new UnauthorizedException('User not found or inactive');
+      throw new UnauthorizedException('Không tìm thấy người dùng hoặc tài khoản chưa được kích hoạt');
     }
 
     // Rotation: the old refresh token is single-use; issue a fresh pair.
@@ -325,7 +325,7 @@ export class AuthService {
         data: { revokedAt: new Date() },
       });
     }
-    return { message: 'Logged out' };
+    return { message: 'Đã đăng xuất' };
   }
 
   async listSessions(userId: string) {
@@ -350,13 +350,13 @@ export class AuthService {
   async revokeSession(userId: string, sessionId: string) {
     const session = await this.prisma.authSession.findFirst({ where: { id: sessionId, userId } });
     if (!session) {
-      throw new UnauthorizedException('Session not found');
+      throw new UnauthorizedException('Không tìm thấy phiên đăng nhập');
     }
     await this.prisma.authSession.update({
       where: { id: sessionId },
       data: { revokedAt: new Date() },
     });
-    return { message: 'Session revoked' };
+    return { message: 'Đã hủy phiên đăng nhập' };
   }
 
   async revokeAllUserSessions(userId: string) {
@@ -364,6 +364,6 @@ export class AuthService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
-    return { message: 'All sessions revoked' };
+    return { message: 'Đã hủy toàn bộ phiên đăng nhập' };
   }
 }

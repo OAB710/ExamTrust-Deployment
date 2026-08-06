@@ -206,7 +206,7 @@ export default function ExamPreview() {
     if (!exam) return;
     const raw = (shareEmails || "").trim();
     if (!raw) {
-      toast.error("Please enter recipient email(s)");
+      toast.error("Vui lòng nhập email người nhận");
       return;
     }
     const emails = raw
@@ -214,18 +214,18 @@ export default function ExamPreview() {
       .map((s) => s.trim())
       .filter(Boolean);
     if (!emails.length) {
-      toast.error("Please enter valid email address(es)");
+      toast.error("Vui lòng nhập địa chỉ email hợp lệ");
       return;
     }
     try {
       setIsSharing(true);
       await api.shareExam(exam.id, emails, sendToCourse);
-      toast.success("Exam link sent");
+      toast.success("Đã gửi liên kết bài thi");
       setShowShareDialog(false);
       setShareEmails("");
       setSendToCourse(false);
     } catch (err: any) {
-      toast.error(err?.message || "Failed to send exam link");
+      toast.error(err?.message || "Không thể gửi liên kết bài thi");
     } finally {
       setIsSharing(false);
     }
@@ -246,7 +246,7 @@ export default function ExamPreview() {
       <DashboardLayout>
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            Exam not found.
+            Không tìm thấy bài thi.
           </CardContent>
         </Card>
       </DashboardLayout>
@@ -266,13 +266,13 @@ export default function ExamPreview() {
               onClick={() => router.push(`${basePath}/exams`)}
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
-              Back to Exams
+              Quay lại danh sách bài thi
             </Button>
             <h1 className="text-2xl font-bold">{exam.title}</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {exam.course?.code
                 ? `${exam.course.code} - ${exam.course?.name || ""}`
-                : exam.course?.name || "No course"}
+                : exam.course?.name || "Chưa có khóa học"}
             </p>
           </div>
 
@@ -283,7 +283,7 @@ export default function ExamPreview() {
               onClick={() => setShowShareDialog(true)}
             >
               <Share2 className="h-4 w-4 mr-1" />
-              Share
+              Chia sẻ
             </Button>
             <Button
               variant="ghost"
@@ -291,18 +291,18 @@ export default function ExamPreview() {
               onClick={() => setShowQRDialog(true)}
             >
               <QrCode className="h-4 w-4 mr-1" />
-              Show QR
+              Hiện mã QR
             </Button>
             {timeline.isEnded ? (
               <Button asChild>
                 <Link href={`${basePath}/exam/${exam.id}/results`}>
                   <BarChart3 className="h-4 w-4 mr-2" />
-                  View Results
+                  Xem kết quả
                 </Link>
               </Button>
             ) : (
               <Button variant="outline" asChild>
-                <Link href={`${basePath}/question-bank`}>Open Question Bank</Link>
+                <Link href={`${basePath}/question-bank`}>Mở ngân hàng câu hỏi</Link>
               </Button>
             )}
           </div>
@@ -315,16 +315,16 @@ export default function ExamPreview() {
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Share Exam Link</DialogTitle>
+              <DialogTitle>Chia sẻ liên kết bài thi</DialogTitle>
               <DialogDescription>
-                Enter recipient email addresses (comma separated)
+                Nhập địa chỉ email người nhận (phân tách bằng dấu phẩy)
               </DialogDescription>
             </DialogHeader>
             <div className="mt-4">
-              <Label htmlFor="share-emails">Emails</Label>
+              <Label htmlFor="share-emails">Email</Label>
               <Input
                 id="share-emails"
-                placeholder="teacher@example.com, parent@example.com"
+                placeholder="giaovien@example.com, phuhuynh@example.com"
                 value={shareEmails}
                 onChange={(e) => setShareEmails(e.target.value)}
               />
@@ -336,11 +336,11 @@ export default function ExamPreview() {
               />
               <div>
                 <p className="text-sm font-medium">
-                  Send to all students enrolled in this course
+                  Gửi cho tất cả sinh viên đã đăng ký khóa học này
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Adds all enrolled students as recipients in addition to
-                  addresses above.
+                  Thêm tất cả sinh viên đã đăng ký làm người nhận, ngoài các
+                  địa chỉ ở trên.
                 </p>
               </div>
             </div>
@@ -350,10 +350,10 @@ export default function ExamPreview() {
                   variant="ghost"
                   onClick={() => setShowShareDialog(false)}
                 >
-                  Cancel
+                  Hủy
                 </Button>
                 <Button onClick={handleShare} disabled={isSharing}>
-                  {isSharing ? "Sending..." : "Send"}
+                  {isSharing ? "Đang gửi..." : "Gửi"}
                 </Button>
               </div>
             </DialogFooter>
@@ -367,21 +367,21 @@ export default function ExamPreview() {
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Exam QR</DialogTitle>
+              <DialogTitle>Mã QR bài thi</DialogTitle>
               <DialogDescription>
-                Show this QR on your monitor for students to scan
+                Hiển thị mã QR này trên màn hình để sinh viên quét
               </DialogDescription>
             </DialogHeader>
             <div className="mt-4 text-center">
               <img
-                alt="Exam QR"
+                alt="Mã QR bài thi"
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=720x720&data=${encodeURIComponent(`${typeof window !== "undefined" ? window.location.origin : ""}/student/exam-ready?examId=${exam?.id}`)}`}
                 style={{ width: 560, height: 560 }}
               />
               <div className="mt-4">
                 <Button asChild>
                   <Link href={`${basePath}/exam/${exam?.id}/qr`}>
-                    Open Full Screen
+                    Mở toàn màn hình
                   </Link>
                 </Button>
               </div>
@@ -416,10 +416,10 @@ export default function ExamPreview() {
                   }
                 >
                   {timeline.isScheduled
-                    ? `Scheduled ${format(timeline.start, "MMM d, HH:mm")}`
+                    ? `Đã lên lịch ${format(timeline.start, "d MMM, HH:mm")}`
                     : timeline.isEnded
-                      ? "Exam Ended"
-                      : "Exam Ongoing"}
+                      ? "Đã kết thúc"
+                      : "Đang diễn ra"}
                 </Badge>
               )}
             </div>

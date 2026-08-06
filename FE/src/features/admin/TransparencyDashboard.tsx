@@ -13,58 +13,60 @@ export default function TransparencyDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>System Transparency Dashboard</CardTitle>
+            <CardTitle>Bảng minh bạch hệ thống</CardTitle>
             <p className="text-muted-foreground mt-2">
-              High-level reporting on transparency, statistics, validation, and
-              academic decisions in the system.
+              Báo cáo tổng quan về tính minh bạch, số liệu thống kê, kiểm định
+              và quyết định học thuật trong hệ thống.
             </p>
           </CardHeader>
           <CardContent>
             <Separator className="my-4" />
             <section>
               <h2 className="text-lg font-semibold mb-2">
-                1. Statistical Summary
+                1. Tổng hợp số liệu thống kê
               </h2>
               <p>
-                Aggregate key metrics: number of exams, question volume, student
-                participation, average score, discrimination, and difficulty.
+                Tổng hợp các chỉ số chính: số lượng bài thi, số lượng câu hỏi,
+                số sinh viên tham gia, điểm trung bình, độ phân biệt và độ khó.
                 <br />
-                <b>Example:</b> 10 exams, 500 questions, 200 students, average
-                score: 7.5
+                <b>Ví dụ:</b> 10 bài thi, 500 câu hỏi, 200 sinh viên, điểm
+                trung bình: 7.5
               </p>
             </section>
             <Separator className="my-4" />
             <section>
               <h2 className="text-lg font-semibold mb-2">
-                2. Integrity Alerts & Evidence
+                2. Cảnh báo & bằng chứng toàn vẹn học thuật
               </h2>
               <p>
-                Report AI alerts, integrity evidence, and committee decisions.
+                Báo cáo cảnh báo từ AI, bằng chứng toàn vẹn học thuật và quyết
+                định của hội đồng.
                 <br />
-                <b>Example:</b> 5 alerts, 2 decisions of "No Cheating", 1
-                decision of "Cheating"
+                <b>Ví dụ:</b> 5 cảnh báo, 2 quyết định "Không gian lận", 1
+                quyết định "Gian lận"
               </p>
             </section>
             <Separator className="my-4" />
             <section>
               <h2 className="text-lg font-semibold mb-2">
-                3. Academic Actions
+                3. Quyết định học thuật
               </h2>
               <p>
-                Academic decisions based on evidence, event logs, and
-                statistics.
+                Quyết định học thuật dựa trên bằng chứng, nhật ký sự kiện và
+                số liệu thống kê.
                 <br />
-                <b>Example:</b> 1 student suspended, 2 students warned
+                <b>Ví dụ:</b> 1 sinh viên bị đình chỉ, 2 sinh viên bị cảnh cáo
               </p>
             </section>
             <Separator className="my-4" />
             <section>
-              <h2 className="text-lg font-semibold mb-2">4. Audit Log</h2>
+              <h2 className="text-lg font-semibold mb-2">4. Nhật ký kiểm toán</h2>
               <p>
-                Store and display system activity history, policy updates, and
-                decisions.
+                Lưu trữ và hiển thị lịch sử hoạt động hệ thống, cập nhật chính
+                sách và các quyết định.
                 <br />
-                <b>Example:</b> 2026-01-10: Integrity policy updated
+                <b>Ví dụ:</b> 10/01/2026: Đã cập nhật chính sách toàn vẹn học
+                thuật
               </p>
             </section>
           </CardContent>
@@ -73,4 +75,3 @@ export default function TransparencyDashboard() {
     </DashboardLayout>
   );
 }
-

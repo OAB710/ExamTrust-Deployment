@@ -259,7 +259,7 @@ export class AIGenerationProcessor {
       if (task === 'proctoring-evidence') {
         const captureId = String(payload.captureId || '');
         const capture = await this.prisma.proctoringEvidenceCapture.findUnique({ where: { id: captureId } });
-        if (!capture?.storageKey || capture.status === 'PURGED') throw new Error('Evidence image is unavailable');
+        if (!capture?.storageKey || capture.status === 'PURGED') throw new Error('Không có ảnh bằng chứng');
         await this.prisma.proctoringEvidenceCapture.update({ where: { id: capture.id }, data: { status: 'ANALYZING', aiError: null } });
         const root = process.env.PROCTORING_EVIDENCE_DIR || join(process.cwd(), 'var', 'proctoring-evidence');
         const result = await this.aiService.analyzeProctoringImage({ image: await readFile(join(root, capture.storageKey)), mimeType: capture.mimeType || 'image/jpeg' });

@@ -33,7 +33,7 @@ import { BackToDashboardButton } from "@/components/common/BackToDashboardButton
 
 // Mock data
 const examResult = {
-  title: "Advanced Algorithms — Midterm",
+  title: "Thuật toán nâng cao — Giữa kỳ",
   course: "CS301",
   submittedAt: "2026-02-24T10:55:00",
   totalScore: 84,
@@ -45,20 +45,20 @@ const examResult = {
 };
 
 const sectionScores = [
-  { name: "Theory & Concepts", score: 28, max: 30, percentage: 93 },
-  { name: "Problem Solving", score: 32, max: 40, percentage: 80 },
-  { name: "Application & Analysis", score: 24, max: 30, percentage: 80 },
+  { name: "Lý thuyết & khái niệm", score: 28, max: 30, percentage: 93 },
+  { name: "Giải quyết vấn đề", score: 32, max: 40, percentage: 80 },
+  { name: "Ứng dụng & phân tích", score: 24, max: 30, percentage: 80 },
 ];
 
 const answerPatterns = {
   strengths: [
-    { topic: "Algorithm Complexity", accuracy: 95, questions: 8 },
-    { topic: "Data Structures", accuracy: 88, questions: 6 },
-    { topic: "Graph Theory", accuracy: 85, questions: 5 },
+    { topic: "Độ phức tạp thuật toán", accuracy: 95, questions: 8 },
+    { topic: "Cấu trúc dữ liệu", accuracy: 88, questions: 6 },
+    { topic: "Lý thuyết đồ thị", accuracy: 85, questions: 5 },
   ],
   weaknesses: [
-    { topic: "Dynamic Programming", accuracy: 50, questions: 6 },
-    { topic: "Asymptotic Analysis", accuracy: 60, questions: 5 },
+    { topic: "Quy hoạch động", accuracy: 50, questions: 6 },
+    { topic: "Phân tích tiệm cận", accuracy: 60, questions: 5 },
   ],
 };
 
@@ -66,37 +66,37 @@ const recommendations = [
   {
     type: "reading",
     icon: BookOpen,
-    title: "Chapter 15: Advanced DP Techniques",
-    description: "Review bottom-up vs top-down approaches",
-    action: "Read Now",
+    title: "Chương 15: Kỹ thuật quy hoạch động nâng cao",
+    description: "Ôn lại cách tiếp cận bottom-up và top-down",
+    action: "Đọc ngay",
   },
   {
     type: "video",
     icon: Video,
-    title: "Asymptotic Analysis Masterclass",
-    description: "45-minute video covering worst/avg/best case",
-    action: "Watch Video",
+    title: "Chuyên đề phân tích tiệm cận",
+    description: "Video 45 phút về trường hợp xấu nhất/trung bình/tốt nhất",
+    action: "Xem video",
   },
   {
     type: "practice",
     icon: ListChecks,
-    title: "DP Practice Problems Set",
-    description: "20 curated problems from easy to hard",
-    action: "Start Practice",
+    title: "Bộ bài tập quy hoạch động",
+    description: "20 bài tập chọn lọc từ dễ đến khó",
+    action: "Bắt đầu luyện tập",
   },
   {
     type: "group",
     icon: Users,
-    title: "Study Group: Algorithms",
-    description: "Join 15 other students for peer learning",
-    action: "Join Group",
+    title: "Nhóm học tập: Thuật toán",
+    description: "Tham gia cùng 15 bạn học khác",
+    action: "Tham gia nhóm",
   },
 ];
 
 const feedbackHistory = [
-  { exam: "Algorithms Quiz 1", date: "2026-01-15", score: 72, change: null },
-  { exam: "Algorithms Quiz 2", date: "2026-02-01", score: 78, change: +6 },
-  { exam: "Algorithms Midterm", date: "2026-02-24", score: 84, change: +6 },
+  { exam: "Kiểm tra thuật toán 1", date: "2026-01-15", score: 72, change: null },
+  { exam: "Kiểm tra thuật toán 2", date: "2026-02-01", score: 78, change: +6 },
+  { exam: "Giữa kỳ thuật toán", date: "2026-02-24", score: 84, change: +6 },
 ];
 
 export default function FeedbackDetail() {
@@ -111,7 +111,7 @@ export default function FeedbackDetail() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-foreground mb-1">
-              Learning Feedback & Insights
+              Phản hồi & phân tích học tập
             </h1>
             <p className="text-muted-foreground">
               {examResult.title} · {examResult.course}
@@ -120,7 +120,7 @@ export default function FeedbackDetail() {
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="gap-2">
               <Download className="h-4 w-4" />
-              Download PDF
+              Tải PDF
             </Button>
           </div>
         </div>
@@ -133,26 +133,26 @@ export default function FeedbackDetail() {
                 {examResult.totalScore}
               </p>
               <p className="text-xs text-muted-foreground">
-                / {examResult.maxScore} Total Score
+                / {examResult.maxScore} Tổng điểm
               </p>
               <div className="flex items-center justify-center gap-1 mt-1">
                 <TrendingUp className="h-3 w-3 text-green-600" />
                 <span className="text-xs text-green-600">
-                  +{examResult.totalScore - examResult.avgScore} vs avg
+                  +{examResult.totalScore - examResult.avgScore} so với TB
                 </span>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-4 text-center">
-              <p className="text-3xl font-bold">{examResult.percentile}th</p>
-              <p className="text-xs text-muted-foreground">Percentile</p>
+              <p className="text-3xl font-bold">{examResult.percentile}%</p>
+              <p className="text-xs text-muted-foreground">Phân vị</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-4 text-center">
               <p className="text-3xl font-bold">{examResult.timeUsed}</p>
-              <p className="text-xs text-muted-foreground">Time Used</p>
+              <p className="text-xs text-muted-foreground">Thời gian đã dùng</p>
             </CardContent>
           </Card>
           <Card>
@@ -161,9 +161,9 @@ export default function FeedbackDetail() {
                 variant={examResult.passed ? "success" : "destructive"}
                 className="text-base px-4 py-1"
               >
-                {examResult.passed ? "PASSED" : "FAILED"}
+                {examResult.passed ? "ĐẠT" : "KHÔNG ĐẠT"}
               </StatusBadge>
-              <p className="text-xs text-muted-foreground mt-2">Result</p>
+              <p className="text-xs text-muted-foreground mt-2">Kết quả</p>
             </CardContent>
           </Card>
         </div>
@@ -176,11 +176,11 @@ export default function FeedbackDetail() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <BarChart3 className="h-5 w-5 text-primary" />
-                  <HelpedTitle help="Shows how your score is distributed across exam sections so you can spot stronger and weaker areas.">
-                    Score Breakdown
+                  <HelpedTitle help="Cho biết điểm số của bạn phân bố ra sao theo từng phần bài thi, giúp bạn nhận ra phần mạnh và yếu.">
+                    Phân bổ điểm
                   </HelpedTitle>
                 </CardTitle>
-                <CardDescription>Performance by exam section</CardDescription>
+                <CardDescription>Hiệu suất theo từng phần bài thi</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -204,18 +204,18 @@ export default function FeedbackDetail() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Brain className="h-5 w-5 text-primary" />
-                  <HelpedTitle help="Summarizes recurring answer patterns to help you understand strengths and mistakes after the exam.">
-                    Answer Pattern Analysis
+                  <HelpedTitle help="Tổng hợp các mẫu trả lời lặp lại để giúp bạn hiểu điểm mạnh và lỗi sai sau bài thi.">
+                    Phân tích mẫu trả lời
                   </HelpedTitle>
                 </CardTitle>
                 <CardDescription>
-                  Strengths and areas for improvement
+                  Điểm mạnh và điểm cần cải thiện
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="mb-4">
                   <h4 className="text-sm font-semibold text-green-700 dark:text-green-400 mb-2 flex items-center gap-1">
-                    <CheckCircle2 className="h-4 w-4" /> Strengths
+                    <CheckCircle2 className="h-4 w-4" /> Điểm mạnh
                   </h4>
                   <div className="space-y-2">
                     {answerPatterns.strengths.map((s) => (
@@ -226,7 +226,7 @@ export default function FeedbackDetail() {
                         <span className="text-sm font-medium">{s.topic}</span>
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-muted-foreground">
-                            {s.questions} questions
+                            {s.questions} câu hỏi
                           </span>
                           <StatusBadge tone="success">
                             {s.accuracy}%
@@ -241,7 +241,7 @@ export default function FeedbackDetail() {
 
                 <div>
                   <h4 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2 flex items-center gap-1">
-                    <XCircle className="h-4 w-4" /> Areas to Improve
+                    <XCircle className="h-4 w-4" /> Điểm cần cải thiện
                   </h4>
                   <div className="space-y-2">
                     {answerPatterns.weaknesses.map((w) => (
@@ -252,7 +252,7 @@ export default function FeedbackDetail() {
                         <span className="text-sm font-medium">{w.topic}</span>
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-muted-foreground">
-                            {w.questions} questions
+                            {w.questions} câu hỏi
                           </span>
                           <StatusBadge tone="danger">
                             {w.accuracy}%
@@ -270,12 +270,12 @@ export default function FeedbackDetail() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Target className="h-5 w-5 text-primary" />
-                  <HelpedTitle help="Suggested next steps based on your performance and weak areas.">
-                    Personalized Recommendations
+                  <HelpedTitle help="Gợi ý bước tiếp theo dựa trên kết quả và điểm yếu của bạn.">
+                    Gợi ý cá nhân hóa
                   </HelpedTitle>
                 </CardTitle>
                 <CardDescription>
-                  Based on your performance and weak areas
+                  Dựa trên kết quả và điểm yếu của bạn
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -309,8 +309,8 @@ export default function FeedbackDetail() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-primary" />
-                  <HelpedTitle help="Tracks your recent feedback over time so you can see whether your learning trend is improving.">
-                    Progress History
+                  <HelpedTitle help="Theo dõi phản hồi gần đây theo thời gian để biết xu hướng học tập có đang cải thiện.">
+                    Lịch sử tiến bộ
                   </HelpedTitle>
                 </CardTitle>
               </CardHeader>
@@ -352,7 +352,7 @@ export default function FeedbackDetail() {
             {/* Quick Links */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Related Pages</CardTitle>
+                <CardTitle className="text-base">Trang liên quan</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button
@@ -361,7 +361,7 @@ export default function FeedbackDetail() {
                   size="sm"
                   onClick={() => router.push("/student/grading")}
                 >
-                  <BarChart3 className="h-4 w-4" /> Grading Breakdown
+                  <BarChart3 className="h-4 w-4" /> Chi tiết chấm điểm
                 </Button>
                 <Button
                   variant="outline"
@@ -369,7 +369,7 @@ export default function FeedbackDetail() {
                   size="sm"
                   onClick={() => router.push("/student/timeline")}
                 >
-                  <Clock className="h-4 w-4" /> Event Timeline
+                  <Clock className="h-4 w-4" /> Dòng thời gian sự kiện
                 </Button>
                 <Button
                   variant="outline"
@@ -377,7 +377,7 @@ export default function FeedbackDetail() {
                   size="sm"
                   onClick={() => router.push("/student/learning-feedback")}
                 >
-                  <Brain className="h-4 w-4" /> Deep Analysis
+                  <Brain className="h-4 w-4" /> Phân tích chi tiết
                 </Button>
               </CardContent>
             </Card>
@@ -387,6 +387,3 @@ export default function FeedbackDetail() {
     </DashboardLayout>
   );
 }
-
-
-

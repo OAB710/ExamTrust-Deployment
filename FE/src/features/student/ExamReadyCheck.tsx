@@ -144,16 +144,16 @@ export default function ExamReadyCheck() {
     }
 
     if (webcamRequired) {
-      updateCheck("camera", "checking", "Dang yeu cau quyen truy cap webcam");
+      updateCheck("camera", "checking", "Đang yêu cầu quyền truy cập webcam");
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         stream.getTracks().forEach((track) => track.stop());
         setWebcamReady(true);
-        updateCheck("camera", "passed", "Webcam da san sang va da co su dong y");
+        updateCheck("camera", "passed", "Webcam đã sẵn sàng và đã có sự đồng ý");
       } catch (error: any) {
         setWebcamReady(false);
         const denied = error?.name === "NotAllowedError";
-        updateCheck("camera", "failed", denied ? "Can cho phep truy cap webcam de tiep tuc" : "Khong the truy cap webcam. Hay kiem tra thiet bi va thu lai.");
+        updateCheck("camera", "failed", denied ? "Cần cho phép truy cập webcam để tiếp tục" : "Không thể truy cập webcam. Hãy kiểm tra thiết bị và thử lại.");
       }
     } else {
       setWebcamReady(false);
@@ -166,7 +166,7 @@ export default function ExamReadyCheck() {
     setChecks((previous) => {
       const withoutCamera = previous.filter((check) => check.id !== "camera");
       return webcamRequired
-        ? [...withoutCamera, { id: "camera", label: "Webcam bai thi", icon: <Camera className="h-4 w-4" />, status: "pending" }]
+        ? [...withoutCamera, { id: "camera", label: "Webcam bài thi", icon: <Camera className="h-4 w-4" />, status: "pending" }]
         : withoutCamera;
     });
   }, [webcamRequired]);

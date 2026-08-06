@@ -22,7 +22,7 @@ export class CoursesService {
     });
 
     if (!lecturer || lecturer.role !== 'LECTURER' || lecturer.status !== 'active') {
-      throw new BadRequestException('Assigned lecturer is invalid or inactive');
+      throw new BadRequestException('Giảng viên được gán không hợp lệ hoặc không hoạt động');
     }
   }
 
@@ -31,7 +31,7 @@ export class CoursesService {
 
     if (user.role === 'LECTURER') {
       if (courseLecturerId !== user.id) {
-        throw new ForbiddenException('You are not allowed to access this course');
+        throw new ForbiddenException('Bạn không có quyền truy cập khóa học này');
       }
       return;
     }
@@ -45,12 +45,12 @@ export class CoursesService {
       });
 
       if (!isEnrolled) {
-        throw new ForbiddenException('You are not allowed to access this course');
+        throw new ForbiddenException('Bạn không có quyền truy cập khóa học này');
       }
       return;
     }
 
-    throw new ForbiddenException('You are not allowed to access this course');
+    throw new ForbiddenException('Bạn không có quyền truy cập khóa học này');
   }
 
   private toAsciiUpper(value: string) {
@@ -211,13 +211,13 @@ export class CoursesService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('Không tìm thấy khóa học');
     }
 
     await this.assertCanAccessCourse(course.id, course.lecturerId, user);
 
     if (user.role === 'STUDENT' && course.status === 'archived') {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('Không tìm thấy khóa học');
     }
 
     return course;
@@ -227,7 +227,7 @@ export class CoursesService {
     const course = await this.prisma.course.findUnique({ where: { id } });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('Không tìm thấy khóa học');
     }
 
     await this.assertCanAccessCourse(course.id, course.lecturerId, user);
@@ -235,7 +235,7 @@ export class CoursesService {
     const { lecturerId: requestedLecturerId, ...courseData } = updateCourseDto;
 
     if (requestedLecturerId !== undefined && user.role !== 'ADMIN') {
-      throw new ForbiddenException('Only admin can re-assign course lecturer');
+      throw new ForbiddenException('Chỉ quản trị viên mới có thể gán lại giảng viên cho khóa học');
     }
 
     if (requestedLecturerId) {
@@ -268,15 +268,15 @@ export class CoursesService {
 
   async remove(id: string, user: AuthUser) {
     await this.archive(id, user);
-    return { message: 'Course archived successfully' };
+    return { message: 'Đã lưu trữ khóa học thành công' };
   }
 
   async archive(id: string, user: AuthUser) {
     const course = await this.prisma.course.findUnique({ where: { id } });
-    if (!course) throw new NotFoundException('Course not found');
+    if (!course) throw new NotFoundException('Không tìm thấy khóa học');
     await this.assertCanAccessCourse(course.id, course.lecturerId, user);
     if (course.status === 'archived') {
-      throw new ConflictException('Course is already archived');
+      throw new ConflictException('Khóa học đã được lưu trữ');
     }
 
     const activeWork = await this.prisma.exam.count({
@@ -300,10 +300,10 @@ export class CoursesService {
 
   async restore(id: string, user: AuthUser) {
     const course = await this.prisma.course.findUnique({ where: { id } });
-    if (!course) throw new NotFoundException('Course not found');
+    if (!course) throw new NotFoundException('Không tìm thấy khóa học');
     await this.assertCanAccessCourse(course.id, course.lecturerId, user);
     if (course.status !== 'archived') {
-      throw new ConflictException('Course is not archived');
+      throw new ConflictException('Khóa học chưa được lưu trữ');
     }
     return this.prisma.course.update({
       where: { id },

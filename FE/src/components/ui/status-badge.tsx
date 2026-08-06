@@ -73,6 +73,7 @@ const STATUS_BADGE_MAP: Record<
     active: { tone: "success", label: "Đang hoạt động" },
     suspended: { tone: "danger", label: "Đã tạm khóa" },
     inactive: { tone: "neutral", label: "Ngừng hoạt động" },
+    pending: { tone: "warning", label: "Chờ xử lý" },
   },
   severity: {
     none: { tone: "success", label: "Không có tín hiệu" },

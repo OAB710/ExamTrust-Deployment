@@ -1,10 +1,10 @@
 import { IsString, IsEmail, MinLength } from 'class-validator';
 
 export class LoginDto {
-  @IsEmail()
+  @IsEmail({}, { message: 'Email không hợp lệ' })
   email: string;
 
-  @IsString()
-  @MinLength(1)
+  @IsString({ message: 'Mật khẩu phải là chuỗi ký tự' })
+  @MinLength(1, { message: 'Cần nhập mật khẩu' })
   password: string;
 }

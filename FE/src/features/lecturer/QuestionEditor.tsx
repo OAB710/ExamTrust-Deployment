@@ -170,11 +170,11 @@ export default function QuestionEditor() {
 
     // Required fields
     if (!content.trim()) {
-      errors.push("Question text is required");
+      errors.push("Cần nhập nội dung câu hỏi");
     }
 
     if (!course) {
-      errors.push("Course is required");
+      errors.push("Cần chọn học phần");
     }
 
     if (!/^[1-5]$/.test(scoreCoefficient)) {
@@ -326,7 +326,7 @@ export default function QuestionEditor() {
     let payload;
     try {
       if (!validateQuestion()) {
-        toast.error("Vui lòng sửa các lỗi xác thực bên dưới.");
+        toast.error("Vui lòng kiểm tra lại các trường bị lỗi bên dưới.");
         return;
       }
       payload = buildQuestionPayload({
@@ -367,9 +367,9 @@ export default function QuestionEditor() {
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl font-semibold text-foreground mb-1">
               {persistence.loading
-                ? "Loading..."
+                ? "Đang tải..."
                 : questionId
-                  ? "Edit Question"
+                  ? "Sửa câu hỏi"
                   : "Câu hỏi mới"}
             </h1>
             <p className="text-sm text-muted-foreground break-words">
@@ -378,7 +378,7 @@ export default function QuestionEditor() {
                 if (currentCourse)
                   return (
                     <span>
-                      Course:{" "}
+                      Học phần:{" "}
                       <span className="font-semibold text-foreground">
                         {currentCourse.code} — {currentCourse.name}
                       </span>
@@ -387,14 +387,14 @@ export default function QuestionEditor() {
                 if (courseCodeParam)
                   return (
                     <span>
-                      Course:{" "}
+                      Học phần:{" "}
                       <span className="font-semibold text-foreground">
                         {courseCodeParam}
                       </span>
                     </span>
                   );
                 return questionId
-                  ? "Edit an existing question"
+                  ? "Sửa câu hỏi đã có"
                   : "Tạo câu hỏi mới";
               })()}
             </p>
@@ -443,7 +443,7 @@ export default function QuestionEditor() {
         {validationErrors.length > 0 && (
           <div className="mb-4 p-3 sm:p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
             <p className="text-sm font-semibold text-destructive mb-2">
-              ⚠️ Please fix these errors before saving:
+              ⚠️ Vui lòng sửa các lỗi sau trước khi lưu:
             </p>
             <ul className="space-y-1">
               {validationErrors.map((error, idx) => (
@@ -460,7 +460,7 @@ export default function QuestionEditor() {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <span className="ml-2 text-muted-foreground">
-              Loading question data...
+              Đang tải dữ liệu câu hỏi...
             </span>
           </div>
         ) : (
@@ -476,17 +476,17 @@ export default function QuestionEditor() {
                       <div className="flex items-center gap-2">
                         <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                         <CardTitle className="text-sm sm:text-base font-semibold text-primary">
-                          AI Assistant
+                          Trợ lý AI
                         </CardTitle>
                       </div>
                       <CardDescription className="text-xs sm:text-sm">
-                        Generate content using AI
+                        Tạo nội dung bằng AI
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
                       <div className="flex flex-col sm:flex-row gap-2">
                         <Input
-                          placeholder="e.g. Distributed systems, Raft vs Paxos..."
+                          placeholder="Ví dụ: Hệ thống phân tán, Raft và Paxos..."
                           value={ai.aiPrompt}
                           onChange={(e) => ai.setAiPrompt(e.target.value)}
                           className="flex-1 bg-background text-sm"
@@ -506,7 +506,7 @@ export default function QuestionEditor() {
                           ) : (
                             <Wand2 className="h-4 w-4" />
                           )}
-                          Generate
+                          Tạo
                         </Button>
                       </div>
                       {!course && (
@@ -515,7 +515,7 @@ export default function QuestionEditor() {
                         </p>
                       )}
                       <p className="text-[10px] text-muted-foreground italic px-1">
-                        * Generated content will be inserted into the editor for you to review before saving.
+                        * Nội dung do AI tạo sẽ được chèn vào ô soạn để bạn xem lại trước khi lưu.
                       </p>
                       {ai.aiSimilarityWarning && (
                         <p className="text-[10px] text-red-600 font-medium px-1">
@@ -623,8 +623,8 @@ export default function QuestionEditor() {
                           </p>
                           <p className="text-[11px] sm:text-xs text-blue-700">
                             {multipleAnswers
-                              ? "Click the circles (A, B, C, D) to mark multiple correct answers"
-                              : "Click the circles (A, B, C, D) to select the single correct answer"}
+                              ? "Nhấn vào các nút tròn (A, B, C, D) để đánh dấu nhiều đáp án đúng"
+                              : "Nhấn vào các nút tròn (A, B, C, D) để chọn một đáp án đúng"}
                           </p>
                         </div>
                       )}
@@ -634,8 +634,8 @@ export default function QuestionEditor() {
                             💡 Cách chọn đáp án đúng:
                           </p>
                           <p className="text-[11px] sm:text-xs text-green-700">
-                            Click either "True" or "False" button below to set
-                            the correct answer
+                            Nhấn vào nút "Đúng" hoặc "Sai" bên dưới để đặt đáp
+                            án đúng
                           </p>
                         </div>
                       )}
@@ -687,7 +687,7 @@ export default function QuestionEditor() {
                               onClick={() => setMediaType("image")}
                               className="gap-1"
                             >
-                              <Image className="h-3.5 w-3.5" /> Image
+                              <Image className="h-3.5 w-3.5" /> Ảnh
                             </Button>
                             <Button
                               variant={
@@ -697,7 +697,7 @@ export default function QuestionEditor() {
                               onClick={() => setMediaType("audio")}
                               className="gap-1"
                             >
-                              <Music className="h-3.5 w-3.5" /> Audio
+                              <Music className="h-3.5 w-3.5" /> Âm thanh
                             </Button>
                           </div>
                         )}
@@ -706,14 +706,14 @@ export default function QuestionEditor() {
                       {hasMedia && (
                         <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center">
                           <p className="text-sm text-muted-foreground">
-                            Drag & drop{" "}
+                            Kéo thả{" "}
                             {mediaType === "image"
-                              ? "an image"
-                              : "an audio file"}{" "}
-                            here, or click to browse
+                              ? "một hình ảnh"
+                              : "một tệp âm thanh"}{" "}
+                            vào đây, hoặc nhấn để chọn tệp
                           </p>
                           <Button variant="outline" size="sm" className="mt-2">
-                            Choose File
+                            Chọn tệp
                           </Button>
                         </div>
                       )}
@@ -747,12 +747,12 @@ export default function QuestionEditor() {
                         Giải thích (không bắt buộc)
                       </CardTitle>
                       <CardDescription className="text-xs sm:text-sm">
-                        Shown to students after they answer
+                        Hiển thị cho sinh viên sau khi trả lời
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                       <Textarea
-                        placeholder="Explain why the correct answer is correct..."
+                        placeholder="Giải thích tại sao đáp án đúng lại đúng..."
                         value={explanation}
                         onChange={(e) => setExplanation(e.target.value)}
                         rows={3}
@@ -769,10 +769,10 @@ export default function QuestionEditor() {
                   <Card>
                     <CardHeader className="pb-2 px-4 pt-4">
                       <CardTitle className="text-sm">
-                        Course <span className="text-red-500">*</span>
+                        Học phần <span className="text-red-500">*</span>
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        Required to organize questions and enable AI generation.
+                        Cần chọn để phân loại câu hỏi và bật tạo bằng AI.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 px-4 pb-4">
@@ -804,7 +804,7 @@ export default function QuestionEditor() {
                             usedBy: "Dùng khi lọc ngân hàng câu hỏi, sinh đề theo chủ đề và xem phân tích chủ đề yếu sau bài thi.",
                             note: "Nên chọn chủ đề đủ cụ thể để báo cáo phân tích có ý nghĩa hơn.",
                           }}>
-                            Topic
+                            Chủ đề
                           </HelpedTitle>
                         </Label>
                         <Button
@@ -835,7 +835,7 @@ export default function QuestionEditor() {
                           usedBy: "Giảng viên dùng khi tạo đề; hệ thống dùng để lọc, thống kê và phân tích chất lượng câu hỏi.",
                           note: "Độ khó thực tế có thể được điều chỉnh lại sau khi có dữ liệu bài làm của sinh viên.",
                         }}>
-                          Difficulty
+                          Độ khó
                         </HelpedTitle>
                       </CardTitle>
                     </CardHeader>

@@ -119,22 +119,22 @@ export function useQuestionAnswerState() {
     if (questionType === "multiple_choice" || questionType === "find_error") {
       const filledOptions = options.filter((option) => option.text.trim());
       if (filledOptions.length < 2) {
-        errors.push(questionType === "find_error" ? "At least 2 lines of code are required" : "At least 2 answer options are required");
+        errors.push(questionType === "find_error" ? "Cần ít nhất 2 dòng mã" : "Cần ít nhất 2 lựa chọn đáp án");
       }
       const correctOptions = filledOptions.filter((option) => option.isCorrect);
       if (!correctOptions.length) {
-        errors.push(questionType === "find_error" ? "Please mark which line contains the error" : "Please select at least one correct answer");
+        errors.push(questionType === "find_error" ? "Vui lòng đánh dấu dòng chứa lỗi" : "Vui lòng chọn ít nhất một đáp án đúng");
       }
       if (questionType === "multiple_choice" && !multipleAnswers && correctOptions.length > 1) {
-        errors.push("Only one answer can be correct when 'Allow Multiple Answers' is disabled");
+        errors.push("Chỉ được chọn một đáp án đúng khi chưa bật 'Cho phép nhiều đáp án đúng'");
       }
     }
-    if (questionType === "essay" && !essayRubric.trim()) errors.push("Grading rubric is required for essay questions");
+    if (questionType === "essay" && !essayRubric.trim()) errors.push("Câu hỏi tự luận cần có tiêu chí chấm điểm");
     if (questionType === "matching" && options.filter((option) => option.text.trim() && option.match?.trim()).length < 2) {
-      errors.push("At least 2 complete matching pairs (both sides filled) are required");
+      errors.push("Cần ít nhất 2 cặp ghép đầy đủ (cả hai bên đều có nội dung)");
     }
     if (questionType === "ordering" && options.filter((option) => option.text.trim()).length < 2) {
-      errors.push("At least 2 sequence items are required");
+      errors.push("Cần ít nhất 2 mục để sắp xếp");
     }
     return errors;
   };

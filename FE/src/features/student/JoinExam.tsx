@@ -63,14 +63,14 @@ export default function JoinExam() {
     await new Promise((r) => setTimeout(r, 1200));
 
     if (!examCode.trim()) {
-      setError("Please enter an exam code or link.");
+      setError("Vui lòng nhập mã bài thi hoặc liên kết.");
       setIsLoading(false);
       return;
     }
 
     // Mock: simulate valid code
     setExamInfo({
-      title: "Advanced Algorithms — Midterm Exam",
+      title: "Thuật toán nâng cao — Bài thi giữa kỳ",
       course: "CS301",
       instructor: "Dr. Nguyen Van A",
       scheduledAt: "2026-02-25T09:00:00",
@@ -96,7 +96,7 @@ export default function JoinExam() {
     await new Promise((r) => setTimeout(r, 1000));
 
     if (otp !== "123456") {
-      setError("Invalid OTP. Please check your email and try again.");
+      setError("Mã OTP không đúng. Vui lòng kiểm tra email và thử lại.");
       setIsLoading(false);
       return;
     }
@@ -115,18 +115,18 @@ export default function JoinExam() {
         <BackToDashboardButton to="/student" className="mb-4 -ml-2" />
 
         <h1 className="text-2xl font-semibold text-foreground mb-1">
-          Join Exam
+          Tham gia bài thi
         </h1>
         <p className="text-muted-foreground mb-6">
-          Enter your exam code or invitation link to join an examination session
+          Nhập mã bài thi hoặc liên kết mời để tham gia phiên thi
         </p>
 
         {/* Step indicators */}
         <div className="flex items-center gap-3 mb-8">
           {[
-            { key: "enter-code", label: "Enter Code", num: 1 },
-            { key: "verify-email", label: "Verify Email", num: 2 },
-            { key: "confirmed", label: "Confirmed", num: 3 },
+            { key: "enter-code", label: "Nhập mã", num: 1 },
+            { key: "verify-email", label: "Xác minh email", num: 2 },
+            { key: "confirmed", label: "Đã xác nhận", num: 3 },
           ].map((s, idx) => {
             const isActive = s.key === step;
             const isDone =
@@ -174,20 +174,19 @@ export default function JoinExam() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Link2 className="h-5 w-5 text-primary" />
-                Enter Exam Code
+                Nhập mã bài thi
               </CardTitle>
               <CardDescription>
-                Paste your exam invitation link or enter the exam code provided
-                by your instructor
+                Dán liên kết mời thi hoặc nhập mã bài thi do giảng viên cung cấp
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleValidateCode} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="examCode">Exam Code or Link</Label>
+                  <Label htmlFor="examCode">Mã bài thi hoặc liên kết</Label>
                   <Input
                     id="examCode"
-                    placeholder="e.g., EX-2026-CS301-MID or https://examtrust.edu/join/..."
+                    placeholder="VD: EX-2026-CS301-MID hoặc https://examtrust.edu/join/..."
                     value={examCode}
                     onChange={(e) => setExamCode(e.target.value)}
                     className="h-11 font-mono"
@@ -200,7 +199,7 @@ export default function JoinExam() {
                   ) : (
                     <ArrowRight className="mr-2 h-4 w-4" />
                   )}
-                  Validate & Continue
+                  Kiểm tra & tiếp tục
                 </Button>
               </form>
 
@@ -208,7 +207,7 @@ export default function JoinExam() {
 
               <div className="text-center">
                 <p className="text-sm text-muted-foreground mb-3">
-                  Or scan a QR code
+                  Hoặc quét mã QR
                 </p>
                 <Button
                   variant="outline"
@@ -216,7 +215,7 @@ export default function JoinExam() {
                   className="gap-2"
                 >
                   <QrCode className="h-4 w-4" />
-                  Open QR Scanner
+                  Mở máy quét QR
                 </Button>
               </div>
             </CardContent>
@@ -231,13 +230,13 @@ export default function JoinExam() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <FileText className="h-5 w-5 text-primary" />
-                  Exam Found
+                  Đã tìm thấy bài thi
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Title</p>
+                    <p className="text-muted-foreground">Tiêu đề</p>
                     <p className="font-medium">{examInfo.title}</p>
                   </div>
                   <div>
@@ -276,22 +275,21 @@ export default function JoinExam() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Mail className="h-5 w-5 text-primary" />
-                  Verify Your Enrollment
+                  Xác minh đăng ký
                 </CardTitle>
                 <CardDescription>
-                  Enter your university email to verify you are enrolled in this
-                  exam
+                  Nhập email trường của bạn để xác minh bạn đã đăng ký bài thi này
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleVerifyEmail} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">University Email</Label>
+                    <Label htmlFor="email">Email trường</Label>
                     <div className="flex gap-2">
                       <Input
                         id="email"
                         type="email"
-                        placeholder="you@university.edu"
+                        placeholder="banthan@truong.edu.vn"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
@@ -303,15 +301,15 @@ export default function JoinExam() {
                         onClick={handleSendOtp}
                         disabled={isLoading || !email}
                       >
-                        Send OTP
+                        Gửi OTP
                       </Button>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="otp">Verification Code</Label>
+                    <Label htmlFor="otp">Mã xác minh</Label>
                     <Input
                       id="otp"
-                      placeholder="Enter 6-digit OTP"
+                      placeholder="Nhập mã OTP 6 số"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value)}
                       maxLength={6}
@@ -319,7 +317,7 @@ export default function JoinExam() {
                       required
                     />
                     <p className="text-xs text-muted-foreground">
-                      A verification code has been sent to your email
+                      Mã xác minh đã được gửi đến email của bạn
                     </p>
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
@@ -328,7 +326,7 @@ export default function JoinExam() {
                     ) : (
                       <ShieldCheck className="mr-2 h-4 w-4" />
                     )}
-                    Verify & Enroll
+                    Xác minh & đăng ký
                   </Button>
                 </form>
               </CardContent>
@@ -346,11 +344,11 @@ export default function JoinExam() {
                 </div>
               </div>
               <h2 className="text-xl font-semibold mb-2">
-                Enrollment Confirmed!
+                Đã xác nhận đăng ký!
               </h2>
               <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                You have been successfully enrolled in{" "}
-                <strong>{examInfo.title}</strong>. The exam is scheduled for{" "}
+                Bạn đã đăng ký thành công{" "}
+                <strong>{examInfo.title}</strong>. Bài thi được lên lịch vào{" "}
                 <strong>
                   {new Date(examInfo.scheduledAt).toLocaleString()}
                 </strong>
@@ -358,15 +356,15 @@ export default function JoinExam() {
               </p>
               <div className="flex items-center justify-center gap-3 mb-6">
                 <StatusBadge status="approved" domain="approval">
-                  Enrolled
+                  Đã đăng ký
                 </StatusBadge>
                 <StatusBadge tone="info">{examInfo.course}</StatusBadge>
                 <StatusBadge tone="neutral">
-                  {examInfo.duration} min
+                  {examInfo.duration} phút
                 </StatusBadge>
               </div>
               <Button onClick={handleProceed} size="lg" className="gap-2">
-                Proceed to Exam Ready Check
+                Tiếp tục đến kiểm tra điều kiện dự thi
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </CardContent>
@@ -376,6 +374,3 @@ export default function JoinExam() {
     </DashboardLayout>
   );
 }
-
-
-

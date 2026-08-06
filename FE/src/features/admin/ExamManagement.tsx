@@ -396,12 +396,12 @@ export default function AdminExamManagement() {
       setIsDeleting(true);
       await api.deleteExam(selectedExam.id);
       setExams(exams.filter((e) => e.id !== selectedExam.id));
-      toast.success("Exam deleted successfully");
+      toast.success("Đã xóa bài thi thành công");
       setShowDeleteDialog(false);
       setSelectedExam(null);
     } catch (error: any) {
       console.error("Failed to delete exam:", error);
-      toast.error(error?.message || "Failed to delete exam");
+      toast.error(error?.message || "Không thể xóa bài thi");
     } finally {
       setIsDeleting(false);
     }
@@ -420,7 +420,7 @@ export default function AdminExamManagement() {
     if (!selectedExam) return;
 
     if (!rescheduleForm.startTime || !rescheduleForm.endTime) {
-      toast.error("Please provide both start and end time");
+      toast.error("Vui lòng nhập đầy đủ thời gian bắt đầu và kết thúc");
       return;
     }
 
@@ -428,12 +428,12 @@ export default function AdminExamManagement() {
     const endTime = new Date(rescheduleForm.endTime);
 
     if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
-      toast.error("Invalid schedule date/time");
+      toast.error("Thời gian lịch thi không hợp lệ");
       return;
     }
 
     if (endTime <= startTime) {
-      toast.error("End time must be after start time");
+      toast.error("Thời gian kết thúc phải sau thời gian bắt đầu");
       return;
     }
 
@@ -461,12 +461,12 @@ export default function AdminExamManagement() {
         ),
       );
 
-      toast.success("Exam schedule updated successfully");
+      toast.success("Đã cập nhật lịch thi thành công");
       setShowRescheduleDialog(false);
       setSelectedExam(null);
     } catch (error) {
       console.error("Failed to reschedule exam:", error);
-      toast.error("Failed to reschedule exam");
+      toast.error("Không thể đổi lịch bài thi");
     } finally {
       setIsRescheduling(false);
     }
@@ -488,7 +488,7 @@ export default function AdminExamManagement() {
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Loading exams...</p>
+            <p className="text-sm text-muted-foreground">Đang tải danh sách bài thi...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -498,33 +498,33 @@ export default function AdminExamManagement() {
   return (
     <DashboardLayout>
       <AdminPageShell>
-        <ListPageHeader title="All Exams" className="mb-4" />
+        <ListPageHeader title="Tất cả bài thi" className="mb-4" />
 
         {/* Stats */}
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <AdminStatCard
             icon={FileText}
             value={stats.total}
-            label="Total Exams"
+            label="Tổng số bài thi"
           />
           <AdminStatCard
             icon={CheckCircle2}
             value={stats.published}
-            label="Published"
+            label="Đã công bố"
             iconWrapClassName="bg-blue-500/10"
             iconClassName="text-blue-600"
           />
           <AdminStatCard
             icon={Clock}
             value={stats.ongoing}
-            label="Ongoing"
+            label="Đang diễn ra"
             iconWrapClassName="bg-amber-500/10"
             iconClassName="text-amber-600"
           />
           <AdminStatCard
             icon={Users}
             value={stats.submissions}
-            label="Total Submissions"
+            label="Tổng số lượt nộp"
             iconWrapClassName="bg-emerald-500/10"
             iconClassName="text-emerald-600"
           />
@@ -732,7 +732,7 @@ export default function AdminExamManagement() {
               totalPages={totalPages}
               totalItems={filteredExams.length}
               onPageChange={setPage}
-              itemLabel="exams"
+              itemLabel="bài thi"
             />
           </CardContent>
         </Card>

@@ -25,7 +25,7 @@ export default function JoinExamByLink() {
   useEffect(() => {
     const validate = async () => {
       if (!token) {
-        setError('Missing token');
+        setError('Thiếu mã token');
         setLoading(false);
         return;
       }
@@ -34,7 +34,7 @@ export default function JoinExamByLink() {
         const info = await api.validateExamLink(token);
         setLinkInfo(info);
       } catch (err: any) {
-        setError(err?.message || 'This link is invalid or expired');
+        setError(err?.message || 'Liên kết không hợp lệ hoặc đã hết hạn');
       } finally {
         setLoading(false);
       }
@@ -52,14 +52,14 @@ export default function JoinExamByLink() {
       const res = await api.joinExamByLink(token, { password });
       const joinUrl = res?.joinUrl || (linkInfo?.joinUrl as string);
       if (!joinUrl) {
-        throw new Error('Join URL not available');
+        throw new Error('Không có URL tham gia');
       }
       router.push(joinUrl);
     } catch (err: any) {
       if (String(err?.message || '').toLowerCase().includes('unauthorized')) {
-        setError('Please sign in to continue.');
+        setError('Vui lòng đăng nhập để tiếp tục.');
       } else {
-        setError(err?.message || 'Cannot join exam with this link');
+        setError(err?.message || 'Không thể tham gia bài thi bằng liên kết này');
       }
     } finally {
       setSubmitting(false);
@@ -79,10 +79,10 @@ export default function JoinExamByLink() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Link2 className="h-4 w-4" /> Join Exam
+            <Link2 className="h-4 w-4" /> Tham gia bài thi
           </CardTitle>
           <CardDescription>
-            {linkInfo?.examTitle || 'Exam access link'}
+            {linkInfo?.examTitle || 'Liên kết truy cập bài thi'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -93,29 +93,29 @@ export default function JoinExamByLink() {
           )}
 
           {!linkInfo ? (
-            <p className="text-sm text-muted-foreground">Link is not available.</p>
+            <p className="text-sm text-muted-foreground">Liên kết không khả dụng.</p>
           ) : (
             <>
               <div className="text-sm text-muted-foreground space-y-1">
-                <p>Course: {linkInfo?.course?.code ? `${linkInfo.course.code} - ${linkInfo.course.name}` : linkInfo?.course?.name || '-'}</p>
-                <p>Used: {linkInfo?.usedCount ?? 0}/{linkInfo?.maxUses ?? '∞'}</p>
-                <p>Expires: {linkInfo?.expiresAt ? new Date(linkInfo.expiresAt).toLocaleString() : 'No expiry'}</p>
+                <p>Khóa học: {linkInfo?.course?.code ? `${linkInfo.course.code} - ${linkInfo.course.name}` : linkInfo?.course?.name || '-'}</p>
+                <p>Đã dùng: {linkInfo?.usedCount ?? 0}/{linkInfo?.maxUses ?? '∞'}</p>
+                <p>Hết hạn: {linkInfo?.expiresAt ? new Date(linkInfo.expiresAt).toLocaleString() : 'Không hết hạn'}</p>
               </div>
 
               {linkInfo.requiresPassword && (
                 <div className="space-y-2">
-                  <Label>Password</Label>
-                  <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter link password" />
+                  <Label>Mật khẩu</Label>
+                  <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Nhập mật khẩu liên kết" />
                 </div>
               )}
 
               <Button className="w-full gap-2" disabled={submitting} onClick={handleJoin}>
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                Join Exam
+                Tham gia bài thi
               </Button>
 
               <Button variant="outline" className="w-full" asChild>
-                <Link href="/login">Sign in</Link>
+                <Link href="/login">Đăng nhập</Link>
               </Button>
             </>
           )}
@@ -124,6 +124,3 @@ export default function JoinExamByLink() {
     </div>
   );
 }
-
-
-

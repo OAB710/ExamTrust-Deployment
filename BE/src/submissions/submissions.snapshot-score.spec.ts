@@ -62,6 +62,7 @@ describe('SubmissionsService snapshot and score normalization', () => {
       { publishSubmissionEvent: jest.fn() } as any,
       accessPolicy as any,
       { isQueueOverloaded: jest.fn().mockResolvedValue(false) } as any,
+      { suggestEssayGrade: jest.fn() } as any,
     );
     return { service, prisma, accessPolicy };
   };

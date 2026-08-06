@@ -688,7 +688,7 @@ export default function QuestionBankManagement() {
                       <span>Câu hỏi</span>
                       <span>Độ khó TB</span>
                       <span>Loại câu hỏi</span>
-                      <span className="sr-only">Open</span>
+                      <span className="sr-only">Mở</span>
                     </div>
                     <div className="divide-y">
                     {paginatedCourses.map((course, index) => {
@@ -712,7 +712,7 @@ export default function QuestionBankManagement() {
                           key={course.id}
                           className="group grid w-full gap-4 px-4 py-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:grid-cols-[minmax(240px,1.35fr)_120px_140px_minmax(220px,1fr)_24px] md:items-center"
                           onClick={() => setSelectedCourse(course.code)}
-                          aria-label={`Open question bank for ${course.code}`}
+                          aria-label={`Mở ngân hàng câu hỏi của ${course.code}`}
                         >
                           <div className="flex min-w-0 items-center gap-3">
                             <div
@@ -766,7 +766,7 @@ export default function QuestionBankManagement() {
                               ))}
                               {questionTypes.length > 3 && (
                                 <span className="self-center text-xs text-muted-foreground">
-                                  +{questionTypes.length - 3} more
+                                  +{questionTypes.length - 3} loại khác
                                 </span>
                               )}
                             </div>
@@ -845,7 +845,7 @@ export default function QuestionBankManagement() {
                     );
                   }}
                 >
-                  <BarChart3 className="h-4 w-4" /> Analytics
+                  <BarChart3 className="h-4 w-4" /> Phân tích
                 </Button>
                 <Button
                   variant="outline"
@@ -880,8 +880,8 @@ export default function QuestionBankManagement() {
                   className="min-w-0 flex-1"
                 />
                 <FilterPanel
-                  title="Question filters"
-                  description="Filter by type, difficulty, and points."
+                  title="Bộ lọc câu hỏi"
+                  description="Lọc theo loại, độ khó và điểm."
                   filters={questionFilterDefinitions}
                   value={draftQuestionFilters}
                   onValueChange={(key, nextValue) =>
@@ -925,25 +925,25 @@ export default function QuestionBankManagement() {
                               onClick={() => toggleSort("updatedAt")}
                               className="flex items-center gap-1 hover:text-foreground"
                             >
-                              Updated At
+                              Cập nhật lúc
                               <ArrowUpDown className="h-3 w-3" />
                             </button>
                           </TableHead>
-                          <TableHead className="min-w-48">Content</TableHead>
-                          <TableHead className="w-36 whitespace-nowrap">Type</TableHead>
+                          <TableHead className="min-w-48">Nội dung</TableHead>
+                          <TableHead className="w-36 whitespace-nowrap">Loại</TableHead>
                           <TableHead className="w-28 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 onClick={() => toggleSort("difficulty")}
                                 className="flex items-center justify-center gap-1 hover:text-foreground"
                               >
-                                Difficulty
+                                Độ khó
                                 <ArrowUpDown className="h-3 w-3" />
                               </button>
                               <ContextHelp content="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích." />
                             </div>
                           </TableHead>
-                          <TableHead className="w-32 text-center">Actions</TableHead>
+                          <TableHead className="w-32 text-center">Thao tác</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1170,7 +1170,7 @@ export default function QuestionBankManagement() {
                 <AlertTriangle className="h-10 w-10 text-destructive" />
                 <p className="text-lg font-medium">Không thể tải chi tiết câu hỏi</p>
                 <p className="text-sm text-muted-foreground text-center">
-                  An error occurred while fetching the full question data.
+                  Đã xảy ra lỗi khi tải đầy đủ dữ liệu câu hỏi.
                 </p>
                 <Button
                   variant="outline"
@@ -1189,7 +1189,7 @@ export default function QuestionBankManagement() {
                     }
                   }}
                 >
-                  Retry
+                  Thử lại
                 </Button>
               </div>
             )}
@@ -1207,7 +1207,7 @@ export default function QuestionBankManagement() {
                   {/* Fixed Header */}
                   <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
                     <div className="flex items-center gap-3">
-                      <h2 className="text-lg font-semibold">Question Preview</h2>
+                      <h2 className="text-lg font-semibold">Xem trước câu hỏi</h2>
                       <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                         {typeLabel}
                       </span>
@@ -1222,7 +1222,7 @@ export default function QuestionBankManagement() {
                         setDetailError(false);
                       }}
                     >
-                      <span className="sr-only">Close</span>
+                      <span className="sr-only">Đóng</span>
                       <svg
                         className="h-4 w-4"
                         viewBox="0 0 24 24"
@@ -1242,7 +1242,7 @@ export default function QuestionBankManagement() {
                   <div className="max-h-[calc(85vh-73px)] overflow-y-auto p-6 space-y-6">
 
                     {/* 1. Question Content */}
-                    <Section title="Question Content">
+                    <Section title="Nội dung câu hỏi">
                       <p className="text-sm whitespace-pre-wrap break-words text-foreground">
                         {q.content}
                       </p>
@@ -1250,7 +1250,7 @@ export default function QuestionBankManagement() {
 
                     {/* 2. Answer Options */}
                     {hasOptions ? (
-                      <Section title="Answer Options">
+                      <Section title="Các lựa chọn">
                         {options.length > 0 ? (
                           <div className="space-y-2">
                             {options.map((opt) => {
@@ -1280,7 +1280,7 @@ export default function QuestionBankManagement() {
                                   </span>
                                   {isCorrect && (
                                     <span className="flex-shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700">
-                                      Correct answer
+                                      Đáp án đúng
                                     </span>
                                   )}
                                 </div>
@@ -1289,21 +1289,21 @@ export default function QuestionBankManagement() {
                           </div>
                         ) : (
                           <p className="text-sm text-muted-foreground italic">
-                            This question type does not use answer options
+                            Loại câu hỏi này không dùng lựa chọn
                           </p>
                         )}
                       </Section>
                     ) : (
-                      <Section title="Answer Options">
+                      <Section title="Các lựa chọn">
                         <p className="text-sm text-muted-foreground italic">
-                          This question type does not use answer options
+                          Loại câu hỏi này không dùng lựa chọn
                         </p>
                       </Section>
                     )}
 
                     {/* 3. Correct Answer */}
                     <Section
-                      title="Correct Answer"
+                      title="Đáp án đúng"
                       className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20"
                     >
                       {correctAnswers.length > 0 ? (
@@ -1330,20 +1330,20 @@ export default function QuestionBankManagement() {
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground italic">
-                          No correct answer provided
+                          Chưa có đáp án đúng
                         </p>
                       )}
                     </Section>
 
                     {/* 4. Explanation */}
-                    <Section title="Explanation">
+                    <Section title="Giải thích">
                       {q.explanation ? (
                         <p className="text-sm whitespace-pre-wrap break-words text-foreground">
                           {q.explanation}
                         </p>
                       ) : (
                         <p className="text-sm text-muted-foreground italic">
-                          No explanation provided
+                          Chưa có giải thích
                         </p>
                       )}
                     </Section>

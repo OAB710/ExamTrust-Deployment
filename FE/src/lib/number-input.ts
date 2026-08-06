@@ -14,8 +14,8 @@ const hasValidNumberFormat = (rawValue: string, integer: boolean) => {
 };
 
 const getMinError = (min: number) => {
-  if (min === 0) return "Value must be 0 or greater";
-  return `Value must be ${min} or greater`;
+  if (min === 0) return "Giá trị phải lớn hơn hoặc bằng 0";
+  return `Giá trị phải lớn hơn hoặc bằng ${min}`;
 };
 
 export const getNumericInputError = (
@@ -27,12 +27,12 @@ export const getNumericInputError = (
 
   const integer = options.integer ?? true;
   if (!hasValidNumberFormat(trimmed, integer)) {
-    return "Please enter a valid number";
+    return "Vui lòng nhập một số hợp lệ";
   }
 
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed)) {
-    return "Please enter a valid number";
+    return "Vui lòng nhập một số hợp lệ";
   }
 
   if (typeof options.min === "number" && parsed < options.min) {
@@ -40,7 +40,7 @@ export const getNumericInputError = (
   }
 
   if (typeof options.max === "number" && parsed > options.max) {
-    return `Value must be ${options.max} or less`;
+    return `Giá trị phải nhỏ hơn hoặc bằng ${options.max}`;
   }
 
   return null;

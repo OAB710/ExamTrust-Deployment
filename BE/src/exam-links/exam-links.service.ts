@@ -39,11 +39,11 @@ export class ExamLinksService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     if (role !== 'ADMIN' && exam.creatorId !== userId) {
-      throw new ForbiddenException('You do not have permission to manage links for this exam');
+      throw new ForbiddenException('Bạn không có quyền quản lý liên kết cho bài thi này');
     }
 
     return exam;
@@ -57,7 +57,7 @@ export class ExamLinksService {
       : exam.endTime || null;
 
     if (expiresAt && expiresAt.getTime() <= Date.now()) {
-      throw new BadRequestException('Expiry datetime must be in the future');
+      throw new BadRequestException('Thời gian hết hạn phải ở trong tương lai');
     }
 
     const token = this.makeToken();
@@ -121,7 +121,7 @@ export class ExamLinksService {
     });
 
     if (!link) {
-      throw new NotFoundException('Invalid exam link');
+      throw new NotFoundException('Liên kết bài thi không hợp lệ');
     }
 
     return link;
@@ -129,37 +129,37 @@ export class ExamLinksService {
 
   private async validateEligibility(link: any, userId?: string) {
     if (link.disabled) {
-      throw new ForbiddenException('Link has been revoked');
+      throw new ForbiddenException('Liên kết đã bị thu hồi');
     }
 
     if (link.lockedUntil && new Date(link.lockedUntil).getTime() > Date.now()) {
-      throw new ForbiddenException('Link is temporarily locked due to multiple failed password attempts');
+      throw new ForbiddenException('Liên kết bị tạm khóa do nhập sai mật khẩu nhiều lần');
     }
 
     if (link.expiresAt && new Date(link.expiresAt).getTime() <= Date.now()) {
-      throw new GoneException('Link expired or no longer valid');
+      throw new GoneException('Liên kết đã hết hạn hoặc không còn hiệu lực');
     }
 
     if (link.maxUses != null && link.usedCount >= link.maxUses) {
-      throw new GoneException('Link expired or no longer valid');
+      throw new GoneException('Liên kết đã hết hạn hoặc không còn hiệu lực');
     }
 
     if (link.exam.status !== 'PUBLISHED' && link.exam.status !== 'ONGOING') {
-      throw new ForbiddenException('Exam is not available');
+      throw new ForbiddenException('Bài thi hiện không khả dụng');
     }
 
     if (link.exam.startTime && new Date(link.exam.startTime).getTime() > Date.now()) {
-      throw new ForbiddenException('Exam has not started yet');
+      throw new ForbiddenException('Bài thi chưa bắt đầu');
     }
 
     const allowLateSubmission = Boolean((link.exam.settings as any)?.allowLateSubmission);
     if (!allowLateSubmission && link.exam.endTime && new Date(link.exam.endTime).getTime() < Date.now()) {
-      throw new ForbiddenException('Exam has ended');
+      throw new ForbiddenException('Bài thi đã kết thúc');
     }
 
     if (link.restrictedToCourse) {
       if (!userId) {
-        throw new UnauthorizedException('Please login to continue');
+        throw new UnauthorizedException('Vui lòng đăng nhập để tiếp tục');
       }
 
       const enrollment = await this.prisma.enrollment.findFirst({
@@ -171,7 +171,7 @@ export class ExamLinksService {
       });
 
       if (!enrollment) {
-        throw new ForbiddenException('You are not eligible for this exam link');
+        throw new ForbiddenException('Bạn không đủ điều kiện dùng liên kết bài thi này');
       }
     }
 
@@ -181,19 +181,19 @@ export class ExamLinksService {
     const link = await this.getLinkByRawToken(token);
 
     if (link.disabled) {
-      throw new ForbiddenException('Link has been revoked');
+      throw new ForbiddenException('Liên kết đã bị thu hồi');
     }
 
     if (link.lockedUntil && new Date(link.lockedUntil).getTime() > Date.now()) {
-      throw new ForbiddenException('Link is temporarily locked due to multiple failed password attempts');
+      throw new ForbiddenException('Liên kết bị tạm khóa do nhập sai mật khẩu nhiều lần');
     }
 
     if (link.expiresAt && new Date(link.expiresAt).getTime() <= Date.now()) {
-      throw new GoneException('Link expired or no longer valid');
+      throw new GoneException('Liên kết đã hết hạn hoặc không còn hiệu lực');
     }
 
     if (link.maxUses != null && link.usedCount >= link.maxUses) {
-      throw new GoneException('Link expired or no longer valid');
+      throw new GoneException('Liên kết đã hết hạn hoặc không còn hiệu lực');
     }
 
     return {
@@ -229,26 +229,26 @@ export class ExamLinksService {
           },
         });
 
-        throw new ForbiddenException('Password is required or incorrect');
+        throw new ForbiddenException('Cần nhập mật khẩu hoặc mật khẩu không đúng');
       }
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const current = await tx.examLink.findUnique({ where: { id: link.id } });
       if (!current) {
-        throw new NotFoundException('Invalid exam link');
+        throw new NotFoundException('Liên kết bài thi không hợp lệ');
       }
 
       if (current.disabled) {
-        throw new ForbiddenException('Link has been revoked');
+        throw new ForbiddenException('Liên kết đã bị thu hồi');
       }
 
       if (current.expiresAt && new Date(current.expiresAt).getTime() <= Date.now()) {
-        throw new GoneException('Link expired or no longer valid');
+        throw new GoneException('Liên kết đã hết hạn hoặc không còn hiệu lực');
       }
 
       if (current.maxUses != null && current.usedCount >= current.maxUses) {
-        throw new GoneException('Link expired or no longer valid');
+        throw new GoneException('Liên kết đã hết hạn hoặc không còn hiệu lực');
       }
 
       const saved = await tx.examLink.update({
@@ -319,11 +319,11 @@ export class ExamLinksService {
     });
 
     if (!link) {
-      throw new NotFoundException('Exam link not found');
+      throw new NotFoundException('Không tìm thấy liên kết bài thi');
     }
 
     if (role !== 'ADMIN' && link.exam.creatorId !== userId) {
-      throw new ForbiddenException('You do not have permission to update this link');
+      throw new ForbiddenException('Bạn không có quyền cập nhật liên kết này');
     }
 
     const updated = await this.prisma.examLink.update({
@@ -358,11 +358,11 @@ export class ExamLinksService {
     });
 
     if (!link) {
-      throw new NotFoundException('Exam link not found');
+      throw new NotFoundException('Không tìm thấy liên kết bài thi');
     }
 
     if (role !== 'ADMIN' && link.exam.creatorId !== userId) {
-      throw new ForbiddenException('You do not have permission to view this link usage');
+      throw new ForbiddenException('Bạn không có quyền xem lượt sử dụng của liên kết này');
     }
 
     return this.prisma.examLinkUsage.findMany({

@@ -33,7 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user) {
-      throw new UnauthorizedException('User not found or inactive');
+      throw new UnauthorizedException('Không tìm thấy người dùng hoặc tài khoản chưa được kích hoạt');
     }
 
     // Tokens issued before the last password change are no longer valid.
@@ -41,7 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       const issuedAtSec = payload.iat ?? 0;
       const changedAtSec = Math.floor(user.passwordChangedAt.getTime() / 1000);
       if (issuedAtSec < changedAtSec) {
-        throw new UnauthorizedException('Session expired due to a password change. Please login again.');
+        throw new UnauthorizedException('Phiên đăng nhập đã hết hạn do mật khẩu vừa được thay đổi. Vui lòng đăng nhập lại.');
       }
     }
 

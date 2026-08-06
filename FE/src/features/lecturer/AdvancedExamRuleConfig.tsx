@@ -132,11 +132,11 @@ export default function AdvancedExamRuleConfig() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-foreground mb-1">
-              Exam Rule Configuration
+              Cấu hình quy tắc bài thi
             </h1>
             <p className="text-muted-foreground">
-              Configure difficulty distribution, shuffling, integrity, and
-              scoring rules
+              Cấu hình phân bổ độ khó, trộn đề, toàn vẹn học thuật và quy tắc
+              tính điểm
             </p>
           </div>
           <Button onClick={handleSave} disabled={saving} className="gap-2">
@@ -147,7 +147,7 @@ export default function AdvancedExamRuleConfig() {
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {saved ? "Saved!" : "Save Configuration"}
+            {saved ? "Đã lưu!" : "Lưu cấu hình"}
           </Button>
         </div>
 
@@ -249,17 +249,17 @@ export default function AdvancedExamRuleConfig() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" /> Difficulty Distribution
+                <BarChart3 className="h-4 w-4" /> Phân bổ độ khó
               </CardTitle>
               <CardDescription>
-                Allocate percentage of questions by difficulty level
+                Phân bổ tỷ lệ câu hỏi theo từng mức độ khó
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-green-600 font-medium">Easy</span>
+                    <span className="text-green-600 font-medium">Dễ</span>
                     <span>{easyRatio[0]}%</span>
                   </div>
                   <Slider
@@ -272,7 +272,7 @@ export default function AdvancedExamRuleConfig() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-yellow-600 font-medium">Medium</span>
+                    <span className="text-yellow-600 font-medium">Trung bình</span>
                     <span>{mediumRatio[0]}%</span>
                   </div>
                   <Slider
@@ -285,7 +285,7 @@ export default function AdvancedExamRuleConfig() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-red-600 font-medium">Hard</span>
+                    <span className="text-red-600 font-medium">Khó</span>
                     <span>{hardRatio[0]}%</span>
                   </div>
                   <Slider
@@ -317,9 +317,9 @@ export default function AdvancedExamRuleConfig() {
                 <span
                   className={`text-xs font-medium ${easyRatio[0] + mediumRatio[0] + hardRatio[0] === 100 ? "text-green-600" : "text-red-600"}`}
                 >
-                  Total: {easyRatio[0] + mediumRatio[0] + hardRatio[0]}%
+                  Tổng: {easyRatio[0] + mediumRatio[0] + hardRatio[0]}%
                   {easyRatio[0] + mediumRatio[0] + hardRatio[0] !== 100 &&
-                    " (must be 100%)"}
+                    " (phải bằng 100%)"}
                 </span>
               </div>
             </CardContent>
@@ -329,15 +329,15 @@ export default function AdvancedExamRuleConfig() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Shuffle className="h-4 w-4" /> Shuffle Settings
+                <Shuffle className="h-4 w-4" /> Thiết lập trộn đề
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Shuffle Questions</Label>
+                  <Label>Trộn câu hỏi</Label>
                   <p className="text-xs text-muted-foreground">
-                    Randomize question order for each student
+                    Xáo trộn thứ tự câu hỏi cho từng sinh viên
                   </p>
                 </div>
                 <Switch
@@ -348,9 +348,9 @@ export default function AdvancedExamRuleConfig() {
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Shuffle Answer Options</Label>
+                  <Label>Trộn thứ tự đáp án</Label>
                   <p className="text-xs text-muted-foreground">
-                    Randomize option order within each question
+                    Xáo trộn thứ tự đáp án trong mỗi câu hỏi
                   </p>
                 </div>
                 <Switch
@@ -360,18 +360,18 @@ export default function AdvancedExamRuleConfig() {
               </div>
               <Separator />
               <div className="space-y-2">
-                <Label>Shuffle Mode</Label>
+                <Label>Cách trộn đề</Label>
                 <Select value={shuffleMode} onValueChange={setShuffleMode}>
                   <SelectTrigger className="w-[280px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="random">Fully Random</SelectItem>
+                    <SelectItem value="random">Ngẫu nhiên hoàn toàn</SelectItem>
                     <SelectItem value="by_topic">
-                      Group by Topic, Shuffle Within
+                      Nhóm theo chủ đề, trộn trong nhóm
                     </SelectItem>
                     <SelectItem value="by_difficulty">
-                      Order by Difficulty (easy → hard)
+                      Sắp xếp theo độ khó (dễ → khó)
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -383,18 +383,18 @@ export default function AdvancedExamRuleConfig() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4" /> Security & Integrity
+                <Shield className="h-4 w-4" /> Bảo mật & toàn vẹn học thuật
               </CardTitle>
               <CardDescription>
-                Anti-cheating and proctoring measures
+                Các biện pháp chống gian lận và giám sát
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Fullscreen Required</Label>
+                  <Label>Yêu cầu toàn màn hình</Label>
                   <p className="text-xs text-muted-foreground">
-                    Force fullscreen mode during exam
+                    Bắt buộc chế độ toàn màn hình trong khi thi
                   </p>
                 </div>
                 <Switch
@@ -405,9 +405,9 @@ export default function AdvancedExamRuleConfig() {
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Tab Switch Detection</Label>
+                  <Label>Phát hiện chuyển tab</Label>
                   <p className="text-xs text-muted-foreground">
-                    Detect and log when students switch tabs
+                    Phát hiện và ghi nhận khi sinh viên chuyển tab
                   </p>
                 </div>
                 <Switch
@@ -418,7 +418,7 @@ export default function AdvancedExamRuleConfig() {
               {tabSwitchDetection && (
                 <div className="ml-4 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Max allowed tab switches before auto-flag</span>
+                    <span>Số lần chuyển tab tối đa trước khi tự động đánh dấu</span>
                     <span className="font-medium">{maxTabSwitches[0]}</span>
                   </div>
                   <Slider
@@ -433,9 +433,9 @@ export default function AdvancedExamRuleConfig() {
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Mouse Movement Tracking</Label>
+                  <Label>Theo dõi di chuyển chuột</Label>
                   <p className="text-xs text-muted-foreground">
-                    Track cursor patterns for anomaly detection
+                    Theo dõi hành vi con trỏ để phát hiện bất thường
                   </p>
                 </div>
                 <Switch
@@ -447,10 +447,10 @@ export default function AdvancedExamRuleConfig() {
               <div className="flex items-center justify-between">
                 <div>
                   <Label className="flex items-center gap-2">
-                    <Globe className="h-4 w-4" /> IP Address Restriction
+                    <Globe className="h-4 w-4" /> Giới hạn địa chỉ IP
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Only allow exam from specific IP range
+                    Chỉ cho phép thi từ dải IP xác định
                   </p>
                 </div>
                 <Switch
@@ -460,11 +460,11 @@ export default function AdvancedExamRuleConfig() {
               </div>
               {ipRestriction && (
                 <div className="ml-4 space-y-2">
-                  <Label>Allowed IP Range (CIDR)</Label>
+                  <Label>Dải IP được phép (CIDR)</Label>
                   <Input
                     value={allowedIpRange}
                     onChange={(e) => setAllowedIpRange(e.target.value)}
-                    placeholder="e.g., 192.168.1.0/24"
+                    placeholder="VD: 192.168.1.0/24"
                     className="w-[280px]"
                   />
                 </div>
@@ -476,16 +476,16 @@ export default function AdvancedExamRuleConfig() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" /> AI Integrity Thresholds
+                <AlertTriangle className="h-4 w-4" /> Ngưỡng toàn vẹn học thuật AI
               </CardTitle>
               <CardDescription>
-                Configure automatic cheating detection parameters
+                Cấu hình các tham số phát hiện gian lận tự động
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Answer Similarity Threshold</span>
+                  <span>Ngưỡng tương đồng câu trả lời</span>
                   <span className="font-medium">{similarityThreshold[0]}%</span>
                 </div>
                 <Slider
@@ -496,16 +496,16 @@ export default function AdvancedExamRuleConfig() {
                   step={5}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Flag when answers between students are more than{" "}
-                  {similarityThreshold[0]}% similar
+                  Đánh dấu khi câu trả lời giữa các sinh viên giống nhau trên{" "}
+                  {similarityThreshold[0]}%
                 </p>
               </div>
               <Separator />
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Timing Anomaly Threshold</span>
+                  <span>Ngưỡng bất thường về thời gian</span>
                   <span className="font-medium">
-                    {timingAnomalyThreshold[0]} occurrences
+                    {timingAnomalyThreshold[0]} lần
                   </span>
                 </div>
                 <Slider
@@ -516,8 +516,8 @@ export default function AdvancedExamRuleConfig() {
                   step={1}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Flag when student has more than {timingAnomalyThreshold[0]}{" "}
-                  timing anomalies
+                  Đánh dấu khi sinh viên có hơn {timingAnomalyThreshold[0]}{" "}
+                  lần bất thường về thời gian
                 </p>
               </div>
             </CardContent>
@@ -527,15 +527,15 @@ export default function AdvancedExamRuleConfig() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Eye className="h-4 w-4" /> Scoring Rules
+                <Eye className="h-4 w-4" /> Quy tắc tính điểm
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Immediate Scoring</Label>
+                  <Label>Chấm điểm ngay</Label>
                   <p className="text-xs text-muted-foreground">
-                    Show score immediately after submission
+                    Hiển thị điểm ngay sau khi nộp bài
                   </p>
                 </div>
                 <Switch
@@ -546,9 +546,9 @@ export default function AdvancedExamRuleConfig() {
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Show Correct Answers</Label>
+                  <Label>Hiện đáp án đúng</Label>
                   <p className="text-xs text-muted-foreground">
-                    Reveal correct answers after submission
+                    Hiện đáp án đúng sau khi nộp bài
                   </p>
                 </div>
                 <Switch
@@ -559,9 +559,9 @@ export default function AdvancedExamRuleConfig() {
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Negative Marking</Label>
+                  <Label>Trừ điểm câu sai</Label>
                   <p className="text-xs text-muted-foreground">
-                    Deduct marks for incorrect answers
+                    Trừ điểm với câu trả lời sai
                   </p>
                 </div>
                 <Switch
@@ -572,9 +572,9 @@ export default function AdvancedExamRuleConfig() {
               {negativeMarking && (
                 <div className="ml-4 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Penalty per wrong answer</span>
+                    <span>Mức trừ mỗi câu sai</span>
                     <span className="font-medium">
-                      {negativeMarkPercent[0]}% of question value
+                      {negativeMarkPercent[0]}% điểm câu hỏi
                     </span>
                   </div>
                   <Slider
@@ -593,15 +593,15 @@ export default function AdvancedExamRuleConfig() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <WifiOff className="h-4 w-4" /> Offline & Auto-Submit
+                <WifiOff className="h-4 w-4" /> Ngoại tuyến & tự động nộp bài
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Offline Mode</Label>
+                  <Label>Chế độ ngoại tuyến</Label>
                   <p className="text-xs text-muted-foreground">
-                    Allow exam to be taken without internet
+                    Cho phép làm bài khi không có internet
                   </p>
                 </div>
                 <Switch
@@ -612,9 +612,9 @@ export default function AdvancedExamRuleConfig() {
               {offlineMode && (
                 <div className="ml-4 flex items-center justify-between">
                   <div>
-                    <Label>AES-256 Encryption</Label>
+                    <Label>Mã hóa AES-256</Label>
                     <p className="text-xs text-muted-foreground">
-                      Encrypt protected exam session data
+                      Mã hóa dữ liệu phiên thi được bảo vệ
                     </p>
                   </div>
                   <Switch
@@ -626,16 +626,16 @@ export default function AdvancedExamRuleConfig() {
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Auto-Submit on Timeout</Label>
+                  <Label>Tự động nộp bài khi hết giờ</Label>
                   <p className="text-xs text-muted-foreground">
-                    Automatically submit when time runs out
+                    Tự động nộp bài khi hết thời gian
                   </p>
                 </div>
                 <Switch checked={autoSubmit} onCheckedChange={setAutoSubmit} />
               </div>
               {autoSubmit && (
                 <div className="ml-4 space-y-2">
-                  <Label>Grace Period (minutes)</Label>
+                  <Label>Thời gian gia hạn (phút)</Label>
                   <Input
                     type="number"
                     min={0}
@@ -663,7 +663,7 @@ export default function AdvancedExamRuleConfig() {
                     </p>
                   ) : null}
                   <p className="text-xs text-muted-foreground">
-                    Extra minutes before auto-submit after timer ends
+                    Số phút gia hạn thêm trước khi tự động nộp sau khi hết giờ
                   </p>
                 </div>
               )}

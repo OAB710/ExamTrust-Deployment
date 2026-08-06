@@ -97,7 +97,7 @@ describe('AiService.generateExamQualityReview', () => {
           questionStats,
           language: 'en',
         }),
-      ).rejects.toThrow('AI generation failed');
+      ).rejects.toThrow('Tạo nội dung bằng AI thất bại');
     });
 
     it('throws a descriptive error when the provider returns invalid JSON', async () => {
@@ -112,7 +112,7 @@ describe('AiService.generateExamQualityReview', () => {
           questionStats,
           language: 'en',
         }),
-      ).rejects.toThrow('AI generation failed');
+      ).rejects.toThrow('Tạo nội dung bằng AI thất bại');
     });
 
     it('throws when the provider returns a JSON shape missing the required fields', async () => {
@@ -130,7 +130,7 @@ describe('AiService.generateExamQualityReview', () => {
           questionStats,
           language: 'en',
         }),
-      ).rejects.toThrow('AI generation failed');
+      ).rejects.toThrow('Tạo nội dung bằng AI thất bại');
     });
   });
 });

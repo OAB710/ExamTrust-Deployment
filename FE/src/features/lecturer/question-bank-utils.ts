@@ -24,9 +24,9 @@ export const QUESTION_DRAFT_STORAGE_KEY = "question-draft";
 export const NO_OPTIONS_TYPES = new Set(["ESSAY", "SHORT_ANSWER"]);
 
 export const typeLabels: Record<string, string> = {
-  MULTIPLE_CHOICE: "Multiple Choice", MULTI_SELECT: "Multiple Select", TRUE_FALSE: "True/False",
-  SHORT_ANSWER: "Short Answer", ESSAY: "Essay", FILL_IN_BLANK: "Fill in Blank",
-  MATCHING: "Matching", ORDERING: "Ordering", FIND_ERROR: "Find the Error",
+  MULTIPLE_CHOICE: "Trắc nghiệm", MULTI_SELECT: "Nhiều đáp án", TRUE_FALSE: "Đúng / Sai",
+  SHORT_ANSWER: "Trả lời ngắn", ESSAY: "Tự luận", FILL_IN_BLANK: "Điền khuyết",
+  MATCHING: "Ghép đôi", ORDERING: "Sắp xếp", FIND_ERROR: "Tìm lỗi sai",
 };
 
 const safeParseJson = (value: unknown): unknown => {

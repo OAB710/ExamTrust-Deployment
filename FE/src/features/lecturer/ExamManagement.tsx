@@ -192,12 +192,12 @@ export default function ExamManagement() {
       setIsDeleting(true);
       await api.deleteExam(selectedExam.id);
       setExams(exams.filter((e) => e.id !== selectedExam.id));
-      toast.success("Exam deleted successfully");
+      toast.success("Đã xóa bài thi thành công");
       setShowDeleteDialog(false);
       setSelectedExam(null);
     } catch (error) {
       console.error("Failed to delete exam:", error);
-      toast.error("Failed to delete exam");
+      toast.error("Không thể xóa bài thi");
     } finally {
       setIsDeleting(false);
     }
@@ -268,12 +268,12 @@ export default function ExamManagement() {
         ),
       );
 
-      toast.success("Exam updated successfully");
+      toast.success("Đã cập nhật bài thi thành công");
       setShowEditDialog(false);
       setSelectedExam(null);
     } catch (error) {
       console.error("Failed to update exam:", error);
-      toast.error("Failed to update exam");
+      toast.error("Không thể cập nhật bài thi");
     } finally {
       setIsUpdating(false);
     }
@@ -316,7 +316,7 @@ export default function ExamManagement() {
     if (!selectedExam) return;
 
     if (!rescheduleForm.startTime || !rescheduleForm.endTime) {
-      toast.error("Please provide both start and end time");
+      toast.error("Vui lòng nhập đầy đủ thời gian bắt đầu và kết thúc");
       return;
     }
 
@@ -324,12 +324,12 @@ export default function ExamManagement() {
     const endTime = new Date(rescheduleForm.endTime);
 
     if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
-      toast.error("Invalid schedule date/time");
+      toast.error("Thời gian lịch thi không hợp lệ");
       return;
     }
 
     if (endTime <= startTime) {
-      toast.error("End time must be after start time");
+      toast.error("Thời gian kết thúc phải sau thời gian bắt đầu");
       return;
     }
 
@@ -359,12 +359,12 @@ export default function ExamManagement() {
         ),
       );
 
-      toast.success("Exam schedule updated successfully");
+      toast.success("Đã cập nhật lịch thi thành công");
       setShowRescheduleDialog(false);
       setSelectedExam(null);
     } catch (error) {
       console.error("Failed to reschedule exam:", error);
-      toast.error("Failed to reschedule exam");
+      toast.error("Không thể đổi lịch bài thi");
     } finally {
       setIsRescheduling(false);
     }
@@ -560,7 +560,7 @@ export default function ExamManagement() {
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Loading exams...</p>
+            <p className="text-sm text-muted-foreground">Đang tải danh sách bài thi...</p>
           </div>
         </div>
       </DashboardLayout>
