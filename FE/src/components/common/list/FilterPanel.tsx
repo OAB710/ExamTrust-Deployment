@@ -421,7 +421,7 @@ export function FilterPanel({
                                 range,
                               )
                             }
-                            placeholder="Min"
+                            placeholder="Tối thiểu"
                             className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
                           />
                           {minError ? (

@@ -73,60 +73,60 @@ export const rawQuestions: Question[] = [
   {
     id: 1,
     type: "single-choice",
-    title: "Algorithm Complexity",
+    title: "Độ phức tạp thuật toán",
     points: 2,
-    content: "What is the worst-case time complexity of Merge Sort?",
+    content: "Độ phức tạp thời gian trong trường hợp xấu nhất của Merge Sort là gì?",
     options: ["O(n)", "O(n log n)", "O(n²)", "O(log n)"],
   },
   {
     id: 2,
     type: "multi-choice",
-    title: "Data Structures",
+    title: "Cấu trúc dữ liệu",
     points: 3,
     content:
-      "Which of the following are valid implementations of a priority queue? (Select ALL that apply)",
+      "Cách triển khai nào sau đây là hợp lệ cho hàng đợi ưu tiên (priority queue)? (Chọn TẤT CẢ đáp án đúng)",
     options: [
-      "Binary Heap",
-      "Sorted Array",
-      "Unsorted Linked List",
+      "Heap nhị phân",
+      "Mảng đã sắp xếp",
+      "Danh sách liên kết chưa sắp xếp",
       "Fibonacci Heap",
-      "Hash Table",
+      "Bảng băm (Hash Table)",
     ],
   },
   {
     id: 3,
     type: "true-false",
-    title: "Graph Theory",
+    title: "Lý thuyết đồ thị",
     points: 1,
     content:
-      "Dijkstra's algorithm can correctly compute shortest paths in a graph that contains negative-weight edges.",
+      "Thuật toán Dijkstra có thể tính đúng đường đi ngắn nhất trong đồ thị có cạnh trọng số âm.",
   },
   {
     id: 4,
     type: "fill-blank",
-    title: "Database Concepts",
+    title: "Khái niệm cơ sở dữ liệu",
     points: 2,
     template:
-      "A {{1}} key uniquely identifies each record in a table. A {{2}} key in one table references the {{3}} key of another table, establishing a relationship between the two tables.",
+      "Khóa {{1}} xác định duy nhất mỗi bản ghi trong một bảng. Khóa {{2}} ở một bảng tham chiếu đến khóa {{3}} của bảng khác, tạo nên quan hệ giữa hai bảng.",
     blanks: 3,
   },
   {
     id: 5,
     type: "matching",
-    title: "Concept Matching — Sorting Algorithms",
+    title: "Ghép khái niệm — Thuật toán sắp xếp",
     points: 4,
     content:
-      "Match each sorting algorithm (left column) to its average-case time complexity (right column).",
+      "Ghép mỗi thuật toán sắp xếp (cột trái) với độ phức tạp thời gian trung bình của nó (cột phải).",
     left: ["Bubble Sort", "Quick Sort", "Heap Sort", "Counting Sort"],
     right: ["O(n log n)", "O(n²)", "O(n + k)", "O(n log n)"],
   },
   {
     id: 6,
     type: "find-error",
-    title: "Find the Error — Python Code",
+    title: "Tìm lỗi — Mã Python",
     points: 3,
     content:
-      "The following Python function is supposed to return the factorial of n. Click the segment that contains a logical or syntax error:",
+      "Hàm Python sau được cho là trả về giá trị giai thừa của n. Nhấn vào đoạn chứa lỗi logic hoặc cú pháp:",
     segments: [
       { label: "A", code: "def factorial(n):" },
       { label: "B", code: "    if n == 0:" },
@@ -137,46 +137,46 @@ export const rawQuestions: Question[] = [
   {
     id: 7,
     type: "ordering",
-    title: "Correct Order — TCP Handshake",
+    title: "Sắp xếp đúng thứ tự — TCP Handshake",
     points: 3,
     content:
-      "Arrange the following steps of the TCP three-way handshake in their correct sequential order:",
+      "Sắp xếp các bước sau của quá trình bắt tay ba bước TCP (three-way handshake) theo đúng thứ tự:",
     items: [
-      "Client sends ACK to server",
-      "Server sends SYN-ACK to client",
-      "Client sends SYN to server",
-      "Connection established",
+      "Client gửi ACK đến server",
+      "Server gửi SYN-ACK đến client",
+      "Client gửi SYN đến server",
+      "Kết nối được thiết lập",
     ],
   },
   {
     id: 8,
     type: "short-answer",
-    title: "Short Answer — CAP Theorem",
+    title: "Trả lời ngắn — Định lý CAP",
     points: 5,
     content:
-      "Explain the CAP theorem and describe a real-world distributed system that demonstrates the trade-off between consistency and availability. Provide specific examples.",
+      "Giải thích định lý CAP và mô tả một hệ thống phân tán thực tế thể hiện sự đánh đổi giữa tính nhất quán (consistency) và tính khả dụng (availability). Đưa ra ví dụ cụ thể.",
     maxWords: 200,
   },
   {
     id: 9,
     type: "single-choice",
-    title: "Operating Systems",
+    title: "Hệ điều hành",
     points: 2,
-    content: "Which page replacement algorithm suffers from Bélády's anomaly?",
+    content: "Thuật toán thay thế trang nào gặp phải hiện tượng bất thường Bélády (Bélády's anomaly)?",
     options: [
-      "LRU (Least Recently Used)",
-      "FIFO (First In First Out)",
-      "Optimal Page Replacement",
-      "Clock Algorithm",
+      "LRU (Ít dùng gần nhất)",
+      "FIFO (Vào trước ra trước)",
+      "Thay thế trang tối ưu",
+      "Thuật toán Clock",
     ],
   },
   {
     id: 10,
     type: "fill-blank",
-    title: "SQL Syntax",
+    title: "Cú pháp SQL",
     points: 2,
     template:
-      "To retrieve unique values from a column, you use the {{1}} keyword. To filter grouped results you use the {{2}} clause instead of {{3}}.",
+      "Để lấy các giá trị duy nhất từ một cột, bạn dùng từ khóa {{1}}. Để lọc kết quả đã nhóm, bạn dùng mệnh đề {{2}} thay vì {{3}}.",
     blanks: 3,
   },
 ];
@@ -193,7 +193,7 @@ export function parseOptions(options: any): string[] {
       .map((k) => String(options[k]))
       .filter(Boolean);
   }
-  return ["Option A", "Option B", "Option C", "Option D"];
+  return ["Đáp án A", "Đáp án B", "Đáp án C", "Đáp án D"];
 }
 
 export function resolveQuestionTitle(q: any, index: number): string {
@@ -208,12 +208,12 @@ export function resolveQuestionTitle(q: any, index: number): string {
 
   for (const candidate of candidates) {
     const value = String(candidate ?? "").trim();
-    if (value && !/^Question\s+\d+$/i.test(value)) {
+    if (value && !/^(Question|Câu)\s+\d+$/i.test(value)) {
       return value;
     }
   }
 
-  return `Question ${index + 1}`;
+  return `Câu ${index + 1}`;
 }
 
 export function mapBackendToUiQuestion(q: any, index: number): Question {

@@ -112,45 +112,45 @@ const EMPTY_EDIT_FORM: UserForm = {
 const USER_FILTERS: FilterDefinition[] = [
   {
     key: "role",
-    label: "Role",
+    label: "Vai trò",
     type: "select",
-    allLabel: "All Roles",
+    allLabel: "Tất cả vai trò",
     options: [
-      { label: "Student", value: "STUDENT" },
-      { label: "Lecturer", value: "LECTURER" },
-      { label: "Admin", value: "ADMIN" },
+      { label: "Sinh viên", value: "STUDENT" },
+      { label: "Giảng viên", value: "LECTURER" },
+      { label: "Quản trị viên", value: "ADMIN" },
     ],
   },
   {
     key: "status",
-    label: "Status",
+    label: "Trạng thái",
     type: "select",
-    allLabel: "All Status",
+    allLabel: "Tất cả trạng thái",
     options: [
-      { label: "Active", value: "active" },
-      { label: "Pending", value: "pending" },
-      { label: "Suspended", value: "suspended" },
+      { label: "Đang hoạt động", value: "active" },
+      { label: "Chờ xử lý", value: "pending" },
+      { label: "Đã tạm khóa", value: "suspended" },
     ],
   },
   {
     key: "department",
-    label: "Department",
+    label: "Khoa",
     type: "text",
-    placeholder: "Filter by department",
+    placeholder: "Lọc theo khoa",
     defaultOperator: "contains",
     operators: ["contains", "startsWith", "equals"],
   },
   {
     key: "studentId",
-    label: "Student ID",
+    label: "Mã sinh viên",
     type: "text",
-    placeholder: "Filter by student ID",
+    placeholder: "Lọc theo mã sinh viên",
     defaultOperator: "contains",
     operators: ["contains", "startsWith", "equals"],
   },
   {
     key: "createdAt",
-    label: "Created At",
+    label: "Ngày tạo",
     type: "date-range",
   },
 ];
@@ -201,7 +201,7 @@ export default function UserRoleManagement() {
       const rows = unwrapPaginatedData<UserRow>(response);
       setUsers(rows);
     } catch (error: any) {
-      toast.error(error?.message || "Failed to load users");
+      toast.error(error?.message || "Không thể tải danh sách người dùng");
     } finally {
       setLoading(false);
     }
@@ -305,10 +305,10 @@ export default function UserRoleManagement() {
   const activeFilterChips = getFilterChips(appliedFilters, USER_FILTERS);
 
   const userSortOptions = [
-    { field: "fullName", label: "Name" },
-    { field: "role", label: "Role" },
-    { field: "status", label: "Status" },
-    { field: "createdAt", label: "Date Created" },
+    { field: "fullName", label: "Họ và tên" },
+    { field: "role", label: "Vai trò" },
+    { field: "status", label: "Trạng thái" },
+    { field: "createdAt", label: "Ngày tạo" },
   ];
 
   const runSearch = () => {
@@ -352,7 +352,7 @@ export default function UserRoleManagement() {
 
   const handleCreateUser = async () => {
     if (!createForm.fullName || !createForm.email || !createForm.password) {
-      toast.error("Please fill full name, email, and password");
+      toast.error("Vui lòng nhập họ tên, email và mật khẩu");
       return;
     }
 
@@ -370,13 +370,13 @@ export default function UserRoleManagement() {
             ? createForm.studentId.trim() || undefined
             : undefined,
       });
-      toast.success("User created successfully");
+      toast.success("Đã tạo người dùng thành công");
       setShowAddDialog(false);
       setCreateForm(EMPTY_CREATE_FORM);
       setPage(1);
       await fetchUsers();
     } catch (error: any) {
-      toast.error(error?.message || "Failed to create user");
+      toast.error(error?.message || "Không thể tạo người dùng");
     } finally {
       setIsSubmitting(false);
     }
@@ -385,7 +385,7 @@ export default function UserRoleManagement() {
   const handleUpdateUser = async () => {
     if (!editingUser) return;
     if (!editForm.fullName || !editForm.email) {
-      toast.error("Please fill full name and email");
+      toast.error("Vui lòng nhập họ tên và email");
       return;
     }
 
@@ -403,12 +403,12 @@ export default function UserRoleManagement() {
             : undefined,
         password: editForm.password.trim() || undefined,
       });
-      toast.success("User updated successfully");
+      toast.success("Đã cập nhật người dùng");
       setShowEditDialog(false);
       setEditingUser(null);
       await fetchUsers();
     } catch (error: any) {
-      toast.error(error?.message || "Failed to update user");
+      toast.error(error?.message || "Không thể cập nhật người dùng");
     } finally {
       setIsSubmitting(false);
     }
@@ -416,7 +416,7 @@ export default function UserRoleManagement() {
 
   const handleQuickRoleChange = async (target: UserRow, role: BackendRole) => {
     if (target.id === currentUser?.id) {
-      toast.error("Cannot change your own role");
+      toast.error("Không thể đổi vai trò của chính bạn");
       return;
     }
     try {
@@ -424,15 +424,15 @@ export default function UserRoleManagement() {
       setUsers((prev) =>
         prev.map((item) => (item.id === target.id ? { ...item, role } : item)),
       );
-      toast.success("Role updated");
+      toast.success("Đã cập nhật vai trò");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to update role");
+      toast.error(error?.message || "Không thể cập nhật vai trò");
     }
   };
 
   const handleToggleStatus = async (target: UserRow) => {
     if (target.id === currentUser?.id) {
-      toast.error("Cannot suspend your own account");
+      toast.error("Không thể tạm khóa tài khoản của chính bạn");
       return;
     }
 
@@ -445,25 +445,25 @@ export default function UserRoleManagement() {
           item.id === target.id ? { ...item, status: nextStatus } : item,
         ),
       );
-      toast.success("Account status updated");
+      toast.success("Đã cập nhật trạng thái tài khoản");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to update status");
+      toast.error(error?.message || "Không thể cập nhật trạng thái");
     }
   };
 
   const handleDeleteUser = async (target: UserRow) => {
     if (target.id === currentUser?.id) {
-      toast.error("Cannot delete your own account");
+      toast.error("Không thể xóa tài khoản của chính bạn");
       return;
     }
 
     try {
       setDeletingId(target.id);
       const response = await api.deleteUser(target.id);
-      toast.success(response?.message || "User archived");
+      toast.success(response?.message || "Đã lưu trữ người dùng");
       await fetchUsers();
     } catch (error: any) {
-      toast.error(error?.message || "Failed to delete user");
+      toast.error(error?.message || "Không thể xóa người dùng");
     } finally {
       setDeletingId(null);
     }
@@ -493,21 +493,21 @@ export default function UserRoleManagement() {
     <DashboardLayout>
       <AdminPageShell>
         <ListPageHeader
-          title="All Users"
+          title="Tất cả người dùng"
           actions={
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
               <DialogTrigger asChild>
                 <Button className="gap-2">
-                  <UserPlus className="h-4 w-4" /> Add User
+                  <UserPlus className="h-4 w-4" /> Thêm người dùng
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Create User</DialogTitle>
+                  <DialogTitle>Tạo người dùng</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-2">
                   <div className="space-y-2">
-                    <Label>Full Name</Label>
+                    <Label>Họ và tên</Label>
                     <Input
                       value={createForm.fullName}
                       onChange={(e) =>
@@ -516,7 +516,7 @@ export default function UserRoleManagement() {
                           fullName: e.target.value,
                         }))
                       }
-                      placeholder="e.g. Nguyen Van A"
+                      placeholder="VD: Nguyễn Văn A"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -531,11 +531,11 @@ export default function UserRoleManagement() {
                             email: e.target.value,
                           }))
                         }
-                        placeholder="user@university.edu"
+                        placeholder="email@truong.edu.vn"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Initial Password</Label>
+                      <Label>Mật khẩu ban đầu</Label>
                       <Input
                         type="password"
                         value={createForm.password}
@@ -545,13 +545,13 @@ export default function UserRoleManagement() {
                             password: e.target.value,
                           }))
                         }
-                        placeholder="At least 6 characters"
+                        placeholder="Ít nhất 6 ký tự"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Role</Label>
+                      <Label>Vai trò</Label>
                       <Select
                         value={createForm.role}
                         onValueChange={(value: BackendRole) =>
@@ -562,14 +562,14 @@ export default function UserRoleManagement() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="STUDENT">Student</SelectItem>
-                          <SelectItem value="LECTURER">Lecturer</SelectItem>
-                          <SelectItem value="ADMIN">Admin</SelectItem>
+                          <SelectItem value="STUDENT">Sinh viên</SelectItem>
+                          <SelectItem value="LECTURER">Giảng viên</SelectItem>
+                          <SelectItem value="ADMIN">Quản trị viên</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Status</Label>
+                      <Label>Trạng thái</Label>
                       <Select
                         value={createForm.status}
                         onValueChange={(value: BackendStatus) =>
@@ -580,16 +580,16 @@ export default function UserRoleManagement() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="suspended">Suspended</SelectItem>
+                          <SelectItem value="active">Đang hoạt động</SelectItem>
+                          <SelectItem value="pending">Chờ xử lý</SelectItem>
+                          <SelectItem value="suspended">Đã tạm khóa</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Department</Label>
+                      <Label>Khoa</Label>
                       <Input
                         value={createForm.department}
                         onChange={(e) =>
@@ -598,11 +598,11 @@ export default function UserRoleManagement() {
                             department: e.target.value,
                           }))
                         }
-                        placeholder="e.g. Computer Science"
+                        placeholder="VD: Công nghệ thông tin"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Student ID</Label>
+                      <Label>Mã sinh viên</Label>
                       <Input
                         value={createForm.studentId}
                         onChange={(e) =>
@@ -611,7 +611,7 @@ export default function UserRoleManagement() {
                             studentId: e.target.value,
                           }))
                         }
-                        placeholder="Required for students"
+                        placeholder="Bắt buộc với sinh viên"
                         disabled={createForm.role !== "STUDENT"}
                       />
                     </div>
@@ -622,13 +622,13 @@ export default function UserRoleManagement() {
                     variant="outline"
                     onClick={() => setShowAddDialog(false)}
                   >
-                    Cancel
+                    Hủy
                   </Button>
                   <Button onClick={handleCreateUser} disabled={isSubmitting}>
                     {isSubmitting && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
-                    Create
+                    Tạo
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -641,26 +641,26 @@ export default function UserRoleManagement() {
           <AdminStatCard
             icon={Users}
             value={filteredUsers.length}
-            label="Total Users"
+            label="Tổng số người dùng"
           />
           <AdminStatCard
             icon={BadgeCheck}
             value={pageStats.students}
-            label="Students (current page)"
+            label="Sinh viên (trang hiện tại)"
             iconWrapClassName="bg-sky-500/10"
             iconClassName="text-sky-600"
           />
           <AdminStatCard
             icon={Users}
             value={pageStats.lecturers}
-            label="Lecturers (current page)"
+            label="Giảng viên (trang hiện tại)"
             iconWrapClassName="bg-violet-500/10"
             iconClassName="text-violet-600"
           />
           <AdminStatCard
             icon={Crown}
             value={pageStats.admins}
-            label="Admins (current page)"
+            label="Quản trị viên (trang hiện tại)"
             iconWrapClassName="bg-amber-500/10"
             iconClassName="text-amber-600"
           />
@@ -672,7 +672,7 @@ export default function UserRoleManagement() {
               value={searchInput}
               onChange={setSearchInput}
               onSearch={runSearch}
-              placeholder="Search by name, email, student ID, or department"
+              placeholder="Tìm theo tên, email, mã sinh viên hoặc khoa"
               className="flex-1"
             />
             <SortButton
@@ -685,8 +685,8 @@ export default function UserRoleManagement() {
               }}
             />
             <FilterPanel
-              title="User filters"
-              description="Filter by role, status, department, student ID, and created date."
+              title="Bộ lọc người dùng"
+              description="Lọc theo vai trò, trạng thái, khoa, mã sinh viên và ngày tạo."
               filters={USER_FILTERS}
               value={draftFilters}
               onValueChange={(key, nextValue) =>
@@ -706,7 +706,7 @@ export default function UserRoleManagement() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Results</CardTitle>
+            <CardTitle>Kết quả</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div
@@ -717,13 +717,13 @@ export default function UserRoleManagement() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>ID</TableHead>
-                    <TableHead>Name</TableHead>
+                    <TableHead>Họ và tên</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Vai trò</TableHead>
+                    <TableHead>Khoa</TableHead>
+                    <TableHead>Trạng thái</TableHead>
+                    <TableHead>Ngày tạo</TableHead>
+                    <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -749,9 +749,9 @@ export default function UserRoleManagement() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="STUDENT">Student</SelectItem>
-                            <SelectItem value="LECTURER">Lecturer</SelectItem>
-                            <SelectItem value="ADMIN">Admin</SelectItem>
+                            <SelectItem value="STUDENT">Sinh viên</SelectItem>
+                            <SelectItem value="LECTURER">Giảng viên</SelectItem>
+                            <SelectItem value="ADMIN">Quản trị viên</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -760,9 +760,7 @@ export default function UserRoleManagement() {
                         <StatusBadge
                           status={item.status}
                           domain="user"
-                        >
-                          {item.status || "active"}
-                        </StatusBadge>
+                        />
                       </TableCell>
                       <TableCell>
                         {new Date(item.createdAt).toLocaleDateString()}
@@ -773,7 +771,7 @@ export default function UserRoleManagement() {
                             variant="ghost"
                             size="icon"
                             onClick={() => openEditDialog(item)}
-                            title="Edit user"
+                            title="Sửa người dùng"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -783,8 +781,8 @@ export default function UserRoleManagement() {
                             onClick={() => handleToggleStatus(item)}
                             title={
                               item.status === "active"
-                                ? "Suspend account"
-                                : "Activate account"
+                                ? "Tạm khóa tài khoản"
+                                : "Kích hoạt tài khoản"
                             }
                           >
                             {item.status === "active" ? (
@@ -794,9 +792,9 @@ export default function UserRoleManagement() {
                             )}
                           </Button>
                           <ConfirmActionDialog
-                            title="Archive user"
-                            description={`Archive user "${item.fullName}"?`}
-                            confirmText="Archive"
+                            title="Lưu trữ người dùng"
+                            description={`Lưu trữ người dùng "${item.fullName}"?`}
+                            confirmText="Lưu trữ"
                             destructive
                             onConfirm={() => handleDeleteUser(item)}
                           >
@@ -805,7 +803,7 @@ export default function UserRoleManagement() {
                               size="icon"
                               className="text-destructive"
                               disabled={deletingId === item.id}
-                              title="Archive user"
+                              title="Lưu trữ người dùng"
                             >
                               {deletingId === item.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -824,7 +822,7 @@ export default function UserRoleManagement() {
                         colSpan={8}
                         className="text-center py-8 text-muted-foreground"
                       >
-                        No users found
+                        Không tìm thấy người dùng
                       </TableCell>
                     </TableRow>
                   )}
@@ -837,7 +835,7 @@ export default function UserRoleManagement() {
               totalPages={totalPages}
               totalItems={filteredUsers.length}
               onPageChange={setPage}
-              itemLabel="users"
+              itemLabel="người dùng"
             />
           </CardContent>
         </Card>
@@ -845,14 +843,14 @@ export default function UserRoleManagement() {
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit User</DialogTitle>
+              <DialogTitle>Sửa người dùng</DialogTitle>
               <DialogDescription>
-                Update profile, role, and account status
+                Cập nhật hồ sơ, vai trò và trạng thái tài khoản
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label>Full Name</Label>
+                <Label>Họ và tên</Label>
                 <Input
                   value={editForm.fullName}
                   onChange={(e) =>
@@ -875,7 +873,7 @@ export default function UserRoleManagement() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Role</Label>
+                  <Label>Vai trò</Label>
                   <Select
                     value={editForm.role}
                     onValueChange={(value: BackendRole) =>
@@ -886,14 +884,14 @@ export default function UserRoleManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="STUDENT">Student</SelectItem>
-                      <SelectItem value="LECTURER">Lecturer</SelectItem>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="STUDENT">Sinh viên</SelectItem>
+                      <SelectItem value="LECTURER">Giảng viên</SelectItem>
+                      <SelectItem value="ADMIN">Quản trị viên</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>Trạng thái</Label>
                   <Select
                     value={editForm.status}
                     onValueChange={(value: BackendStatus) =>
@@ -904,16 +902,16 @@ export default function UserRoleManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="suspended">Suspended</SelectItem>
+                      <SelectItem value="active">Đang hoạt động</SelectItem>
+                      <SelectItem value="pending">Chờ xử lý</SelectItem>
+                      <SelectItem value="suspended">Đã tạm khóa</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Department</Label>
+                  <Label>Khoa</Label>
                   <Input
                     value={editForm.department}
                     onChange={(e) =>
@@ -925,7 +923,7 @@ export default function UserRoleManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Student ID</Label>
+                  <Label>Mã sinh viên</Label>
                   <Input
                     value={editForm.studentId}
                     onChange={(e) =>
@@ -939,10 +937,10 @@ export default function UserRoleManagement() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>New Password (optional)</Label>
+                <Label>Mật khẩu mới (không bắt buộc)</Label>
                 <Input
                   type="password"
-                  placeholder="Leave blank to keep current password"
+                  placeholder="Để trống nếu giữ mật khẩu hiện tại"
                   value={editForm.password}
                   onChange={(e) =>
                     setEditForm((prev) => ({
@@ -958,13 +956,13 @@ export default function UserRoleManagement() {
                 variant="outline"
                 onClick={() => setShowEditDialog(false)}
               >
-                Cancel
+                Hủy
               </Button>
               <Button onClick={handleUpdateUser} disabled={isSubmitting}>
                 {isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Save Changes
+                Lưu thay đổi
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -973,4 +971,3 @@ export default function UserRoleManagement() {
     </DashboardLayout>
   );
 }
-

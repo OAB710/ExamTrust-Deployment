@@ -190,11 +190,11 @@ export class ExamsService {
     const assignedScore = Number(examQuestion.assignedScore ?? examQuestion.points ?? questionVersion?.points ?? question.defaultPoints ?? question.points ?? 1);
 
     if (!stem) {
-      throw new BadRequestException(`Cannot snapshot question ${examQuestion.questionId}: missing question content`);
+      throw new BadRequestException(`Không thể lưu snapshot câu hỏi ${examQuestion.questionId}: thiếu nội dung câu hỏi`);
     }
 
     if (AUTO_GRADED_TYPES.has(type.toUpperCase()) && (answerKey === null || typeof answerKey === 'undefined')) {
-      throw new BadRequestException(`Cannot snapshot question ${examQuestion.questionId}: missing answer key`);
+      throw new BadRequestException(`Không thể lưu snapshot câu hỏi ${examQuestion.questionId}: thiếu đáp án`);
     }
 
     return {
@@ -328,11 +328,11 @@ export class ExamsService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('Không tìm thấy khóa học');
     }
 
     if (String(creatorRole || '').toUpperCase() === 'LECTURER' && course.lecturerId !== creatorId) {
-      throw new ForbiddenException('You are not allowed to create exams for this course');
+      throw new ForbiddenException('Bạn không có quyền tạo bài thi cho khóa học này');
     }
 
     // Use transaction: create exam + attach questions atomically
@@ -398,7 +398,7 @@ export class ExamsService {
           });
 
           if (!question) {
-            throw new BadRequestException(`Question not found: ${questionId}`);
+            throw new BadRequestException(`Không tìm thấy câu hỏi: ${questionId}`);
           }
 
             await this.insertExamQuestionCompat(tx, {
@@ -461,7 +461,7 @@ export class ExamsService {
               const totalRequestedFromTopics = topicAllocations.reduce((sum, item) => sum + item.count, 0);
               if (requestedCount > 0 && totalRequestedFromTopics !== requestedCount) {
                 throw new BadRequestException(
-                  `Topic allocations must add up to ${requestedCount} questions. Current total is ${totalRequestedFromTopics}.`,
+                  `Tổng số câu hỏi phân theo chủ đề phải bằng ${requestedCount}. Hiện tại là ${totalRequestedFromTopics}.`,
                 );
               }
 
@@ -498,7 +498,7 @@ export class ExamsService {
                 const available = questionsForTopic.filter((question) => !usedQuestionIds.has(question.id));
                 if (available.length < allocation.count) {
                   throw new BadRequestException(
-                    `Not enough questions for the selected topic quota (${allocation.count}) in topic ${allocation.topicId}. Available: ${available.length}.`,
+                    `Không đủ câu hỏi cho hạn mức đã chọn (${allocation.count}) ở chủ đề ${allocation.topicId}. Hiện có: ${available.length}.`,
                   );
                 }
 
@@ -523,7 +523,7 @@ export class ExamsService {
 
               if (selected.length === 0) {
                 throw new BadRequestException(
-                  'No matching questions found in question bank for selected course/type/difficulty. Please adjust filters or add questions first.',
+                  'Không tìm thấy câu hỏi phù hợp trong ngân hàng câu hỏi với khóa học/loại/độ khó đã chọn. Vui lòng điều chỉnh bộ lọc hoặc thêm câu hỏi trước.',
                 );
               }
 
@@ -532,7 +532,7 @@ export class ExamsService {
 
             if (selectedQuestions.length === 0) {
               throw new BadRequestException(
-                'No matching questions found in question bank for the selected settings.',
+                'Không tìm thấy câu hỏi phù hợp trong ngân hàng câu hỏi với thiết lập đã chọn.',
               );
             }
 
@@ -595,7 +595,7 @@ export class ExamsService {
     }
 
     if (!createdExam) {
-      throw new InternalServerErrorException('Exam was created but could not be loaded');
+      throw new InternalServerErrorException('Bài thi đã được tạo nhưng không thể tải lại');
     }
 
 
@@ -700,7 +700,7 @@ export class ExamsService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     const examQuestions = await this.loadExamQuestionsCompat(id, true);
@@ -725,7 +725,7 @@ export class ExamsService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     // Check if student is enrolled in the course
@@ -738,22 +738,22 @@ export class ExamsService {
     });
 
     if (!enrollment) {
-      throw new ForbiddenException('You are not enrolled in this course');
+      throw new ForbiddenException('Bạn chưa đăng ký khóa học này');
     }
 
     // A scheduled/published exam must not disclose its question payload before
     // its server-side opening time, nor after its closing time.  The schedule
     // endpoint supplies metadata for those states without exposing questions.
     if (exam.status !== 'PUBLISHED' && exam.status !== 'ONGOING') {
-      throw new ForbiddenException('Exam is not available');
+      throw new ForbiddenException('Bài thi hiện không khả dụng');
     }
 
     const now = new Date();
     if (exam.startTime && exam.startTime > now) {
-      throw new ForbiddenException('Exam has not started yet');
+      throw new ForbiddenException('Bài thi chưa bắt đầu');
     }
     if (exam.endTime && exam.endTime < now) {
-      throw new ForbiddenException('Exam has ended');
+      throw new ForbiddenException('Bài thi đã kết thúc');
     }
 
     const examQuestions = await this.loadExamQuestionsCompat(id, false);
@@ -776,15 +776,15 @@ export class ExamsService {
     const exam = await this.prisma.exam.findUnique({ where: { id } });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     if (updateExamDto.status !== undefined) {
-      throw new BadRequestException('Use the dedicated publish, archive, or restore action to change exam lifecycle status');
+      throw new BadRequestException('Vui lòng dùng hành động công bố, lưu trữ hoặc khôi phục riêng để thay đổi trạng thái bài thi');
     }
 
     if (exam.status !== 'DRAFT') {
-      throw new ConflictException('Only draft exams can be edited. Archive and create a new draft for a changed published exam.');
+      throw new ConflictException('Chỉ có thể sửa bài thi ở trạng thái bản nháp. Hãy lưu trữ và tạo bản nháp mới nếu cần thay đổi bài thi đã công bố.');
     }
 
     const updateData: any = { ...updateExamDto };
@@ -836,40 +836,40 @@ export class ExamsService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     if (exam.status === 'ONGOING') {
-      throw new BadRequestException('Cannot reschedule an ongoing exam');
+      throw new BadRequestException('Không thể đổi lịch bài thi đang diễn ra');
     }
 
     if (exam.status === 'COMPLETED' || exam.status === 'ARCHIVED') {
-      throw new BadRequestException(`Cannot reschedule exam with status ${exam.status}`);
+      throw new BadRequestException(`Không thể đổi lịch bài thi ở trạng thái ${exam.status}`);
     }
 
     if (exam._count.submissions > 0) {
-      throw new BadRequestException('Cannot reschedule exam that already has submissions');
+      throw new BadRequestException('Không thể đổi lịch bài thi đã có lượt làm bài');
     }
 
     if (exam.startTime && exam.startTime.getTime() <= Date.now()) {
-      throw new BadRequestException('Cannot reschedule an exam that has already started');
+      throw new BadRequestException('Không thể đổi lịch bài thi đã bắt đầu');
     }
 
     const startTime = new Date(rescheduleExamDto.startTime);
     const endTime = new Date(rescheduleExamDto.endTime);
 
     if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
-      throw new BadRequestException('Invalid startTime or endTime');
+      throw new BadRequestException('Thời gian bắt đầu hoặc kết thúc không hợp lệ');
     }
 
     if (endTime <= startTime) {
-      throw new BadRequestException('endTime must be after startTime');
+      throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
     }
 
     const availableWindowMinutes = (endTime.getTime() - startTime.getTime()) / 60000;
     if (availableWindowMinutes < exam.duration) {
       throw new BadRequestException(
-        `Exam duration (${exam.duration} minutes) exceeds the scheduled window`,
+        `Thời lượng bài thi (${exam.duration} phút) vượt quá khung giờ đã lên lịch`,
       );
     }
 
@@ -906,20 +906,20 @@ export class ExamsService {
     });
 
     if (!exam || exam.deletedAt) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
     const submissionCount = await this.prisma.examSubmission.count({ where: { examId: id } });
     if (exam.status !== 'DRAFT' || submissionCount > 0) {
       throw new ConflictException('Bài thi đã có dữ liệu làm bài và không thể xóa. Hãy lưu trữ bài thi thay thế.');
     }
     await this.prisma.exam.update({ where: { id }, data: { deletedAt: new Date(), deletedById: userId ?? null } });
-    return { message: 'Draft exam deleted successfully' };
+    return { message: 'Đã xóa bản nháp bài thi thành công' };
   }
 
   async archive(id: string, userId: string) {
     const exam = await this.prisma.exam.findFirst({ where: { id, deletedAt: null } });
-    if (!exam) throw new NotFoundException('Exam not found');
-    if (exam.status === 'ARCHIVED') throw new ConflictException('Exam is already archived');
+    if (!exam) throw new NotFoundException('Không tìm thấy bài thi');
+    if (exam.status === 'ARCHIVED') throw new ConflictException('Bài thi đã được lưu trữ');
     const inProgress = await this.prisma.examSubmission.count({ where: { examId: id, status: 'IN_PROGRESS' } });
     if (inProgress > 0) throw new ConflictException('Không thể lưu trữ bài thi khi đang có lượt làm bài diễn ra.');
     return this.prisma.exam.update({
@@ -930,8 +930,8 @@ export class ExamsService {
 
   async restore(id: string, userId: string) {
     const exam = await this.prisma.exam.findFirst({ where: { id, deletedAt: null } });
-    if (!exam) throw new NotFoundException('Exam not found');
-    if (exam.status !== 'ARCHIVED') throw new ConflictException('Exam is not archived');
+    if (!exam) throw new NotFoundException('Không tìm thấy bài thi');
+    if (exam.status !== 'ARCHIVED') throw new ConflictException('Bài thi chưa được lưu trữ');
     const previous = exam.archivedFromStatus || 'DRAFT';
     const restoredStatus = previous === 'ONGOING' ? 'COMPLETED' : previous;
     return this.prisma.exam.update({
@@ -944,10 +944,10 @@ export class ExamsService {
     const exam = await this.prisma.exam.findUnique({ where: { id: examId } });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
     if (exam.status !== 'DRAFT') {
-      throw new ConflictException('Questions can only be changed while the exam is a draft');
+      throw new ConflictException('Chỉ có thể thay đổi câu hỏi khi bài thi ở trạng thái bản nháp');
     }
 
     // Get current max order index
@@ -1021,9 +1021,9 @@ export class ExamsService {
 
   async removeQuestionFromExam(examId: string, questionId: string) {
     const exam = await this.prisma.exam.findUnique({ where: { id: examId }, select: { status: true } });
-    if (!exam) throw new NotFoundException('Exam not found');
+    if (!exam) throw new NotFoundException('Không tìm thấy bài thi');
     if (exam.status !== 'DRAFT') {
-      throw new ConflictException('Questions can only be changed while the exam is a draft');
+      throw new ConflictException('Chỉ có thể thay đổi câu hỏi khi bài thi ở trạng thái bản nháp');
     }
 
     const examQuestion = await this.prisma.examQuestion.findUnique({
@@ -1033,14 +1033,14 @@ export class ExamsService {
     });
 
     if (!examQuestion) {
-      throw new NotFoundException('Question not found in exam');
+      throw new NotFoundException('Không tìm thấy câu hỏi trong bài thi');
     }
 
     await this.prisma.examQuestion.delete({
       where: { id: examQuestion.id },
     });
 
-    return { message: 'Question removed from exam' };
+    return { message: 'Đã xóa câu hỏi khỏi bài thi' };
   }
 
   async updateExamQuestion(
@@ -1049,9 +1049,9 @@ export class ExamsService {
     updateDto: UpdateExamQuestionDto,
   ) {
     const exam = await this.prisma.exam.findUnique({ where: { id: examId }, select: { status: true } });
-    if (!exam) throw new NotFoundException('Exam not found');
+    if (!exam) throw new NotFoundException('Không tìm thấy bài thi');
     if (exam.status !== 'DRAFT') {
-      throw new ConflictException('Questions can only be changed while the exam is a draft');
+      throw new ConflictException('Chỉ có thể thay đổi câu hỏi khi bài thi ở trạng thái bản nháp');
     }
 
     const examQuestion = await this.prisma.examQuestion.findUnique({
@@ -1061,7 +1061,7 @@ export class ExamsService {
     });
 
     if (!examQuestion) {
-      throw new NotFoundException('Question not found in exam');
+      throw new NotFoundException('Không tìm thấy câu hỏi trong bài thi');
     }
 
     return this.prisma.examQuestion.update({
@@ -1093,15 +1093,15 @@ export class ExamsService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     if (exam.status !== 'DRAFT') {
-      throw new ConflictException('Only draft exams can be published');
+      throw new ConflictException('Chỉ có thể công bố bài thi ở trạng thái bản nháp');
     }
 
     if (exam.examQuestions.length === 0) {
-      throw new BadRequestException('Cannot publish exam without questions');
+      throw new BadRequestException('Không thể công bố bài thi khi chưa có câu hỏi');
     }
 
     // Create exam snapshot and mark exam as PUBLISHED inside a transaction
@@ -1117,7 +1117,7 @@ export class ExamsService {
       });
 
       if (!examQuestions || examQuestions.length === 0) {
-        throw new BadRequestException('Cannot publish exam without questions');
+        throw new BadRequestException('Không thể công bố bài thi khi chưa có câu hỏi');
       }
 
       const examSnapshot = await tx.examSnapshot.create({
@@ -1148,7 +1148,7 @@ export class ExamsService {
             orderBy: { versionNo: 'desc' },
           });
           if (!latest) {
-            throw new BadRequestException(`Missing version for question ${eq.questionId}`);
+            throw new BadRequestException(`Thiếu phiên bản cho câu hỏi ${eq.questionId}`);
           }
           questionVersionId = latest.id;
         }
@@ -1159,7 +1159,7 @@ export class ExamsService {
             : await tx.questionVersion.findUnique({ where: { id: questionVersionId } });
 
         if (!questionVersion) {
-          throw new BadRequestException(`Missing version for question ${eq.questionId}`);
+          throw new BadRequestException(`Thiếu phiên bản cho câu hỏi ${eq.questionId}`);
         }
 
         const snapshotPayload = this.buildQuestionSnapshotPayload(eq, questionVersion);
@@ -1269,7 +1269,7 @@ export class ExamsService {
     });
 
     if (!enrollment) {
-      throw new ForbiddenException('You are not enrolled in this course');
+      throw new ForbiddenException('Bạn chưa đăng ký khóa học này');
     }
 
     return this.prisma.exam.findMany({
@@ -1368,7 +1368,7 @@ export class ExamsService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     const isUnlimited = exam.maxAttempts === null || exam.maxAttempts === undefined;

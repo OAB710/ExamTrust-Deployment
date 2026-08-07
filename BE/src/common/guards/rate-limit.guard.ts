@@ -54,21 +54,21 @@ export class RateLimitGuard implements CanActivate {
     if (policy.perUser) {
       const key = `rl:user:${userId}:${policyName}`;
       const r = await this.limiter.consume(key, policy.perUser.capacity, policy.perUser.refillPerSecond, 1);
-      if (!r.allowed) throw new HttpException(`Rate limit: ${policyName} per-user. retryAfter=${r.retryAfter}ms`, HttpStatus.TOO_MANY_REQUESTS);
+      if (!r.allowed) throw new HttpException(`Bạn đã thao tác quá nhanh. Vui lòng thử lại sau ${Math.ceil(r.retryAfter / 1000)} giây.`, HttpStatus.TOO_MANY_REQUESTS);
     }
 
     // check per-ip
     if (policy.perIp) {
       const key = `rl:ip:${ip}:${policyName}`;
       const r = await this.limiter.consume(key, policy.perIp.capacity, policy.perIp.refillPerSecond, 1);
-      if (!r.allowed) throw new HttpException(`Rate limit: ${policyName} per-ip. retryAfter=${r.retryAfter}ms`, HttpStatus.TOO_MANY_REQUESTS);
+      if (!r.allowed) throw new HttpException(`Bạn đã thao tác quá nhanh. Vui lòng thử lại sau ${Math.ceil(r.retryAfter / 1000)} giây.`, HttpStatus.TOO_MANY_REQUESTS);
     }
 
     // check per-exam
     if (policy.perExam && examId) {
       const key = `rl:exam:${examId}:${policyName}`;
       const r = await this.limiter.consume(key, policy.perExam.capacity, policy.perExam.refillPerSecond, 1);
-      if (!r.allowed) throw new HttpException(`Rate limit: ${policyName} per-exam. retryAfter=${r.retryAfter}ms`, HttpStatus.TOO_MANY_REQUESTS);
+      if (!r.allowed) throw new HttpException(`Hệ thống đang quá tải cho bài thi này. Vui lòng thử lại sau ${Math.ceil(r.retryAfter / 1000)} giây.`, HttpStatus.TOO_MANY_REQUESTS);
     }
 
     return true;

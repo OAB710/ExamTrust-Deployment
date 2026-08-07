@@ -193,7 +193,7 @@ export class ExamRiskAssessmentService {
 
     const exam = await this.prisma.exam.findUnique({ where: { id: examId }, select: { id: true } });
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     const validStatuses = ['OPEN', 'REVIEWED', 'DISMISSED', 'CONFIRMED'];
@@ -223,7 +223,7 @@ export class ExamRiskAssessmentService {
   async reviewFlag(flagId: string, dto: ReviewAnomalyFlagDto, user: RequestUser) {
     const flag = await this.prisma.anomalyFlag.findUnique({ where: { id: flagId } });
     if (!flag) {
-      throw new NotFoundException('Anomaly flag not found');
+      throw new NotFoundException('Không tìm thấy cảnh báo bất thường');
     }
 
     await this.accessPolicy.assertInstructorCanAccessAnomalyFlag(flagId, user);

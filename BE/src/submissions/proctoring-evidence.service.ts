@@ -80,9 +80,9 @@ export class ProctoringEvidenceService implements OnModuleInit {
       where: { id: submissionId },
       include: { examInstance: true },
     });
-    if (!submission) throw new NotFoundException('Submission not found');
-    if (submission.studentId !== studentId) throw new ForbiddenException('Not authorized');
-    if (!submission.examInstance) throw new BadRequestException('Exam instance is unavailable');
+    if (!submission) throw new NotFoundException('Không tìm thấy lượt làm bài');
+    if (submission.studentId !== studentId) throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
+    if (!submission.examInstance) throw new BadRequestException('Không có phiên bài thi khả dụng');
     return submission;
   }
 
@@ -92,9 +92,9 @@ export class ProctoringEvidenceService implements OnModuleInit {
 
   async requestCapture(submissionId: string, studentId: string, dto: { trigger: 'SCHEDULED' | 'SUSPICIOUS_EVENT'; signals?: string[] }) {
     const submission = await this.getStudentSubmission(submissionId, studentId);
-    if (submission.status !== 'IN_PROGRESS') throw new BadRequestException('Exam is no longer in progress');
+    if (submission.status !== 'IN_PROGRESS') throw new BadRequestException('Bài thi không còn đang diễn ra');
     const policy = this.policyFromInstance(submission.examInstance);
-    if (!policy.enabled) throw new ForbiddenException('Webcam evidence is not enabled for this exam');
+    if (!policy.enabled) throw new ForbiddenException('Bài thi này không bật yêu cầu bằng chứng webcam');
     const now = new Date();
     let scheduledSlot: number | null = null;
     let scheduledAt: Date | null = null;
@@ -102,7 +102,7 @@ export class ProctoringEvidenceService implements OnModuleInit {
     if (dto.trigger === 'SCHEDULED') {
       const startedAt = submission.startedAt || submission.examInstance?.startedAt;
       if (!startedAt || policy.scheduledCaptureOffsetsMs.length === 0) {
-        throw new BadRequestException('No scheduled webcam capture is available for this exam instance');
+        throw new BadRequestException('Không có lịch chụp webcam nào cho phiên bài thi này');
       }
       const elapsedMs = now.getTime() - startedAt.getTime();
       const missedSlots = policy.scheduledCaptureOffsetsMs
@@ -128,7 +128,7 @@ export class ProctoringEvidenceService implements OnModuleInit {
       const next = policy.scheduledCaptureOffsetsMs
         .map((offset, slot) => ({ offset, slot }))
         .find(({ offset }) => elapsedMs >= offset && elapsedMs <= offset + SCHEDULED_CAPTURE_GRACE_MS);
-      if (!next) throw new BadRequestException('There is no scheduled capture due at this time');
+      if (!next) throw new BadRequestException('Chưa đến thời điểm chụp webcam theo lịch');
       scheduledSlot = next.slot;
       scheduledAt = new Date(startedAt.getTime() + next.offset);
     } else {
@@ -137,9 +137,9 @@ export class ProctoringEvidenceService implements OnModuleInit {
         orderBy: { createdAt: 'desc' },
         take: policy.eventCaptureLimit,
       });
-      if (recentEvents.length >= policy.eventCaptureLimit) throw new BadRequestException('Suspicious-event evidence limit reached');
+      if (recentEvents.length >= policy.eventCaptureLimit) throw new BadRequestException('Đã đạt giới hạn số lần ghi bằng chứng cho sự kiện nghi vấn');
       if (recentEvents[0] && now.getTime() - recentEvents[0].createdAt.getTime() < policy.eventCooldownMs) {
-        throw new BadRequestException('Suspicious-event evidence cooldown is active');
+        throw new BadRequestException('Đang trong thời gian chờ giữa các lần ghi bằng chứng sự kiện nghi vấn');
       }
     }
 
@@ -164,14 +164,14 @@ export class ProctoringEvidenceService implements OnModuleInit {
   async finalizeCapture(submissionId: string, studentId: string, captureId: string, nonce: string, imageDataUrl: string) {
     const submission = await this.getStudentSubmission(submissionId, studentId);
     const capture = await this.prisma.proctoringEvidenceCapture.findFirst({ where: { id: captureId, submissionId } });
-    if (!capture) throw new NotFoundException('Evidence capture request not found');
-    if (capture.status !== 'REQUESTED' || capture.nonceExpiresAt < new Date()) throw new BadRequestException('Evidence capture request expired');
-    if (createHash('sha256').update(nonce).digest('hex') !== capture.captureNonceHash) throw new ForbiddenException('Invalid capture nonce');
+    if (!capture) throw new NotFoundException('Không tìm thấy yêu cầu chụp bằng chứng');
+    if (capture.status !== 'REQUESTED' || capture.nonceExpiresAt < new Date()) throw new BadRequestException('Yêu cầu chụp bằng chứng đã hết hạn');
+    if (createHash('sha256').update(nonce).digest('hex') !== capture.captureNonceHash) throw new ForbiddenException('Mã xác thực chụp ảnh không hợp lệ');
 
     const match = /^data:(image\/(?:jpeg|png));base64,([A-Za-z0-9+/=]+)$/.exec(imageDataUrl);
-    if (!match) throw new BadRequestException('Only JPEG or PNG webcam frames are accepted');
+    if (!match) throw new BadRequestException('Chỉ chấp nhận ảnh webcam định dạng JPEG hoặc PNG');
     const image = Buffer.from(match[2], 'base64');
-    if (!image.length || image.length > 1_000_000) throw new BadRequestException('Webcam frame must be at most 1 MB');
+    if (!image.length || image.length > 1_000_000) throw new BadRequestException('Ảnh webcam không được vượt quá 1 MB');
 
     const extension = match[1] === 'image/png' ? 'png' : 'jpg';
     const root = process.env.PROCTORING_EVIDENCE_DIR || join(process.cwd(), 'var', 'proctoring-evidence');
@@ -205,7 +205,7 @@ export class ProctoringEvidenceService implements OnModuleInit {
 
   async listForInstructor(submissionId: string, user: any) {
     const submission = await this.prisma.examSubmission.findUnique({ where: { id: submissionId }, select: { examId: true } });
-    if (!submission) throw new NotFoundException('Submission not found');
+    if (!submission) throw new NotFoundException('Không tìm thấy lượt làm bài');
     await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
     return this.prisma.proctoringEvidenceCapture.findMany({
       where: { submissionId }, orderBy: { createdAt: 'asc' },
@@ -215,14 +215,14 @@ export class ProctoringEvidenceService implements OnModuleInit {
 
   async getImagePath(submissionId: string, captureId: string, user: any) {
     const capture = await this.prisma.proctoringEvidenceCapture.findFirst({ where: { id: captureId, submissionId }, include: { submission: { select: { examId: true } } } });
-    if (!capture || !capture.storageKey || capture.status === 'PURGED') throw new NotFoundException('Evidence image unavailable');
+    if (!capture || !capture.storageKey || capture.status === 'PURGED') throw new NotFoundException('Không có ảnh bằng chứng');
     await this.accessPolicy.assertInstructorCanAccessExam(capture.submission.examId, user);
     return { path: join(process.env.PROCTORING_EVIDENCE_DIR || join(process.cwd(), 'var', 'proctoring-evidence'), capture.storageKey), mimeType: capture.mimeType || 'image/jpeg' };
   }
 
   async reviewCapture(submissionId: string, captureId: string, dto: { reviewStatus: 'REVIEWED' | 'DISMISSED'; reviewerNote?: string }, user: any) {
     const capture = await this.prisma.proctoringEvidenceCapture.findFirst({ where: { id: captureId, submissionId }, include: { submission: { select: { examId: true } } } });
-    if (!capture) throw new NotFoundException('Evidence capture not found');
+    if (!capture) throw new NotFoundException('Không tìm thấy bản chụp bằng chứng');
     await this.accessPolicy.assertInstructorCanAccessExam(capture.submission.examId, user);
     return this.prisma.proctoringEvidenceCapture.update({ where: { id: captureId }, data: { reviewStatus: dto.reviewStatus, reviewerNote: dto.reviewerNote || null, reviewedById: user.id, reviewedAt: new Date() } });
   }
@@ -239,7 +239,7 @@ export class ProctoringEvidenceService implements OnModuleInit {
 
   async readCaptureForAi(captureId: string) {
     const capture = await this.prisma.proctoringEvidenceCapture.findUnique({ where: { id: captureId } });
-    if (!capture?.storageKey || capture.status === 'PURGED') throw new NotFoundException('Evidence image unavailable');
+    if (!capture?.storageKey || capture.status === 'PURGED') throw new NotFoundException('Không có ảnh bằng chứng');
     const path = join(process.env.PROCTORING_EVIDENCE_DIR || join(process.cwd(), 'var', 'proctoring-evidence'), capture.storageKey);
     return { capture, image: await readFile(path) };
   }

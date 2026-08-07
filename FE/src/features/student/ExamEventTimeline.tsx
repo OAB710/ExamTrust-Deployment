@@ -52,6 +52,25 @@ type TimelinePayload = {
   }>;
 };
 
+const translateEvidence = (value?: string) => {
+  if (!value) return value;
+  const labels: Record<string, string> = {
+    "Integrity event recorded": "Đã ghi nhận sự kiện toàn vẹn",
+    "events recorded": "sự kiện đã được ghi nhận",
+    "Fullscreen exit detected": "Đã thoát chế độ toàn màn hình",
+    "Tab switch detected": "Đã chuyển sang tab khác",
+    "Tab switching detected": "Đã chuyển đổi tab",
+    "Window focus lost": "Cửa sổ làm bài mất tiêu điểm",
+    "Window focus returned": "Cửa sổ làm bài lấy lại tiêu điểm",
+    "Copy event detected": "Đã ghi nhận thao tác sao chép",
+    "Paste event detected": "Đã ghi nhận thao tác dán",
+    "Mouse anomaly recorded": "Đã ghi nhận bất thường chuột",
+    "Mouse idle anomaly recorded": "Đã ghi nhận chuột không hoạt động bất thường",
+    "Face not detected": "Không phát hiện khuôn mặt",
+  };
+  return labels[value] ?? value;
+};
+
 export default function ExamEventTimeline() {
   const [selectedTab, setSelectedTab] = useState("events");
   const [payload, setPayload] = useState<TimelinePayload | null>(null);
@@ -84,7 +103,7 @@ export default function ExamEventTimeline() {
         const data = await api.getSubmissionTimeline(submissionId);
         if (active) setPayload(data);
       } catch (err: any) {
-        if (active) setError(err.message || "Failed to load timeline");
+        if (active) setError(err.message || "Không thể tải dòng thời gian");
       } finally {
         if (active) setLoading(false);
       }
@@ -142,14 +161,14 @@ export default function ExamEventTimeline() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-foreground mb-1">
-              Exam Event Timeline
+              Dòng thời gian sự kiện bài thi
             </h1>
             <p className="text-muted-foreground">
-              Read-only timeline reconstructed from stored integrity logs.
+              Dòng thời gian chỉ đọc, được dựng lại từ nhật ký toàn vẹn học thuật đã lưu.
             </p>
           </div>
           <StatusBadge status={anomalyCount > 2 ? "critical" : anomalyCount > 0 ? "warning" : "none"} domain="severity">
-            {anomalyCount} anomalies detected
+            {anomalyCount} bất thường được phát hiện
           </StatusBadge>
         </div>
 
@@ -157,7 +176,7 @@ export default function ExamEventTimeline() {
           <Card>
             <CardContent className="py-12 text-center text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3" />
-              Loading real exam timeline...
+              Đang tải dòng thời gian bài thi...
             </CardContent>
           </Card>
         )}
@@ -172,7 +191,7 @@ export default function ExamEventTimeline() {
           <Card>
             <CardContent className="py-12 text-center text-muted-foreground">
               <Shield className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              No exam session timeline found yet.
+              Chưa có dòng thời gian phiên thi nào.
             </CardContent>
           </Card>
         )}
@@ -183,41 +202,41 @@ export default function ExamEventTimeline() {
               <Card>
                 <CardContent className="pt-4 pb-4 text-center">
                   <p className="text-2xl font-semibold">{payload.summary.totalEvents}</p>
-                  <p className="text-xs text-muted-foreground">Total Events</p>
+                  <p className="text-xs text-muted-foreground">Tổng số sự kiện</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-4 pb-4 text-center">
                   <p className="text-2xl font-semibold">{payload.summary.tabSwitches}</p>
-                  <p className="text-xs text-muted-foreground">Tab Switches</p>
+                  <p className="text-xs text-muted-foreground">Chuyển tab</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-4 pb-4 text-center">
                   <p className="text-2xl font-semibold text-yellow-600">{payload.summary.warnings}</p>
-                  <p className="text-xs text-muted-foreground">Warnings</p>
+                  <p className="text-xs text-muted-foreground">Cảnh báo</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-4 pb-4 text-center">
                   <p className="text-2xl font-semibold text-red-600">{payload.summary.critical}</p>
-                  <p className="text-xs text-muted-foreground">Critical Flags</p>
+                  <p className="text-xs text-muted-foreground">Đánh dấu nghiêm trọng</p>
                 </CardContent>
               </Card>
             </div>
 
             <Tabs value={selectedTab} onValueChange={setSelectedTab}>
               <TabsList className="mb-4">
-                <TabsTrigger value="events">Event Log</TabsTrigger>
-                <TabsTrigger value="anomalies">Anomaly Detection</TabsTrigger>
-                <TabsTrigger value="integrity">Integrity Notes</TabsTrigger>
+                <TabsTrigger value="events">Nhật ký sự kiện</TabsTrigger>
+                <TabsTrigger value="anomalies">Phát hiện bất thường</TabsTrigger>
+                <TabsTrigger value="integrity">Ghi chú toàn vẹn</TabsTrigger>
               </TabsList>
 
               <TabsContent value="events">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">{payload.submission.exam?.title || "Exam Session"}</CardTitle>
-                    <CardDescription>Chronological record from backend integrity logs</CardDescription>
+                    <CardTitle className="text-lg">{payload.submission.exam?.title || "Phiên thi"}</CardTitle>
+                    <CardDescription>Bản ghi theo thời gian từ nhật ký toàn vẹn học thuật phía hệ thống</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="relative">
@@ -233,13 +252,11 @@ export default function ExamEventTimeline() {
                                 {getEventIcon(event.type)}
                                 <span className="text-xs font-mono text-muted-foreground">{formatTime(event.timestamp)}</span>
                                 {event.severity !== "normal" && (
-                                  <StatusBadge status={event.severity} domain="severity">
-                                    {event.severity}
-                                  </StatusBadge>
+                                  <StatusBadge status={event.severity} domain="severity" />
                                 )}
                               </div>
-                              <p className="text-sm text-foreground">{event.description}</p>
-                              {event.detail && <p className="text-xs text-muted-foreground mt-0.5">{event.detail}</p>}
+                              <p className="text-sm text-foreground">{translateEvidence(event.description)}</p>
+                              {event.detail && <p className="text-xs text-muted-foreground mt-0.5">{translateEvidence(event.detail)}</p>}
                             </div>
                           </div>
                         ))}
@@ -254,15 +271,15 @@ export default function ExamEventTimeline() {
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                      Suspicious Signals
+                      Tín hiệu nghi vấn
                     </CardTitle>
-                    <CardDescription>Signals for review only. This screen does not conclude cheating.</CardDescription>
+                    <CardDescription>Tín hiệu chỉ phục vụ xem xét. Màn hình này không kết luận gian lận.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {anomalyEvents.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <Shield className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p>No suspicious signals recorded.</p>
+                        <p>Không có tín hiệu nghi vấn nào được ghi nhận.</p>
                       </div>
                     ) : (
                       anomalyEvents.map((event) => (
@@ -272,8 +289,8 @@ export default function ExamEventTimeline() {
                             <span className="font-medium text-sm">{event.type.replace(/_/g, " ").toUpperCase()}</span>
                             <span className="text-xs font-mono text-muted-foreground ml-auto">{formatTime(event.timestamp)}</span>
                           </div>
-                          <p className="text-sm">{event.description}</p>
-                          {event.detail && <p className="text-xs text-muted-foreground mt-1 bg-secondary/50 rounded px-2 py-1 inline-block">{event.detail}</p>}
+                          <p className="text-sm">{translateEvidence(event.description)}</p>
+                          {event.detail && <p className="text-xs text-muted-foreground mt-1 bg-secondary/50 rounded px-2 py-1 inline-block">{translateEvidence(event.detail)}</p>}
                         </div>
                       ))
                     )}
@@ -284,23 +301,21 @@ export default function ExamEventTimeline() {
               <TabsContent value="integrity">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Integrity Notes</CardTitle>
-                    <CardDescription>Generated from recorded warning and critical events</CardDescription>
+                    <CardTitle className="text-lg">Ghi chú toàn vẹn</CardTitle>
+                    <CardDescription>Được tạo từ các sự kiện cảnh báo và nghiêm trọng đã ghi nhận</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {payload.integrityNotes.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">No integrity notes for this session.</div>
+                      <div className="text-center py-8 text-muted-foreground">Chưa có ghi chú toàn vẹn nào cho phiên thi này.</div>
                     ) : (
                       payload.integrityNotes.map((note) => (
                         <div key={note.id} className={`p-4 rounded-lg border ${getSeverityColor(note.severity)}`}>
                           <div className="flex items-center gap-2 mb-1">
-                            <StatusBadge status={note.severity} domain="severity">
-                              {note.severity}
-                            </StatusBadge>
+                            <StatusBadge status={note.severity} domain="severity" />
                             <span className="text-xs font-mono text-muted-foreground ml-auto">{formatTime(note.timestamp)}</span>
                           </div>
-                          <p className="text-sm">{note.note}</p>
-                          {note.detail && <p className="text-xs text-muted-foreground mt-1">{note.detail}</p>}
+                          <p className="text-sm">{translateEvidence(note.note)}</p>
+                          {note.detail && <p className="text-xs text-muted-foreground mt-1">{translateEvidence(note.detail)}</p>}
                         </div>
                       ))
                     )}

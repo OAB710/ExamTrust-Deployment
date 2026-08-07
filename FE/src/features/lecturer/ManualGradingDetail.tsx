@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { ArrowLeft, Loader2, Save, UserCheck, Plus, Undo2 } from "lucide-react";
+import { ArrowLeft, Loader2, Save, UserCheck, Plus, Undo2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -44,6 +44,14 @@ type DraftGrade = {
   feedback: string;
 };
 
+type AiSuggestion = {
+  summary: string;
+  strengths: string[];
+  gaps: string[];
+  suggestedPoints: number;
+  confidence: number;
+};
+
 export default function ManualGradingDetail() {
   const params = useParams();
   const examId = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -58,6 +66,8 @@ export default function ManualGradingDetail() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [submission, setSubmission] = useState<any | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftGrade>>({});
+  const [suggestingId, setSuggestingId] = useState<string | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<Record<string, AiSuggestion>>({});
   const [adjustmentAmount, setAdjustmentAmount] = useState("");
   const [adjustmentCategory, setAdjustmentCategory] = useState<"QUESTION_ERROR" | "PARTICIPATION" | "OTHER">("QUESTION_ERROR");
   const [adjustmentReason, setAdjustmentReason] = useState("");
@@ -162,6 +172,31 @@ export default function ManualGradingDetail() {
     } finally {
       setSavingId(null);
     }
+  };
+
+  const requestAiSuggestion = async (answer: any) => {
+    try {
+      setSuggestingId(answer.id);
+      const suggestion = await api.suggestGradeForAnswer(answer.id);
+      setAiSuggestions((current) => ({ ...current, [answer.id]: suggestion }));
+    } catch (err: any) {
+      toast.error(err?.message || "Không thể lấy gợi ý AI.");
+    } finally {
+      setSuggestingId(null);
+    }
+  };
+
+  const applyAiSuggestion = (answer: any) => {
+    const suggestion = aiSuggestions[answer.id];
+    if (!suggestion) return;
+    setDrafts((prev) => ({
+      ...prev,
+      [answer.id]: {
+        pointsAwarded: String(suggestion.suggestedPoints),
+        feedback: prev[answer.id]?.feedback || suggestion.summary,
+      },
+    }));
+    toast.info("Đã điền gợi ý AI vào ô điểm/nhận xét. Vui lòng kiểm tra lại trước khi lưu.");
   };
 
   const refreshSubmission = async () => {
@@ -375,6 +410,47 @@ export default function ManualGradingDetail() {
                           <p className="mt-2 whitespace-pre-wrap text-sm text-slate-900">
                             {answerLines.map((line, lineIndex) => <span key={lineIndex} className="block">{line}</span>)}
                           </p>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-muted-foreground">
+                              Gợi ý AI chỉ mang tính tham khảo, giảng viên cần tự đánh giá trước khi chốt điểm.
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              onClick={() => requestAiSuggestion(answer)}
+                              disabled={suggestingId === answer.id}
+                            >
+                              {suggestingId === answer.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-3.5 w-3.5" />
+                              )}
+                              Gợi ý AI
+                            </Button>
+                          </div>
+                          {aiSuggestions[answer.id] ? (
+                            <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3 text-sm space-y-2">
+                              <p className="text-slate-800">{aiSuggestions[answer.id].summary}</p>
+                              {aiSuggestions[answer.id].strengths.length > 0 ? (
+                                <p className="text-emerald-700">Điểm tốt: {aiSuggestions[answer.id].strengths.join("; ")}</p>
+                              ) : null}
+                              {aiSuggestions[answer.id].gaps.length > 0 ? (
+                                <p className="text-amber-700">Thiếu sót: {aiSuggestions[answer.id].gaps.join("; ")}</p>
+                              ) : null}
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">
+                                  Điểm gợi ý: {aiSuggestions[answer.id].suggestedPoints}/{answer.maxPoints} · Độ tin cậy: {Math.round(aiSuggestions[answer.id].confidence * 100)}%
+                                </span>
+                                <Button size="sm" variant="ghost" onClick={() => applyAiSuggestion(answer)}>
+                                  Áp dụng gợi ý
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
 
                         <div className="grid gap-4 md:grid-cols-[180px_1fr]">

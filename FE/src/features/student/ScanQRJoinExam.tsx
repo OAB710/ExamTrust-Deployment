@@ -125,7 +125,7 @@ export default function ScanQRJoinExam() {
     await new Promise((r) => setTimeout(r, 1000));
 
     if (!code.trim()) {
-      setError("Invalid code. Please try again.");
+      setError("Mã không hợp lệ. Vui lòng thử lại.");
       setIsValidating(false);
       return;
     }
@@ -156,14 +156,14 @@ export default function ScanQRJoinExam() {
           onClick={() => router.push("/student/join-exam")}
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Join Exam
+          Quay lại Tham gia bài thi
         </Button>
 
         <h1 className="text-2xl font-semibold text-foreground mb-1">
-          Scan QR Code
+          Quét mã QR
         </h1>
         <p className="text-muted-foreground mb-6">
-          Point your camera at the exam QR code to join automatically
+          Hướng camera vào mã QR bài thi để tham gia tự động
         </p>
 
         {error && (
@@ -180,10 +180,10 @@ export default function ScanQRJoinExam() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Camera className="h-5 w-5 text-primary" />
-                  QR Scanner
+                  Máy quét QR
                 </CardTitle>
                 <CardDescription>
-                  Allow camera access to scan the QR code from your instructor
+                  Cho phép truy cập camera để quét mã QR từ giảng viên
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -193,18 +193,18 @@ export default function ScanQRJoinExam() {
                     <div className="text-center">
                       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">
-                        Checking camera...
+                        Đang kiểm tra camera...
                       </p>
                     </div>
                   ) : hasCamera === false ? (
                     <div className="text-center p-6">
                       <Camera className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
                       <p className="text-sm font-medium text-foreground mb-1">
-                        Camera not available
+                        Không có camera
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Please allow camera access or enter the code manually
-                        below
+                        Vui lòng cho phép truy cập camera hoặc nhập mã thủ công
+                        bên dưới
                       </p>
                     </div>
                   ) : scanning ? (
@@ -217,14 +217,14 @@ export default function ScanQRJoinExam() {
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Scanning...
+                        Đang quét...
                       </p>
                     </div>
                   ) : scannedCode ? (
                     <div className="text-center p-6">
                       <CheckCircle2 className="h-12 w-12 text-primary mx-auto mb-3" />
                       <p className="text-sm font-medium text-foreground mb-1">
-                        QR Code Detected!
+                        Đã phát hiện mã QR!
                       </p>
                       <p className="text-xs font-mono text-muted-foreground bg-secondary rounded px-3 py-1.5 mt-2">
                         {scannedCode}
@@ -234,7 +234,7 @@ export default function ScanQRJoinExam() {
                     <div className="text-center p-6">
                       <QrCode className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
                       <p className="text-sm text-muted-foreground">
-                        Camera ready — tap "Start Scanning"
+                        Camera đã sẵn sàng — nhấn "Bắt đầu quét"
                       </p>
                     </div>
                   )}
@@ -252,7 +252,7 @@ export default function ScanQRJoinExam() {
                       ) : (
                         <Camera className="h-4 w-4" />
                       )}
-                      {scanning ? "Scanning..." : "Start Scanning"}
+                      {scanning ? "Đang quét..." : "Bắt đầu quét"}
                     </Button>
                   ) : (
                     <>
@@ -265,7 +265,7 @@ export default function ScanQRJoinExam() {
                         }}
                       >
                         <RefreshCw className="h-4 w-4" />
-                        Rescan
+                        Quét lại
                       </Button>
                       <Button
                         className="flex-1 gap-2"
@@ -277,7 +277,7 @@ export default function ScanQRJoinExam() {
                         ) : (
                           <CheckCircle2 className="h-4 w-4" />
                         )}
-                        Validate Code
+                        Kiểm tra mã
                       </Button>
                     </>
                   )}
@@ -290,18 +290,18 @@ export default function ScanQRJoinExam() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <KeyRound className="h-4 w-4 text-primary" />
-                  Enter Code Manually
+                  Nhập mã thủ công
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleManualSubmit} className="flex gap-2">
                   <div className="flex-1">
                     <Label htmlFor="manualCode" className="sr-only">
-                      Exam Code
+                      Mã bài thi
                     </Label>
                     <Input
                       id="manualCode"
-                      placeholder="Enter exam code..."
+                      placeholder="Nhập mã bài thi..."
                       value={manualCode}
                       onChange={(e) => setManualCode(e.target.value)}
                       className="font-mono"
@@ -316,7 +316,7 @@ export default function ScanQRJoinExam() {
                     {isValidating ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      "Submit"
+                      "Gửi"
                     )}
                   </Button>
                 </form>
@@ -332,14 +332,14 @@ export default function ScanQRJoinExam() {
                   <CheckCircle2 className="h-8 w-8 text-primary" />
                 </div>
               </div>
-              <h2 className="text-xl font-semibold mb-2">Code Validated!</h2>
-              <p className="text-sm text-muted-foreground mb-1">Exam code:</p>
+              <h2 className="text-xl font-semibold mb-2">Đã xác nhận mã!</h2>
+              <p className="text-sm text-muted-foreground mb-1">Mã bài thi:</p>
               <p className="font-mono text-foreground bg-secondary rounded px-4 py-2 inline-block mb-6">
                 {scannedCode || manualCode}
               </p>
               <div>
                 <Button onClick={handleProceed} size="lg" className="gap-2">
-                  Continue to Join Exam
+                  Tiếp tục tham gia bài thi
                   <CheckCircle2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -350,6 +350,3 @@ export default function ScanQRJoinExam() {
     </DashboardLayout>
   );
 }
-
-
-

@@ -80,6 +80,12 @@ interface LinkUsage {
   user?: { fullName?: string; email?: string; studentId?: string };
 }
 
+const LINK_STATE_LABELS: Record<string, string> = {
+  active: "Hoạt động",
+  disabled: "Đã thu hồi",
+  expired: "Hết hạn",
+};
+
 export default function GenerateExamLink() {
   const [exams, setExams] = useState<ExamItem[]>([]);
   const [selectedExamId, setSelectedExamId] = useState("");
@@ -210,7 +216,7 @@ export default function GenerateExamLink() {
       setNote("");
       setMaxUsesError("");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to generate exam link");
+      toast.error(error?.message || "Không thể tạo liên kết thi");
     } finally {
       setCreating(false);
     }
@@ -233,7 +239,7 @@ export default function GenerateExamLink() {
         setUsage([]);
       }
     } catch (error: any) {
-      toast.error(error?.message || "Failed to revoke link");
+      toast.error(error?.message || "Không thể thu hồi liên kết");
     } finally {
       setRevokingId(null);
     }
@@ -256,30 +262,30 @@ export default function GenerateExamLink() {
 
         <div>
           <h1 className="text-2xl font-semibold">
-            Generate Shareable Exam Link
+            Tạo liên kết thi có thể chia sẻ
           </h1>
           <p className="text-muted-foreground mt-1">
-            Create secure join links with expiry, max uses, optional password,
-            and access tracking.
+            Tạo liên kết tham gia an toàn có thời hạn, giới hạn số lần dùng,
+            mật khẩu tùy chọn và theo dõi truy cập.
           </p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Link2 className="h-4 w-4" /> Link Configuration
+              <Link2 className="h-4 w-4" /> Cấu hình liên kết
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Exam</Label>
+                <Label>Bài thi</Label>
                 <Select
                   value={selectedExamId}
                   onValueChange={setSelectedExamId}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select exam" />
+                    <SelectValue placeholder="Chọn bài thi" />
                   </SelectTrigger>
                   <SelectContent>
                     {exams.map((exam) => (
@@ -293,7 +299,7 @@ export default function GenerateExamLink() {
               </div>
 
               <div className="space-y-2">
-                <Label>Expiry Datetime (optional)</Label>
+                <Label>Thời gian hết hạn (không bắt buộc)</Label>
                 <Input
                   type="datetime-local"
                   value={expiryDatetime}
@@ -302,11 +308,11 @@ export default function GenerateExamLink() {
               </div>
 
               <div className="space-y-2">
-                <Label>Max Uses (optional)</Label>
+                <Label>Số lần dùng tối đa (không bắt buộc)</Label>
                 <Input
                   type="number"
                   min={1}
-                  placeholder="Leave empty for unlimited"
+                  placeholder="Để trống nếu không giới hạn"
                   value={maxUses}
                   onChange={(e) =>
                     setMaxUses(sanitizeNumericInput(e.target.value, { min: 1 }))
@@ -326,10 +332,10 @@ export default function GenerateExamLink() {
               </div>
 
               <div className="space-y-2">
-                <Label>Password (optional)</Label>
+                <Label>Mật khẩu (không bắt buộc)</Label>
                 <Input
                   type="password"
-                  placeholder="Leave empty for no password"
+                  placeholder="Để trống nếu không cần mật khẩu"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -337,12 +343,12 @@ export default function GenerateExamLink() {
             </div>
 
             <div className="space-y-2">
-              <Label>Note (optional)</Label>
+              <Label>Ghi chú (không bắt buộc)</Label>
               <Textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 rows={2}
-                placeholder="Internal note for this link"
+                placeholder="Ghi chú nội bộ cho liên kết này"
               />
             </div>
 
@@ -352,22 +358,22 @@ export default function GenerateExamLink() {
                 checked={restrictedToCourse}
                 onChange={(e) => setRestrictedToCourse(e.target.checked)}
               />
-              Restrict link to enrolled students in this course
+              Chỉ cho phép sinh viên đã đăng ký khóa học này dùng liên kết
             </label>
 
             {selectedExam && (
               <div className="rounded-lg border p-3 text-sm text-muted-foreground">
                 <p>
-                  Exam window:{" "}
+                  Khung giờ thi:{" "}
                   {selectedExam.startTime
                     ? new Date(selectedExam.startTime).toLocaleString()
-                    : "Not set"}
+                    : "Chưa đặt"}
                   {" - "}
                   {selectedExam.endTime
                     ? new Date(selectedExam.endTime).toLocaleString()
-                    : "Not set"}
+                    : "Chưa đặt"}
                 </p>
-                <p>Status: {getStatusBadgeLabel(selectedExam.status || "DRAFT")}</p>
+                <p>Trạng thái: {getStatusBadgeLabel(selectedExam.status || "DRAFT")}</p>
               </div>
             )}
 
@@ -381,13 +387,13 @@ export default function GenerateExamLink() {
               ) : (
                 <Link2 className="h-4 w-4" />
               )}
-              Generate Link
+              Tạo liên kết
             </Button>
 
             {newlyCreatedUrl && (
               <div className="rounded-lg border p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold">Latest generated URL</p>
+                  <p className="text-sm font-semibold">URL vừa tạo</p>
                   <Button
                     variant="outline"
                     size="sm"
@@ -399,7 +405,7 @@ export default function GenerateExamLink() {
                     ) : (
                       <Copy className="h-4 w-4" />
                     )}
-                    {copied ? "Copied" : "Copy"}
+                    {copied ? "Đã sao chép" : "Sao chép"}
                   </Button>
                 </div>
                 <p className="text-sm break-all text-muted-foreground">
@@ -413,7 +419,7 @@ export default function GenerateExamLink() {
                       className="h-36 w-36 rounded border"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Share QR for quick join
+                      Chia sẻ mã QR để tham gia nhanh
                     </p>
                   </div>
                 )}
@@ -424,19 +430,19 @@ export default function GenerateExamLink() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Exam Links</CardTitle>
-            <CardDescription>Revoke links and inspect usage</CardDescription>
+            <CardTitle className="text-lg">Liên kết bài thi</CardTitle>
+            <CardDescription>Thu hồi liên kết và kiểm tra lượt sử dụng</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Expiry</TableHead>
-                  <TableHead>Usage</TableHead>
-                  <TableHead>Controls</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Ngày tạo</TableHead>
+                  <TableHead>Hết hạn</TableHead>
+                  <TableHead>Lượt dùng</TableHead>
+                  <TableHead>Ràng buộc</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -446,7 +452,7 @@ export default function GenerateExamLink() {
                       colSpan={6}
                       className="text-center py-10 text-muted-foreground"
                     >
-                      No links created for this exam yet.
+                      Chưa có liên kết nào được tạo cho bài thi này.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -470,7 +476,7 @@ export default function GenerateExamLink() {
                         <TableCell className="text-sm">
                           {link.expiresAt
                             ? new Date(link.expiresAt).toLocaleString()
-                            : "No expiry"}
+                            : "Không hết hạn"}
                         </TableCell>
                         <TableCell>
                           <span className="font-medium">{link.usedCount}</span>
@@ -501,7 +507,7 @@ export default function GenerateExamLink() {
                                   : "default"
                             }
                           >
-                            {state}
+                            {LINK_STATE_LABELS[state] ?? state}
                           </StatusBadge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -511,7 +517,7 @@ export default function GenerateExamLink() {
                               size="sm"
                               onClick={() => setSelectedLinkId(link.id)}
                             >
-                              Usage
+                              Lượt dùng
                             </Button>
                             {!link.disabled && (
                               <Button
@@ -541,11 +547,11 @@ export default function GenerateExamLink() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Usage Audit</CardTitle>
+            <CardTitle className="text-lg">Nhật ký sử dụng</CardTitle>
             <CardDescription>
               {selectedLinkId
-                ? `Latest access logs for link ${selectedLinkId}`
-                : "Select a link to view usage history"}
+                ? `Nhật ký truy cập gần nhất cho liên kết ${selectedLinkId}`
+                : "Chọn một liên kết để xem lịch sử sử dụng"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -557,9 +563,9 @@ export default function GenerateExamLink() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Time</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Student ID</TableHead>
+                    <TableHead>Thời gian</TableHead>
+                    <TableHead>Người dùng</TableHead>
+                    <TableHead>Mã sinh viên</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -569,7 +575,7 @@ export default function GenerateExamLink() {
                         colSpan={3}
                         className="text-center py-8 text-muted-foreground"
                       >
-                        No usage records yet.
+                        Chưa có lượt sử dụng nào.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -579,7 +585,7 @@ export default function GenerateExamLink() {
                           {new Date(item.usedAt).toLocaleString()}
                         </TableCell>
                         <TableCell>
-                          {item.user?.fullName || item.user?.email || "Unknown"}
+                          {item.user?.fullName || item.user?.email || "Không xác định"}
                         </TableCell>
                         <TableCell>{item.user?.studentId || "-"}</TableCell>
                       </TableRow>
@@ -594,4 +600,3 @@ export default function GenerateExamLink() {
     </DashboardLayout>
   );
 }
-

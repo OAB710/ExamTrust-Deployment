@@ -79,7 +79,7 @@ export default function QuestionHistoryAnalysis() {
         setStats(payload?.stats || null);
         setSelectedQuestion(data[0] || null);
       } catch (err: any) {
-        if (active) setError(err.message || "Failed to load question history");
+        if (active) setError(err.message || "Không thể tải lịch sử câu hỏi");
       } finally {
         if (active) setLoading(false);
       }
@@ -268,7 +268,7 @@ export default function QuestionHistoryAnalysis() {
                           </div>
                           <p className="text-xs line-clamp-2">{row.content}</p>
                           <p className="text-[10px] text-muted-foreground mt-1">
-                            {row.course} · {row.versions.length} version(s)
+                            {row.course} · {row.versions.length} phiên bản
                           </p>
                         </button>
                       ))}
@@ -355,21 +355,21 @@ export default function QuestionHistoryAnalysis() {
               <TabsContent value="drift">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Difficulty Drift Overview</CardTitle>
-                    <CardDescription>Difficulty and discrimination changes from real submission statistics.</CardDescription>
+                    <CardTitle className="text-lg">Tổng quan biến động độ khó</CardTitle>
+                    <CardDescription>Thay đổi độ khó và độ phân biệt dựa trên thống kê bài nộp thực tế.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-24">ID</TableHead>
-                          <TableHead>Question</TableHead>
-                          <TableHead className="w-20">Course</TableHead>
-                          <TableHead className="w-28">Initial Diff.</TableHead>
-                          <TableHead className="w-28">Current Diff.</TableHead>
-                          <TableHead className="w-20">Attempts</TableHead>
-                          <TableHead className="w-24">Trend</TableHead>
-                          <TableHead className="w-28">Discrim.</TableHead>
+                          <TableHead>Câu hỏi</TableHead>
+                          <TableHead className="w-20">Khóa học</TableHead>
+                          <TableHead className="w-28">Độ khó ban đầu</TableHead>
+                          <TableHead className="w-28">Độ khó hiện tại</TableHead>
+                          <TableHead className="w-20">Lượt làm</TableHead>
+                          <TableHead className="w-24">Xu hướng</TableHead>
+                          <TableHead className="w-28">Độ phân biệt</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -384,11 +384,11 @@ export default function QuestionHistoryAnalysis() {
                               <TableCell><p className="text-sm line-clamp-1">{row.content}</p></TableCell>
                               <TableCell className="font-mono text-xs">{row.course}</TableCell>
                               <TableCell>
-                                <span className="text-sm">{initial?.attempts ? initialDiff.toFixed(2) : "No data"}</span>
+                                <span className="text-sm">{initial?.attempts ? initialDiff.toFixed(2) : "Chưa có dữ liệu"}</span>
                                 <Progress value={initialDiff * 100} className="h-1 mt-1" />
                               </TableCell>
                               <TableCell>
-                                <span className="text-sm">{current?.attempts ? currentDiff.toFixed(2) : "No data"}</span>
+                                <span className="text-sm">{current?.attempts ? currentDiff.toFixed(2) : "Chưa có dữ liệu"}</span>
                                 <Progress value={currentDiff * 100} className="h-1 mt-1" />
                               </TableCell>
                               <TableCell>{row.metrics.reduce((sum, metric) => sum + metric.attempts, 0)}</TableCell>
@@ -400,7 +400,7 @@ export default function QuestionHistoryAnalysis() {
                                   </StatusBadge>
                                 </div>
                               </TableCell>
-                              <TableCell>{current?.discrimination !== null && current?.discrimination !== undefined ? current.discrimination.toFixed(2) : "No data"}</TableCell>
+                              <TableCell>{current?.discrimination !== null && current?.discrimination !== undefined ? current.discrimination.toFixed(2) : "Chưa có dữ liệu"}</TableCell>
                             </TableRow>
                           );
                         })}
@@ -413,8 +413,8 @@ export default function QuestionHistoryAnalysis() {
               <TabsContent value="history">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Version History</CardTitle>
-                    <CardDescription>Immutable question versions used for historical exam preservation.</CardDescription>
+                    <CardTitle className="text-lg">Lịch sử phiên bản</CardTitle>
+                    <CardDescription>Các phiên bản câu hỏi cố định, dùng để lưu trữ đề thi theo đúng thời điểm gốc.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {selectedQuestion.versions.map((version, index) => (
@@ -427,7 +427,7 @@ export default function QuestionHistoryAnalysis() {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-xs text-muted-foreground">v{version.versionNo}</span>
-                              <span className="text-sm font-medium">{version.aiGenerated ? "AI-assisted version" : index === 0 ? "Initial version" : "Manual version"}</span>
+                              <span className="text-sm font-medium">{version.aiGenerated ? "Phiên bản có hỗ trợ AI" : index === 0 ? "Phiên bản đầu tiên" : "Phiên bản thủ công"}</span>
                               {version.aiGenerated && <CheckCircle2 className="h-4 w-4 text-blue-600" />}
                             </div>
                             <span className="text-xs text-muted-foreground">{new Date(version.createdAt).toLocaleDateString("vi-VN")}</span>

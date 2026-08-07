@@ -20,7 +20,7 @@ import { createReadStream } from 'fs';
 import { Response } from 'express';
 import { SubmissionsService } from './submissions.service';
 import { ExamRiskAssessmentService } from './exam-risk-assessment.service';
-import { StartExamDto, SubmitExamDto, GradeAnswerDto, UpdateSubmissionStatusDto, AddLogsDto, AutosaveExamDto, CreateScoreAdjustmentDto, RevokeScoreAdjustmentDto, RequestEvidenceCaptureDto, FinalizeEvidenceCaptureDto, ReviewEvidenceCaptureDto } from './dto/submission.dto';
+import { StartExamDto, SubmitExamDto, GradeAnswerDto, SuggestGradeDto, UpdateSubmissionStatusDto, AddLogsDto, AutosaveExamDto, CreateScoreAdjustmentDto, RevokeScoreAdjustmentDto, RequestEvidenceCaptureDto, FinalizeEvidenceCaptureDto, ReviewEvidenceCaptureDto } from './dto/submission.dto';
 import { ProctoringEvidenceService } from './proctoring-evidence.service';
 import { ReviewAnomalyFlagDto, ReviewIntegrityCaseDto } from './dto/risk-assessment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -53,7 +53,7 @@ export class SubmissionsController {
     @Query('token') token?: string,
   ): Promise<Observable<MessageEvent>> {
     if (!token) {
-      throw new UnauthorizedException('Missing access token');
+      throw new UnauthorizedException('Thiếu token truy cập');
     }
 
     let payload: any;
@@ -63,12 +63,12 @@ export class SubmissionsController {
         process.env.JWT_SECRET || 'examtrust-secret-key-2024',
       );
     } catch {
-      throw new UnauthorizedException('Invalid access token');
+      throw new UnauthorizedException('Token truy cập không hợp lệ');
     }
 
     const role = String(payload?.role || '').toUpperCase();
     if (!['LECTURER', 'ADMIN'].includes(role)) {
-      throw new ForbiddenException('Only lecturers/admin can monitor realtime events');
+      throw new ForbiddenException('Chỉ giảng viên/quản trị viên được theo dõi sự kiện thời gian thực');
     }
 
     await this.accessPolicy.assertInstructorCanAccessExam(examId, {
@@ -410,6 +410,13 @@ export class SubmissionsController {
   @Roles('LECTURER', 'ADMIN')
   gradeAnswer(@Body() gradeDto: GradeAnswerDto, @Request() req) {
     return this.submissionsService.gradeAnswer(gradeDto, req.user);
+  }
+
+  @Post('grade-answer/ai-suggest')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  suggestGradeForAnswer(@Body() dto: SuggestGradeDto, @Request() req) {
+    return this.submissionsService.suggestGradeForAnswer(dto.submissionAnswerId, req.user);
   }
 
   @Post(':id/finalize-grading')

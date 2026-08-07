@@ -2,32 +2,32 @@ import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
-  @IsEmail()
+  @IsEmail({}, { message: 'Email không hợp lệ' })
   email?: string;
 
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Họ và tên phải là chuỗi ký tự' })
   fullName?: string;
 
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Mã sinh viên phải là chuỗi ký tự' })
   studentId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Khoa/Đơn vị phải là chuỗi ký tự' })
   department?: string;
 }
 
 export class ChangePasswordDto {
-  @IsString()
+  @IsString({ message: 'Mật khẩu hiện tại phải là chuỗi ký tự' })
   currentPassword: string;
 
-  @IsString()
-  @MinLength(6)
+  @IsString({ message: 'Mật khẩu mới phải là chuỗi ký tự' })
+  @MinLength(6, { message: 'Mật khẩu mới phải có ít nhất 6 ký tự' })
   newPassword: string;
 }
 
 export class DeleteProfileDto {
-  @IsString()
+  @IsString({ message: 'Mật khẩu hiện tại phải là chuỗi ký tự' })
   currentPassword: string;
 }

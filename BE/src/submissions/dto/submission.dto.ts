@@ -121,6 +121,11 @@ export class GradeAnswerDto {
   reason?: string;
 }
 
+export class SuggestGradeDto {
+  @IsString()
+  submissionAnswerId: string;
+}
+
 export class CreateScoreAdjustmentDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(-10)

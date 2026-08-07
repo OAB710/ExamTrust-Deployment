@@ -234,7 +234,7 @@ export default function ExamQualityReview() {
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-base text-primary">AI Assistant</CardTitle>
+                  <CardTitle className="text-base text-primary">Trợ lý AI</CardTitle>
                 </div>
                 <CardDescription>
                   Tạo đề xuất cải tiến từ tỉ lệ sai, tỉ lệ bỏ qua, độ khó và độ phân biệt của câu hỏi.

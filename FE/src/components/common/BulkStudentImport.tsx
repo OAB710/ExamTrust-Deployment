@@ -240,9 +240,9 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
           rowErrors.push(`Email bị trùng với dòng ${emailsSeen.get(email)}`);
         }
 
-        if (!studentId) rowErrors.push("Student ID is required");
-        if (!fullName) rowErrors.push("Full name is required");
-        if (!department) rowErrors.push("Department is required");
+        if (!studentId) rowErrors.push("Mã sinh viên là bắt buộc");
+        if (!fullName) rowErrors.push("Họ và tên là bắt buộc");
+        if (!department) rowErrors.push("Khoa là bắt buộc");
 
         if (rowErrors.length > 0) {
           errorRows.push({ row: i, email: email || "(empty)", errors: rowErrors });
@@ -370,13 +370,13 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
                 <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
               </div>
               <p className="text-sm font-medium">
-                Drag & drop file here
+                Kéo thả tệp vào đây
               </p>
               <p className="text-xs text-muted-foreground mt-1 mb-3">
-                Supports CSV, Excel (.xlsx, .xls)
+                Hỗ trợ CSV, Excel (.xlsx, .xls)
               </p>
               <Button variant="secondary" size="sm" className="relative">
-                Browse File
+                Chọn tệp
               </Button>
             </>
           )}
@@ -395,7 +395,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
         {/* Template download & format info */}
         <div className="flex items-start justify-between gap-4">
           <div className="text-xs text-muted-foreground space-y-1.5 flex-1">
-            <p className="font-medium text-foreground/80">Supported columns:</p>
+            <p className="font-medium text-foreground/80">Các cột được hỗ trợ:</p>
             <div className="flex flex-wrap gap-1.5">
               {["email *", "studentId", "fullName", "department"].map((col) => (
                 <code
@@ -418,7 +418,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
             onClick={downloadSample}
           >
             <Download className="h-3.5 w-3.5" />
-            Template
+            Mẫu
           </Button>
         </div>
 
@@ -431,11 +431,11 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
           >
             { (state as ImportState) === "validating" ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Validating...
+                <Loader2 className="h-4 w-4 animate-spin" /> Đang kiểm tra...
               </>
             ) : (
               <>
-                <FileText className="h-4 w-4" /> Validate & Preview
+                <FileText className="h-4 w-4" /> Kiểm tra & Xem trước
               </>
             )}
           </Button>
@@ -449,7 +449,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Parsing and validating file...</p>
+        <p className="text-sm text-muted-foreground">Đang đọc và kiểm tra tệp...</p>
       </div>
     );
   }
@@ -469,7 +469,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
                 {validRows.length}
               </p>
               <p className="text-xs text-green-600/80 dark:text-green-400/60">
-                Valid rows
+                Dòng hợp lệ
               </p>
             </div>
           </div>
@@ -496,7 +496,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
                   ? "text-red-500/80 dark:text-red-400/60"
                   : "text-muted-foreground/60"
               }`}>
-                Error rows
+                Dòng lỗi
               </p>
             </div>
           </div>
@@ -512,7 +512,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-red-500" />
                 <span className="text-sm font-medium text-red-700 dark:text-red-400">
-                  {errorRows.length} error(s) found
+                  Tìm thấy {errorRows.length} lỗi
                 </span>
               </div>
               {showErrorRows ? (
@@ -526,9 +526,9 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-red-50/50 dark:bg-red-950/10 hover:bg-red-50/50 sticky top-0 z-10 shadow-sm">
-                      <TableHead className="w-16 text-xs bg-red-50/50 dark:bg-red-950/10">Row</TableHead>
+                      <TableHead className="w-16 text-xs bg-red-50/50 dark:bg-red-950/10">Dòng</TableHead>
                       <TableHead className="text-xs bg-red-50/50 dark:bg-red-950/10">Email</TableHead>
-                      <TableHead className="text-xs bg-red-50/50 dark:bg-red-950/10">Error</TableHead>
+                      <TableHead className="text-xs bg-red-50/50 dark:bg-red-950/10">Lỗi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -562,7 +562,7 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-600" />
                 <span className="text-sm font-medium">
-                  {validRows.length} valid row(s) ready to import
+                  {validRows.length} dòng hợp lệ sẵn sàng để import
                 </span>
               </div>
               {showValidRows ? (
@@ -576,11 +576,11 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent sticky top-0 z-10 bg-background shadow-sm">
-                      <TableHead className="w-16 text-xs bg-background">Row</TableHead>
+                      <TableHead className="w-16 text-xs bg-background">Dòng</TableHead>
                       <TableHead className="text-xs bg-background">Email</TableHead>
-                      <TableHead className="text-xs bg-background">Student ID</TableHead>
-                      <TableHead className="text-xs bg-background">Full Name</TableHead>
-                      <TableHead className="text-xs bg-background">Department</TableHead>
+                      <TableHead className="text-xs bg-background">Mã sinh viên</TableHead>
+                      <TableHead className="text-xs bg-background">Họ và tên</TableHead>
+                      <TableHead className="text-xs bg-background">Khoa</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -629,9 +629,9 @@ export function BulkStudentImport({ courseId, onImportSuccess }: BulkStudentImpo
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Importing students...</p>
+        <p className="text-sm text-muted-foreground">Đang import sinh viên...</p>
         <p className="text-xs text-muted-foreground/60">
-          This may take a moment for large files
+          Có thể mất một chút thời gian với tệp lớn
         </p>
       </div>
     );

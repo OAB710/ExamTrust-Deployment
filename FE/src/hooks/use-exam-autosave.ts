@@ -159,7 +159,7 @@ export const useExamAutosave = (apiClient: any, options: UseExamAutosaveOptions)
       pendingAnswers.current.clear();
     } catch (error) {
       const err = error as Error;
-      setLastError(err.message || 'Autosave failed');
+      setLastError(err.message || 'Tự động lưu thất bại');
       onAutosaveError?.(err);
       if (!isOnlineRef.current) {
         mergeIntoQueue(Array.from(pendingAnswers.current.values()));
@@ -196,7 +196,7 @@ export const useExamAutosave = (apiClient: any, options: UseExamAutosaveOptions)
         persistQueue(submissionId, queuedAnswers.current);
       } catch (error) {
         const err = error as Error;
-        setLastError(err.message || 'Failed to sync queued autosave');
+        setLastError(err.message || 'Không thể đồng bộ dữ liệu tự động lưu đang chờ');
         onAutosaveError?.(err);
         if (!isOnlineRef.current) {
           setStatus('offline');

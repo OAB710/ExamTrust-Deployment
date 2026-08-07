@@ -149,7 +149,7 @@ describe('AiService.assessExamIntegrityRisk', () => {
 
       await expect(
         service.assessExamIntegrityRisk({ examTitle: 'Midterm', submissionSummary, signals }),
-      ).rejects.toThrow('AI generation failed');
+      ).rejects.toThrow('Tạo nội dung bằng AI thất bại');
     });
 
     it('throws a descriptive error when the provider returns invalid JSON', async () => {
@@ -158,7 +158,7 @@ describe('AiService.assessExamIntegrityRisk', () => {
 
       await expect(
         service.assessExamIntegrityRisk({ examTitle: 'Midterm', submissionSummary, signals }),
-      ).rejects.toThrow('AI generation failed');
+      ).rejects.toThrow('Tạo nội dung bằng AI thất bại');
     });
 
     it('throws when the provider response is missing required fields', async () => {
@@ -167,7 +167,7 @@ describe('AiService.assessExamIntegrityRisk', () => {
 
       await expect(
         service.assessExamIntegrityRisk({ examTitle: 'Midterm', submissionSummary, signals }),
-      ).rejects.toThrow('AI generation failed');
+      ).rejects.toThrow('Tạo nội dung bằng AI thất bại');
     });
   });
 });

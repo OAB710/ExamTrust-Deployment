@@ -2,55 +2,55 @@ import { IsString, IsArray, IsOptional, IsEnum, IsEmail, IsNotEmpty, ValidateNes
 import { Type } from 'class-transformer';
 
 export class CreateEnrollmentDto {
-  @IsString()
+  @IsString({ message: 'courseId phải là chuỗi ký tự' })
   courseId: string;
 
-  @IsString()
+  @IsString({ message: 'studentId phải là chuỗi ký tự' })
   studentId: string;
 }
 
 export class BulkEnrollmentDto {
-  @IsString()
+  @IsString({ message: 'courseId phải là chuỗi ký tự' })
   courseId: string;
 
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'studentIds phải là danh sách' })
+  @IsString({ each: true, message: 'Mỗi studentId phải là chuỗi ký tự' })
   studentIds: string[];
 }
 
 export class BulkEnrollByEmailsDto {
-  @IsString()
+  @IsString({ message: 'courseId phải là chuỗi ký tự' })
   courseId: string;
 
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'emails phải là danh sách' })
+  @IsString({ each: true, message: 'Mỗi email phải là chuỗi ký tự' })
   emails: string[];
 }
 
 export class UpdateEnrollmentStatusDto {
-  @IsEnum(['ACTIVE', 'DROPPED', 'COMPLETED'])
+  @IsEnum(['ACTIVE', 'DROPPED', 'COMPLETED'], { message: 'Trạng thái ghi danh không hợp lệ' })
   status: 'ACTIVE' | 'DROPPED' | 'COMPLETED';
 }
 
 export class BulkImportStudentRow {
-  @IsEmail()
+  @IsEmail({}, { message: 'Email không hợp lệ' })
   email: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'Mã sinh viên phải là chuỗi ký tự' })
+  @IsNotEmpty({ message: 'Cần nhập mã sinh viên' })
   studentId: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'Họ và tên phải là chuỗi ký tự' })
+  @IsNotEmpty({ message: 'Cần nhập họ và tên' })
   fullName: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'Khoa/Đơn vị phải là chuỗi ký tự' })
+  @IsNotEmpty({ message: 'Cần nhập khoa/đơn vị' })
   department: string;
 }
 
 export class BulkImportStudentsDto {
-  @IsString()
+  @IsString({ message: 'courseId phải là chuỗi ký tự' })
   courseId: string;
 
   @IsArray()

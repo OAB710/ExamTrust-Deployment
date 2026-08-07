@@ -126,16 +126,16 @@ export default function SystemPolicyConfig() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-foreground mb-1">
-              System Policy Configuration
+              Thiết lập chính sách hệ thống
             </h1>
             <p className="text-muted-foreground">
-              Configure global integrity thresholds, scoring policies, and
-              system settings
+              Cấu hình ngưỡng toàn vẹn học thuật, chính sách tính điểm và các
+              thiết lập áp dụng cho toàn hệ thống
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleReset} className="gap-2">
-              <RotateCcw className="h-4 w-4" /> Reset Defaults
+              <RotateCcw className="h-4 w-4" /> Khôi phục mặc định
             </Button>
             <Button onClick={handleSave} disabled={saving} className="gap-2">
               {saving ? (
@@ -145,7 +145,7 @@ export default function SystemPolicyConfig() {
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              {saved ? "Saved!" : "Save Policies"}
+              {saved ? "Đã lưu!" : "Lưu chính sách"}
             </Button>
           </div>
         </div>
@@ -161,17 +161,17 @@ export default function SystemPolicyConfig() {
                   usedBy: "Quản trị viên dùng để điều chỉnh mức nhạy của các tín hiệu như tương đồng câu trả lời, chuyển tab hoặc bất thường thời gian.",
                   note: "Các tín hiệu chỉ hỗ trợ xem xét, không tự kết luận gian lận.",
                 }}>
-                  Global Integrity Thresholds
+                  Ngưỡng toàn vẹn học thuật toàn hệ thống
                 </HelpedTitle>
               </CardTitle>
               <CardDescription>
-                System-wide settings for cheating detection and flagging
+                Thiết lập áp dụng cho toàn hệ thống để phát hiện và đánh dấu gian lận
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Answer Similarity Threshold</span>
+                  <span>Ngưỡng tương đồng câu trả lời</span>
                   <span className="font-medium">
                     {globalSimilarityThreshold[0]}%
                   </span>
@@ -184,15 +184,15 @@ export default function SystemPolicyConfig() {
                   step={5}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Flag submissions when answer similarity exceeds this value
+                  Đánh dấu bài nộp khi độ tương đồng câu trả lời vượt ngưỡng này
                 </p>
               </div>
               <Separator />
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Timing Anomaly Threshold</span>
+                  <span>Ngưỡng bất thường về thời gian</span>
                   <span className="font-medium">
-                    {globalTimingThreshold[0]} events
+                    {globalTimingThreshold[0]} sự kiện
                   </span>
                 </div>
                 <Slider
@@ -206,7 +206,7 @@ export default function SystemPolicyConfig() {
               <Separator />
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Max Tab Switches Before Auto-Flag</span>
+                  <span>Số lần chuyển tab tối đa trước khi tự động đánh dấu</span>
                   <span className="font-medium">{maxTabSwitchesGlobal[0]}</span>
                 </div>
                 <Slider
@@ -220,9 +220,9 @@ export default function SystemPolicyConfig() {
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Automatic Flagging</Label>
+                  <Label>Tự động đánh dấu</Label>
                   <p className="text-xs text-muted-foreground">
-                    Automatically flag submissions that exceed thresholds
+                    Tự động đánh dấu bài nộp vượt ngưỡng
                   </p>
                 </div>
                 <Switch
@@ -232,9 +232,9 @@ export default function SystemPolicyConfig() {
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Require Manual Review</Label>
+                  <Label>Yêu cầu xem xét thủ công</Label>
                   <p className="text-xs text-muted-foreground">
-                    All flagged cases must be reviewed by an instructor
+                    Mọi trường hợp bị đánh dấu phải được giảng viên xem xét
                   </p>
                 </div>
                 <Switch
@@ -255,14 +255,14 @@ export default function SystemPolicyConfig() {
                   usedBy: "Quản trị viên cấu hình chính sách chung để giảng viên có điểm khởi tạo nhất quán.",
                   note: "Một số bài thi có thể có cấu hình riêng nếu được hỗ trợ ở cấp bài thi.",
                 }}>
-                  Scoring Policies
+                  Chính sách tính điểm
                 </HelpedTitle>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Default Passing Score (%)</Label>
+                  <Label>Điểm đạt mặc định (%)</Label>
                   <Input
                     type="number"
                     min={0}
@@ -292,22 +292,22 @@ export default function SystemPolicyConfig() {
                   ) : null}
                 </div>
                 <div className="space-y-2">
-                  <Label>Grade Scale</Label>
+                  <Label>Thang điểm</Label>
                   <Select value={gradeScale} onValueChange={setGradeScale}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="10">10-point scale</SelectItem>
-                      <SelectItem value="100">100-point scale</SelectItem>
-                      <SelectItem value="letter">Letter grade (A-F)</SelectItem>
-                      <SelectItem value="4">4.0 GPA scale</SelectItem>
+                      <SelectItem value="10">Thang điểm 10</SelectItem>
+                      <SelectItem value="100">Thang điểm 100</SelectItem>
+                      <SelectItem value="letter">Điểm chữ (A-F)</SelectItem>
+                      <SelectItem value="4">Thang điểm GPA 4.0</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Score Rounding Method</Label>
+                <Label>Phương pháp làm tròn điểm</Label>
                 <Select
                   value={scoreRoundingMethod}
                   onValueChange={setScoreRoundingMethod}
@@ -316,20 +316,20 @@ export default function SystemPolicyConfig() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="round">Round to nearest</SelectItem>
-                    <SelectItem value="floor">Round down (floor)</SelectItem>
-                    <SelectItem value="ceil">Round up (ceiling)</SelectItem>
+                    <SelectItem value="round">Làm tròn gần nhất</SelectItem>
+                    <SelectItem value="floor">Làm tròn xuống</SelectItem>
+                    <SelectItem value="ceil">Làm tròn lên</SelectItem>
                     <SelectItem value="none">
-                      No rounding (2 decimals)
+                      Không làm tròn (2 số lẻ)
                     </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Allow Negative Marking</Label>
+                  <Label>Cho phép trừ điểm âm</Label>
                   <p className="text-xs text-muted-foreground">
-                    Enable instructors to configure negative scoring per exam
+                    Cho phép giảng viên cấu hình trừ điểm theo từng bài thi
                   </p>
                 </div>
                 <Switch
@@ -350,14 +350,14 @@ export default function SystemPolicyConfig() {
                   usedBy: "Quản trị viên dùng để giảm rủi ro truy cập trái phép và kiểm soát phiên đăng nhập.",
                   note: "Thay đổi chính sách bảo mật có thể ảnh hưởng trực tiếp đến trải nghiệm đăng nhập của người dùng.",
                 }}>
-                  Access & Security
+                  Truy cập & Bảo mật
                 </HelpedTitle>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Password Policy</Label>
+                  <Label>Chính sách mật khẩu</Label>
                   <Select
                     value={passwordPolicy}
                     onValueChange={setPasswordPolicy}
@@ -366,16 +366,16 @@ export default function SystemPolicyConfig() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="basic">Basic (6+ chars)</SelectItem>
-                      <SelectItem value="medium">Medium (8+ mixed)</SelectItem>
+                      <SelectItem value="basic">Cơ bản (từ 6 ký tự)</SelectItem>
+                      <SelectItem value="medium">Trung bình (từ 8 ký tự, kết hợp)</SelectItem>
                       <SelectItem value="strong">
-                        Strong (12+ mixed + special)
+                        Mạnh (từ 12 ký tự, kết hợp + ký tự đặc biệt)
                       </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Session Timeout (min)</Label>
+                  <Label>Thời gian hết phiên (phút)</Label>
                   <Input
                     type="number"
                     min={5}
@@ -403,7 +403,7 @@ export default function SystemPolicyConfig() {
                   ) : null}
                 </div>
                 <div className="space-y-2">
-                  <Label>Max Login Attempts</Label>
+                  <Label>Số lần đăng nhập sai tối đa</Label>
                   <Input
                     type="number"
                     min={1}
@@ -433,9 +433,9 @@ export default function SystemPolicyConfig() {
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Two-Factor Authentication</Label>
+                  <Label>Xác thực hai yếu tố</Label>
                   <p className="text-xs text-muted-foreground">
-                    Require 2FA for all users
+                    Yêu cầu xác thực hai yếu tố với mọi người dùng
                   </p>
                 </div>
                 <Switch
@@ -444,9 +444,9 @@ export default function SystemPolicyConfig() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>IP Whitelist (optional)</Label>
+                <Label>Danh sách IP được phép (không bắt buộc)</Label>
                 <Textarea
-                  placeholder="Enter allowed IP ranges, one per line (e.g., 192.168.1.0/24)"
+                  placeholder="Nhập danh sách IP được phép, mỗi dòng một dải (VD: 192.168.1.0/24)"
                   value={ipWhitelist}
                   onChange={(e) => setIpWhitelist(e.target.value)}
                   rows={2}
@@ -465,14 +465,14 @@ export default function SystemPolicyConfig() {
                   usedBy: "Quản trị viên dùng để cân bằng giữa nhu cầu truy vết, tuân thủ và dung lượng lưu trữ.",
                   note: "Không nên rút ngắn thời gian lưu trữ nếu vẫn cần phục vụ phúc khảo hoặc điều tra.",
                 }}>
-                  Data Retention
+                  Lưu trữ dữ liệu
                 </HelpedTitle>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Retention Period</Label>
+                  <Label>Thời gian lưu trữ</Label>
                   <Select
                     value={retentionPeriod}
                     onValueChange={setRetentionPeriod}
@@ -481,16 +481,16 @@ export default function SystemPolicyConfig() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="90">90 days</SelectItem>
-                      <SelectItem value="180">6 months</SelectItem>
-                      <SelectItem value="365">1 year</SelectItem>
-                      <SelectItem value="730">2 years</SelectItem>
-                      <SelectItem value="forever">Forever</SelectItem>
+                      <SelectItem value="90">90 ngày</SelectItem>
+                      <SelectItem value="180">6 tháng</SelectItem>
+                      <SelectItem value="365">1 năm</SelectItem>
+                      <SelectItem value="730">2 năm</SelectItem>
+                      <SelectItem value="forever">Vĩnh viễn</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Backup Frequency</Label>
+                  <Label>Tần suất sao lưu</Label>
                   <Select
                     value={backupFrequency}
                     onValueChange={setBackupFrequency}
@@ -499,18 +499,18 @@ export default function SystemPolicyConfig() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="hourly">Hourly</SelectItem>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="hourly">Hàng giờ</SelectItem>
+                      <SelectItem value="daily">Hàng ngày</SelectItem>
+                      <SelectItem value="weekly">Hàng tuần</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Auto-Archive Completed Exams</Label>
+                  <Label>Tự động lưu trữ bài thi đã hoàn thành</Label>
                   <p className="text-xs text-muted-foreground">
-                    Automatically archive exams after retention period
+                    Tự động lưu trữ bài thi sau khi hết thời gian lưu trữ
                   </p>
                 </div>
                 <Switch
@@ -527,16 +527,16 @@ export default function SystemPolicyConfig() {
               <CardTitle className="text-base flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
                 <HelpedTitle help="Dùng khi cần bảo trì hệ thống hoặc tạm hạn chế truy cập của người dùng không phải quản trị viên.">
-                  System Maintenance
+                  Bảo trì hệ thống
                 </HelpedTitle>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Maintenance Mode</Label>
+                  <Label>Chế độ bảo trì</Label>
                   <p className="text-xs text-muted-foreground">
-                    Disable access for non-admin users
+                    Tắt quyền truy cập với người dùng không phải quản trị viên
                   </p>
                 </div>
                 <Switch
@@ -546,9 +546,9 @@ export default function SystemPolicyConfig() {
               </div>
               {maintenanceMode && (
                 <div className="space-y-2">
-                  <Label>Maintenance Message</Label>
+                  <Label>Thông báo bảo trì</Label>
                   <Textarea
-                    placeholder="Message to display to users..."
+                    placeholder="Nội dung thông báo hiển thị cho người dùng..."
                     value={maintenanceMessage}
                     onChange={(e) => setMaintenanceMessage(e.target.value)}
                     rows={2}
@@ -562,4 +562,3 @@ export default function SystemPolicyConfig() {
     </DashboardLayout>
   );
 }
-

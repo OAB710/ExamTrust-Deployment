@@ -66,6 +66,7 @@ import {
   BarChart3,
   Activity,
   Eye,
+  Clock,
   ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -527,7 +528,7 @@ export default function CourseDetail() {
       key: "studentCode",
       label: "Mã sinh viên",
       type: "text",
-      placeholder: "Filter by student ID",
+      placeholder: "Lọc theo mã sinh viên",
       operators: ["contains", "startsWith", "equals"],
     },
   ];
@@ -669,16 +670,16 @@ export default function CourseDetail() {
       );
 
       if (!target) {
-        toast.error("No student found with the provided email or student ID");
+        toast.error("Không tìm thấy sinh viên với email hoặc mã sinh viên đã nhập");
         return;
       }
 
       await api.enrollStudent(resolvedCourseId, target.id);
       await reloadEnrollments(resolvedCourseId);
       setNewStudent({ name: "", id: "", email: "" });
-      toast.success("Student added successfully");
+      toast.success("Đã thêm sinh viên thành công");
     } catch (err: any) {
-      toast.error(err?.message || "Failed to add student");
+      toast.error(err?.message || "Thêm sinh viên thất bại");
     } finally {
       setIsAdding(false);
     }
@@ -692,9 +693,9 @@ export default function CourseDetail() {
       setStudents((prev) =>
         prev.filter((s) => s.enrollmentId !== enrollmentId),
       );
-      toast.success("Student removed from course");
+      toast.success("Đã xóa sinh viên khỏi khóa học");
     } catch (err: any) {
-      toast.error(err?.message || "Failed to remove student");
+      toast.error(err?.message || "Xóa sinh viên thất bại");
     }
   };
 
@@ -729,7 +730,7 @@ export default function CourseDetail() {
             <ArrowLeft className="h-4 w-4" /> Quay lại danh sách khóa học
           </Button>
           <ListPageHeader
-            title={`${course?.name || "Course Details"}${course?.code ? ` (${course.code})` : ""}`}
+            title={`${course?.name || "Chi tiết khóa học"}${course?.code ? ` (${course.code})` : ""}`}
             actions={
               <div className="flex gap-2">
                 <Button variant="outline" className="gap-2">
@@ -745,14 +746,14 @@ export default function CourseDetail() {
                     <DialogHeader>
                       <DialogTitle>Thêm sinh viên vào học phần</DialogTitle>
                       <DialogDescription>
-                        Add students manually or import from a CSV file.
+                        Thêm sinh viên thủ công hoặc nhập từ tệp CSV.
                       </DialogDescription>
                     </DialogHeader>
 
                     <Tabs defaultValue="manual" className="w-full">
                       <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="manual">Nhập thủ công</TabsTrigger>
-                        <TabsTrigger value="import">Import File</TabsTrigger>
+                        <TabsTrigger value="import">Nhập từ tệp</TabsTrigger>
                       </TabsList>
 
                       {/* Manual Entry Tab */}
@@ -764,7 +765,7 @@ export default function CourseDetail() {
                           </Label>
                           <Input
                             id="sid"
-                            placeholder="e.g. student@university.edu or 20120001"
+                            placeholder="Ví dụ: student@university.edu hoặc 20120001"
                             value={newStudent.id}
                             onChange={(e) =>
                               setNewStudent({ ...newStudent, id: e.target.value })
@@ -779,7 +780,7 @@ export default function CourseDetail() {
                           {isAdding ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           ) : null}
-                          Add Student
+                          Thêm sinh viên
                         </Button>
                       </TabsContent>
 
@@ -898,10 +899,10 @@ export default function CourseDetail() {
                         <TableCell>{student.joinedAt}</TableCell>
                         <TableCell className="text-right">
                           <ConfirmActionDialog
-                            title="Remove student from course"
-                            description="This will remove the student from the course. They will lose access to this course's content and enrollments. Continue?"
-                            confirmText="Remove"
-                            cancelText="Cancel"
+                            title="Xóa sinh viên khỏi khóa học"
+                            description="Sinh viên sẽ bị xóa khỏi khóa học và mất quyền truy cập vào nội dung, ghi danh của khóa học này. Tiếp tục?"
+                            confirmText="Xóa"
+                            cancelText="Hủy"
                             destructive
                             onConfirm={() => handleDelete(student.enrollmentId)}
                           >
@@ -923,7 +924,7 @@ export default function CourseDetail() {
                         colSpan={6}
                         className="text-center py-8 text-muted-foreground"
                       >
-                        No students found matching your search.
+                        Không tìm thấy sinh viên phù hợp với tìm kiếm của bạn.
                       </TableCell>
                     </TableRow>
                   )}
@@ -935,7 +936,7 @@ export default function CourseDetail() {
               totalPages={totalPages}
               totalItems={filteredStudents.length}
               onPageChange={setPage}
-              itemLabel="students"
+              itemLabel="sinh viên"
               syncUrl={false}
             />
           </CardContent>
@@ -1068,30 +1069,38 @@ export default function CourseDetail() {
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex flex-wrap justify-end gap-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="gap-2"
-                                      onClick={() =>
-                                        router.push(
-                                          `${basePath}/exam/${exam.id}/results`,
-                                        )
-                                      }
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                      Xem kết quả
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        router.push(
-                                          `${basePath}/exam/${exam.id}/monitor`,
-                                        )
-                                      }
-                                    >
-                                      Theo dõi
-                                    </Button>
+                                    {(exam.status === "ONGOING" ||
+                                      exam.status === "PUBLISHED") && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2 border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8] shadow-none hover:border-[#93C5FD] hover:bg-[#DBEAFE] hover:text-[#1E40AF] [&>svg]:text-[#2563EB]"
+                                        onClick={() =>
+                                          router.push(
+                                            `${basePath}/exam/${exam.id}/monitor`,
+                                          )
+                                        }
+                                      >
+                                        <Clock className="h-4 w-4" />
+                                        Theo dõi
+                                      </Button>
+                                    )}
+                                    {(exam.status === "COMPLETED" ||
+                                      exam.submissionCount > 0) && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2 border-[#BBF7D0] bg-[#F0FDF4] font-semibold text-[#047857] shadow-sm hover:border-[#86EFAC] hover:bg-[#DCFCE7] hover:text-[#065F46] [&>svg]:text-[#059669]"
+                                        onClick={() =>
+                                          router.push(
+                                            `${basePath}/exam/${exam.id}/results`,
+                                          )
+                                        }
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                        Xem kết quả
+                                      </Button>
+                                    )}
                                     <Button
                                       variant="ghost"
                                       size="sm"

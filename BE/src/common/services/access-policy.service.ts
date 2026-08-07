@@ -25,7 +25,7 @@ export class AccessPolicyService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     const role = String(user?.role || '').toUpperCase();
@@ -38,7 +38,7 @@ export class AccessPolicyService {
       return exam;
     }
 
-    throw new ForbiddenException('You are not allowed to access this exam');
+    throw new ForbiddenException('Bạn không có quyền truy cập bài thi này');
   }
 
   async assertInstructorCanAccessCourse(courseId: string, user: AuthUser) {
@@ -48,7 +48,7 @@ export class AccessPolicyService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('Không tìm thấy khóa học');
     }
 
     const role = String(user?.role || '').toUpperCase();
@@ -58,7 +58,7 @@ export class AccessPolicyService {
       return course;
     }
 
-    throw new ForbiddenException('You are not allowed to access this course');
+    throw new ForbiddenException('Bạn không có quyền truy cập khóa học này');
   }
 
   async assertInstructorCanAccessSubmission(submissionId: string, user: AuthUser) {
@@ -81,7 +81,7 @@ export class AccessPolicyService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
     const role = String(user?.role || '').toUpperCase();
@@ -94,7 +94,7 @@ export class AccessPolicyService {
       return submission;
     }
 
-    throw new ForbiddenException('You are not allowed to access this submission');
+    throw new ForbiddenException('Bạn không có quyền truy cập lượt làm bài này');
   }
 
   async assertInstructorCanAccessSubmissionAnswer(answerId: string, user: AuthUser) {
@@ -104,7 +104,7 @@ export class AccessPolicyService {
     });
 
     if (!answer) {
-      throw new NotFoundException('Answer not found');
+      throw new NotFoundException('Không tìm thấy câu trả lời');
     }
 
     return this.assertInstructorCanAccessSubmission(answer.submissionId, user);
@@ -124,7 +124,7 @@ export class AccessPolicyService {
     });
 
     if (!flag) {
-      throw new NotFoundException('Anomaly flag not found');
+      throw new NotFoundException('Không tìm thấy cảnh báo bất thường');
     }
 
     await this.assertInstructorCanAccessExam(flag.examInstance.examId, user);

@@ -192,12 +192,12 @@ export default function ExamManagement() {
       setIsDeleting(true);
       await api.deleteExam(selectedExam.id);
       setExams(exams.filter((e) => e.id !== selectedExam.id));
-      toast.success("Exam deleted successfully");
+      toast.success("Đã xóa bài thi thành công");
       setShowDeleteDialog(false);
       setSelectedExam(null);
     } catch (error) {
       console.error("Failed to delete exam:", error);
-      toast.error("Failed to delete exam");
+      toast.error("Không thể xóa bài thi");
     } finally {
       setIsDeleting(false);
     }
@@ -268,12 +268,12 @@ export default function ExamManagement() {
         ),
       );
 
-      toast.success("Exam updated successfully");
+      toast.success("Đã cập nhật bài thi thành công");
       setShowEditDialog(false);
       setSelectedExam(null);
     } catch (error) {
       console.error("Failed to update exam:", error);
-      toast.error("Failed to update exam");
+      toast.error("Không thể cập nhật bài thi");
     } finally {
       setIsUpdating(false);
     }
@@ -316,7 +316,7 @@ export default function ExamManagement() {
     if (!selectedExam) return;
 
     if (!rescheduleForm.startTime || !rescheduleForm.endTime) {
-      toast.error("Please provide both start and end time");
+      toast.error("Vui lòng nhập đầy đủ thời gian bắt đầu và kết thúc");
       return;
     }
 
@@ -324,12 +324,12 @@ export default function ExamManagement() {
     const endTime = new Date(rescheduleForm.endTime);
 
     if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
-      toast.error("Invalid schedule date/time");
+      toast.error("Thời gian lịch thi không hợp lệ");
       return;
     }
 
     if (endTime <= startTime) {
-      toast.error("End time must be after start time");
+      toast.error("Thời gian kết thúc phải sau thời gian bắt đầu");
       return;
     }
 
@@ -359,12 +359,12 @@ export default function ExamManagement() {
         ),
       );
 
-      toast.success("Exam schedule updated successfully");
+      toast.success("Đã cập nhật lịch thi thành công");
       setShowRescheduleDialog(false);
       setSelectedExam(null);
     } catch (error) {
       console.error("Failed to reschedule exam:", error);
-      toast.error("Failed to reschedule exam");
+      toast.error("Không thể đổi lịch bài thi");
     } finally {
       setIsRescheduling(false);
     }
@@ -560,7 +560,7 @@ export default function ExamManagement() {
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Loading exams...</p>
+            <p className="text-sm text-muted-foreground">Đang tải danh sách bài thi...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -691,9 +691,8 @@ export default function ExamManagement() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="max-w-sm">Tiêu đề</TableHead>
-                      <TableHead>Khóa học</TableHead>
-                      <TableHead>Lịch thi</TableHead>
+                      <TableHead className="min-w-[18rem]">Bài kiểm tra &amp; khóa học</TableHead>
+                      <TableHead className="min-w-[15rem]">Thời gian làm bài</TableHead>
                       <TableHead>Trạng thái</TableHead>
                       <TableHead className="text-right">Thao tác</TableHead>
                     </TableRow>
@@ -702,41 +701,59 @@ export default function ExamManagement() {
                     {paginatedExams.map((exam) => {
                       return (
                         <TableRow key={exam.id} className="hover:bg-muted/50">
-                          <TableCell className="font-medium">
-                            <div>
-                              <div className="truncate">{exam.title}</div>
-                              <div className="text-xs text-muted-foreground mt-1">
+                          <TableCell className="min-w-[18rem]">
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-foreground">
+                                {exam.title}
+                              </div>
+                              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm">
+                                <span className="truncate font-medium text-foreground">
+                                  {exam.course.name}
+                                </span>
+                                <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                  {exam.course.code}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-xs text-muted-foreground">
                                 {formatExamMetadata(exam)}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div className="font-medium text-foreground">
-                                {exam.course.name}
-                              </div>
-                              <div className="text-xs text-muted-foreground font-mono">
-                                {exam.course.code}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-[14rem]">
-                            <div className="text-xs text-muted-foreground leading-5">
+                          <TableCell className="min-w-[15rem]">
+                            <div className="space-y-1.5 text-xs">
                               {exam.startTime ? (
-                                <div className="truncate">
-                                  <span className="font-medium">Bắt đầu:</span>{" "}
-                                  {getScheduleLabel(exam.startTime)}
+                                <div className="flex items-start gap-1.5">
+                                  <span className="shrink-0 font-medium text-foreground">
+                                    Bắt đầu
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {getScheduleLabel(exam.startTime)}
+                                  </span>
                                 </div>
                               ) : (
-                                <div className="truncate">Bắt đầu: Chưa lên lịch</div>
+                                <div className="flex items-start gap-1.5">
+                                  <span className="shrink-0 font-medium text-foreground">
+                                    Bắt đầu
+                                  </span>
+                                  <span className="text-muted-foreground">Chưa lên lịch</span>
+                                </div>
                               )}
                               {exam.endTime ? (
-                                <div className="truncate">
-                                  <span className="font-medium">Kết thúc:</span>{" "}
-                                  {getScheduleLabel(exam.endTime)}
+                                <div className="flex items-start gap-1.5 border-t border-border/60 pt-1.5">
+                                  <span className="shrink-0 font-medium text-foreground">
+                                    Kết thúc
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {getScheduleLabel(exam.endTime)}
+                                  </span>
                                 </div>
                               ) : (
-                                <div className="truncate">Kết thúc: Chưa lên lịch</div>
+                                <div className="flex items-start gap-1.5 border-t border-border/60 pt-1.5">
+                                  <span className="shrink-0 font-medium text-foreground">
+                                    Kết thúc
+                                  </span>
+                                  <span className="text-muted-foreground">Chưa lên lịch</span>
+                                </div>
                               )}
                             </div>
                           </TableCell>
@@ -757,7 +774,7 @@ export default function ExamManagement() {
                                     `/lecturer/exam/${exam.id}/preview`,
                                   )
                                 }
-                                className="h-8 gap-1.5 border-sky-200 bg-sky-50 px-2.5 text-sky-700 shadow-none hover:border-sky-300 hover:bg-sky-100 hover:text-sky-800"
+                                className="h-8 gap-1.5 border-[#E5E7EB] bg-white px-2.5 text-[#374151] shadow-none hover:border-[#D1D5DB] hover:bg-[#F9FAFB] hover:text-[#111827] [&>svg]:text-[#6B7280]"
                               >
                                 <Eye className="h-3.5 w-3.5" />
                                 Xem trước
@@ -772,7 +789,7 @@ export default function ExamManagement() {
                                       `/lecturer/exam/${exam.id}/monitor`,
                                     )
                                   }
-                                  className="h-8 gap-1.5 border-amber-200 bg-amber-50 px-2.5 text-amber-700 shadow-none hover:border-amber-300 hover:bg-amber-100 hover:text-amber-800"
+                                  className="h-8 gap-1.5 border-[#BFDBFE] bg-[#EFF6FF] px-2.5 text-[#1D4ED8] shadow-none hover:border-[#93C5FD] hover:bg-[#DBEAFE] hover:text-[#1E40AF] [&>svg]:text-[#2563EB]"
                                 >
                                   <Clock className="h-3.5 w-3.5" />
                                   Theo dõi
@@ -789,7 +806,7 @@ export default function ExamManagement() {
                                       `/lecturer/exam/${exam.id}/results`,
                                     )
                                   }
-                                  className="h-8 gap-1.5 border-violet-200 bg-violet-50 px-2.5 text-violet-700 shadow-none hover:border-violet-300 hover:bg-violet-100 hover:text-violet-800"
+                                  className="h-8 gap-1.5 border-[#BBF7D0] bg-[#F0FDF4] px-2.5 font-semibold text-[#047857] shadow-sm hover:border-[#86EFAC] hover:bg-[#DCFCE7] hover:text-[#065F46] [&>svg]:text-[#059669]"
                                 >
                                   <BarChart3 className="h-3.5 w-3.5" />
                                   Kết quả

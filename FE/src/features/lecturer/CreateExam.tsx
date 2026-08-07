@@ -66,8 +66,11 @@ import {
 import { toast } from "sonner";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
 import { useQuestionAnswerState } from "./hooks/useQuestionAnswerState";
+import { useQuestionTopics } from "./hooks/useQuestionTopics";
 import { FillBlankGuide, QuestionAnswerEditor } from "./components/QuestionAnswerEditor";
+import { QuestionTopicDialog } from "./components/QuestionTopicDialog";
 import { buildQuestionPayload } from "./question-editor-persistence";
+import { findMostSimilarQuestion } from "./question-editor-utils";
 import {
   getNumericInputError,
   parseNumericInput,
@@ -77,6 +80,7 @@ import {
   COURSE_TERM_OPTIONS,
   formatCourseTerm,
   getAcademicYearOptions,
+  getCurrentAcademicTerm,
   type CourseTerm,
 } from "@/lib/course-term";
 import { cn } from "@/lib/utils";
@@ -156,18 +160,25 @@ export default function CreateExam() {
   const [manualExplanation, setManualExplanation] = useState("");
   const [manualDifficulty, setManualDifficulty] = useState("medium");
   const [manualTopicId, setManualTopicId] = useState("");
+  const manualTopics = useQuestionTopics({
+    courseId: form.course,
+    courses,
+    selectedTopicId: manualTopicId,
+    onSelectTopic: setManualTopicId,
+  });
   const [manualLearningObjective, setManualLearningObjective] = useState("");
   const [manualAiPrompt, setManualAiPrompt] = useState("");
   const [isManualAiGenerating, setIsManualAiGenerating] = useState(false);
+  const [manualAiSimilarityWarning, setManualAiSimilarityWarning] = useState("");
   const [courseComboboxOpen, setCourseComboboxOpen] = useState(false);
   const [courseSearch, setCourseSearch] = useState("");
   const skipNextCourseFocusRef = useRef(false);
-  // Default both course filters to "all" rather than guessing the current
-  // academic year/term from today's date: a course tagged for a different
-  // term/year would otherwise silently disappear from the list even though
-  // it was loaded fine, with no visible hint that a filter is hiding it.
-  const [courseAcademicYearFilter, setCourseAcademicYearFilter] = useState("all");
-  const [courseTermFilter, setCourseTermFilter] = useState<CourseTerm | "all">("all");
+  const [courseAcademicYearFilter, setCourseAcademicYearFilter] = useState(
+    () => getCurrentAcademicTerm().academicYear,
+  );
+  const [courseTermFilter, setCourseTermFilter] = useState<CourseTerm | "all">(
+    () => getCurrentAcademicTerm().term,
+  );
   const isSingleAttempt = form.maxAttempts === "1";
   const hasUnlimitedAttempts = form.maxAttempts === "unlimited";
   const proctoringForcedOff = hasUnlimitedAttempts || form.unlimitedTime;
@@ -489,7 +500,7 @@ export default function CreateExam() {
 
   const addManualQuestion = () => {
     if (!manualQuestionContent.trim()) {
-      toast.error("Question text is required.");
+      toast.error("Vui lòng nhập nội dung câu hỏi.");
       return;
     }
 
@@ -498,7 +509,7 @@ export default function CreateExam() {
       ["multiple_choice", "matching", "ordering", "find_error"].includes(manualQuestionType) &&
       filledOptions.length < 2
     ) {
-      toast.error("At least two options or items are required.");
+      toast.error("Cần ít nhất hai lựa chọn hoặc mục.");
       return;
     }
     if (
@@ -507,13 +518,13 @@ export default function CreateExam() {
     ) {
       toast.error(
         manualQuestionType === "find_error"
-          ? "Select the line that contains the error."
-          : "Select at least one correct answer.",
+          ? "Vui lòng chọn dòng chứa lỗi."
+          : "Vui lòng chọn ít nhất một đáp án đúng.",
       );
       return;
     }
     if (manualQuestionType === "essay" && !manualEssayRubric.trim()) {
-      toast.error("A grading rubric is required for essay questions.");
+      toast.error("Câu hỏi tự luận cần có tiêu chí chấm điểm.");
       return;
     }
 
@@ -627,26 +638,28 @@ export default function CreateExam() {
   const handleManualAiGenerate = async () => {
     if (!manualAiPrompt.trim()) return;
     setIsManualAiGenerating(true);
+    setManualAiSimilarityWarning("");
     try {
       // Uses the same single-question generator (and prompt, which has proper
       // MATCHING/ORDERING/FILL_IN_BLANK instructions) as /lecturer/question-editor,
       // instead of the batch exam-questions generator whose prompt only covers
       // MULTIPLE_CHOICE/TRUE_FALSE/SHORT_ANSWER/ESSAY.
+      const backendType = mapQuestionTypeToAiApi(
+        manualQuestionType === "multiple_choice"
+          ? "multiple-choice"
+          : manualQuestionType === "true_false"
+            ? "true-false"
+            : manualQuestionType === "fill_blank"
+              ? "fill-blank"
+              : manualQuestionType === "find_error"
+                ? "find-error"
+                : manualQuestionType === "essay"
+                  ? "short-answer"
+                  : manualQuestionType,
+      );
       const generated = await api.aiGenerateQuestion({
         prompt: manualAiPrompt,
-        questionType: mapQuestionTypeToAiApi(
-          manualQuestionType === "multiple_choice"
-            ? "multiple-choice"
-            : manualQuestionType === "true_false"
-              ? "true-false"
-              : manualQuestionType === "fill_blank"
-                ? "fill-blank"
-                : manualQuestionType === "find_error"
-                  ? "find-error"
-                  : manualQuestionType === "essay"
-                    ? "short-answer"
-                    : manualQuestionType,
-        ),
+        questionType: backendType,
         difficulty: difficultyOptionToValue(manualDifficulty),
         language: "vi",
         courseName: courses.find((course) => course.id === form.course)?.name,
@@ -659,12 +672,28 @@ export default function CreateExam() {
           source: "create_exam_manual_ai",
         },
       });
-      if (!generated?.content) throw new Error("AI did not return a question.");
+      if (!generated?.content) throw new Error("AI không trả về câu hỏi.");
+
+      // Mirrors the near-duplicate guard in /lecturer/question-editor
+      // (useQuestionAiGeneration.generate) so a manually-created exam
+      // question gets the same duplicate warning as the question bank.
+      const duplicate = await findMostSimilarQuestion({
+        courseId: form.course,
+        backendType,
+        generatedText: `${generated.content} ${generated.options ? Object.values(generated.options).join(" ") : ""}`,
+      });
+      if (duplicate && duplicate.similarity >= 0.8) {
+        const message = `Câu hỏi AI tạo quá giống câu hỏi hiện có (${Math.round(duplicate.similarity * 100)}%). Hãy đổi yêu cầu hoặc tạo lại.`;
+        setManualAiSimilarityWarning(message);
+        toast.error(message);
+        return;
+      }
+
       applyGeneratedQuestionToManualForm(generated);
-      toast.success("AI generated a draft question. Review it before adding.");
+      toast.success("AI đã tạo bản nháp câu hỏi. Hãy xem lại trước khi thêm.");
     } catch (error: any) {
       console.error("Manual AI generation failed:", error);
-      toast.error(error.message || "AI generation failed.");
+      toast.error(error.message || "Tạo nội dung bằng AI thất bại.");
     } finally {
       setIsManualAiGenerating(false);
     }
@@ -707,7 +736,7 @@ export default function CreateExam() {
         }
 
       if (composedQuestionCount === 0) {
-        toast.error("Please add at least one question from any source.");
+        toast.error("Vui lòng thêm ít nhất một câu hỏi từ bất kỳ nguồn nào.");
         return;
       }
 
@@ -858,7 +887,7 @@ export default function CreateExam() {
       setCreated(true);
     } catch (error: any) {
       console.error("Failed to create exam:", error);
-      toast.error(error.message || "Failed to create exam");
+      toast.error(error.message || "Không thể tạo bài thi");
     } finally {
       setIsCreating(false);
     }
@@ -900,12 +929,12 @@ export default function CreateExam() {
       });
       setAiGeneratedQuestions(result.questions);
       toast.success(
-        `Successfully generated ${result.questions.length} questions! Review them in the preview step.`,
+        `Đã tạo thành công ${result.questions.length} câu hỏi! Hãy xem lại ở bước xem trước.`,
       );
     } catch (error: any) {
       console.error("AI generation failed:", error);
       toast.error(
-        "AI generation failed: " + (error.message || "Unknown error"),
+        "Tạo nội dung bằng AI thất bại: " + (error.message || "Lỗi không xác định"),
       );
     } finally {
       setIsAiGenerating(false);
@@ -914,7 +943,7 @@ export default function CreateExam() {
 
   const handleImportExtract = async () => {
     if (!docFile) {
-      toast.error("Please choose a document first.");
+      toast.error("Vui lòng chọn tài liệu trước.");
       return;
     }
 
@@ -937,18 +966,18 @@ export default function CreateExam() {
         rawText = extracted.value || "";
       } else if (isDoc) {
         throw new Error(
-          "Legacy .doc is not supported yet. Please save as .docx and try again.",
+          "Chưa hỗ trợ định dạng .doc cũ. Vui lòng lưu lại dưới dạng .docx và thử lại.",
         );
       } else {
         throw new Error(
-          "Unsupported file type. Please use .txt, .md, .csv, .json, or .docx.",
+          "Định dạng tệp không được hỗ trợ. Vui lòng dùng .txt, .md, .csv, .json hoặc .docx.",
         );
       }
 
       const normalized = rawText.replace(/\s+/g, " ").trim();
 
       if (!normalized) {
-        throw new Error("The selected file is empty.");
+        throw new Error("Tệp đã chọn đang trống.");
       }
 
       const prompt = [
@@ -981,11 +1010,11 @@ export default function CreateExam() {
 
       setAiGeneratedQuestions(result.questions || []);
       toast.success(
-        `Extracted and generated ${result.questions?.length || 0} questions from document.`,
+        `Đã trích xuất và tạo ${result.questions?.length || 0} câu hỏi từ tài liệu.`,
       );
     } catch (error: any) {
       console.error("Import extraction failed:", error);
-      toast.error("AI extract failed: " + (error.message || "Unknown error"));
+      toast.error("Trích xuất AI thất bại: " + (error.message || "Lỗi không xác định"));
     } finally {
       setIsStandardizing(false);
     }
@@ -1006,7 +1035,7 @@ export default function CreateExam() {
             <CheckCircle2 className="h-10 w-10 text-green-600" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold mb-1">Exam Created!</h2>
+            <h2 className="text-2xl font-bold mb-1">Đã tạo bài thi!</h2>
             <p className="text-muted-foreground">
               <strong>"{form.title}"</strong> has been saved and is ready to be
               configured.
@@ -1642,7 +1671,7 @@ export default function CreateExam() {
                     <span className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition group-hover:scale-105">
                       <Plus className="h-10 w-10" />
                     </span>
-                    <span className="text-lg font-semibold">Add question source</span>
+                    <span className="text-lg font-semibold">Thêm nguồn câu hỏi</span>
                     <span className="max-w-md text-sm text-muted-foreground">
                       Enter questions, select exact bank questions, or randomize from topic pools.
                     </span>
@@ -1706,7 +1735,7 @@ export default function CreateExam() {
                             <CardHeader className="pb-3">
                               <div className="flex items-center gap-2">
                                 <Sparkles className="h-5 w-5 text-primary" />
-                                <CardTitle className="text-base text-primary">AI Assistant</CardTitle>
+                                <CardTitle className="text-base text-primary">Trợ lý AI</CardTitle>
                               </div>
                               <CardDescription>Tạo bản nháp, sau đó xem lại và chỉnh sửa trước khi thêm vào bài thi.</CardDescription>
                             </CardHeader>
@@ -1733,6 +1762,9 @@ export default function CreateExam() {
                               </div>
                               {!form.course && (
                                 <p className="text-xs text-amber-600">Chọn học phần ở phần Thông tin cơ bản để bật tạo câu hỏi bằng AI.</p>
+                              )}
+                              {manualAiSimilarityWarning && (
+                                <p className="text-xs text-red-600 font-medium">{manualAiSimilarityWarning}</p>
                               )}
                             </CardContent>
                           </Card>
@@ -1837,17 +1869,17 @@ export default function CreateExam() {
                                     note: "Chủ đề càng rõ thì việc sinh đề và thống kê sau bài thi càng chính xác.",
                                   }} />
                                 </div>
-                                <Select value={manualTopicId || "__none__"} onValueChange={(value) => setManualTopicId(value === "__none__" ? "" : value)}>
-                                  <SelectTrigger><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none__">Chưa gắn chủ đề</SelectItem>
-                                    {bankTopics.filter((topic) => topic.topicId).map((topic) => (
-                                      <SelectItem key={topic.topicId} value={topic.topicId}>
-                                        {topic.topic}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => manualTopics.setShowTopicDialog(true)}
+                                  disabled={!form.course}
+                                  className="w-full justify-start text-left font-normal"
+                                >
+                                  {manualTopicId
+                                    ? manualTopics.availableTopics.find((t) => t.id === manualTopicId)?.name || "Chủ đề không xác định"
+                                    : "Chọn hoặc tạo chủ đề..."}
+                                </Button>
                               </div>
                               <div className="space-y-1.5">
                                 <Label className="text-xs text-muted-foreground">Mục tiêu học tập</Label>
@@ -2075,7 +2107,7 @@ export default function CreateExam() {
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
-                        <Label>Number of Questions</Label>
+                        <Label>Số lượng câu hỏi</Label>
                         <Input
                           type="number"
                           value={form.questionCount}
@@ -2106,7 +2138,7 @@ export default function CreateExam() {
                       </div>
                       <div>
                         <div className="inline-flex items-center gap-1.5">
-                          <Label>Question Type Mix</Label>
+                          <Label>Phân bổ dạng câu hỏi</Label>
                           <ContextHelp content="Phân bổ dạng câu hỏi trong đề, dùng để kiểm soát cấu trúc đề thi." />
                         </div>
                         <Select
@@ -2141,9 +2173,9 @@ export default function CreateExam() {
                             <SelectItem value="mixed">
                               Mixed (all levels)
                             </SelectItem>
-                            <SelectItem value="easy">Easy</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="hard">Hard</SelectItem>
+                            <SelectItem value="easy">Dễ</SelectItem>
+                            <SelectItem value="medium">Trung bình</SelectItem>
+                            <SelectItem value="hard">Khó</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2375,7 +2407,7 @@ export default function CreateExam() {
                       <div className="space-y-2 p-4 border rounded-lg bg-blue-50/30 animate-in slide-in-from-top-4">
                         <div className="flex justify-between text-[11px] text-blue-700 font-bold uppercase tracking-wider">
                           <span>AI Agent: Extracting and generating...</span>
-                          <span>Processing</span>
+                          <span>Đang xử lý</span>
                         </div>
                         <Progress value={65} className="h-2 bg-blue-100" />
                       </div>
@@ -2433,7 +2465,7 @@ export default function CreateExam() {
                         </Label>
                         <Textarea
                           id="ai-prompt"
-                          placeholder="Example: Midterm for Computer Networks. Focus on OSI layers, TCP/UDP differences, and subnetting."
+                          placeholder="Ví dụ: Kiểm tra giữa kỳ môn Mạng máy tính. Tập trung vào các lớp OSI, sự khác biệt TCP/UDP và chia mạng con."
                           value={form.aiPrompt}
                           onChange={(e) => set("aiPrompt", e.target.value)}
                           rows={4}
@@ -2443,7 +2475,7 @@ export default function CreateExam() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Question Count</Label>
+                          <Label>Số lượng câu hỏi</Label>
                           <Input
                             type="number"
                             min={1}
@@ -2473,7 +2505,7 @@ export default function CreateExam() {
                         </div>
                         <div className="space-y-2">
                           <div className="inline-flex items-center gap-1.5">
-                            <Label>Question Type Mix</Label>
+                            <Label>Phân bổ dạng câu hỏi</Label>
                             <ContextHelp content="Phân bổ dạng câu hỏi trong đề, dùng để kiểm soát cấu trúc đề thi." />
                           </div>
                           <Select
@@ -2504,9 +2536,9 @@ export default function CreateExam() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="easy">Easy</SelectItem>
-                              <SelectItem value="medium">Medium</SelectItem>
-                              <SelectItem value="hard">Hard</SelectItem>
+                              <SelectItem value="easy">Dễ</SelectItem>
+                              <SelectItem value="medium">Trung bình</SelectItem>
+                              <SelectItem value="hard">Khó</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -2703,6 +2735,24 @@ export default function CreateExam() {
           )}
         </div>
       </div>
+
+      <QuestionTopicDialog
+        open={manualTopics.showTopicDialog}
+        selectedTopicId={manualTopicId}
+        newTopicName={manualTopics.newTopicName}
+        topicSearch={manualTopics.topicSearch}
+        topics={manualTopics.filteredTopics}
+        suggestions={manualTopics.topicSuggestions}
+        checkingSimilarity={manualTopics.checkingTopicSimilarity}
+        creatingTopic={manualTopics.creatingTopic}
+        checkMessage={manualTopics.topicCheckMessage}
+        onNewTopicNameChange={manualTopics.setNewTopicName}
+        onTopicSearchChange={manualTopics.setTopicSearch}
+        onClose={manualTopics.closeTopicDialog}
+        onSelect={manualTopics.selectTopic}
+        onCreate={manualTopics.createTopic}
+        onCheckSimilarity={manualTopics.checkSimilarTopics}
+      />
     </DashboardLayout>
   );
 }

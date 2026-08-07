@@ -196,7 +196,7 @@ function AiAssistantCard() {
             <Sparkles className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h3 className="font-bold text-foreground">AI Assistant</h3>
+            <h3 className="font-bold text-foreground">Trợ lý AI</h3>
             <p className="text-xs text-muted-foreground">Tạo câu hỏi với AI</p>
           </div>
         </div>
@@ -544,7 +544,7 @@ export default function LecturerDashboard() {
                   <div>
                     <h3 className="font-bold text-foreground">
                       <HelpedTitle help="AI hỗ trợ tạo bản nháp câu hỏi từ tài liệu hoặc gợi ý, giảng viên vẫn cần xem xét trước khi sử dụng.">
-                        AI Assistant
+                        Trợ lý AI
                       </HelpedTitle>
                     </h3>
                     <p className="text-xs text-muted-foreground">

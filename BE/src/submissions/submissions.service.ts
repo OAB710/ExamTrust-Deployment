@@ -8,6 +8,7 @@ import { PaginationDto, buildPaginatedResult } from '../common/dto/pagination.dt
 import { SubmissionsEventsService } from './submissions-events.service';
 import { QueueService } from '../queue/queue.service';
 import { ProctoringEvidenceService } from './proctoring-evidence.service';
+import { AiService } from '../ai/ai.service';
 
 type AutosaveAnswerMeta = {
   questionId: string;
@@ -30,7 +31,18 @@ type SnapshotQuestion = {
   type: string;
   stem: string;
   answerKey: any;
+  explanation?: string | null;
   assignedScore: number;
+};
+
+type DuringReviewFeedback = {
+  questionId: string;
+  unavailable?: boolean;
+  pointsAwarded?: number;
+  maxPoints?: number;
+  isCorrect?: boolean;
+  correctAnswer?: any;
+  explanation?: string;
 };
 
 type IntegrityCaseConfidence = 'High' | 'Medium' | 'Low';
@@ -101,6 +113,7 @@ export class SubmissionsService {
     private submissionsEvents: SubmissionsEventsService,
     private readonly accessPolicy: AccessPolicyService,
     private readonly queueService: QueueService,
+    private readonly aiService: AiService,
   ) {}
 
   private async getLatestExamSnapshotId(examId: string): Promise<string | null> {
@@ -179,27 +192,41 @@ export class SubmissionsService {
 
   sanitizeStudentSubmissionView(submission: any) {
     const resultsPublished = Boolean(submission?.exam?.resultsPublishedAt);
+    const reviewSettings = submission?.exam?.reviewSettings ?? submission?.exam?.settings?.reviewSettings;
+    const afterReview = reviewSettings?.enabled && reviewSettings?.phases?.after
+      ? reviewSettings.phases.after
+      : null;
+    const canShowScore = resultsPublished && (afterReview ? Boolean(afterReview.showScore) : true);
+    const canShowAnswers = resultsPublished && (afterReview ? Boolean(afterReview.showAnswers) : true);
+    const canShowFeedback = resultsPublished && (afterReview ? Boolean(afterReview.showFeedback) : true);
     const answers = Array.isArray(submission?.answers) ? submission.answers.map((answer: any) => {
       const snapshot = this.parseJsonValue(answer?.questionSnapshot?.payload, {});
       const question = answer?.question || {};
       const { correctAnswer: _correctAnswer, explanation: _explanation, ...safeQuestion } = question;
       const answerKey = snapshot.answerKey ?? snapshot.correctAnswer;
+      const autoGradable = this.isAutoGradable(
+        String(snapshot.type ?? question.type ?? ''),
+        answerKey,
+      );
+      const manualGradeAvailable = Boolean(answer?.manualGradedAt);
+      const showAnswerReview = canShowAnswers && autoGradable;
+      const showScoreReview = canShowScore && (autoGradable || manualGradeAvailable);
+      const showFeedbackReview = canShowFeedback && (autoGradable || manualGradeAvailable);
 
       return {
         ...answer,
         questionSnapshot: undefined,
-        ...(resultsPublished ? {} : {
-          isCorrect: undefined,
-          pointsAwarded: undefined,
-          manualGradedAt: undefined,
-          feedback: undefined,
-        }),
+        ...(showAnswerReview ? {} : { isCorrect: undefined }),
+        ...(showScoreReview ? {} : { pointsAwarded: undefined, manualGradedAt: undefined }),
+        ...(showFeedbackReview ? {} : { feedback: undefined }),
         question: {
           ...safeQuestion,
           content: snapshot.stem ?? snapshot.content ?? safeQuestion.content,
           options: snapshot.options ?? safeQuestion.options,
-          ...(resultsPublished && typeof answerKey !== 'undefined' ? { correctAnswer: answerKey } : {}),
-          ...(resultsPublished && typeof snapshot.explanation !== 'undefined' ? { explanation: snapshot.explanation } : {}),
+          ...(showAnswerReview && typeof answerKey !== 'undefined' ? { correctAnswer: answerKey } : {}),
+          ...(showFeedbackReview && autoGradable && typeof snapshot.explanation !== 'undefined'
+            ? { explanation: snapshot.explanation }
+            : {}),
         },
       };
     }) : [];
@@ -212,9 +239,59 @@ export class SubmissionsService {
     return {
       ...submission,
       answers,
-      ...(resultsPublished
+      ...(canShowScore
         ? { academicScore: submission.score, adjustmentTotal: Number(adjustmentTotal.toFixed(2)), score: adjustedScore }
         : { score: null, gradedAt: null }),
+    };
+  }
+
+  private getDuringReviewSettings(reviewSettings: any) {
+    const during = reviewSettings?.enabled && reviewSettings?.phases?.during;
+    return {
+      enabled: Boolean(during),
+      showScore: Boolean(during?.showScore),
+      showAnswers: Boolean(during?.showAnswers),
+      showFeedback: Boolean(during?.showFeedback),
+    };
+  }
+
+  private buildDuringReviewFeedback(
+    question: SnapshotQuestion,
+    answer: any,
+    reviewSettings: any,
+  ): DuringReviewFeedback | null {
+    const policy = this.getDuringReviewSettings(reviewSettings);
+    if (!policy.enabled) return null;
+
+    if (!this.isAutoGradable(question.type, question.answerKey)) {
+      return { questionId: question.questionId, unavailable: true };
+    }
+
+    const isCorrect = this.compareAnswers(answer, question.answerKey, question.type);
+    const feedback: DuringReviewFeedback = { questionId: question.questionId };
+    if (policy.showScore) {
+      feedback.pointsAwarded = isCorrect ? question.assignedScore : 0;
+      feedback.maxPoints = question.assignedScore;
+    }
+    if (policy.showAnswers) {
+      feedback.isCorrect = isCorrect;
+      feedback.correctAnswer = question.answerKey;
+    }
+    if (policy.showFeedback && question.explanation) {
+      feedback.explanation = question.explanation;
+    }
+    return feedback;
+  }
+
+  private sanitizeExamInstanceForStudent(instance: any, webcamEvidencePolicy?: any) {
+    if (!instance) return instance;
+    const snapshotPayload = this.parseJsonValue(instance.snapshotPayload, {});
+    return {
+      ...instance,
+      snapshotPayload: {
+        webcamEvidencePolicy:
+          snapshotPayload?.webcamEvidencePolicy ?? webcamEvidencePolicy ?? null,
+      },
     };
   }
 
@@ -252,11 +329,11 @@ export class SubmissionsService {
   private buildIntegrityLogReason(eventType: string, count: number): IntegrityCase['reasons'][number] | null {
     const event = String(eventType || '').toLowerCase();
     const labels: Record<string, string> = {
-      paste: 'Paste event detected',
-      copy: 'Copy event detected',
-      fullscreen_exit: 'Fullscreen exit detected',
-      window_blur: 'Window focus loss detected',
-      face_not_detected: 'Face not detected event recorded',
+      paste: 'Phát hiện hành vi dán nội dung (paste)',
+      copy: 'Phát hiện hành vi sao chép nội dung (copy)',
+      fullscreen_exit: 'Phát hiện thoát khỏi chế độ toàn màn hình',
+      window_blur: 'Phát hiện mất tiêu điểm cửa sổ (chuyển sang ứng dụng khác)',
+      face_not_detected: 'Ghi nhận sự kiện không phát hiện được khuôn mặt',
     };
 
     if (!labels[event]) return null;
@@ -265,7 +342,7 @@ export class SubmissionsService {
       type: this.isTimingAnomalyLog(event) ? 'timing' : 'behavior',
       description: labels[event],
       weight: Math.min(1, this.getIntegrityLogWeight(event) / 100),
-      evidence: `${count} ${count === 1 ? 'event' : 'events'} recorded`,
+      evidence: `Đã ghi nhận ${count} sự kiện`,
     };
   }
 
@@ -312,7 +389,7 @@ export class SubmissionsService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     const settings: any = exam.settings || {};
@@ -326,12 +403,12 @@ export class SubmissionsService {
     const webcamPolicyInput = settings.webcamEvidencePolicy;
     const webcamEvidenceEnabled = Boolean(webcamPolicyInput?.enabled) && String(webcamPolicyInput?.examProfile || '').toUpperCase() === 'THEORY';
     if (webcamEvidenceEnabled && !startExamDto.webcamReady) {
-      throw new ForbiddenException('This exam requires an active webcam and explicit consent before it can start.');
+      throw new ForbiddenException('Bài thi này yêu cầu bật webcam và đồng ý giám sát trước khi bắt đầu.');
     }
     const ua = String(context?.userAgent || '');
     const isMobileOrTablet = Boolean(startExamDto.isMobileOrTablet) || /android|iphone|ipad|ipod|mobile|tablet|silk|kindle/i.test(ua);
     if (requiresDesktop && isMobileOrTablet) {
-      throw new ForbiddenException('This proctored exam requires a laptop or desktop computer.');
+      throw new ForbiddenException('Bài thi có giám sát này yêu cầu sử dụng máy tính (laptop hoặc desktop).');
     }
 
     // Check if student is enrolled
@@ -344,22 +421,22 @@ export class SubmissionsService {
     });
 
     if (!enrollment) {
-      throw new ForbiddenException('You are not enrolled in this course');
+      throw new ForbiddenException('Bạn chưa được ghi danh vào khóa học này');
     }
 
     // Check if exam is available
     if (exam.status !== 'PUBLISHED' && exam.status !== 'ONGOING') {
-      throw new ForbiddenException('Exam is not available');
+      throw new ForbiddenException('Bài thi hiện không khả dụng');
     }
 
     const now = new Date();
     if (exam.startTime && exam.startTime > now) {
-      throw new ForbiddenException('Exam has not started yet');
+      throw new ForbiddenException('Bài thi chưa bắt đầu');
     }
 
     const allowLateSubmission = Boolean((exam.settings as any)?.allowLateSubmission);
     if (!allowLateSubmission && exam.endTime && exam.endTime < now) {
-      throw new ForbiddenException('Exam has ended');
+      throw new ForbiddenException('Bài thi đã kết thúc');
     }
 
     const latestSnapshot = await this.prisma.examSnapshot.findFirst({
@@ -376,7 +453,7 @@ export class SubmissionsService {
     });
 
     if (!latestSnapshot || !Array.isArray(latestSnapshot.questions) || latestSnapshot.questions.length === 0) {
-      throw new ConflictException('Exam snapshot is unavailable. Please ask the instructor to republish the exam.');
+      throw new ConflictException('Không có bản lưu đề thi. Vui lòng yêu cầu giảng viên công bố lại bài thi.');
     }
 
     // Check for in-progress submission (idempotency: return existing IN_PROGRESS)
@@ -441,7 +518,13 @@ export class SubmissionsService {
         });
       }
 
-      return updatedSubmission;
+      return {
+        ...updatedSubmission,
+        examInstance: this.sanitizeExamInstanceForStudent(
+          updatedSubmission.examInstance,
+          ProctoringEvidenceService.normalizePolicy(webcamPolicyInput),
+        ),
+      };
     }
 
     const examSettings: any = exam.settings || {};
@@ -559,7 +642,7 @@ export class SubmissionsService {
 
     if (maxAttempts !== null && nextAttemptNo > maxAttempts) {
       throw new ConflictException(
-        `Attempt limit reached (${lastAttemptNo}/${maxAttempts}).`,
+        `Đã đạt giới hạn số lần làm bài (${lastAttemptNo}/${maxAttempts}).`,
       );
     }
 
@@ -611,7 +694,7 @@ export class SubmissionsService {
     });
 
     if (!startedSubmission) {
-      throw new ConflictException('Failed to create exam submission');
+      throw new ConflictException('Không thể tạo lượt làm bài');
     }
 
     // Practice/unlimited exams do not create integrity records.
@@ -625,7 +708,12 @@ export class SubmissionsService {
 
 
 
-    return { ...startedSubmission, proctoringEnabled: requiresDesktop, devicePolicy: requiresDesktop ? 'DESKTOP_ONLY' : 'ANY' };
+    return {
+      ...startedSubmission,
+      examInstance: this.sanitizeExamInstanceForStudent(startedSubmission.examInstance),
+      proctoringEnabled: requiresDesktop,
+      devicePolicy: requiresDesktop ? 'DESKTOP_ONLY' : 'ANY',
+    };
   }
 
   async submitExam(
@@ -677,22 +765,22 @@ export class SubmissionsService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
     if (submission.studentId !== studentId) {
-      throw new ForbiddenException('Not authorized');
+      throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
     }
 
     if (submission.status === 'SUBMITTED' || submission.status === 'GRADED') {
       if (idempotencyKey && submission.submitIdempotencyKey === idempotencyKey) {
         return this.buildSubmitResponse(submission, true);
       }
-      throw new BadRequestException('Exam already submitted');
+      throw new BadRequestException('Bài thi đã được nộp');
     }
 
     if (submission.status === 'SUBMITTING') {
-      throw new ConflictException('Submission is being finalized');
+      throw new ConflictException('Lượt làm bài đang được xử lý hoàn tất');
     }
 
     const submitSettings: any = submission.exam.settings || {};
@@ -704,7 +792,7 @@ export class SubmissionsService {
     // Ignore integrity payloads for practice/unlimited attempts rather than creating audit rows.
     const logs = submitProctoringEnabled ? (submitExamDto.logs || []) : [];
     if (logs.length > 1000) {
-      throw new BadRequestException('Too many log entries');
+      throw new BadRequestException('Quá nhiều bản ghi log');
     }
 
     let totalLogChars = 0;
@@ -712,11 +800,11 @@ export class SubmissionsService {
       const detailsStr = l.details ? String(l.details) : '';
       totalLogChars += detailsStr.length;
       if (detailsStr.length > 2000) {
-        throw new BadRequestException('Log entry too large');
+        throw new BadRequestException('Bản ghi log quá lớn');
       }
     }
     if (totalLogChars > 200000) {
-      throw new BadRequestException('Proctoring logs payload too large');
+      throw new BadRequestException('Dữ liệu log giám sát quá lớn');
     }
 
     // After the deadline, ignore client-supplied changes and finalize only the
@@ -758,11 +846,11 @@ export class SubmissionsService {
         });
 
         if (!current) {
-          throw new NotFoundException('Submission not found');
+          throw new NotFoundException('Không tìm thấy lượt làm bài');
         }
 
         if (current.studentId !== studentId) {
-          throw new ForbiddenException('Not authorized');
+          throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
         }
 
         if ((current.status === 'SUBMITTED' || current.status === 'GRADED') && idempotencyKey && current.submitIdempotencyKey === idempotencyKey) {
@@ -778,10 +866,10 @@ export class SubmissionsService {
         }
 
         if (current.status === 'SUBMITTING') {
-          throw new ConflictException('Submission is being finalized');
+          throw new ConflictException('Lượt làm bài đang được xử lý hoàn tất');
         }
 
-        throw new BadRequestException('Exam already submitted');
+        throw new BadRequestException('Bài thi đã được nộp');
       }
 
       const lockedSubmission = await tx.examSubmission.findUnique({
@@ -827,12 +915,12 @@ export class SubmissionsService {
       });
 
       if (!lockedSubmission) {
-        throw new NotFoundException('Submission not found');
+        throw new NotFoundException('Không tìm thấy lượt làm bài');
       }
 
       const examQuestions = this.mapSnapshotQuestions(lockedSubmission.examSnapshot?.questions || []);
       if (!lockedSubmission.examSnapshotId || examQuestions.length === 0) {
-        throw new ConflictException('Submission snapshot is unavailable. Please restart the exam from a valid published snapshot.');
+        throw new ConflictException('Không có bản lưu lượt làm bài hợp lệ. Vui lòng bắt đầu lại bài thi từ bản đã công bố.');
       }
 
       const validQuestions = new Map<string, SnapshotQuestion>(
@@ -1087,7 +1175,13 @@ export class SubmissionsService {
     submissionId: string,
     payload: AutosaveExamDto,
     studentId: string,
-  ): Promise<{ success: boolean; count: number; skipped: number; serverVersion: number }> {
+  ): Promise<{
+    success: boolean;
+    count: number;
+    skipped: number;
+    serverVersion: number;
+    reviewFeedback?: DuringReviewFeedback[];
+  }> {
     const answers = Array.isArray(payload?.answers) ? payload.answers : [];
     const clientBatchId = String(payload?.clientBatchId || '').trim() || null;
 
@@ -1107,6 +1201,8 @@ export class SubmissionsService {
                 endTime: true,
                 timeLimitMinutes: true,
                 duration: true,
+                reviewSettings: true,
+                settings: true,
               },
             },
             examSnapshot: {
@@ -1115,7 +1211,9 @@ export class SubmissionsService {
                   select: {
                     questionId: true,
                     questionVersionId: true,
-                    questionSnapshotId: true,
+                  questionSnapshotId: true,
+                  payload: true,
+                  questionSnapshot: { select: { id: true, payload: true } },
                   },
                 },
               },
@@ -1124,28 +1222,30 @@ export class SubmissionsService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
     if (submission.studentId !== studentId) {
-      throw new ForbiddenException('Not authorized');
+      throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
     }
 
     if (submission.status !== 'IN_PROGRESS') {
-      throw new BadRequestException('Exam already submitted, cannot autosave');
+      throw new BadRequestException('Bài thi đã được nộp, không thể tự động lưu');
     }
 
     const deadline = this.resolveSubmissionDeadline(submission);
     if (deadline && deadline.getTime() <= Date.now()) {
-      throw new ConflictException('Exam time has expired; answers can no longer be changed');
+      throw new ConflictException('Đã hết thời gian làm bài; không thể thay đổi câu trả lời');
     }
 
     const snapshotQuestions = submission.examSnapshot?.questions || [];
     if (!submission.examSnapshotId || snapshotQuestions.length === 0) {
-      throw new ConflictException('Submission snapshot is unavailable');
+      throw new ConflictException('Không có bản lưu lượt làm bài');
     }
 
-    const validQuestionIds = new Set(snapshotQuestions.map((eq) => eq.questionId));
+    const examQuestions = this.mapSnapshotQuestions(snapshotQuestions);
+    const questionById = new Map(examQuestions.map((question) => [question.questionId, question]));
+    const validQuestionIds = new Set(questionById.keys());
     const versionByQuestionId = new Map(
       snapshotQuestions.map((eq) => [eq.questionId, eq.questionVersionId || null]),
     );
@@ -1207,7 +1307,7 @@ export class SubmissionsService {
       });
 
       if (locked.count === 0) {
-        throw new BadRequestException('Exam already submitted, cannot autosave');
+        throw new BadRequestException('Bài thi đã được nộp, không thể tự động lưu');
       }
 
       const currentSubmission = await tx.examSubmission.findUnique({
@@ -1216,7 +1316,7 @@ export class SubmissionsService {
       });
 
       if (!currentSubmission || currentSubmission.status !== 'IN_PROGRESS') {
-        throw new BadRequestException('Exam already submitted, cannot autosave');
+        throw new BadRequestException('Bài thi đã được nộp, không thể tự động lưu');
       }
 
       const existingAnswers = await tx.submissionAnswer.findMany({
@@ -1300,10 +1400,28 @@ export class SubmissionsService {
         count: savedCount,
         skipped: normalizedAnswers.size - savedCount,
         serverVersion,
+        // Internal only: review feedback must be based on the answers that were
+        // actually persisted, never a stale answer from the same batch.
+        savedQuestionIds: changedAnswers.map((answer) => answer.questionId),
       };
     });
 
-    return result;
+    const reviewSettings = submission.exam.reviewSettings ?? (submission.exam.settings as any)?.reviewSettings;
+    const { savedQuestionIds = [], ...autosaveResult } = result;
+    const savedQuestionIdSet = new Set(savedQuestionIds);
+    const reviewFeedback = Array.from(normalizedAnswers.values())
+      .filter((answer) => savedQuestionIdSet.has(answer.questionId))
+      .map((answer) => {
+        const question = questionById.get(answer.questionId);
+        return question
+          ? this.buildDuringReviewFeedback(question, answer.answer, reviewSettings)
+          : null;
+      })
+      .filter((feedback): feedback is DuringReviewFeedback => Boolean(feedback));
+
+    return reviewFeedback.length > 0
+      ? { ...autosaveResult, reviewFeedback }
+      : autosaveResult;
   }
 
   async addLogs(
@@ -1325,11 +1443,11 @@ export class SubmissionsService {
       },
     });
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
     if (submission.studentId !== studentId) {
-      throw new ForbiddenException('Not authorized');
+      throw new ForbiddenException('Bạn không có quyền thực hiện thao tác này');
     }
 
     const integritySettings: any = submission.exam.settings || {};
@@ -1343,18 +1461,18 @@ export class SubmissionsService {
     // Validate logs payload (reuse same limits as submitExam)
     const entries = logs || [];
     if (entries.length > 1000) {
-      throw new BadRequestException('Too many log entries');
+      throw new BadRequestException('Quá nhiều bản ghi log');
     }
     let totalLogChars = 0;
     for (const l of entries) {
       const detailsStr = l.details ? String(l.details) : '';
       totalLogChars += detailsStr.length;
       if (detailsStr.length > 2000) {
-        throw new BadRequestException('Log entry too large');
+        throw new BadRequestException('Bản ghi log quá lớn');
       }
     }
     if (totalLogChars > 200000) {
-      throw new BadRequestException('Proctoring logs payload too large');
+      throw new BadRequestException('Dữ liệu log giám sát quá lớn');
     }
 
     // Persist proctoring aggregates and integrity logs
@@ -1624,17 +1742,17 @@ export class SubmissionsService {
       if (tabSwitchCount > 0) {
         reasons.push({
           type: 'behavior',
-          description: 'Tab switching detected',
+          description: 'Phát hiện hành vi chuyển tab',
           weight: Math.min(1, tabSwitchCount / 10),
-          evidence: `${tabSwitchCount} tab ${tabSwitchCount === 1 ? 'switch' : 'switches'} recorded`,
+          evidence: `Đã ghi nhận ${tabSwitchCount} lần chuyển tab`,
         });
       }
       if (mouseAnomalies > 0) {
         reasons.push({
           type: 'behavior',
-          description: 'Mouse anomaly pattern detected',
+          description: 'Phát hiện chuyển động chuột bất thường',
           weight: Math.min(1, mouseAnomalies / 10),
-          evidence: `${mouseAnomalies} mouse ${mouseAnomalies === 1 ? 'anomaly' : 'anomalies'} recorded`,
+          evidence: `Đã ghi nhận ${mouseAnomalies} lần chuyển động chuột bất thường`,
         });
       }
       for (const [event, count] of reasonMap.entries()) {
@@ -1682,9 +1800,9 @@ export class SubmissionsService {
           ? reasons
           : [{
               type: 'behavior',
-              description: 'Integrity event recorded',
+              description: 'Đã ghi nhận sự kiện liên quan đến toàn vẹn học thuật',
               weight: Math.min(1, riskScore / 100),
-              evidence: `${logs.length} ${logs.length === 1 ? 'event' : 'events'} recorded`,
+              evidence: `Đã ghi nhận ${logs.length} sự kiện`,
             }],
         timeAnomaly: hasTimingAnomaly,
         patternMatch: [],
@@ -1761,16 +1879,16 @@ export class SubmissionsService {
       where: { id: submissionId },
       select: { id: true, examId: true, score: true },
     });
-    if (!submission) throw new NotFoundException('Submission not found');
+    if (!submission) throw new NotFoundException('Không tìm thấy lượt làm bài');
     await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
 
     const note = dto.notes?.trim() || '';
     if (dto.status === 'CONFIRMED') {
       if (!dto.deductionPercent || ![10, 25, 50, 100].includes(dto.deductionPercent)) {
-        throw new BadRequestException('A valid integrity deduction percentage is required');
+        throw new BadRequestException('Cần nhập tỷ lệ trừ điểm vi phạm hợp lệ');
       }
       if (!note) {
-        throw new BadRequestException('A review note is required when applying an integrity penalty');
+        throw new BadRequestException('Cần ghi chú khi áp dụng hình thức trừ điểm vi phạm');
       }
     }
 
@@ -1902,7 +2020,7 @@ export class SubmissionsService {
       });
 
       if (!existing) {
-        throw new NotFoundException('Answer not found');
+        throw new NotFoundException('Không tìm thấy câu trả lời');
       }
 
       const snapshotPayload = this.parseJsonValue(existing.questionSnapshot?.payload, {});
@@ -1915,7 +2033,7 @@ export class SubmissionsService {
           1,
       );
       if (gradeDto.pointsAwarded > maxPoints) {
-        throw new BadRequestException(`Points awarded cannot exceed ${maxPoints}`);
+        throw new BadRequestException(`Điểm chấm không được vượt quá ${maxPoints}`);
       }
 
       const next = await tx.submissionAnswer.update({
@@ -1951,6 +2069,70 @@ export class SubmissionsService {
     return updated;
   }
 
+  private extractAnswerText(answer: any): string {
+    if (answer === null || typeof answer === 'undefined') return '';
+    if (typeof answer === 'string') return answer;
+    if (typeof answer === 'object') {
+      for (const key of ['answer', 'text', 'content', 'value']) {
+        if (key in answer && typeof answer[key] === 'string') return answer[key];
+      }
+    }
+    return '';
+  }
+
+  async suggestGradeForAnswer(submissionAnswerId: string, actor: { id: string; role?: string }) {
+    await this.accessPolicy.assertInstructorCanAccessSubmissionAnswer(submissionAnswerId, actor);
+
+    const answer = await this.prisma.submissionAnswer.findUnique({
+      where: { id: submissionAnswerId },
+      select: {
+        answer: true,
+        question: {
+          select: {
+            type: true,
+            content: true,
+            correctAnswer: true,
+            explanation: true,
+            points: true,
+            defaultPoints: true,
+          },
+        },
+        questionVersion: {
+          select: { stem: true, points: true },
+        },
+        questionSnapshot: {
+          select: { payload: true },
+        },
+      },
+    });
+
+    if (!answer) {
+      throw new NotFoundException('Không tìm thấy câu trả lời');
+    }
+
+    const snapshotPayload = this.parseJsonValue(answer.questionSnapshot?.payload, {});
+    const maxPoints = Number(
+      snapshotPayload.assignedScore ??
+      snapshotPayload.points ??
+      answer.questionVersion?.points ??
+        answer.question?.points ??
+        answer.question?.defaultPoints ??
+        1,
+    );
+    const questionText = answer.questionVersion?.stem || answer.question?.content || '';
+    const referenceAnswer = this.extractAnswerText(this.parseJsonValue(answer.question?.correctAnswer, null));
+    const studentAnswer = this.extractAnswerText(this.parseJsonValue(answer.answer, answer.answer));
+
+    return this.aiService.suggestEssayGrade({
+      questionText,
+      studentAnswer,
+      maxPoints,
+      referenceAnswer: referenceAnswer || undefined,
+      explanation: answer.question?.explanation || undefined,
+      context: { questionType: String(answer.question?.type || 'ESSAY') },
+    });
+  }
+
   async finalizeSubmission(submissionId: string): Promise<void> {
     const submission = await this.prisma.examSubmission.findUnique({
       where: { id: submissionId },
@@ -1958,7 +2140,7 @@ export class SubmissionsService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
     await this.prisma.examSubmission.update({
@@ -1979,7 +2161,7 @@ export class SubmissionsService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
     await this.prisma.examSubmission.update({
@@ -2056,7 +2238,7 @@ export class SubmissionsService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     const submissions = await this.prisma.examSubmission.findMany({
@@ -2208,7 +2390,7 @@ export class SubmissionsService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
     const manualAnswers = submission.answers
@@ -2279,18 +2461,18 @@ export class SubmissionsService {
     const amount = Number(dto.amount);
     const reason = String(dto.reason || '').trim();
     if (!Number.isFinite(amount) || amount === 0) {
-      throw new BadRequestException('Score adjustment amount must be non-zero');
+      throw new BadRequestException('Số điểm điều chỉnh phải khác 0');
     }
-    if (!reason) throw new BadRequestException('A reason is required for a score adjustment');
+    if (!reason) throw new BadRequestException('Cần nhập lý do khi điều chỉnh điểm');
 
     const submission = await this.prisma.examSubmission.findUnique({
       where: { id: submissionId },
       select: { id: true, examId: true, score: true, status: true },
     });
-    if (!submission) throw new NotFoundException('Submission not found');
+    if (!submission) throw new NotFoundException('Không tìm thấy lượt làm bài');
     await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
     if (!['SUBMITTED', 'GRADED', 'FLAGGED', 'FINALIZED'].includes(String(submission.status).toUpperCase())) {
-      throw new ConflictException('Score can only be adjusted after the attempt has been submitted');
+      throw new ConflictException('Chỉ có thể điều chỉnh điểm sau khi bài đã được nộp');
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -2310,19 +2492,19 @@ export class SubmissionsService {
     user: RequestUser,
   ) {
     const reason = String(dto.reason || '').trim();
-    if (!reason) throw new BadRequestException('A revocation reason is required');
+    if (!reason) throw new BadRequestException('Cần nhập lý do khi hủy điều chỉnh điểm');
 
     const submission = await this.prisma.examSubmission.findUnique({
       where: { id: submissionId },
       select: { id: true, examId: true, score: true },
     });
-    if (!submission) throw new NotFoundException('Submission not found');
+    if (!submission) throw new NotFoundException('Không tìm thấy lượt làm bài');
     await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
 
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.scoreAdjustment.findFirst({ where: { id: adjustmentId, submissionId } });
-      if (!existing) throw new NotFoundException('Score adjustment not found');
-      if (existing.revokedAt) throw new ConflictException('Score adjustment has already been revoked');
+      if (!existing) throw new NotFoundException('Không tìm thấy điều chỉnh điểm');
+      if (existing.revokedAt) throw new ConflictException('Điều chỉnh điểm này đã bị hủy trước đó');
 
       const revoked = await tx.scoreAdjustment.update({
         where: { id: adjustmentId },
@@ -2348,7 +2530,7 @@ export class SubmissionsService {
     }
 
     if (!status.canPublish) {
-      throw new BadRequestException('All manually graded answers must be scored before publishing results.');
+      throw new BadRequestException('Cần chấm điểm tất cả các câu tự luận trước khi công bố kết quả.');
     }
 
     const submissionIds = status.submissions.map((row) => row.submissionId);
@@ -2483,6 +2665,7 @@ export class SubmissionsService {
             : typeof merged.correctAnswer !== 'undefined'
               ? merged.correctAnswer
               : null,
+        explanation: typeof merged.explanation === 'string' ? merged.explanation : null,
         assignedScore,
       };
     });
@@ -2508,7 +2691,7 @@ export class SubmissionsService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     const [submissions, proctoringSessions, integrityLogs] = await Promise.all([
@@ -2725,7 +2908,7 @@ export class SubmissionsService {
     });
 
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     const [examQuestionRows, submissions, integrityLogs] = await Promise.all([
@@ -3232,34 +3415,34 @@ export class SubmissionsService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
     const role = String(user.role || '').toUpperCase();
     const isOwner = submission.studentId === user.id;
     const isLecturer = submission.exam.course?.lecturerId === user.id;
     if (role === 'STUDENT' && !isOwner) {
-      throw new ForbiddenException('You are not allowed to view this timeline');
+      throw new ForbiddenException('Bạn không có quyền xem dòng thời gian này');
     }
     if (role === 'LECTURER' && !isLecturer) {
-      throw new ForbiddenException('You are not allowed to view this timeline');
+      throw new ForbiddenException('Bạn không có quyền xem dòng thời gian này');
     }
 
     const eventTypeLabels: Record<string, string> = {
-      exam_start: 'Exam session started',
-      submit: 'Exam submitted',
-      answer: 'Answer interaction recorded',
-      tab_switch: 'Tab switch detected',
-      fullscreen_exit: 'Fullscreen exit detected',
-      window_blur: 'Window focus lost',
-      blur: 'Window focus lost',
-      focus: 'Window focus returned',
-      mouse_idle: 'Mouse idle anomaly recorded',
-      mouse_anomaly: 'Mouse anomaly recorded',
-      copy: 'Copy event detected',
-      paste: 'Paste event detected',
-      violation_escalation: 'Integrity violation escalation',
-      face_not_detected: 'Face not detected',
+      exam_start: 'Bắt đầu phiên làm bài',
+      submit: 'Đã nộp bài thi',
+      answer: 'Ghi nhận tương tác trả lời',
+      tab_switch: 'Phát hiện chuyển tab',
+      fullscreen_exit: 'Phát hiện thoát khỏi chế độ toàn màn hình',
+      window_blur: 'Mất tiêu điểm cửa sổ',
+      blur: 'Mất tiêu điểm cửa sổ',
+      focus: 'Đã quay lại cửa sổ làm bài',
+      mouse_idle: 'Ghi nhận bất thường chuột không hoạt động',
+      mouse_anomaly: 'Ghi nhận chuyển động chuột bất thường',
+      copy: 'Phát hiện hành vi sao chép nội dung',
+      paste: 'Phát hiện hành vi dán nội dung',
+      violation_escalation: 'Leo thang vi phạm toàn vẹn học thuật',
+      face_not_detected: 'Không phát hiện được khuôn mặt',
     };
 
     const severityFor = (eventType: string): 'normal' | 'warning' | 'critical' => {
@@ -3295,7 +3478,7 @@ export class SubmissionsService {
         id: `${submission.id}-started`,
         timestamp: new Date(submission.startedAt || submission.createdAt).toISOString(),
         type: 'exam_start',
-        description: 'Exam session started',
+        description: 'Bắt đầu phiên làm bài',
         severity: 'normal',
         detail: undefined,
       });
@@ -3307,7 +3490,7 @@ export class SubmissionsService {
         id: log.id,
         timestamp: new Date(log.timestamp).toISOString(),
         type: eventType,
-        description: eventTypeLabels[eventType] || `Integrity event: ${eventType.replace(/_/g, ' ')}`,
+        description: eventTypeLabels[eventType] || `Sự kiện toàn vẹn học thuật: ${eventType.replace(/_/g, ' ')}`,
         severity: severityFor(eventType),
         detail: formatDetails(log.details),
       });
@@ -3318,9 +3501,9 @@ export class SubmissionsService {
         id: `${submission.id}-submitted`,
         timestamp: new Date(submission.submittedAt).toISOString(),
         type: 'submit',
-        description: 'Exam submitted',
+        description: 'Đã nộp bài thi',
         severity: 'normal',
-        detail: `Status: ${submission.status}`,
+        detail: `Trạng thái: ${submission.status}`,
       });
     }
 
@@ -3407,6 +3590,7 @@ export class SubmissionsService {
             title: true,
             totalPoints: true,
             resultsPublishedAt: true,
+            reviewSettings: true,
             course: {
               select: {
                 id: true,
@@ -3437,9 +3621,15 @@ export class SubmissionsService {
         (total, adjustment) => total + this.toNumber(adjustment.amount),
         0,
       );
-      if (submission.exam.resultsPublishedAt) {
+      const afterReview = (submission.exam.reviewSettings as any)?.enabled
+        ? (submission.exam.reviewSettings as any)?.phases?.after
+        : null;
+      const canShowScore = Boolean(submission.exam.resultsPublishedAt)
+        && (afterReview ? Boolean(afterReview.showScore) : true);
+      if (canShowScore) {
         return {
           ...submission,
+          examInstance: this.sanitizeExamInstanceForStudent(submission.examInstance),
           academicScore: submission.score,
           score: Number(Math.max(0, Math.min(10, this.toNumber(submission.score) + adjustmentTotal)).toFixed(2)),
           adjustmentTotal: Number(adjustmentTotal.toFixed(2)),
@@ -3447,6 +3637,7 @@ export class SubmissionsService {
       }
       return {
         ...submission,
+        examInstance: this.sanitizeExamInstanceForStudent(submission.examInstance),
         score: null,
         gradedAt: null,
         integrityReview: submission.integrityReview
@@ -3471,6 +3662,7 @@ export class SubmissionsService {
             resultsPublishedAt: true,
             maxAttempts: true,
             settings: true,
+            reviewSettings: true,
             course: {
               select: {
                 id: true,
@@ -3555,6 +3747,7 @@ export class SubmissionsService {
             totalPoints: true,
             passingScore: true,
             resultsPublishedAt: true,
+            reviewSettings: true,
           },
         },
         answers: {
@@ -3567,11 +3760,11 @@ export class SubmissionsService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
     if (user && String(user.role || '').toUpperCase() === 'STUDENT' && submission.student.id !== user.id) {
-      throw new ForbiddenException('You are not allowed to access this submission');
+      throw new ForbiddenException('Bạn không có quyền truy cập lượt làm bài này');
     }
 
     return user && String(user.role || '').toUpperCase() === 'STUDENT'
@@ -3732,7 +3925,7 @@ export class SubmissionsService {
     });
 
     if (!submission) {
-      throw new NotFoundException('Submission not found');
+      throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
     const updated = await this.prisma.examSubmission.update({

@@ -23,7 +23,7 @@ export class AdminDashboardService {
   }
   async analytics(fromRaw?: string, toRaw?: string) {
     const now = new Date(); const from = fromRaw ? new Date(fromRaw) : new Date(now.getTime() - 29 * 86400000); const to = toRaw ? new Date(toRaw) : now;
-    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to || to.getTime() - from.getTime() > 366 * 86400000) throw new BadRequestException('Invalid analytics date range (maximum 1 year).');
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to || to.getTime() - from.getTime() > 366 * 86400000) throw new BadRequestException('Khoảng thời gian phân tích không hợp lệ (tối đa 1 năm).');
     const days = Math.ceil((to.getTime() - from.getTime()) / 86400000) + 1; const bucket = days <= 31 ? 'day' : days <= 180 ? 'week' : 'month'; const range = { gte: from, lte: to };
     const [users, submissions, sessions, reviews, activeExams] = await Promise.all([
       this.prisma.user.findMany({ where: { createdAt: range }, select: { createdAt: true, role: true } }),

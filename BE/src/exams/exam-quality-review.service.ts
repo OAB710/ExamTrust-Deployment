@@ -30,7 +30,7 @@ export class ExamQualityReviewService {
       select: { id: true, title: true },
     });
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     const intelligence = await this.submissionsService.getExamIntelligence(examId);
@@ -92,7 +92,7 @@ export class ExamQualityReviewService {
     });
 
     if (!job) {
-      throw new NotFoundException('Quality review job not found');
+      throw new NotFoundException('Không tìm thấy tác vụ rà soát chất lượng');
     }
 
     return job;
@@ -103,7 +103,7 @@ export class ExamQualityReviewService {
 
     const exam = await this.prisma.exam.findUnique({ where: { id: examId }, select: { id: true } });
     if (!exam) {
-      throw new NotFoundException('Exam not found');
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
     const validStatuses = ['PENDING', 'APPROVED', 'REJECTED', 'NEEDS_CHANGES'];
@@ -130,7 +130,7 @@ export class ExamQualityReviewService {
       select: { id: true, job: { select: { examId: true } } },
     });
     if (!item) {
-      throw new NotFoundException('Suggestion not found');
+      throw new NotFoundException('Không tìm thấy đề xuất');
     }
 
     if (item.job?.examId) {

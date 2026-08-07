@@ -62,6 +62,7 @@ describe('SubmissionsService snapshot and score normalization', () => {
       { publishSubmissionEvent: jest.fn() } as any,
       accessPolicy as any,
       { isQueueOverloaded: jest.fn().mockResolvedValue(false) } as any,
+      { suggestEssayGrade: jest.fn() } as any,
     );
     return { service, prisma, accessPolicy };
   };
@@ -275,5 +276,76 @@ describe('SubmissionsService snapshot and score normalization', () => {
     const maxRawScore = 15 + (5 * 2);
 
     expect((service as any).normalizeScore(rawScore, maxRawScore)).toBe(6);
+  });
+
+  it('returns during-review feedback per auto-graded question and never exposes manual grading data', () => {
+    const { service } = buildService();
+    const reviewSettings = {
+      enabled: true,
+      phases: {
+        during: { showScore: true, showAnswers: true, showFeedback: true },
+      },
+    };
+
+    const autoFeedback = (service as any).buildDuringReviewFeedback(
+      {
+        questionId: 'auto-1',
+        type: 'MULTIPLE_CHOICE',
+        answerKey: { answer: 'A' },
+        assignedScore: 2,
+        explanation: 'A is correct.',
+      },
+      { answer: 'A' },
+      reviewSettings,
+    );
+    const manualFeedback = (service as any).buildDuringReviewFeedback(
+      {
+        questionId: 'manual-1',
+        type: 'ESSAY',
+        answerKey: { rubric: 'Instructor only' },
+        assignedScore: 4,
+        explanation: 'Private rubric.',
+      },
+      'Student essay',
+      reviewSettings,
+    );
+
+    expect(autoFeedback).toEqual({
+      questionId: 'auto-1',
+      pointsAwarded: 2,
+      maxPoints: 2,
+      isCorrect: true,
+      correctAnswer: { answer: 'A' },
+      explanation: 'A is correct.',
+    });
+    expect(manualFeedback).toEqual({ questionId: 'manual-1', unavailable: true });
+  });
+
+  it('does not expose manual answers before grading, even after results are published', () => {
+    const { service } = buildService();
+    const view = service.sanitizeStudentSubmissionView({
+      score: 8,
+      exam: {
+        resultsPublishedAt: new Date(),
+        reviewSettings: {
+          enabled: true,
+          phases: { after: { showScore: true, showAnswers: true, showFeedback: true } },
+        },
+      },
+      answers: [{
+        isCorrect: false,
+        pointsAwarded: 0,
+        feedback: 'Private until manually graded.',
+        manualGradedAt: null,
+        question: { type: 'ESSAY', correctAnswer: { rubric: 'Private' }, explanation: 'Private' },
+        questionSnapshot: { payload: { type: 'ESSAY', answerKey: { rubric: 'Private' }, explanation: 'Private' } },
+      }],
+    });
+
+    expect(view.answers[0].isCorrect).toBeUndefined();
+    expect(view.answers[0].pointsAwarded).toBeUndefined();
+    expect(view.answers[0].feedback).toBeUndefined();
+    expect(view.answers[0].question.correctAnswer).toBeUndefined();
+    expect(view.answers[0].question.explanation).toBeUndefined();
   });
 });

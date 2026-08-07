@@ -230,24 +230,24 @@ export class QuestionsService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('Không tìm thấy khóa học');
     }
 
     if (user.role === 'LECTURER' && course.lecturerId !== user.id) {
-      throw new ForbiddenException('You are not allowed to use this course');
+      throw new ForbiddenException('Bạn không có quyền sử dụng khóa học này');
     }
   }
 
   private assertCanAccessQuestion(question: QuestionAccessRow, user: AuthUser) {
     if (user.role === 'ADMIN') return;
     if (user.role !== 'LECTURER' || question.creatorId !== user.id) {
-      throw new ForbiddenException('You are not allowed to access this question');
+      throw new ForbiddenException('Bạn không có quyền truy cập câu hỏi này');
     }
   }
 
   private async assertTopicBelongsToCourse(topicId: string, courseId: string) {
     if (!(await this.hasTable('course_topics'))) {
-      throw new BadRequestException('CourseTopics table is unavailable. Apply phase-01 schema first.');
+      throw new BadRequestException('Bảng CourseTopics chưa khả dụng. Vui lòng áp dụng schema phase-01 trước.');
     }
 
     const rows = await this.prisma.$queryRawUnsafe(
@@ -257,13 +257,13 @@ export class QuestionsService {
     ) as Array<{ ok: number }>;
 
     if (rows.length === 0) {
-      throw new BadRequestException('Selected topic does not belong to the selected course');
+      throw new BadRequestException('Chủ đề đã chọn không thuộc khóa học đã chọn');
     }
   }
 
   private async syncSingleQuestionTopic(questionId: string, topicId: string) {
     if (!(await this.hasTable('question_topics'))) {
-      throw new BadRequestException('QuestionTopics table is unavailable. Apply phase-01 schema first.');
+      throw new BadRequestException('Bảng QuestionTopics chưa khả dụng. Vui lòng áp dụng schema phase-01 trước.');
     }
 
     await this.prisma.$executeRawUnsafe(`DELETE FROM question_topics WHERE questionId = ?`, questionId);
@@ -280,16 +280,16 @@ export class QuestionsService {
     if (questionData.courseId) {
       await this.assertCourseAccessible(questionData.courseId, user);
     } else if (user.role === 'LECTURER') {
-      throw new BadRequestException('Course is required for lecturer-created questions');
+      throw new BadRequestException('Cần chọn khóa học đối với câu hỏi do giảng viên tạo');
     }
 
     const topicId = String(questionData.topicId || '').trim();
     if (!topicId) {
-      throw new BadRequestException('Topic is required for question creation');
+      throw new BadRequestException('Cần chọn chủ đề để tạo câu hỏi');
     }
 
     if (!questionData.courseId) {
-      throw new BadRequestException('Course is required for question creation');
+      throw new BadRequestException('Cần chọn khóa học để tạo câu hỏi');
     }
 
     await this.assertTopicBelongsToCourse(topicId, questionData.courseId);
@@ -322,7 +322,7 @@ export class QuestionsService {
     const { sourceCourseId, targetCourseId, topicIds } = dto;
 
     if (sourceCourseId === targetCourseId) {
-      throw new BadRequestException('Source and target course must be different');
+      throw new BadRequestException('Khóa học nguồn và khóa học đích phải khác nhau');
     }
 
     await this.assertCourseAccessible(sourceCourseId, user);
@@ -455,7 +455,7 @@ export class QuestionsService {
     });
 
     if (!question) {
-      throw new NotFoundException('Question not found');
+      throw new NotFoundException('Không tìm thấy câu hỏi');
     }
 
     this.assertCanAccessQuestion(question, user);
@@ -490,7 +490,7 @@ export class QuestionsService {
     });
 
     if (!question) {
-      throw new NotFoundException('Question not found');
+      throw new NotFoundException('Không tìm thấy câu hỏi');
     }
 
     this.assertCanAccessQuestion(question, user);
@@ -500,7 +500,7 @@ export class QuestionsService {
     const effectiveCourseId = requestedCourseId || question.courseId || '';
 
     if (!effectiveCourseId) {
-      throw new BadRequestException('Course is required for question update');
+      throw new BadRequestException('Cần chọn khóa học để cập nhật câu hỏi');
     }
 
     if (requestedCourseId) {
@@ -509,7 +509,7 @@ export class QuestionsService {
 
     const topicId = String(questionData.topicId || '').trim();
     if (!topicId) {
-      throw new BadRequestException('Topic is required for question update');
+      throw new BadRequestException('Cần chọn chủ đề để cập nhật câu hỏi');
     }
 
     await this.assertTopicBelongsToCourse(topicId, effectiveCourseId);
@@ -585,7 +585,7 @@ export class QuestionsService {
   private validateAiImprovementFinal(final: Record<string, any>, fallbackQuestion: any) {
     const content = this.removeAiEditorialSuffix(String(final?.content || '').trim());
     if (!content) {
-      throw new BadRequestException('Improved question content is required');
+      throw new BadRequestException('Cần có nội dung câu hỏi đã cải thiện');
     }
     const difficulty = Math.max(1, Math.min(10, Math.round(Number(final?.difficulty || fallbackQuestion.difficulty || 1))));
     return {
@@ -630,20 +630,20 @@ export class QuestionsService {
         versions: { orderBy: { versionNo: 'desc' }, take: 1 },
       },
     });
-    if (!question) throw new NotFoundException('Question not found');
+    if (!question) throw new NotFoundException('Không tìm thấy câu hỏi');
     this.assertCanAccessQuestion(question, user);
 
     const examQuestion = await this.prisma.examQuestion.findFirst({
       where: { examId: dto.examId, questionId: dto.questionId },
       select: { id: true, examId: true, questionId: true, questionVersionId: true, orderIndex: true, points: true, assignedScore: true },
     });
-    if (!examQuestion) throw new NotFoundException('Question is not part of this exam');
+    if (!examQuestion) throw new NotFoundException('Câu hỏi này không thuộc bài thi');
 
     const latestVersion = question.versions?.[0] || null;
     const lockName = `question-ai-improvement:${dto.examId}:${dto.questionId}`;
     const lockRows = await this.prisma.$queryRawUnsafe(`SELECT GET_LOCK(?, 5) AS locked`, lockName) as Array<{ locked: number }>;
     if (!lockRows?.[0]?.locked) {
-      throw new ConflictException('Another AI improvement request is being created for this question');
+      throw new ConflictException('Đang có yêu cầu cải thiện bằng AI khác được tạo cho câu hỏi này');
     }
 
     try {
@@ -716,7 +716,7 @@ export class QuestionsService {
 
   async getQuestionAiImprovement(id: string, user: AuthUser) {
     const record = await this.prisma.aIGenerationRecord.findUnique({ where: { id } });
-    if (!record) throw new NotFoundException('AI improvement not found');
+    if (!record) throw new NotFoundException('Không tìm thấy đề xuất cải thiện AI');
     const payload = this.parseJson(record.prompt, {})?.payload || {};
     const question = await this.prisma.question.findUnique({
       where: { id: payload.questionId },
@@ -728,9 +728,9 @@ export class QuestionsService {
 
   async updateQuestionAiImprovementDraft(id: string, dto: UpdateQuestionAiImprovementDraftDto, user: AuthUser) {
     const current = await this.getQuestionAiImprovement(id, user);
-    if (!current) throw new NotFoundException('AI improvement not found');
+    if (!current) throw new NotFoundException('Không tìm thấy đề xuất cải thiện AI');
     if (!['READY_FOR_REVIEW', 'EXPIRED'].includes(current.status)) {
-      throw new BadRequestException('Only ready AI proposals can be edited');
+      throw new BadRequestException('Chỉ có thể sửa đề xuất AI đang ở trạng thái sẵn sàng xem xét');
     }
     const record = await this.prisma.aIGenerationRecord.findUnique({ where: { id } });
     const output = this.parseJson(record?.output, {});
@@ -749,7 +749,7 @@ export class QuestionsService {
 
   async approveQuestionAiImprovement(id: string, dto: ApproveQuestionAiImprovementDto, user: AuthUser) {
     const record = await this.prisma.aIGenerationRecord.findUnique({ where: { id } });
-    if (!record) throw new NotFoundException('AI improvement not found');
+    if (!record) throw new NotFoundException('Không tìm thấy đề xuất cải thiện AI');
     const prompt = this.parseJson(record.prompt, {});
     const payload = prompt?.payload || {};
     const questionId = payload.questionId;
@@ -757,16 +757,16 @@ export class QuestionsService {
       where: { id: questionId },
       include: { topicLinks: { include: { topic: true } } },
     });
-    if (!question) throw new NotFoundException('Question not found');
+    if (!question) throw new NotFoundException('Không tìm thấy câu hỏi');
     this.assertCanAccessQuestion(question, user);
 
     if (record.status !== 'SUCCEEDED' || record.reviewStatus !== 'PENDING') {
-      throw new BadRequestException('Only ready pending proposals can be approved');
+      throw new BadRequestException('Chỉ có thể duyệt đề xuất đang chờ và sẵn sàng xem xét');
     }
 
     const sourceUpdatedAt = payload.sourceUpdatedAt ? new Date(payload.sourceUpdatedAt) : null;
     if (sourceUpdatedAt && question.updatedAt.getTime() > sourceUpdatedAt.getTime() + 1000) {
-      throw new ConflictException('Question was edited after the AI proposal was generated. Please compare again or create a new proposal.');
+      throw new ConflictException('Câu hỏi đã được sửa sau khi đề xuất AI được tạo. Vui lòng so sánh lại hoặc tạo đề xuất mới.');
     }
 
     const finalData = this.validateAiImprovementFinal(dto.final, question);
@@ -832,7 +832,7 @@ export class QuestionsService {
           reviewStatus: 'APPROVED',
           reviewedBy: user.id,
           reviewedAt: new Date(),
-          reviewNotes: 'Resolved by AI-assisted question improvement',
+          reviewNotes: 'Đã xử lý bằng đề xuất cải thiện câu hỏi từ AI',
         },
       });
 
@@ -847,9 +847,9 @@ export class QuestionsService {
 
   async rejectQuestionAiImprovement(id: string, dto: RejectQuestionAiImprovementDto, user: AuthUser) {
     const current = await this.getQuestionAiImprovement(id, user);
-    if (!current) throw new NotFoundException('AI improvement not found');
+    if (!current) throw new NotFoundException('Không tìm thấy đề xuất cải thiện AI');
     if (!['READY_FOR_REVIEW', 'EXPIRED', 'FAILED'].includes(current.status)) {
-      throw new BadRequestException('Only completed or failed proposals can be rejected');
+      throw new BadRequestException('Chỉ có thể từ chối đề xuất đã hoàn tất hoặc thất bại');
     }
     const updated = await this.prisma.aIGenerationRecord.update({
       where: { id },
@@ -887,12 +887,12 @@ export class QuestionsService {
     });
 
     if (!question) {
-      throw new NotFoundException('Question not found');
+      throw new NotFoundException('Không tìm thấy câu hỏi');
     }
 
     this.assertCanAccessQuestion(question, user);
     await this.prisma.question.delete({ where: { id } });
-    return { message: 'Question deleted successfully' };
+    return { message: 'Đã xóa câu hỏi thành công' };
   }
 
   async getQuestionStats(user: AuthUser) {
@@ -986,12 +986,12 @@ export class QuestionsService {
     ) as DraftRow[];
 
     if (rows.length === 0) {
-      throw new NotFoundException('Question draft not found');
+      throw new NotFoundException('Không tìm thấy bản nháp câu hỏi');
     }
 
     const draft = rows[0];
     if (user.role === 'LECTURER' && draft.creatorId !== user.id) {
-      throw new ForbiddenException('You are not allowed to access this draft');
+      throw new ForbiddenException('Bạn không có quyền truy cập bản nháp này');
     }
 
     draft.state = this.parseJson(draft.state, {});
@@ -1038,10 +1038,10 @@ export class QuestionsService {
         },
       });
       if (!source) {
-        throw new NotFoundException('Source question not found');
+        throw new NotFoundException('Không tìm thấy câu hỏi nguồn');
       }
       if (user.role === 'LECTURER' && source.creatorId !== user.id) {
-        throw new ForbiddenException('You are not allowed to duplicate this question');
+        throw new ForbiddenException('Bạn không có quyền sao chép câu hỏi này');
       }
 
       linkedQuestionId = source.id;
@@ -1088,7 +1088,7 @@ export class QuestionsService {
     const draft = await this.fetchDraftOrThrow(draftId, user);
 
     if (draft.autosaveVersion !== dto.autosaveVersion) {
-      throw new ConflictException('Draft has newer changes. Please reload and retry.');
+      throw new ConflictException('Bản nháp đã có thay đổi mới hơn. Vui lòng tải lại và thử lại.');
     }
 
     const nextState = {
@@ -1178,20 +1178,20 @@ export class QuestionsService {
       dto.jobId,
     ) as Array<{ id: string; draftId: string | null; section: string; status: string; output: any }>;
 
-    if (rows.length === 0) throw new NotFoundException('AI generation job not found');
+    if (rows.length === 0) throw new NotFoundException('Không tìm thấy tác vụ tạo bằng AI');
     const job = rows[0];
     if (job.draftId !== draftId) {
-      throw new BadRequestException('AI job does not belong to this draft');
+      throw new BadRequestException('Tác vụ AI này không thuộc bản nháp này');
     }
     if (job.status !== 'SUCCEEDED') {
-      throw new BadRequestException(`AI job is not ready (status=${job.status})`);
+      throw new BadRequestException(`Tác vụ AI chưa sẵn sàng (trạng thái=${job.status})`);
     }
 
     const output = this.parseJson(job.output, {});
     const candidates = Array.isArray(output?.candidates) ? output.candidates : [];
     const candidate = candidates.find((c: any) => c?.id === dto.candidateId);
     if (!candidate) {
-      throw new NotFoundException('AI candidate not found');
+      throw new NotFoundException('Không tìm thấy phương án do AI đề xuất');
     }
 
     const nextState = { ...(draft.state || {}) };
@@ -1251,9 +1251,9 @@ export class QuestionsService {
     const stem = String(state?.content?.content || state?.content?.stem || '').trim();
 
     if (!stem) {
-      errors.push({ code: 'MISSING_STEM', path: 'content.content', message: 'Question stem is required' });
+      errors.push({ code: 'MISSING_STEM', path: 'content.content', message: 'Cần nhập nội dung câu hỏi' });
     } else if (stem.length < 12) {
-      warnings.push({ code: 'SHORT_STEM', path: 'content.content', message: 'Question stem is quite short' });
+      warnings.push({ code: 'SHORT_STEM', path: 'content.content', message: 'Nội dung câu hỏi khá ngắn' });
     }
 
     const options = state?.answers?.options || {};
@@ -1263,20 +1263,20 @@ export class QuestionsService {
       const optionList = Array.isArray(options) ? options : Object.values(options || {});
       const filled = optionList.filter((x: any) => String(x || '').trim());
       if (filled.length < 2) {
-        errors.push({ code: 'INSUFFICIENT_OPTIONS', path: 'answers.options', message: 'At least 2 answer options are required' });
+        errors.push({ code: 'INSUFFICIENT_OPTIONS', path: 'answers.options', message: 'Cần ít nhất 2 phương án trả lời' });
       }
 
       const answerSize = Array.isArray(correctAnswer)
         ? correctAnswer.length
         : Object.keys(correctAnswer || {}).length;
       if (answerSize === 0) {
-        errors.push({ code: 'MISSING_CORRECT_ANSWER', path: 'answers.correctAnswer', message: 'Correct answer is required' });
+        errors.push({ code: 'MISSING_CORRECT_ANSWER', path: 'answers.correctAnswer', message: 'Cần chọn đáp án đúng' });
       }
     }
 
     const explanation = String(state?.answers?.explanation || '').trim();
     if (!explanation) {
-      warnings.push({ code: 'MISSING_EXPLANATION', path: 'answers.explanation', message: 'Explanation is recommended' });
+      warnings.push({ code: 'MISSING_EXPLANATION', path: 'answers.explanation', message: 'Nên bổ sung phần giải thích' });
     }
 
     // Tags are no longer required or stored; skip tag validation
@@ -1562,17 +1562,17 @@ export class QuestionsService {
     const name = String(input?.name || '').trim();
     const courseId = String(input?.courseId || '').trim();
     if (!code || !name) {
-      throw new BadRequestException('Topic code and name are required');
+      throw new BadRequestException('Cần nhập mã và tên chủ đề');
     }
 
     if (!courseId) {
-      throw new BadRequestException('courseId is required');
+      throw new BadRequestException('Cần cung cấp courseId');
     }
 
     await this.assertCourseAccessible(courseId, user);
 
     if (!(await this.hasTable('topics'))) {
-      throw new BadRequestException('Topics table is unavailable. Apply phase-01 schema first.');
+      throw new BadRequestException('Bảng Topics chưa khả dụng. Vui lòng áp dụng schema phase-01 trước.');
     }
 
     await this.prisma.$executeRawUnsafe(
@@ -1587,7 +1587,7 @@ export class QuestionsService {
     ) as Array<{ id: string; code: string; name: string; createdAt: Date }>;
 
     if (rows.length === 0) {
-      throw new BadRequestException('Failed to create topic');
+      throw new BadRequestException('Không thể tạo chủ đề');
     }
 
     const topic = rows[0];
@@ -1606,16 +1606,16 @@ export class QuestionsService {
   async setCourseTopics(courseId: string, topicIds: string[]) {
     const normalizedCourseId = String(courseId || '').trim();
     if (!normalizedCourseId) {
-      throw new BadRequestException('courseId is required');
+      throw new BadRequestException('Cần cung cấp courseId');
     }
 
     const course = await this.prisma.course.findUnique({ where: { id: normalizedCourseId }, select: { id: true } });
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('Không tìm thấy khóa học');
     }
 
     if (!(await this.hasTable('course_topics'))) {
-      throw new BadRequestException('CourseTopics table is unavailable. Apply phase-01 schema first.');
+      throw new BadRequestException('Bảng CourseTopics chưa khả dụng. Vui lòng áp dụng schema phase-01 trước.');
     }
 
     const cleanTopicIds = Array.from(new Set((topicIds || []).map((x) => String(x).trim()).filter(Boolean)));
@@ -1706,7 +1706,7 @@ export class QuestionsService {
       }
 
       if (topicPredicates.length === 0) {
-        throw new BadRequestException('Topic filtering is unavailable. Apply schema backfill for topics.');
+        throw new BadRequestException('Lọc theo chủ đề chưa khả dụng. Vui lòng áp dụng schema backfill cho chủ đề.');
       }
 
       where.push(`(${topicPredicates.join(' OR ')})`);
@@ -1743,7 +1743,7 @@ export class QuestionsService {
     const draft = await this.fetchDraftOrThrow(draftId, user);
 
     if (draft.autosaveVersion !== dto.expectedAutosaveVersion) {
-      throw new ConflictException('Draft has newer changes. Please reload and retry publish.');
+      throw new ConflictException('Bản nháp đã có thay đổi mới hơn. Vui lòng tải lại và thử công bố lại.');
     }
 
     const validation = await this.validateDraft(
@@ -1754,7 +1754,7 @@ export class QuestionsService {
 
     if (!validation.valid) {
       throw new BadRequestException({
-        message: 'Draft validation failed',
+        message: 'Bản nháp chưa hợp lệ',
         errors: validation.errors,
       });
     }
@@ -1768,12 +1768,12 @@ export class QuestionsService {
     const difficulty = this.normalizeDifficultyRaw(state?.classification?.difficulty);
     const defaultPoints = Number(state?.classification?.points ?? 1);
     if (!Number.isInteger(defaultPoints) || defaultPoints < 1 || defaultPoints > 5) {
-      throw new BadRequestException('Default score coefficient must be an integer from 1 to 5');
+      throw new BadRequestException('Hệ số điểm mặc định phải là số nguyên từ 1 đến 5');
     }
     const topicId = String(state?.classification?.topicId || state?.classification?.topic || '').trim();
 
     if (!topicId) {
-      throw new BadRequestException('Topic is required before publishing the question');
+      throw new BadRequestException('Cần chọn chủ đề trước khi công bố câu hỏi');
     }
 
     const courseScopeIds = Array.isArray(state?.classification?.courseScopeIds)
@@ -1795,12 +1795,12 @@ export class QuestionsService {
         where: { id: questionId },
         select: { id: true, creatorId: true, courseId: true },
       });
-      if (!existing) throw new NotFoundException('Linked question not found');
+      if (!existing) throw new NotFoundException('Không tìm thấy câu hỏi liên kết');
 
       existingCourseId = existing.courseId || null;
       resolvedCourseId = requestedCourseId || existingCourseId;
       if (!resolvedCourseId) {
-        throw new BadRequestException('Course is required before publishing the question');
+        throw new BadRequestException('Cần chọn khóa học trước khi công bố câu hỏi');
       }
 
       await this.assertTopicBelongsToCourse(topicId, resolvedCourseId);
@@ -1821,7 +1821,7 @@ export class QuestionsService {
       });
     } else {
       if (!requestedCourseId) {
-        throw new BadRequestException('Course is required before publishing the question');
+        throw new BadRequestException('Cần chọn khóa học trước khi công bố câu hỏi');
       }
       resolvedCourseId = requestedCourseId;
       await this.assertTopicBelongsToCourse(topicId, resolvedCourseId);
@@ -2043,11 +2043,11 @@ export class QuestionsService {
       jobId,
     ) as Array<any>;
 
-    if (rows.length === 0) throw new NotFoundException('AI generation job not found');
+    if (rows.length === 0) throw new NotFoundException('Không tìm thấy tác vụ tạo bằng AI');
 
     const row = rows[0];
     if (user.role === 'LECTURER' && row.creatorId && row.creatorId !== user.id) {
-      throw new ForbiddenException('You are not allowed to access this AI job');
+      throw new ForbiddenException('Bạn không có quyền truy cập tác vụ AI này');
     }
     const prompt = this.parseJson(row.prompt, {});
     if (
@@ -2056,7 +2056,7 @@ export class QuestionsService {
       prompt?.requestedBy &&
       prompt.requestedBy !== user.id
     ) {
-      throw new ForbiddenException('You are not allowed to access this AI job');
+      throw new ForbiddenException('Bạn không có quyền truy cập tác vụ AI này');
     }
 
     return {

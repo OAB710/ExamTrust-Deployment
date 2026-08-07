@@ -48,7 +48,7 @@ export default function AuditLogViewer() {
       setStats(payload?.stats || null);
       setPagination(payload?.pagination || { page, limit: pagination.limit, total: 0, totalPages: 0 });
     } catch (err: any) {
-      setError(err.message || "Failed to load audit logs");
+      setError(err.message || "Không thể tải nhật ký kiểm toán");
     } finally {
       setLoading(false);
     }
@@ -71,21 +71,21 @@ export default function AuditLogViewer() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground mb-1">Audit Log Viewer</h1>
+            <h1 className="text-2xl font-semibold text-foreground mb-1">Nhật ký kiểm toán</h1>
             <p className="text-muted-foreground">
-              Read-only audit stream backed by durable EventStore records.
+              Luồng nhật ký chỉ đọc, được lưu trữ bền vững trong EventStore.
             </p>
           </div>
           <Button variant="outline" className="gap-2" onClick={() => loadLogs()}>
-            <RefreshCw className="h-4 w-4" /> Refresh
+            <RefreshCw className="h-4 w-4" /> Làm mới
           </Button>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold">{stats?.total || 0}</p><p className="text-xs text-muted-foreground">Total</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-blue-600">{stats?.info || 0}</p><p className="text-xs text-muted-foreground">Info</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-yellow-600">{stats?.warning || 0}</p><p className="text-xs text-muted-foreground">Warning</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-red-600">{stats?.critical || 0}</p><p className="text-xs text-muted-foreground">Critical</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold">{stats?.total || 0}</p><p className="text-xs text-muted-foreground">Tổng số</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-blue-600">{stats?.info || 0}</p><p className="text-xs text-muted-foreground">Thông tin</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-yellow-600">{stats?.warning || 0}</p><p className="text-xs text-muted-foreground">Cảnh báo</p></CardContent></Card>
+          <Card><CardContent className="pt-4 pb-4 text-center"><p className="text-2xl font-semibold text-red-600">{stats?.critical || 0}</p><p className="text-xs text-muted-foreground">Nghiêm trọng</p></CardContent></Card>
         </div>
 
         <Card>
@@ -97,24 +97,24 @@ export default function AuditLogViewer() {
                 usedBy: "Quản trị viên dùng để truy vết thao tác, kiểm tra trách nhiệm và hỗ trợ điều tra sự cố.",
                 note: "Chỉ các sự kiện đã được lưu mới xuất hiện tại đây; không nên suy luận ngoài dữ liệu ghi nhận.",
               }}>
-                Audit Events
+                Sự kiện kiểm toán
               </HelpedTitle>
             </CardTitle>
-            <CardDescription>Only persisted events are shown. Empty means no critical events have been written yet.</CardDescription>
+            <CardDescription>Chỉ hiển thị các sự kiện đã được lưu. Nếu trống nghĩa là chưa có sự kiện nghiêm trọng nào được ghi nhận.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col md:flex-row gap-3">
               <div className="relative flex-1">
                 <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input className="pl-9" placeholder="Search user, action, resource, details..." value={search} onChange={(event) => setSearch(event.target.value)} />
+                <Input className="pl-9" placeholder="Tìm theo người dùng, hành động, tài nguyên, chi tiết..." value={search} onChange={(event) => setSearch(event.target.value)} />
               </div>
               <Select value={severity} onValueChange={setSeverity}>
                 <SelectTrigger className="w-full md:w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All severity</SelectItem>
-                  <SelectItem value="info">Info</SelectItem>
-                  <SelectItem value="warning">Warning</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="all">Tất cả mức độ</SelectItem>
+                  <SelectItem value="info">Thông tin</SelectItem>
+                  <SelectItem value="warning">Cảnh báo</SelectItem>
+                  <SelectItem value="critical">Nghiêm trọng</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -122,7 +122,7 @@ export default function AuditLogViewer() {
             {loading && (
               <div className="py-12 text-center text-muted-foreground">
                 <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3" />
-                Loading audit logs...
+                Đang tải nhật ký kiểm toán...
               </div>
             )}
 
@@ -131,7 +131,7 @@ export default function AuditLogViewer() {
             {!loading && !error && logs.length === 0 && (
               <div className="py-12 text-center text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                No audit logs found.
+                Không tìm thấy nhật ký kiểm toán.
               </div>
             )}
 
@@ -140,12 +140,12 @@ export default function AuditLogViewer() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-40">Time</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Resource</TableHead>
-                      <TableHead className="w-28">Severity</TableHead>
-                      <TableHead>Details</TableHead>
+                      <TableHead className="w-40">Thời gian</TableHead>
+                      <TableHead>Người dùng</TableHead>
+                      <TableHead>Hành động</TableHead>
+                      <TableHead>Tài nguyên</TableHead>
+                      <TableHead className="w-28">Mức độ</TableHead>
+                      <TableHead>Chi tiết</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -161,14 +161,12 @@ export default function AuditLogViewer() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {severityIcon(log.severity)}
-                            <StatusBadge status={log.severity === "info" ? "none" : log.severity} domain="severity">
-                              {log.severity}
-                            </StatusBadge>
+                            <StatusBadge status={log.severity === "info" ? "none" : log.severity} domain="severity" />
                           </div>
                         </TableCell>
                         <TableCell className="max-w-md">
                           <p className="text-xs line-clamp-2">{log.details}</p>
-                          {log.source && <p className="text-[10px] text-muted-foreground mt-1">source: {log.source}</p>}
+                          {log.source && <p className="text-[10px] text-muted-foreground mt-1">nguồn: {log.source}</p>}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -177,11 +175,11 @@ export default function AuditLogViewer() {
 
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">
-                    Page {pagination.page} of {Math.max(1, pagination.totalPages)} · {pagination.total} event(s)
+                    Trang {pagination.page}/{Math.max(1, pagination.totalPages)} · {pagination.total} sự kiện
                   </p>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => loadLogs(pagination.page - 1)}>Previous</Button>
-                    <Button variant="outline" size="sm" disabled={pagination.page >= pagination.totalPages} onClick={() => loadLogs(pagination.page + 1)}>Next</Button>
+                    <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => loadLogs(pagination.page - 1)}>Trước</Button>
+                    <Button variant="outline" size="sm" disabled={pagination.page >= pagination.totalPages} onClick={() => loadLogs(pagination.page + 1)}>Sau</Button>
                   </div>
                 </div>
               </>

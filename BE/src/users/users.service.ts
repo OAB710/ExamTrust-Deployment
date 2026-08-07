@@ -17,7 +17,7 @@ export class UsersService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email already exists');
+      throw new ConflictException('Email đã được sử dụng');
     }
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
@@ -118,7 +118,7 @@ export class UsersService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     return user;
@@ -134,7 +134,7 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({ where: { id } });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     if (updateUserDto.email && updateUserDto.email !== user.email) {
@@ -142,7 +142,7 @@ export class UsersService {
         where: { email: updateUserDto.email },
       });
       if (emailInUse) {
-        throw new ConflictException('Email already exists');
+        throw new ConflictException('Email đã được sử dụng');
       }
     }
 
@@ -178,7 +178,7 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({ where: { id } });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     await this.prisma.user.update({
@@ -188,7 +188,7 @@ export class UsersService {
 
 
 
-    return { message: 'User archived successfully' };
+    return { message: 'Đã lưu trữ người dùng thành công' };
   }
 
   async getStudents() {

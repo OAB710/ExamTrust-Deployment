@@ -203,7 +203,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
         setIsBlocked(false);
         return;
       }
-      recordViolation("fullscreen_exit", "User exited fullscreen");
+      recordViolation("fullscreen_exit", "Sinh viên đã thoát chế độ toàn màn hình");
     };
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
@@ -217,14 +217,14 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       if (!isTrackingActive() || isWithinFullscreenGrace()) return;
       if (document.hidden) {
         focusArmedRef.current = true;
-        recordViolation("tab_switch", "Document hidden");
+        recordViolation("tab_switch", "Trang bị ẩn (chuyển tab hoặc ứng dụng khác)");
       }
     };
 
     const onBlur = () => {
       if (!isTrackingActive() || isWithinFullscreenGrace()) return;
       focusArmedRef.current = true;
-      recordViolation("blur", "Window lost focus");
+      recordViolation("blur", "Cửa sổ làm bài mất tiêu điểm");
     };
 
     const onFocus = () => {
@@ -232,7 +232,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       if (!focusArmedRef.current) return;
       focusArmedRef.current = false;
       if (!document.fullscreenElement) {
-        recordViolation("focus", "Window focused without fullscreen");
+        recordViolation("focus", "Cửa sổ được focus lại nhưng không ở chế độ toàn màn hình");
       }
     };
 

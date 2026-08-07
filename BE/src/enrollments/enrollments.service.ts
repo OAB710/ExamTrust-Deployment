@@ -10,7 +10,7 @@ export class EnrollmentsService {
   private assertCanManageCourse(courseLecturerId: string | null, user: { id: string; role: 'ADMIN' | 'LECTURER' | 'STUDENT' }) {
     if (user.role === 'ADMIN') return;
     if (user.role !== 'LECTURER' || courseLecturerId !== user.id) {
-      throw new ForbiddenException('You are not allowed to manage enrollments for this course');
+      throw new ForbiddenException('Bạn không có quyền quản lý ghi danh cho khóa học này');
     }
   }
 
@@ -21,7 +21,7 @@ export class EnrollmentsService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('Không tìm thấy khóa học');
     }
 
     this.assertCanManageCourse(course.lecturerId, user);
@@ -39,7 +39,7 @@ export class EnrollmentsService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('Không tìm thấy khóa học');
     }
 
     this.assertCanManageCourse(course.lecturerId, user);
@@ -50,11 +50,11 @@ export class EnrollmentsService {
     });
 
     if (!student) {
-      throw new NotFoundException('Student not found');
+      throw new NotFoundException('Không tìm thấy sinh viên');
     }
 
     if (student.role !== 'STUDENT') {
-      throw new BadRequestException('User is not a student');
+      throw new BadRequestException('Người dùng này không phải là sinh viên');
     }
 
     // Check if already enrolled
@@ -68,7 +68,7 @@ export class EnrollmentsService {
     });
 
     if (existingEnrollment) {
-      throw new ConflictException('Student already enrolled in this course');
+      throw new ConflictException('Sinh viên đã được ghi danh vào khóa học này');
     }
 
     const enrollment = await this.prisma.enrollment.create({
@@ -106,7 +106,7 @@ export class EnrollmentsService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      throw new NotFoundException('Không tìm thấy khóa học');
     }
 
     this.assertCanManageCourse(course.lecturerId, user);
@@ -123,12 +123,12 @@ export class EnrollmentsService {
         });
 
         if (!student) {
-          results.failed.push({ studentId, reason: 'Student not found' });
+          results.failed.push({ studentId, reason: 'Không tìm thấy sinh viên' });
           continue;
         }
 
         if (student.role !== 'STUDENT') {
-          results.failed.push({ studentId, reason: 'User is not a student' });
+          results.failed.push({ studentId, reason: 'Người dùng này không phải là sinh viên' });
           continue;
         }
 
@@ -139,7 +139,7 @@ export class EnrollmentsService {
         });
 
         if (existingEnrollment) {
-          results.failed.push({ studentId, reason: 'Already enrolled' });
+          results.failed.push({ studentId, reason: 'Đã được ghi danh trước đó' });
           continue;
         }
 
@@ -149,7 +149,7 @@ export class EnrollmentsService {
 
         results.success.push(studentId);
       } catch (error) {
-        results.failed.push({ studentId, reason: 'Unknown error' });
+        results.failed.push({ studentId, reason: 'Lỗi không xác định' });
       }
     }
 
@@ -162,7 +162,7 @@ export class EnrollmentsService {
     const { courseId, emails } = dto;
 
     const course = await this.prisma.course.findUnique({ where: { id: courseId } });
-    if (!course) throw new NotFoundException('Course not found');
+    if (!course) throw new NotFoundException('Không tìm thấy khóa học');
 
     this.assertCanManageCourse(course.lecturerId, user);
 
@@ -192,18 +192,18 @@ export class EnrollmentsService {
           results.provisioned = (results.provisioned ?? 0) + 1;
         }
 
-        if (student.role !== 'STUDENT') { results.failed.push({ email, reason: 'User is not a student (role: ' + student.role + ')' }); continue; }
+        if (student.role !== 'STUDENT') { results.failed.push({ email, reason: 'Người dùng này không phải là sinh viên (vai trò: ' + student.role + ')' }); continue; }
 
         const existing = await this.prisma.enrollment.findUnique({
           where: { courseId_studentId: { studentId: student.id, courseId } },
         });
-        if (existing) { results.failed.push({ email, reason: 'Already enrolled' }); continue; }
+        if (existing) { results.failed.push({ email, reason: 'Đã được ghi danh trước đó' }); continue; }
 
         await this.prisma.enrollment.create({ data: { studentId: student.id, courseId } });
         results.success.push({ email, fullName: student.fullName, studentId: student.studentId });
       } catch (err: any) {
         this.logger.error(`Failed to enroll ${email}: ${err?.message}`);
-        results.failed.push({ email, reason: err?.message ?? 'Unknown error' });
+        results.failed.push({ email, reason: err?.message ?? 'Lỗi không xác định' });
       }
     }
 
@@ -216,7 +216,7 @@ export class EnrollmentsService {
     const { courseId, students } = dto;
 
     const course = await this.prisma.course.findUnique({ where: { id: courseId } });
-    if (!course) throw new NotFoundException('Course not found');
+    if (!course) throw new NotFoundException('Không tìm thấy khóa học');
 
     this.assertCanManageCourse(course.lecturerId, user);
 
@@ -233,7 +233,7 @@ export class EnrollmentsService {
       const email = (row.email || '').toLowerCase().trim();
 
       if (!email) {
-        results.failed.push({ email: email || '(empty)', reason: 'Email is required', row: rowNum });
+        results.failed.push({ email: email || '(trống)', reason: 'Cần nhập email', row: rowNum });
         continue;
       }
 
@@ -259,7 +259,7 @@ export class EnrollmentsService {
         }
 
         if (student.role !== 'STUDENT') {
-          results.failed.push({ email, reason: `User is not a student (role: ${student.role})`, row: rowNum });
+          results.failed.push({ email, reason: `Người dùng này không phải là sinh viên (vai trò: ${student.role})`, row: rowNum });
           continue;
         }
 
@@ -282,7 +282,7 @@ export class EnrollmentsService {
           where: { courseId_studentId: { studentId: student.id, courseId } },
         });
         if (existing) {
-          results.failed.push({ email, reason: 'Already enrolled in this course', row: rowNum });
+          results.failed.push({ email, reason: 'Đã được ghi danh vào khóa học này trước đó', row: rowNum });
           continue;
         }
 
@@ -295,7 +295,7 @@ export class EnrollmentsService {
         });
       } catch (err: any) {
         this.logger.error(`Bulk import failed for ${email}: ${err?.message}`);
-        results.failed.push({ email, reason: err?.message ?? 'Unknown error', row: rowNum });
+        results.failed.push({ email, reason: err?.message ?? 'Lỗi không xác định', row: rowNum });
       }
     }
 
@@ -403,7 +403,7 @@ export class EnrollmentsService {
     });
 
     if (!enrollment) {
-      throw new NotFoundException('Enrollment not found');
+      throw new NotFoundException('Không tìm thấy ghi danh');
     }
 
     this.assertCanManageCourse(enrollment.course.lecturerId, user);
@@ -449,7 +449,7 @@ export class EnrollmentsService {
     });
 
     if (!enrollment) {
-      throw new NotFoundException('Enrollment not found');
+      throw new NotFoundException('Không tìm thấy ghi danh');
     }
 
     this.assertCanManageCourse(enrollment.course.lecturerId, user);
@@ -458,7 +458,7 @@ export class EnrollmentsService {
 
 
 
-    return { message: 'Enrollment removed successfully' };
+    return { message: 'Đã xóa ghi danh thành công' };
   }
 
   async removeByStudentAndCourse(studentId: string, courseId: string, user: { id: string; role: 'ADMIN' | 'LECTURER' | 'STUDENT' }) {
@@ -474,7 +474,7 @@ export class EnrollmentsService {
     });
 
     if (!enrollment) {
-      throw new NotFoundException('Enrollment not found');
+      throw new NotFoundException('Không tìm thấy ghi danh');
     }
 
     this.assertCanManageCourse(enrollment.course.lecturerId, user);
@@ -485,6 +485,6 @@ export class EnrollmentsService {
 
 
 
-    return { message: 'Enrollment removed successfully' };
+    return { message: 'Đã xóa ghi danh thành công' };
   }
 }
