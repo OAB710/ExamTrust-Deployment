@@ -57,3 +57,18 @@ exports/
 
 # Local working notes
 CLOUDFLARE_DEPLOY_NOTES.txt
+
+# Graphify — shared knowledge graph (Codex + Cline/DeepSeek)
+# These are auto-generated / non-portable and should NOT be committed:
+.graphify/cache/
+.graphify/scratch/
+.graphify/branch.json
+.graphify/worktree.json
+.graphify/needs_update
+.graphify/label-instructions/
+.graphify/description-instructions/
+.graphify/.graphify_semantic.json
+# Legacy graphify output directory
+graphify-out/
+fe/.graphify
+be/.graphify

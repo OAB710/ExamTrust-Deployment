@@ -328,15 +328,37 @@ export default function ManualGradingDetail() {
                 </div>
                 {(submission?.scoreAdjustments || []).length > 0 ? (
                   <div className="space-y-2">
-                    {submission.scoreAdjustments.map((adjustment: any) => (
-                      <div key={adjustment.id} className="flex flex-col gap-2 rounded-lg border bg-white p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <strong className={Number(adjustment.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}>{Number(adjustment.amount) >= 0 ? "+" : ""}{Number(adjustment.amount).toFixed(2)}</strong> · {adjustment.category} · {adjustment.reason}
-                          <p className="mt-1 text-xs text-muted-foreground">{adjustment.createdBy?.fullName || "Giảng viên"} · {new Date(adjustment.createdAt).toLocaleString("vi-VN")}{adjustment.revokedAt ? ` · Đã thu hồi: ${adjustment.revocationReason || ""}` : ""}</p>
+                    {submission.scoreAdjustments.map((adjustment: any) => {
+                      const revoked = Boolean(adjustment.revokedAt);
+                      return (
+                        <div
+                          key={adjustment.id}
+                          className={`flex flex-col gap-2 rounded-lg border p-3 text-sm sm:flex-row sm:items-center sm:justify-between ${revoked ? "border-rose-200 bg-rose-50/60 opacity-90" : "border-rose-100 bg-white"}`}
+                        >
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <strong className={revoked ? "text-muted-foreground line-through" : Number(adjustment.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}>{Number(adjustment.amount) >= 0 ? "+" : ""}{Number(adjustment.amount).toFixed(2)}</strong>
+                              <span>{adjustment.category}</span>
+                              <span className="text-muted-foreground">·</span>
+                              <span>{adjustment.reason}</span>
+                              {revoked ? (
+                                <Badge variant="destructive" className="gap-1 text-[11px]">
+                                  <Undo2 className="h-3 w-3" /> Đã thu hồi
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">{adjustment.createdBy?.fullName || "Giảng viên"} · {new Date(adjustment.createdAt).toLocaleString("vi-VN")}</p>
+                            {revoked ? (
+                              <p className="mt-1 text-xs font-medium text-rose-600">
+                                Đã thu hồi lúc {adjustment.revokedAt ? new Date(adjustment.revokedAt).toLocaleString("vi-VN") : ""}
+                                {adjustment.revocationReason ? ` — Lý do: ${adjustment.revocationReason}` : ""}
+                              </p>
+                            ) : null}
+                          </div>
+                          {!revoked ? <Button size="sm" variant="outline" className="gap-1" onClick={() => revokeAdjustment(adjustment.id)} disabled={isAdjusting}><Undo2 className="h-3.5 w-3.5" /> Thu hồi</Button> : null}
                         </div>
-                        {!adjustment.revokedAt ? <Button size="sm" variant="outline" className="gap-1" onClick={() => revokeAdjustment(adjustment.id)} disabled={isAdjusting}><Undo2 className="h-3.5 w-3.5" /> Thu hồi</Button> : null}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : null}
               </CardContent>

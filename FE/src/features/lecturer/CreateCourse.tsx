@@ -2247,9 +2247,13 @@ export default function CreateCourse() {
                               {courseExams.map((exam) => {
                                 const submissionCount =
                                   exam._count?.submissions ?? 0;
+                                const isMonitorWindowOpen =
+                                  !exam.endTime ||
+                                  new Date(exam.endTime).getTime() > Date.now();
                                 const canMonitor =
-                                  exam.status === "ONGOING" ||
-                                  exam.status === "PUBLISHED";
+                                  isMonitorWindowOpen &&
+                                  (exam.status === "ONGOING" ||
+                                    exam.status === "PUBLISHED");
                                 const canViewResults =
                                   exam.status === "COMPLETED" ||
                                   submissionCount > 0;

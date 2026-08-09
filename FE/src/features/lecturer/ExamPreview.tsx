@@ -503,7 +503,7 @@ export default function ExamPreview() {
                                   >
                                     {option.key}
                                   </span>
-                                  <span className="leading-6">{option.value}</span>
+                                  <span className="min-w-0 break-words leading-6">{option.value}</span>
                                   {isCorrect ? (
                                     <CheckCircle2 className="ml-auto h-4 w-4 shrink-0" />
                                   ) : null}
@@ -518,7 +518,7 @@ export default function ExamPreview() {
                             <CheckCircle2 className="h-4 w-4" />
                             Đáp án đúng
                           </div>
-                          <p className="text-sm leading-6 text-foreground">
+                          <p className="text-sm leading-6 text-foreground break-words">
                             {correctAnswerText}
                           </p>
                         </div>
@@ -528,7 +528,7 @@ export default function ExamPreview() {
                             <p className="text-xs font-semibold uppercase text-info">
                               Giải thích / rubric
                             </p>
-                            <p className="mt-1 text-sm leading-6 text-foreground">
+                            <p className="mt-1 text-sm leading-6 text-foreground break-words">
                               {eq.question.explanation}
                             </p>
                           </div>

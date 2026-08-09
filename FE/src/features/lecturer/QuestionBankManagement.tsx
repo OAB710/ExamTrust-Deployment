@@ -954,8 +954,8 @@ export default function QuestionBankManagement() {
                               <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                                 {formatQuestionDate(question.updatedAt)}
                               </TableCell>
-                              <TableCell className="text-sm">
-                                <span className="line-clamp-2">{question.content}</span>
+                              <TableCell className="max-w-[360px] text-sm">
+                                <span className="block truncate" title={question.content}>{question.content}</span>
                               </TableCell>
                               <TableCell className="text-sm whitespace-nowrap">
                                 {questionTypeLabels[question.type] || question.type}

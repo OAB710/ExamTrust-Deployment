@@ -451,22 +451,22 @@ export default function UploadDocAIGen() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <p className="text-sm font-medium">{question.content}</p>
+                  <p className="text-sm font-medium break-words">{question.content}</p>
                   {question.options && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {Object.entries(question.options).map(([key, value]) => {
                         const correct = Object.values(question.correctAnswer || {}).includes(key) || Object.values(question.correctAnswer || {}).includes(value);
                         return (
-                          <div key={key} className={`flex items-center gap-2 p-2 rounded border text-sm ${correct ? "border-green-500 bg-green-50" : "border-muted"}`}>
+                          <div key={key} className={`flex items-start gap-2 p-2 rounded border text-sm ${correct ? "border-green-500 bg-green-50" : "border-muted"}`}>
                             <Checkbox checked={correct} disabled />
-                            <span className="font-medium text-muted-foreground">{key}.</span>
-                            {value}
+                            <span className="font-medium text-muted-foreground shrink-0">{key}.</span>
+                            <span className="min-w-0 break-words">{value}</span>
                           </div>
                         );
                       })}
                     </div>
                   )}
-                  {question.explanation && <p className="text-xs text-muted-foreground bg-secondary/50 rounded p-2">{question.explanation}</p>}
+                  {question.explanation && <p className="text-xs text-muted-foreground bg-secondary/50 rounded p-2 break-words">{question.explanation}</p>}
                 </CardContent>
               </Card>
             ))}

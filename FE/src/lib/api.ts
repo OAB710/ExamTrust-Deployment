@@ -749,6 +749,7 @@ class ApiClient {
     examQuestionId?: string;
     qualityReviewId?: string;
     analytics?: Record<string, any>;
+    instruction?: string;
   }) {
     return this.request<any>('/questions/ai-improvements', {
       method: 'POST',

@@ -14,6 +14,7 @@ interface UseExamSecurityOptions {
   sessionStatus?: "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "DISCONNECTED" | string;
   isSubmitting?: boolean;
   fullscreenGraceMs?: number;
+  fullscreenExitGraceMs?: number;
   initialFullscreenRequestedAt?: number | null;
   violationCooldownMs?: number;
   onViolation?: (log: ViolationLog, totalCount: number) => void;
@@ -29,7 +30,9 @@ interface UseExamSecurityResult {
   lastViolation: ViolationLog | null;
   maxViolations: number;
   canFullscreen: boolean;
+  isFullscreenExitPending: boolean;
   returnToExam: () => Promise<void>;
+  exitFullscreenAfterConfirmation: () => Promise<void>;
   getViolationLogs: () => ViolationLog[];
 }
 
@@ -41,6 +44,7 @@ const emptyCounts: Record<ViolationType, number> = {
 };
 
 const DEFAULT_FULLSCREEN_GRACE_MS = 5000;
+const DEFAULT_FULLSCREEN_EXIT_GRACE_MS = 15_000;
 const DEFAULT_VIOLATION_COOLDOWN_MS = 3000;
 
 export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSecurityResult {
@@ -50,6 +54,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     sessionStatus = "IN_PROGRESS",
     isSubmitting = false,
     fullscreenGraceMs = DEFAULT_FULLSCREEN_GRACE_MS,
+    fullscreenExitGraceMs = DEFAULT_FULLSCREEN_EXIT_GRACE_MS,
     initialFullscreenRequestedAt = null,
     violationCooldownMs = DEFAULT_VIOLATION_COOLDOWN_MS,
     onViolation,
@@ -72,6 +77,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   const [violationCount, setViolationCount] = useState(0);
   const [violationCounts, setViolationCounts] = useState<Record<ViolationType, number>>(emptyCounts);
   const [lastViolation, setLastViolation] = useState<ViolationLog | null>(null);
+  const [isFullscreenExitPending, setIsFullscreenExitPending] = useState(false);
 
   const logsRef = useRef<ViolationLog[]>([]);
   const escalatedRef = useRef(false);
@@ -80,6 +86,16 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   const fullscreenRequestedAtRef = useRef<number | null>(initialFullscreenRequestedAt);
   const hasEnteredFullscreenOnceRef = useRef(false);
   const lastViolationAtRef = useRef<Partial<Record<ViolationType, number>>>({});
+  const fullscreenExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intentionalFullscreenExitRef = useRef(false);
+
+  const clearPendingFullscreenExit = useCallback(() => {
+    if (fullscreenExitTimerRef.current) {
+      clearTimeout(fullscreenExitTimerRef.current);
+      fullscreenExitTimerRef.current = null;
+    }
+    setIsFullscreenExitPending(false);
+  }, []);
 
   const isTrackingActive = useCallback(() => {
     return enabled && !isSubmitting && String(sessionStatus).toUpperCase() === "IN_PROGRESS";
@@ -154,6 +170,19 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     await requestFullscreen(true);
   }, [requestFullscreen]);
 
+  const exitFullscreenAfterConfirmation = useCallback(async () => {
+    if (!document.fullscreenElement) return;
+    intentionalFullscreenExitRef.current = true;
+    try {
+      await document.exitFullscreen();
+    } catch (error) {
+      intentionalFullscreenExitRef.current = false;
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[exam-security] exitFullscreen ignored", error);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!enabled) {
       setIsBlocked(false);
@@ -177,6 +206,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       const active = Boolean(document.fullscreenElement);
       setIsFullscreen(active);
       if (active) {
+        clearPendingFullscreenExit();
         hasEnteredFullscreenOnceRef.current = true;
         // Clear the grace window as soon as fullscreen is restored. Keeping
         // it would suppress a subsequent Escape/fullscreen exit for 5 seconds.
@@ -203,12 +233,36 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
         setIsBlocked(false);
         return;
       }
-      recordViolation("fullscreen_exit", "Sinh viên đã thoát chế độ toàn màn hình");
+      if (intentionalFullscreenExitRef.current) {
+        intentionalFullscreenExitRef.current = false;
+        recordViolation("fullscreen_exit", "Sinh viên đã xác nhận thoát chế độ toàn màn hình");
+        return;
+      }
+
+      setLastViolation({
+        timestamp: Date.now(),
+        type: "fullscreen_exit",
+        detail: "Đang chờ quay lại chế độ toàn màn hình",
+      });
+      setIsBlocked(false);
+      setIsFullscreenExitPending(true);
+      if (fullscreenExitTimerRef.current) clearTimeout(fullscreenExitTimerRef.current);
+      fullscreenExitTimerRef.current = setTimeout(() => {
+        fullscreenExitTimerRef.current = null;
+        setIsFullscreenExitPending(false);
+        if (!document.fullscreenElement) {
+          recordViolation("fullscreen_exit", "Sinh viên không quay lại chế độ toàn màn hình trong thời gian cho phép");
+        }
+      }, fullscreenExitGraceMs);
     };
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, [enabled, isSubmitting, isTrackingActive, isWithinFullscreenGrace, recordViolation, sessionStatus]);
+  }, [clearPendingFullscreenExit, enabled, fullscreenExitGraceMs, isSubmitting, isTrackingActive, isWithinFullscreenGrace, recordViolation, sessionStatus]);
+
+  useEffect(() => () => {
+    if (fullscreenExitTimerRef.current) clearTimeout(fullscreenExitTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
@@ -267,7 +321,9 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     lastViolation,
     maxViolations,
     canFullscreen,
+    isFullscreenExitPending,
     returnToExam,
+    exitFullscreenAfterConfirmation,
     getViolationLogs,
   };
 }

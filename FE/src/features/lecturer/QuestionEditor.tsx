@@ -46,6 +46,8 @@ import { useQuestionPersistence } from "./hooks/useQuestionPersistence";
 import { FillBlankGuide, QuestionAnswerEditor } from "./components/QuestionAnswerEditor";
 import { QuestionTopicDialog } from "./components/QuestionTopicDialog";
 import { buildQuestionPayload, toEditorDifficulty, toEditorQuestionType } from "./question-editor-persistence";
+import { QUESTION_LIMITS, WARNING_THRESHOLD } from "./question-validation.constants";
+import { validateLineContent, lineContentCounterText } from "./question-validation";
 
 export default function QuestionEditor() {
   const router = useRouter();
@@ -171,6 +173,8 @@ export default function QuestionEditor() {
     // Required fields
     if (!content.trim()) {
       errors.push("Cần nhập nội dung câu hỏi");
+    } else if (content.length > QUESTION_LIMITS.content) {
+      errors.push(`Nội dung câu hỏi không được vượt quá ${QUESTION_LIMITS.content.toLocaleString()} ký tự.`);
     }
 
     if (!course) {
@@ -179,6 +183,27 @@ export default function QuestionEditor() {
 
     if (!/^[1-5]$/.test(scoreCoefficient)) {
       errors.push("Hệ số điểm số chỉ nhận số nguyên từ 1 - 5");
+    }
+
+    // Option length validation
+    const filledOptions = options.filter((o) => o.text.trim());
+    for (const opt of filledOptions) {
+      if (opt.text.length > QUESTION_LIMITS.option) {
+        errors.push(`Đáp án "${opt.id}" vượt quá ${QUESTION_LIMITS.option.toLocaleString()} ký tự. Mỗi đáp án không được vượt quá ${QUESTION_LIMITS.option.toLocaleString()} ký tự.`);
+        break;
+      }
+    }
+
+    // Explanation length
+    if (explanation.length > QUESTION_LIMITS.explanation) {
+      errors.push(`Giải thích không được vượt quá ${QUESTION_LIMITS.explanation.toLocaleString()} ký tự.`);
+    }
+
+    // Line content validation (find_error / ordering)
+    if (questionType === "find_error" || questionType === "ordering") {
+      const rawLines = options.map((o) => o.text).join("\n");
+      const lineResult = validateLineContent(rawLines);
+      errors.push(...lineResult.errors);
     }
 
     errors.push(...validateAnswer(questionType));
@@ -467,9 +492,9 @@ export default function QuestionEditor() {
           <div>
             {/* === EDIT MODE === */}
             <div>
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
                 {/* ── LEFT: Question Editor ── */}
-                <div className="space-y-4 sm:space-y-6">
+                <div className="min-w-0 space-y-4 sm:space-y-6">
                   {/* AI Generator Section */}
                   <Card className="border-primary/20 bg-primary/5">
                     <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
@@ -655,6 +680,9 @@ export default function QuestionEditor() {
                           className="text-sm sm:text-base resize-none"
                           ref={contentRef}
                         />
+                        <p className={`mt-1 text-xs ${content.length >= QUESTION_LIMITS.content * WARNING_THRESHOLD ? (content.length > QUESTION_LIMITS.content ? "text-destructive" : "text-amber-600") : "text-muted-foreground"}`}>
+                          {content.length.toLocaleString()} / {QUESTION_LIMITS.content.toLocaleString()} ký tự
+                        </p>
                         {questionType === "fill_blank" && (
                           <div className="mt-2 flex justify-end">
                             <Button
@@ -758,6 +786,9 @@ export default function QuestionEditor() {
                         rows={3}
                         className="text-sm resize-none"
                       />
+                      <p className={`mt-1 text-xs ${explanation.length >= QUESTION_LIMITS.explanation * WARNING_THRESHOLD ? (explanation.length > QUESTION_LIMITS.explanation ? "text-destructive" : "text-amber-600") : "text-muted-foreground"}`}>
+                        {explanation.length.toLocaleString()} / {QUESTION_LIMITS.explanation.toLocaleString()} ký tự
+                      </p>
                     </CardContent>
                   </Card>
                 </div>

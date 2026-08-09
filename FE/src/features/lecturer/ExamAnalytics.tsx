@@ -21,6 +21,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2, ExternalLink, Sparkles, TrendingUp, AlertTriangle, BarChart3, CheckCircle2, X, XCircle } from "lucide-react";
 import api from "@/lib/api";
 import { unwrapPaginatedData } from "@/lib/api";
@@ -64,6 +65,8 @@ export default function ExamAnalytics() {
   const [data, setData] = useState<IntelligencePayload | null>(null);
   const [aiImprovements, setAiImprovements] = useState<Record<string, AiImprovementSummary>>({});
   const [aiImprovingQuestionId, setAiImprovingQuestionId] = useState<string | null>(null);
+  const [improvementTarget, setImprovementTarget] = useState<IntelligencePayload["mostIncorrectQuestions"][number] | null>(null);
+  const [improvementInstruction, setImprovementInstruction] = useState("");
   const [reviewingImprovement, setReviewingImprovement] = useState<AiImprovementDetail | null>(null);
   const [reviewQuestionCourse, setReviewQuestionCourse] =
     useState<QuestionCourseInfo | null>(null);
@@ -75,9 +78,8 @@ export default function ExamAnalytics() {
   const [previewError, setPreviewError] = useState("");
 
   useEffect(() => {
-    setRequestedExamId(
-      new URLSearchParams(window.location.search).get("examId") || "",
-    );
+    const params = new URLSearchParams(window.location.search);
+    setRequestedExamId(params.get("examId") || "");
   }, []);
 
   // Derived: unique academic years from all exams (via course)
@@ -294,13 +296,27 @@ export default function ExamAnalytics() {
     setReviewError("");
   };
 
-  const createAiImprovement = async (item: IntelligencePayload["mostIncorrectQuestions"][number]) => {
+  const openAiImprovementDialog = (item: IntelligencePayload["mostIncorrectQuestions"][number]) => {
+    setImprovementTarget(item);
+    setImprovementInstruction("");
+  };
+
+  const closeAiImprovementDialog = () => {
+    if (aiImprovingQuestionId) return;
+    setImprovementTarget(null);
+    setImprovementInstruction("");
+  };
+
+  const createAiImprovement = async () => {
+    const item = improvementTarget;
     if (!selectedExamId || aiImprovingQuestionId) return;
+    if (!item) return;
     try {
       setAiImprovingQuestionId(item.questionId);
       const response = await api.createQuestionAiImprovement({
         questionId: item.questionId,
         examId: selectedExamId,
+        instruction: improvementInstruction.trim() || undefined,
         analytics: {
           orderIndex: item.orderIndex,
           questionText: item.questionText,
@@ -322,6 +338,8 @@ export default function ExamAnalytics() {
       }));
     } finally {
       setAiImprovingQuestionId(null);
+      setImprovementTarget(null);
+      setImprovementInstruction("");
     }
   };
 
@@ -869,8 +887,8 @@ export default function ExamAnalytics() {
                                       className="h-8 gap-1"
                                       disabled={isCreating}
                                       onClick={() => {
-                                        trackAction("create_ai_question_improvement");
-                                        createAiImprovement(item);
+                                        trackAction("open_ai_question_improvement");
+                                        openAiImprovementDialog(item);
                                       }}
                                     >
                                       {isCreating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -942,9 +960,6 @@ export default function ExamAnalytics() {
                     <CardTitle className="text-base font-semibold text-foreground">Cảnh báo chất lượng câu hỏi</CardTitle>
                     <CardDescription>Hỗ trợ giảng viên rà soát nội dung câu hỏi.</CardDescription>
                   </div>
-                  <Button size="sm" variant="outline" className="h-8 gap-1 whitespace-nowrap" disabled={!selectedExamId} onClick={() => { trackAction("open_ai_quality_review"); router.push(`/lecturer/exam/${selectedExamId}/quality-review`); }}>
-                    <Sparkles className="h-3.5 w-3.5" /> Rà soát AI
-                  </Button>
                 </CardHeader>
                 <CardContent>
                   {(data.creatorQualityAlerts?.length ?? 0) === 0 ? (
@@ -961,7 +976,7 @@ export default function ExamAnalytics() {
                             <Badge variant="outline" className="shrink-0 border-rose-200 bg-rose-50 text-rose-700">Cảnh báo</Badge>
                           </div>
                           <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{translateMetricText(item.suggestion)}</p>
-                          <Button variant="ghost" size="sm" className="mt-2 h-8 px-0 text-primary hover:bg-transparent hover:text-primary/80" onClick={() => { trackAction("quality_alert_open_question_bank"); openAction(item.action); }}>
+                          <Button variant="ghost" size="sm" className="mt-2 h-8 px-0 text-primary hover:bg-transparent hover:text-primary/80" onClick={() => { trackAction("quality_alert_open_question_preview"); openQuestionPreview(item); }}>
                             Xem câu hỏi <ExternalLink className="ml-1 h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -1171,6 +1186,62 @@ export default function ExamAnalytics() {
                 </div>
               );
             })() : null}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={Boolean(improvementTarget)}
+          onOpenChange={(open) => {
+            if (!open) closeAiImprovementDialog();
+          }}
+        >
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Định hướng cải thiện câu hỏi
+              </DialogTitle>
+              <DialogDescription>
+                AI sẽ kết hợp định hướng của bạn với tỷ lệ sai, bỏ qua và các tín hiệu chất lượng của câu hỏi. Đề xuất luôn cần giảng viên xem và duyệt trước khi áp dụng.
+              </DialogDescription>
+            </DialogHeader>
+            {improvementTarget ? (
+              <div className="space-y-3">
+                <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                  <p className="font-medium text-foreground">Câu {improvementTarget.orderIndex + 1}</p>
+                  <p className="mt-1 line-clamp-3 text-muted-foreground">{improvementTarget.questionText}</p>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="ai-improvement-instruction" className="text-sm font-medium text-foreground">
+                    Bạn muốn cải thiện theo hướng nào? <span className="font-normal text-muted-foreground">(không bắt buộc)</span>
+                  </label>
+                  <Textarea
+                    id="ai-improvement-instruction"
+                    value={improvementInstruction}
+                    onChange={(event) => setImprovementInstruction(event.target.value)}
+                    maxLength={2000}
+                    rows={4}
+                    placeholder="Ví dụ: Giữ kiến thức trọng tâm nhưng diễn đạt rõ hơn cho sinh viên năm nhất; tăng độ phân biệt giữa các phương án nhiễu."
+                  />
+                  <p className="text-xs text-muted-foreground">Để trống nếu bạn muốn AI chỉ dựa vào dữ liệu hiệu suất hiện có.</p>
+                </div>
+              </div>
+            ) : null}
+            <DialogFooter>
+              <Button variant="outline" disabled={Boolean(aiImprovingQuestionId)} onClick={closeAiImprovementDialog}>
+                Hủy
+              </Button>
+              <Button
+                disabled={!selectedExamId || Boolean(aiImprovingQuestionId)}
+                onClick={() => {
+                  trackAction("create_ai_question_improvement");
+                  void createAiImprovement();
+                }}
+              >
+                {aiImprovingQuestionId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                Tạo đề xuất AI
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

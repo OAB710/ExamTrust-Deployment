@@ -674,7 +674,8 @@ export default function AdminExamManagement() {
                                   Xem trước
                                 </DropdownMenuItem>
                                 {(exam.status === "ONGOING" ||
-                                  exam.status === "PUBLISHED") && (
+                                  exam.status === "PUBLISHED") &&
+                                  (!exam.endTime || new Date(exam.endTime).getTime() > Date.now()) && (
                                   <DropdownMenuItem
                                     onClick={() =>
                                       router.push(`/admin/exam/${exam.id}/monitor`)

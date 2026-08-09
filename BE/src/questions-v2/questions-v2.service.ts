@@ -24,6 +24,12 @@ import {
 import { ListQuestionsQueryDto } from './dto/question-v2-query.dto';
 import { CreateQuestionCrudDto, UpdateQuestionCrudDto } from './dto/question-crud.dto';
 import {
+  assertQuestionContentLength,
+  assertOptionsLength,
+  assertExplanationLength,
+  assertLineContent,
+} from './question-validation';
+import {
   ApproveQuestionAiImprovementDto,
   CreateQuestionAiImprovementDto,
   RejectQuestionAiImprovementDto,
@@ -294,20 +300,50 @@ export class QuestionsService {
 
     await this.assertTopicBelongsToCourse(topicId, questionData.courseId);
 
-    const created = await this.prisma.question.create({
-      data: {
-        type: questionData.type,
-        content: questionData.content,
-        options: questionData.options,
-        correctAnswer: questionData.correctAnswer,
-        explanation: questionData.explanation,
-        difficulty: questionData.difficulty,
-        points: questionData.points,
-        // Suggested coefficient only; the effective score belongs to each ExamQuestion.
-        defaultPoints: questionData.defaultPoints ?? 1,
-        courseId: questionData.courseId,
-        creatorId: user.id,
-      },
+    // Validate content lengths
+    assertQuestionContentLength(questionData.content);
+    assertOptionsLength(questionData.options);
+    if (questionData.explanation) assertExplanationLength(questionData.explanation);
+
+    // Validate line content for find_error / ordering types
+    if (questionData.type === 'FIND_ERROR' || questionData.type === 'ORDERING') {
+      assertLineContent(questionData.options);
+    }
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const question = await tx.question.create({
+        data: {
+          type: questionData.type,
+          content: questionData.content,
+          options: questionData.options,
+          correctAnswer: questionData.correctAnswer,
+          explanation: questionData.explanation,
+          difficulty: questionData.difficulty,
+          points: questionData.points,
+          // Suggested coefficient only; the effective score belongs to each ExamQuestion.
+          defaultPoints: questionData.defaultPoints ?? 1,
+          courseId: questionData.courseId,
+          creatorId: user.id,
+        },
+      });
+
+      await tx.questionVersion.create({
+        data: {
+          questionId: question.id,
+          versionNo: 1,
+          stem: question.content,
+          payload: question.options ?? {},
+          answerKey: question.correctAnswer ?? {},
+          explanation: question.explanation,
+          difficulty: question.difficulty,
+          points: question.points,
+          metadata: { source: 'question-create' },
+          aiGenerated: false,
+          createdBy: user.id,
+        },
+      });
+
+      return question;
     });
 
     await this.syncSingleQuestionTopic(created.id, topicId);
@@ -514,6 +550,17 @@ export class QuestionsService {
 
     await this.assertTopicBelongsToCourse(topicId, effectiveCourseId);
 
+    // Validate content lengths (only when provided in the update)
+    if (dto.content !== undefined) assertQuestionContentLength(dto.content);
+    if (dto.options !== undefined) assertOptionsLength(dto.options);
+    if (dto.explanation !== undefined) assertExplanationLength(dto.explanation);
+
+    // Validate line content for find_error / ordering when options are provided
+    const effectiveType = dto.type ?? question.type;
+    if (dto.options !== undefined && (effectiveType === 'FIND_ERROR' || effectiveType === 'ORDERING')) {
+      assertLineContent(dto.options);
+    }
+
     const updated = await this.prisma.question.update({
       where: { id },
       data: {
@@ -686,7 +733,7 @@ export class QuestionsService {
           sourceUpdatedAt: question.updatedAt.toISOString(),
           original,
           analytics: dto.analytics || {},
-          instruction: dto.instruction || '',
+          instruction: String(dto.instruction || '').trim(),
           qualitySignals: qualitySignals.map((item) => ({
             id: item.id,
             severity: item.severity,

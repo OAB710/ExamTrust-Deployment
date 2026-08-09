@@ -256,11 +256,43 @@ export function mapBackendToUiQuestion(q: any, index: number): Question {
   }
   if (type === "FILL_IN_BLANK") {
     const text = String(q?.content || "Điền vào chỗ trống");
+
+    // Parse [[answer]] format from backend (e.g. "...hàng hóa được [[dỡ xuống bến]] từ tàu...")
+    const blankRegex = /\[\[([^\]]+)\]\]/g;
+    let blankCount = 0;
+    let template = text;
+
+    // Collect matches
+    const matches: string[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = blankRegex.exec(text)) !== null) {
+      matches.push(match[0]);
+    }
+
+    if (matches.length > 0) {
+      // Replace each [[...]] with {{n}} placeholder
+      matches.forEach((fullMatch, idx) => {
+        template = template.replace(fullMatch, `{{${idx + 1}}}`);
+      });
+      blankCount = matches.length;
+    } else {
+      // Fallback: count existing {{n}} markers
+      blankCount = (text.match(/\{\{\d+\}\}/g) || []).length;
+      if (blankCount === 0) {
+        // Legacy: no placeholders found, append one
+        template = `${text} {{1}}`;
+        blankCount = 1;
+      }
+    }
+
     return {
-      ...base,
-      type: "fill-blank",
-      template: text.includes("{{1}}") ? text : `${text} {{1}}`,
-      blanks: 1,
+      id: index + 1,
+      title: q?.title || "Điền vào chỗ trống",
+      points: Number(q?.points ?? 1),
+      content: text,
+      type: "fill-blank" as const,
+      template,
+      blanks: blankCount,
     } as FillBlankQ;
   }
   if (type === "ORDERING") {

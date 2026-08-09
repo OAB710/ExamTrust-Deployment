@@ -126,6 +126,7 @@ export default function ExamManagement() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [isRescheduling, setIsRescheduling] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
@@ -157,6 +158,11 @@ export default function ExamManagement() {
   useEffect(() => {
     fetchExams();
   }, [appliedFilters, appliedSearch, sortField, sortOrder, page]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const fetchExams = async () => {
     try {
@@ -699,6 +705,11 @@ export default function ExamManagement() {
                   </TableHeader>
                   <TableBody>
                     {paginatedExams.map((exam) => {
+                      const endTimeMs = exam.endTime ? new Date(exam.endTime).getTime() : null;
+                      const hasEnded = endTimeMs !== null && Number.isFinite(endTimeMs) && endTimeMs <= currentTime;
+                      const canViewResults =
+                        (!exam.endTime || hasEnded) &&
+                        (exam.status === "COMPLETED" || (exam._count?.submissions ?? 0) > 0);
                       return (
                         <TableRow key={exam.id} className="hover:bg-muted/50">
                           <TableCell className="min-w-[18rem]">
@@ -780,7 +791,8 @@ export default function ExamManagement() {
                                 Xem trước
                               </Button>
                               {(exam.status === "ONGOING" ||
-                                exam.status === "PUBLISHED") && (
+                                exam.status === "PUBLISHED") &&
+                                (!exam.endTime || new Date(exam.endTime).getTime() > Date.now()) && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -796,8 +808,7 @@ export default function ExamManagement() {
                                 </Button>
                               )}
 
-                              {(exam.status === "COMPLETED" ||
-                                (exam._count?.submissions ?? 0) > 0) && (
+                              {canViewResults && (
                                 <Button
                                   variant="outline"
                                   size="sm"

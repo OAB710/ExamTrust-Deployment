@@ -1,0 +1,47 @@
+# Graphify Knowledge Graph — Query-First Workflow
+
+This project has a **Graphify knowledge graph** at `.graphify/graph.json` (shared with Codex).
+
+## When to Query Graphify First
+
+Before broad repository searches, architecture analysis, cross-module debugging, or tracing FE/BE/database flows, **query the Graphify knowledge graph first**.
+
+**Trigger tasks (always query first):**
+- "Trace the full flow of X"
+- "Check FE + BE + Prisma"
+- "Find root cause (unknown location)"
+- "Fix across multiple modules"
+- "Evaluate architecture"
+- "Find all places related to X"
+- "Check feature at scale"
+
+**Direct-read tasks (skip graph):**
+- Known single-file edits
+- Trivial fixes in a known location
+
+## Query-First Workflow
+
+```
+STEP 1: graphify query "<specific task>"
+STEP 2: If deeper relations needed: graphify path A B / graphify explain "<node>"
+STEP 3: Select the minimal set of files to read
+STEP 4: Read actual source files (source of truth)
+STEP 5: Edit + test
+```
+
+## Important Rules
+
+- Graphify is for **navigation only** — source code is the source of truth
+- Do NOT read the entire `GRAPH_REPORT.md` for every task
+- Do NOT recursively scan the whole repository unless Graphify cannot locate the relevant subsystem
+- If `graphify query` returns sufficient scope, do NOT continue with broad searches
+- Target: 3–10 relevant files per task after graph query
+
+## Graph Update
+
+When source code changes significantly:
+```
+graphify update
+```
+
+This updates the SAME graph at `.graphify/graph.json` — shared with Codex. Do NOT rebuild independently.

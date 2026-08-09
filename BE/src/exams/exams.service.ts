@@ -401,13 +401,18 @@ export class ExamsService {
             throw new BadRequestException(`Không tìm thấy câu hỏi: ${questionId}`);
           }
 
-            await this.insertExamQuestionCompat(tx, {
+          const questionVersionId = latestVersionByQuestionId.get(questionId);
+          if (!questionVersionId) {
+            throw new BadRequestException(`Câu hỏi ${questionId} chưa có phiên bản và không thể đưa vào đề thi`);
+          }
+
+          await this.insertExamQuestionCompat(tx, {
               examId: exam.id,
               questionId,
               orderIndex: i + 1,
               points: Math.max(1, Math.round(Number(question.defaultPoints ?? question.points ?? 1))),
               assignedScore: Number(question.defaultPoints ?? question.points ?? 1) || 1,
-              questionVersionId: latestVersionByQuestionId.get(questionId) ?? null,
+              questionVersionId,
             });
         }
       }
@@ -491,6 +496,7 @@ export class ExamsService {
                   INNER JOIN question_topics qt
                     ON qt.questionId COLLATE utf8mb4_unicode_ci = q.id COLLATE utf8mb4_unicode_ci
                   WHERE ${topicWhereParts.join(' AND ')}
+                    AND EXISTS (SELECT 1 FROM question_versions qv WHERE qv.questionId = q.id)
                   `,
                   ...topicArgs,
                 ) as Array<{ id: string; points: number | null; defaultPoints: number | null }>;
@@ -510,7 +516,7 @@ export class ExamsService {
               }
             } else {
               const selected = await tx.question.findMany({
-                where: baseWhere,
+                where: { ...baseWhere, versions: { some: {} } },
                 take: Math.max(0, Number(requestedCount)),
                 orderBy: { createdAt: 'desc' },
                 select: {
@@ -558,13 +564,17 @@ export class ExamsService {
 
             for (let i = 0; i < selectedQuestions.length; i++) {
               const question = selectedQuestions[i];
+              const questionVersionId = latestVersionByQuestionId.get(question.id);
+              if (!questionVersionId) {
+                throw new BadRequestException(`Câu hỏi ${question.id} chưa có phiên bản và không thể đưa vào đề thi`);
+              }
               await this.insertExamQuestionCompat(tx, {
                 examId: exam.id,
                 questionId: question.id,
                 orderIndex: (questionIds?.length || 0) + i + 1,
                 points: Math.max(1, Math.round(Number(question.defaultPoints ?? question.points ?? 1))),
                 assignedScore: Number(question.defaultPoints ?? question.points ?? 1) || 1,
-                questionVersionId: latestVersionByQuestionId.get(question.id) ?? null,
+                questionVersionId,
               });
             }
         }

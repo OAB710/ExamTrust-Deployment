@@ -18,7 +18,7 @@ export interface UpcomingExam {
 export interface ExamHistoryItem {
   id: string;
   examId: string;
-  exam: { title: string; course: { code: string }; totalPoints: number; passingScore: number };
+  exam: { title: string; course: { code: string }; totalPoints: number; passingScore?: number | null };
   score: number | null;
   status: string;
   submittedAt: string | null;
