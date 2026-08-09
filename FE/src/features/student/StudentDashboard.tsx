@@ -35,6 +35,7 @@ import {
   getCourseExamAction,
 } from "@/lib/course-exam-action";
 import { formatCourseTerm } from "@/lib/course-term";
+import { formatScoreVi } from "@/lib/presentation";
 import { useStudentDashboardData } from "./hooks/useStudentDashboardData";
 import { safeLabel } from "./student-dashboard-types";
 import {
@@ -57,10 +58,10 @@ export default function StudentDashboard() {
 
   const avgScore =
     examHistory.length > 0
-      ? Math.round(
+      ? Number((
           examHistory.reduce((acc, e) => acc + (e.score || 0), 0) /
-            examHistory.length,
-        )
+            examHistory.length
+        ).toFixed(2))
       : 0;
 
   if (loading) {
@@ -107,7 +108,7 @@ export default function StudentDashboard() {
             },
             {
               label: "Điểm trung bình",
-              value: `${avgScore}%`,
+              value: formatScoreVi(avgScore),
               icon: Target,
               color: "text-violet-600",
               bg: "bg-violet-500/10",
@@ -415,8 +416,8 @@ export default function StudentDashboard() {
               ) : (
                 examHistory.slice(0, 5).map((submission, i) => {
                   const score = submission.score || 0;
-                  const maxScore = submission.exam?.totalPoints || 100;
-                  const passingScore = submission.exam?.passingScore || 50;
+                  const maxScore = 10;
+                  const passingScore = Number(submission.exam?.passingScore ?? 50) / 10;
                   const passed = score >= passingScore;
                   const completedAt = submission.submittedAt
                     ? new Date(submission.submittedAt)
@@ -458,7 +459,7 @@ export default function StudentDashboard() {
                       <div className="text-right flex items-center gap-4">
                         <div>
                           <p className="text-lg font-bold text-foreground">
-                            {score}/{maxScore}
+                            {formatScoreVi(score)}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {pct}%

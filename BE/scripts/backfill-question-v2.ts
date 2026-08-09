@@ -1,3 +1,5 @@
+import { PrismaClient } from '@prisma/client';
+
 /*
 	Backfill script: migrate legacy questions data into v2 tables using batch/cursor.
 	Run AFTER applying phase-01 expand schema.
@@ -10,12 +12,6 @@
 	- BACKFILL_START_CURSOR=<questionId>
 	- BACKFILL_DRY_RUN=1
 */
-
-declare const require: any;
-declare const process: any;
-
-// Use generated Prisma client from workspace root node_modules (same pattern as PrismaService)
-const { PrismaClient } = require('../../node_modules/@prisma/client');
 
 const prisma = new PrismaClient({
 	datasources: {
@@ -38,7 +34,6 @@ type LegacyQuestion = {
 	difficulty: number | null;
 	points: number | null;
 	courseId: string | null;
-	courseId: string | null;
 	creatorId: string | null;
 	createdAt: Date;
 };
@@ -48,7 +43,8 @@ async function fetchBatch(cursorId?: string): Promise<LegacyQuestion[]> {
 		const rows = await prisma.$queryRawUnsafe(
 			`
 			SELECT id, type, content, options, correctAnswer, explanation, difficulty, points, courseId, creatorId, createdAt
-			FROM questions
+			FROM questions q
+			WHERE NOT EXISTS (SELECT 1 FROM question_versions qv WHERE qv.questionId = q.id)
 			ORDER BY id ASC
 			LIMIT ?
 			`,
@@ -60,8 +56,9 @@ async function fetchBatch(cursorId?: string): Promise<LegacyQuestion[]> {
 	const rows = await prisma.$queryRawUnsafe(
 		`
 		SELECT id, type, content, options, correctAnswer, explanation, difficulty, points, courseId, creatorId, createdAt
-		FROM questions
+		FROM questions q
 		WHERE id > ?
+			AND NOT EXISTS (SELECT 1 FROM question_versions qv WHERE qv.questionId = q.id)
 		ORDER BY id ASC
 		LIMIT ?
 		`,

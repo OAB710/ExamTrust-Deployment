@@ -352,7 +352,8 @@ export default function CreateExam() {
 
         if (topicsData.length === 0) {
           const questions = await loadQuestionsForTopic();
-          const typeCounts = questions.reduce((acc: Record<string, number>, question: any) => {
+          const readyQuestions = questions.filter((question: any) => Boolean(question?.latestVersion?.id));
+          const typeCounts = readyQuestions.reduce((acc: Record<string, number>, question: any) => {
             const type = normalizeType(question.type);
             acc[type] = (acc[type] || 0) + 1;
             return acc;
@@ -364,7 +365,7 @@ export default function CreateExam() {
             {
               topicId: "",
               topic: WHOLE_COURSE_LABEL,
-              count: questions.length,
+              count: readyQuestions.length,
               selected: false,
               requestedCount: "0",
               availableByType: typeCounts,
@@ -376,7 +377,8 @@ export default function CreateExam() {
         const nextTopics = await Promise.all(
           topicsData.map(async (topic: any) => {
             const questions = await loadQuestionsForTopic(topic.id);
-            const typeCounts = questions.reduce((acc: Record<string, number>, question: any) => {
+            const readyQuestions = questions.filter((question: any) => Boolean(question?.latestVersion?.id));
+            const typeCounts = readyQuestions.reduce((acc: Record<string, number>, question: any) => {
               const type = normalizeType(question.type);
               acc[type] = (acc[type] || 0) + 1;
               return acc;
@@ -385,7 +387,7 @@ export default function CreateExam() {
             return {
               topicId: topic.id,
               topic: topic.name,
-              count: questions.length,
+              count: readyQuestions.length,
               selected: false,
               requestedCount: "0",
               availableByType: typeCounts,
@@ -443,6 +445,7 @@ export default function CreateExam() {
               type: String(question.type || "UNKNOWN"),
               content: String(question.content || question.stem || "Untitled question"),
               difficulty: Number(question.difficulty || 0) || undefined,
+              isVersionReady: Boolean(question?.latestVersion?.id),
             })),
           );
         }
@@ -473,12 +476,13 @@ export default function CreateExam() {
     });
   }, [bankQuestions, form.bankDifficulty, form.questionType]);
 
+  const versionReadyBankQuestions = filteredBankQuestions.filter((question) => question.isVersionReady);
   const isAllFilteredBankQuestionsSelected =
-    filteredBankQuestions.length > 0 &&
-    filteredBankQuestions.every((question) => selectedBankQuestionIds.includes(question.id));
+    versionReadyBankQuestions.length > 0 &&
+    versionReadyBankQuestions.every((question) => selectedBankQuestionIds.includes(question.id));
 
   const toggleSelectAllBankQuestions = () => {
-    const filteredIds = filteredBankQuestions.map((question) => question.id);
+    const filteredIds = versionReadyBankQuestions.map((question) => question.id);
     setSelectedBankQuestionIds((ids) =>
       isAllFilteredBankQuestionsSelected
         ? ids.filter((id) => !filteredIds.includes(id))
@@ -728,6 +732,14 @@ export default function CreateExam() {
         min: 1,
         integer: true,
       });
+      const selectedQuestionsWithoutVersion = bankQuestions.filter(
+        (question) => selectedBankQuestionIds.includes(question.id) && !question.isVersionReady,
+      );
+
+      if (selectedQuestionsWithoutVersion.length > 0) {
+        toast.error("Có câu hỏi chưa được chuẩn hóa phiên bản. Vui lòng bỏ chọn chúng trước khi tạo đề.");
+        return;
+      }
 
         if (randomQuestionCount > 0 && bankSelectionWarning) {
           setNumberErrors((prev) => ({ ...prev, questionCount: bankSelectionWarning }));
@@ -2004,7 +2016,7 @@ export default function CreateExam() {
                             </div>
                             {!isLoadingBankQuestions && filteredBankQuestions.length > 0 && (
                               <div className="flex items-center justify-between">
-                                <p className="text-xs text-muted-foreground">{filteredBankQuestions.length} câu hỏi khả dụng</p>
+                                <p className="text-xs text-muted-foreground">{versionReadyBankQuestions.length} câu hỏi sẵn sàng{filteredBankQuestions.length > versionReadyBankQuestions.length ? ` · ${filteredBankQuestions.length - versionReadyBankQuestions.length} câu cần chuẩn hóa phiên bản` : ""}</p>
                                 <Button type="button" variant="outline" size="sm" onClick={toggleSelectAllBankQuestions}>
                                   {isAllFilteredBankQuestionsSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
                                 </Button>
@@ -2016,16 +2028,18 @@ export default function CreateExam() {
                               ) : filteredBankQuestions.map((question) => {
                                 const checked = selectedBankQuestionIds.includes(question.id);
                                 return (
-                                  <label key={question.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${checked ? "border-primary bg-primary/5" : ""}`}>
+                                  <label key={question.id} className={`flex items-start gap-3 rounded-lg border p-3 ${question.isVersionReady ? "cursor-pointer" : "cursor-not-allowed opacity-60"} ${checked ? "border-primary bg-primary/5" : ""}`}>
                                     <Checkbox
                                       checked={checked}
-                                      onCheckedChange={(value) => setSelectedBankQuestionIds((ids) => value ? [...new Set([...ids, question.id])] : ids.filter((id) => id !== question.id))}
+                                      disabled={!question.isVersionReady}
+                                      onCheckedChange={(value) => setSelectedBankQuestionIds((ids) => value && question.isVersionReady ? [...new Set([...ids, question.id])] : ids.filter((id) => id !== question.id))}
                                     />
                                     <div className="min-w-0 flex-1">
                                       <p className="text-sm font-medium">{question.content}</p>
                                       <div className="mt-2 flex gap-2">
                                         <Badge variant="outline">{question.type}</Badge>
                                         <Badge variant="outline">{difficultyLabelViFromValue(question.difficulty)}</Badge>
+                                        {!question.isVersionReady ? <Badge variant="destructive">Cần chuẩn hóa phiên bản</Badge> : null}
                                       </div>
                                     </div>
                                   </label>

@@ -71,3 +71,4 @@ CLOUDFLARE_DEPLOY_NOTES.txt
 # Legacy graphify output directory
 graphify-out/
 fe/.graphify
+be/.graphify

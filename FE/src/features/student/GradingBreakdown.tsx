@@ -126,6 +126,12 @@ export default function GradingBreakdown() {
   const manualMax = sum(manualQuestions, "maxPoints");
   const totalScore = autoScore + manualScore;
   const totalMax = autoMax + manualMax;
+  const toTenPointScale = (value: number) => totalMax > 0 ? value / totalMax * 10 : 0;
+  const autoScoreOnTen = toTenPointScale(autoScore);
+  const autoMaxOnTen = toTenPointScale(autoMax);
+  const manualScoreOnTen = toTenPointScale(manualScore);
+  const manualMaxOnTen = toTenPointScale(manualMax);
+  const totalScoreOnTen = toTenPointScale(totalScore);
   const manualPending = manualQuestions.filter((question) => !question.isGraded).length;
   const manualGraded = manualQuestions.length - manualPending;
   const gradingComplete = manualPending === 0;
@@ -145,10 +151,10 @@ export default function GradingBreakdown() {
     {loading ? <div className="py-20 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></div> : <div className="mt-6 space-y-6">
       <div className="flex flex-wrap gap-2"><Badge variant={gradingComplete ? "default" : "secondary"}>{gradingComplete ? "Đã hoàn tất chấm" : `Đã chấm tự động · Chờ giảng viên chấm ${manualPending} câu`}</Badge>{manualQuestions.length > 0 ? <Badge variant="outline">Chấm thủ công: {manualGraded}/{manualQuestions.length} câu</Badge> : null}</div>
 
-      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Calculator className="h-5 w-5 text-primary" />Tổng quan điểm</CardTitle><CardDescription>Điểm tạm tính → Chấm tự động → Chấm thủ công → Điểm cuối cùng (thang 10)</CardDescription></CardHeader><CardContent><div className="grid gap-4 sm:grid-cols-3">
-        <ScoreCard icon={<Cpu className="h-5 w-5" />} tone="blue" label="Điểm chấm tự động" score={autoScore} max={autoMax} detail={`${autoQuestions.length} câu hỏi`} />
-        <ScoreCard icon={<User className="h-5 w-5" />} tone="violet" label="Điểm chấm thủ công" score={manualScore} max={manualMax} detail={manualPending ? `Chờ giảng viên chấm ${manualPending} câu` : `Đã chấm ${manualGraded} câu`} />
-        <ScoreCard icon={<Calculator className="h-5 w-5" />} tone="primary" label={gradingComplete ? "Điểm cuối cùng" : "Điểm tạm tính"} score={totalScore} max={totalMax} detail={gradingComplete ? `${formatPoints(totalMax > 0 ? totalScore / totalMax * 10 : 0)} / 10` : "Sẽ cập nhật sau khi hoàn tất chấm"} />
+      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Calculator className="h-5 w-5 text-primary" />Tổng quan điểm</CardTitle><CardDescription>Tất cả điểm tổng hợp bên dưới đều được quy đổi về thang 10; điểm từng câu vẫn giữ trọng số gốc.</CardDescription></CardHeader><CardContent><div className="grid gap-4 sm:grid-cols-3">
+        <ScoreCard icon={<Cpu className="h-5 w-5" />} tone="blue" label="Phần chấm tự động" score={autoScoreOnTen} max={autoMaxOnTen} detail={`${autoQuestions.length} câu hỏi · quy đổi thang 10`} />
+        <ScoreCard icon={<User className="h-5 w-5" />} tone="violet" label="Phần chấm thủ công" score={manualScoreOnTen} max={manualMaxOnTen} detail={manualPending ? `Chờ giảng viên chấm ${manualPending} câu · quy đổi thang 10` : `Đã chấm ${manualGraded} câu · quy đổi thang 10`} />
+        <ScoreCard icon={<Calculator className="h-5 w-5" />} tone="primary" label={gradingComplete ? "Điểm cuối cùng" : "Điểm tạm tính"} score={totalScoreOnTen} max={10} detail={gradingComplete ? "Đã quy đổi theo thang 10" : "Sẽ cập nhật sau khi hoàn tất chấm"} />
       </div></CardContent></Card>
 
       {integrityPenalty ? <Card className="border-destructive/30 bg-destructive/5"><CardHeader><CardTitle className="flex items-center gap-2 text-lg text-destructive"><AlertTriangle className="h-5 w-5" />Điều chỉnh điểm do gian lận</CardTitle><CardDescription>Quyết định xử lý toàn vẹn học thuật đã được áp dụng cho bài làm này.</CardDescription></CardHeader><CardContent className="space-y-3"><div className="grid gap-3 sm:grid-cols-3"><div><p className="text-sm text-muted-foreground">Điểm học thuật</p><p className="text-lg font-semibold">{Number(integrityPenalty.academicScore ?? 0).toFixed(2)} / 10</p></div><div><p className="text-sm text-muted-foreground">Bị trừ do gian lận</p><p className="text-lg font-semibold text-destructive">{integrityPenalty.penaltyPercent}% (-{Number(integrityPenalty.deductedScore ?? 0).toFixed(2)})</p></div><div><p className="text-sm text-muted-foreground">Điểm cuối</p><p className="text-lg font-semibold">{Number(integrityPenalty.finalScore ?? 0).toFixed(2)} / 10</p></div></div>{integrityPenalty.reviewerNote ? <p className="rounded-md bg-background/70 p-3 text-sm text-foreground"><span className="font-medium">Lý do: </span>{integrityPenalty.reviewerNote}</p> : null}</CardContent></Card> : null}

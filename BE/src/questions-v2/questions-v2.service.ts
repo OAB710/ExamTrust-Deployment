@@ -310,20 +310,40 @@ export class QuestionsService {
       assertLineContent(questionData.options);
     }
 
-    const created = await this.prisma.question.create({
-      data: {
-        type: questionData.type,
-        content: questionData.content,
-        options: questionData.options,
-        correctAnswer: questionData.correctAnswer,
-        explanation: questionData.explanation,
-        difficulty: questionData.difficulty,
-        points: questionData.points,
-        // Suggested coefficient only; the effective score belongs to each ExamQuestion.
-        defaultPoints: questionData.defaultPoints ?? 1,
-        courseId: questionData.courseId,
-        creatorId: user.id,
-      },
+    const created = await this.prisma.$transaction(async (tx) => {
+      const question = await tx.question.create({
+        data: {
+          type: questionData.type,
+          content: questionData.content,
+          options: questionData.options,
+          correctAnswer: questionData.correctAnswer,
+          explanation: questionData.explanation,
+          difficulty: questionData.difficulty,
+          points: questionData.points,
+          // Suggested coefficient only; the effective score belongs to each ExamQuestion.
+          defaultPoints: questionData.defaultPoints ?? 1,
+          courseId: questionData.courseId,
+          creatorId: user.id,
+        },
+      });
+
+      await tx.questionVersion.create({
+        data: {
+          questionId: question.id,
+          versionNo: 1,
+          stem: question.content,
+          payload: question.options ?? {},
+          answerKey: question.correctAnswer ?? {},
+          explanation: question.explanation,
+          difficulty: question.difficulty,
+          points: question.points,
+          metadata: { source: 'question-create' },
+          aiGenerated: false,
+          createdBy: user.id,
+        },
+      });
+
+      return question;
     });
 
     await this.syncSingleQuestionTopic(created.id, topicId);
@@ -713,7 +733,7 @@ export class QuestionsService {
           sourceUpdatedAt: question.updatedAt.toISOString(),
           original,
           analytics: dto.analytics || {},
-          instruction: dto.instruction || '',
+          instruction: String(dto.instruction || '').trim(),
           qualitySignals: qualitySignals.map((item) => ({
             id: item.id,
             severity: item.severity,

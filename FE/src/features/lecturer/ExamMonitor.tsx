@@ -123,6 +123,7 @@ interface IntegrityAlert {
   message: string;
   severity: "low" | "warning" | "critical";
   time: string;
+  hasEvidence?: boolean;
 }
 
 interface EvidenceCapture {
@@ -153,6 +154,7 @@ type ExamOverview = {
     severity: "low" | "medium" | "high";
     student?: { fullName?: string } | null;
     submissionId?: string | null;
+    hasEvidence?: boolean;
   }>;
 };
 
@@ -397,6 +399,7 @@ export default function ExamMonitor() {
                 ? "low"
                 : "warning",
           time: new Date(anomaly.timestamp).toLocaleTimeString(),
+          hasEvidence: Boolean(anomaly.hasEvidence),
         }),
       );
       setAlerts(mappedAlerts);
@@ -1017,7 +1020,7 @@ export default function ExamMonitor() {
                     >
                       {alert.severity}
                     </StatusBadge>
-                    {alert.submissionId && (
+                    {alert.submissionId && alert.hasEvidence && (
                       <Button
                         variant="outline"
                         size="sm"

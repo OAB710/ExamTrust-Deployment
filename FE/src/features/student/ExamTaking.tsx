@@ -9,6 +9,7 @@ import { BackToDashboardButton } from "@/components/common/BackToDashboardButton
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Clock,
   Flag,
@@ -84,9 +85,14 @@ export default function ExamTaking() {
   >("NOT_STARTED");
   const [fullscreenRequestedAt, setFullscreenRequestedAt] = useState<number | null>(null);
   const [webcamPolicy, setWebcamPolicy] = useState<any>(null);
+  const [webcamPolicyResolved, setWebcamPolicyResolved] = useState(false);
   const [examStartedAt, setExamStartedAt] = useState<number | null>(null);
   const [webcamReady, setWebcamReady] = useState(false);
   const [isStartingWebcam, setIsStartingWebcam] = useState(false);
+  const [cameraRecoveryDeadline, setCameraRecoveryDeadline] = useState<number | null>(null);
+  const [cameraRecoverySeconds, setCameraRecoverySeconds] = useState(0);
+  const [cameraRecoveryExpired, setCameraRecoveryExpired] = useState(false);
+  const [showFullscreenExitConfirm, setShowFullscreenExitConfirm] = useState(false);
   const [duringReviewFeedback, setDuringReviewFeedback] = useState<
     Record<string, DuringReviewFeedback>
   >({});
@@ -97,6 +103,9 @@ export default function ExamTaking() {
   const webcamStreamRef = useRef<MediaStream | null>(null);
   const webcamVideoRef = useRef<HTMLVideoElement | null>(null);
   const evidenceCaptureInFlightRef = useRef(false);
+  const cameraIssueActiveRef = useRef(false);
+  const lastActivityAtRef = useRef(Date.now());
+  const idleCaptureArmedRef = useRef(false);
   const autosaveSequenceRef = useRef(new Map<string, number>());
   const autosaveTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
@@ -105,14 +114,8 @@ export default function ExamTaking() {
     const storedSubmissionId = localStorage.getItem("currentSubmissionId");
     const storedExamId = localStorage.getItem("currentSubmissionExamId");
     if (storedSubmissionId && storedExamId === examId) {
-      setSubmissionId(storedSubmissionId);
-      setExamSessionStatus("IN_PROGRESS");
       const storedStartedAt = Number(localStorage.getItem("currentSubmissionStartedAt") || 0);
       if (storedStartedAt > 0) setExamStartedAt(storedStartedAt);
-      try {
-        const storedPolicy = localStorage.getItem("currentSubmissionWebcamPolicy");
-        if (storedPolicy) setWebcamPolicy(JSON.parse(storedPolicy));
-      } catch {}
     }
     const graceStartedAt = Number(localStorage.getItem("examFullscreenGraceStartedAt") || 0);
     if (graceStartedAt > 0 && Date.now() - graceStartedAt < 5000) {
@@ -122,7 +125,7 @@ export default function ExamTaking() {
   }, [examId, isPreviewMode]);
 
   useEffect(() => {
-    if (!examId || isPreviewMode || isLoadingExam || submissionId) return;
+    if (!examId || isPreviewMode || isLoadingExam || !webcamPolicyResolved || submissionId) return;
     if (webcamPolicy?.enabled && !webcamReady) return;
     if (startSessionRequestedRef.current) return;
     startSessionRequestedRef.current = true;
@@ -151,7 +154,7 @@ export default function ExamTaking() {
     return () => {
       cancelled = true;
     };
-  }, [examId, isLoadingExam, isPreviewMode, submissionId, webcamPolicy, webcamReady]);
+  }, [examId, isLoadingExam, isPreviewMode, submissionId, webcamPolicy, webcamPolicyResolved, webcamReady]);
 
   useEffect(() => {
     let mounted = true;
@@ -172,6 +175,7 @@ export default function ExamTaking() {
           if (!mounted) return;
           setExamTitle("Bài thi luyện tập");
           setQuestions(fallback);
+          setWebcamPolicyResolved(true);
           return;
         }
 
@@ -197,7 +201,10 @@ export default function ExamTaking() {
         if (!mounted) return;
         setQuestions([]);
       } finally {
-        if (mounted) setIsLoadingExam(false);
+        if (mounted) {
+          setIsLoadingExam(false);
+          setWebcamPolicyResolved(true);
+        }
       }
     };
 
@@ -233,6 +240,17 @@ export default function ExamTaking() {
     logRef.current.push({ type, ts: Date.now(), detail });
   }, []);
 
+  const persistIntegrityEvent = useCallback((type: string, detail?: string) => {
+    log(type, detail);
+    const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
+    if (!activeSubmissionId) return;
+    void api.sendExamLogs(activeSubmissionId, [{
+      type,
+      details: detail ?? `Integrity event: ${type}`,
+      ts: Date.now(),
+    }]).catch((error) => console.error("sendExamLogs failed", error));
+  }, [log, submissionId]);
+
   useEffect(() => () => {
     autosaveTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
     autosaveTimeoutsRef.current.clear();
@@ -264,28 +282,57 @@ export default function ExamTaking() {
     }, 600));
   }, [isPreviewMode, submissionId]);
 
+  const markActivity = useCallback(() => {
+    lastActivityAtRef.current = Date.now();
+    idleCaptureArmedRef.current = false;
+  }, []);
+
+  const handleWebcamUnavailable = useCallback((detail: string) => {
+    if (
+      !webcamPolicy?.enabled ||
+      isPreviewMode ||
+      examSessionStatus !== "IN_PROGRESS" ||
+      cameraIssueActiveRef.current
+    ) return;
+    cameraIssueActiveRef.current = true;
+    setWebcamReady(false);
+    setCameraRecoveryExpired(false);
+    setCameraRecoveryDeadline(Date.now() + 15_000);
+    setCameraRecoverySeconds(15);
+    persistIntegrityEvent("camera_stream_ended", detail);
+  }, [examSessionStatus, isPreviewMode, persistIntegrityEvent, webcamPolicy]);
+
   const startWebcam = useCallback(async () => {
     if (!webcamPolicy?.enabled) return;
     setIsStartingWebcam(true);
     try {
+      webcamStreamRef.current?.getTracks().forEach((track) => track.stop());
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: false });
       webcamStreamRef.current = stream;
       if (webcamVideoRef.current) {
         webcamVideoRef.current.srcObject = stream;
         await webcamVideoRef.current.play();
       }
-      stream.getVideoTracks().forEach((track) => track.addEventListener("ended", () => {
-        setWebcamReady(false);
-        log("camera_stream_ended", "Webcam stream ended during the exam");
-      }));
+      stream.getVideoTracks().forEach((track) => {
+        track.addEventListener("ended", () => handleWebcamUnavailable("Webcam stream ended during the exam"));
+        track.addEventListener("mute", () => handleWebcamUnavailable("Webcam stream was muted during the exam"));
+      });
+      stream.addEventListener("inactive", () => handleWebcamUnavailable("Webcam stream became inactive during the exam"));
       setWebcamReady(true);
+      if (cameraIssueActiveRef.current) {
+        cameraIssueActiveRef.current = false;
+        setCameraRecoveryDeadline(null);
+        setCameraRecoverySeconds(0);
+        setCameraRecoveryExpired(false);
+        persistIntegrityEvent("camera_restored", "Sinh viên đã khôi phục webcam giám sát");
+      }
     } catch {
       log("webcam_permission_denied", "Student did not grant usable webcam permission");
       toast.error("Bài thi này yêu cầu bạn cấp quyền webcam trước khi bắt đầu.");
     } finally {
       setIsStartingWebcam(false);
     }
-  }, [log, webcamPolicy]);
+  }, [cameraIssueActiveRef, handleWebcamUnavailable, log, persistIntegrityEvent, webcamPolicy]);
 
   const requestWebcamEvidence = useCallback(async (trigger: "SCHEDULED" | "SUSPICIOUS_EVENT", options?: { signals?: string[] }) => {
     const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
@@ -308,6 +355,51 @@ export default function ExamTaking() {
       evidenceCaptureInFlightRef.current = false;
     }
   }, [submissionId, webcamPolicy, webcamReady]);
+
+  useEffect(() => {
+    if (!cameraRecoveryDeadline) return;
+    const timer = window.setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((cameraRecoveryDeadline - Date.now()) / 1000));
+      setCameraRecoverySeconds(remaining);
+      if (remaining > 0) return;
+      window.clearInterval(timer);
+      setCameraRecoveryDeadline(null);
+      if (!cameraRecoveryExpired && cameraIssueActiveRef.current) {
+        setCameraRecoveryExpired(true);
+        persistIntegrityEvent("camera_recovery_timeout", "Webcam không được khôi phục trong 15 giây");
+      }
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [cameraRecoveryDeadline, cameraRecoveryExpired, persistIntegrityEvent]);
+
+  useEffect(() => {
+    if (
+      isPreviewMode ||
+      examSessionStatus !== "IN_PROGRESS" ||
+      isSubmitting ||
+      !webcamPolicy?.enabled ||
+      !webcamReady
+    ) return;
+
+    const onActivity = () => markActivity();
+    window.addEventListener("pointermove", onActivity, { passive: true });
+    window.addEventListener("pointerdown", onActivity, { passive: true });
+    window.addEventListener("keydown", onActivity);
+
+    const timer = window.setInterval(() => {
+      if (idleCaptureArmedRef.current || Date.now() - lastActivityAtRef.current < 60_000) return;
+      idleCaptureArmedRef.current = true;
+      persistIntegrityEvent("mouse_idle", "Không có tương tác chuột, bàn phím hoặc trả lời trong 1 phút");
+      void requestWebcamEvidence("SUSPICIOUS_EVENT", { signals: ["mouse_idle"] });
+    }, 5_000);
+
+    return () => {
+      window.removeEventListener("pointermove", onActivity);
+      window.removeEventListener("pointerdown", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.clearInterval(timer);
+    };
+  }, [examSessionStatus, isPreviewMode, isSubmitting, markActivity, persistIntegrityEvent, requestWebcamEvidence, webcamPolicy, webcamReady]);
 
   useEffect(() => {
     log("exam_start");
@@ -402,29 +494,9 @@ export default function ExamTaking() {
   const handleViolation = useCallback(
     (entry: ViolationLog) => {
       if (!proctoringEnabled) return;
-      log(entry.type, entry.detail);
-      try {
-        const activeSubmissionId =
-          submissionId || localStorage.getItem("currentSubmissionId");
-        if (activeSubmissionId) {
-          api
-            .sendExamLogs(activeSubmissionId, [
-              {
-                type: entry.type,
-                details: entry.detail ?? `Security violation: ${entry.type}`,
-                ts: entry.timestamp,
-              },
-            ])
-            .catch((e) => console.error("sendExamLogs failed", e));
-        }
-      } catch (e) {
-        console.error("Failed to send violation log", e);
-      }
-      if (["tab_switch", "window_blur", "blur", "fullscreen_exit"].includes(entry.type)) {
-        void requestWebcamEvidence("SUSPICIOUS_EVENT", { signals: [entry.type] });
-      }
+      persistIntegrityEvent(entry.type, entry.detail);
     },
-    [log, submissionId, proctoringEnabled, requestWebcamEvidence],
+    [persistIntegrityEvent, proctoringEnabled],
   );
 
   const {
@@ -434,6 +506,8 @@ export default function ExamTaking() {
     lastViolation,
     returnToExam,
     canFullscreen,
+    isFullscreenExitPending,
+    exitFullscreenAfterConfirmation,
   } = useExamSecurity({
     // Preview still enforces fullscreen when explicitly requested, but it is a
     // safe rehearsal: no proctoring events are persisted and it cannot submit.
@@ -483,36 +557,6 @@ export default function ExamTaking() {
     return () => clearInterval(id);
   }, [doSubmit]);
 
-  useEffect(() => {
-    if (isPreviewMode || examSessionStatus !== "IN_PROGRESS" || isSubmitting || !webcamPolicy?.enabled || !webcamReady || !examStartedAt) return;
-    const offsets = Array.isArray(webcamPolicy.scheduledCaptureOffsetsMs)
-      ? webcamPolicy.scheduledCaptureOffsetsMs.map(Number).filter(Number.isFinite).sort((a: number, b: number) => a - b)
-      : [];
-    if (offsets.length === 0) return;
-
-    // Sync once after opening/reloading so the server can record already-missed
-    // slots. The server alone decides whether a slot is currently due.
-    let timer: number | undefined;
-    let cancelled = false;
-    const scheduleNext = () => {
-      if (cancelled) return;
-      const nextOffset = offsets.find((offset: number) => examStartedAt + offset > Date.now());
-      if (nextOffset === undefined) return;
-      timer = window.setTimeout(async () => {
-        await requestWebcamEvidence("SCHEDULED");
-        scheduleNext();
-      // A small buffer prevents client/server clock skew from submitting a
-      // request a few milliseconds before the server considers the slot due.
-      }, Math.max(0, examStartedAt + nextOffset + 3_000 - Date.now()));
-    };
-    void requestWebcamEvidence("SCHEDULED");
-    scheduleNext();
-    return () => {
-      cancelled = true;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [examSessionStatus, isPreviewMode, isSubmitting, webcamPolicy, webcamReady, examStartedAt, requestWebcamEvidence]);
-
   useEffect(() => () => {
     webcamStreamRef.current?.getTracks().forEach((track) => track.stop());
   }, []);
@@ -530,6 +574,8 @@ export default function ExamTaking() {
       sec = s % 60;
     return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
+
+  const isRecoveringWebcam = webcamPolicy?.enabled && examSessionStatus === "IN_PROGRESS";
 
   const isTimeLow = timeLeft < 300;
   const answeredCount = questions.filter((q) => isAnswered(q, answers)).length;
@@ -550,11 +596,19 @@ export default function ExamTaking() {
         <Card className="max-w-lg w-full">
           <CardHeader className="space-y-3">
             <div className="flex items-center gap-2 text-primary"><Camera className="h-5 w-5" /><span className="font-semibold">Xác nhận webcam giám sát</span></div>
-            <p className="text-sm text-muted-foreground">Bài thi lý thuyết này yêu cầu webcam. Hệ thống chỉ chụp tối đa 5 ảnh khi bạn không tương tác trong một khoảng ngẫu nhiên hoặc có sự kiện bảo mật; ảnh dùng để giảng viên xem xét và tự xóa sau 30 ngày.</p>
+            <p className="text-sm text-muted-foreground">
+              {isRecoveringWebcam
+                ? cameraRecoveryDeadline
+                  ? `Webcam đang không khả dụng. Hãy bật lại trong ${cameraRecoverySeconds} giây để tránh ghi nhận cảnh báo.`
+                  : cameraRecoveryExpired
+                    ? "Webcam chưa được khôi phục. Bài làm được giữ khóa cho đến khi bạn bật lại camera."
+                    : "Bạn cần bật lại webcam trước khi tiếp tục làm bài."
+                : "Bài thi này yêu cầu webcam trước khi bắt đầu. Hệ thống chỉ chụp ảnh khi không có tương tác trong 1 phút; ảnh phục vụ giảng viên rà soát và tự xóa sau 30 ngày."}
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <video ref={webcamVideoRef} muted playsInline className="w-full aspect-video rounded-md bg-black object-cover" />
-            <Button onClick={() => void startWebcam()} disabled={isStartingWebcam} className="w-full gap-2"><Camera className="h-4 w-4" />{isStartingWebcam ? "Đang mở webcam…" : "Tôi đồng ý và bật webcam"}</Button>
+            <Button onClick={() => void startWebcam()} disabled={isStartingWebcam} className="w-full gap-2"><Camera className="h-4 w-4" />{isStartingWebcam ? "Đang mở webcam…" : isRecoveringWebcam ? "Bật lại webcam để tiếp tục" : "Tôi đồng ý và bật webcam"}</Button>
           </CardContent>
         </Card>
       </div>
@@ -583,6 +637,7 @@ export default function ExamTaking() {
   }
 
   const setAnswer = (qId: number, val: unknown) => {
+    markActivity();
     const question = questions.find((item) => item.id === qId) as (Question & { questionId?: string }) | undefined;
     setAnswers((prev) => {
       const next = { ...prev, [qId]: val };
@@ -741,19 +796,52 @@ export default function ExamTaking() {
           >
             <Maximize className="h-4 w-4" />
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowFullscreenExitConfirm(true)}
+            disabled={!canFullscreen}
+            aria-label="Thoát chế độ toàn màn hình"
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       </header>
 
       <ExamSecurityModal
-        open={isSecurityBlocked}
+        open={isSecurityBlocked || isFullscreenExitPending}
         violationCount={violationCount}
         maxViolations={MAX_VIOLATIONS}
         isEscalated={isEscalated}
         countdownSeconds={fullscreenCountdown}
+        isFullscreenExitPending={isFullscreenExitPending}
         lastViolation={lastViolation}
         canFullscreen={canFullscreen}
         onReturnToExam={returnToExam}
       />
+
+      <Dialog open={showFullscreenExitConfirm} onOpenChange={setShowFullscreenExitConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Thoát chế độ toàn màn hình?</DialogTitle>
+            <DialogDescription>
+              Nếu xác nhận, hệ thống sẽ ghi nhận sự kiện này trong nhật ký giám sát của bài thi.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFullscreenExitConfirm(false)}>Hủy</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setShowFullscreenExitConfirm(false);
+                void exitFullscreenAfterConfirmation();
+              }}
+            >
+              Xác nhận thoát
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex min-h-screen pt-16">
         {/* ── Navigator Sidebar ────────────────────────────────── */}

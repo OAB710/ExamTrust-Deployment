@@ -16,9 +16,6 @@ type WebcamEvidencePolicy = {
   consentVersion: string;
 };
 
-const CAPTURE_WINDOW_MS = 5 * 60_000;
-const SCHEDULED_CAPTURE_MIN_OFFSET_MS = 20_000;
-const SCHEDULED_CAPTURE_MAX_OFFSET_MS = 280_000;
 const SCHEDULED_CAPTURE_GRACE_MS = 90_000;
 
 const DEFAULT_POLICY: WebcamEvidencePolicy = {
@@ -46,28 +43,15 @@ export class ProctoringEvidenceService implements OnModuleInit {
     timer.unref();
   }
 
-  static normalizePolicy(input: any, randomizationSeed?: string, durationMinutes?: number | null): WebcamEvidencePolicy {
+  static normalizePolicy(input: any, _randomizationSeed?: string, _durationMinutes?: number | null): WebcamEvidencePolicy {
     const source = input && typeof input === 'object' ? input : {};
     const enabled = Boolean(source.enabled) && String(source.examProfile || '').toUpperCase() === 'THEORY';
-    const configuredSchedule = Array.isArray(source.scheduledCaptureOffsetsMs)
-      ? source.scheduledCaptureOffsetsMs
-        .map((value: unknown) => Math.floor(Number(value)))
-        .filter((value: number) => Number.isFinite(value) && value >= 0)
-      : [];
-    const captureCount = Math.max(0, Math.floor(Number(durationMinutes) || 0) / 5);
-    const seed = String(randomizationSeed || randomUUID());
-    const scheduledCaptureOffsetsMs = configuredSchedule.length > 0
-      ? configuredSchedule
-      : Array.from({ length: captureCount }, (_, slot) => {
-          const digest = createHash('sha256').update(`${seed}:webcam-schedule:${slot}`).digest();
-          const span = SCHEDULED_CAPTURE_MAX_OFFSET_MS - SCHEDULED_CAPTURE_MIN_OFFSET_MS + 1;
-          const withinWindow = SCHEDULED_CAPTURE_MIN_OFFSET_MS + (digest.readUInt32BE(0) % span);
-          return slot * CAPTURE_WINDOW_MS + withinWindow;
-        });
     return {
       enabled,
       examProfile: String(source.examProfile || 'MIXED').toUpperCase() as WebcamEvidencePolicy['examProfile'],
-      scheduledCaptureOffsetsMs,
+      // Evidence is event-driven: a capture can only be requested after one minute
+      // of inactivity. Ignore legacy configured schedules for both new and resumed exams.
+      scheduledCaptureOffsetsMs: [],
       eventCaptureLimit: Math.min(5, Math.max(1, Number(source.eventCaptureLimit) || DEFAULT_POLICY.eventCaptureLimit)),
       eventCooldownMs: Math.max(120_000, Number(source.eventCooldownMs) || DEFAULT_POLICY.eventCooldownMs),
       retentionDays: 30,

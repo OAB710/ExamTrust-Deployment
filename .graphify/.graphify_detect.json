@@ -1,6 +1,7 @@
 {
   "files": {
     "code": [
+      ".graphify/studio/assets/index-CU5cXRnL.js",
       "BE/eslint.config.mjs",
       "BE/local_ai_server.py",
       "BE/prisma/backfill-enrollments.ts",
@@ -154,6 +155,7 @@
       "BE/src/questions-v2/dto/question-v2-query.dto.ts",
       "BE/src/questions-v2/question-drafts.controller.ts",
       "BE/src/questions-v2/question-metadata.controller.ts",
+      "BE/src/questions-v2/question-validation.ts",
       "BE/src/questions-v2/questions-v2-contracts.module.ts",
       "BE/src/questions-v2/questions-v2.ai-improvement.spec.ts",
       "BE/src/questions-v2/questions-v2.duplicates.spec.ts",
@@ -393,7 +395,6 @@
       "FE/src/features/lecturer/ExamMonitor.tsx",
       "FE/src/features/lecturer/ExamPreview.tsx",
       "FE/src/features/lecturer/ExamQR.tsx",
-      "FE/src/features/lecturer/ExamQualityReview.tsx",
       "FE/src/features/lecturer/ExamResultsList.tsx",
       "FE/src/features/lecturer/GenerateExamLink.tsx",
       "FE/src/features/lecturer/LecturerDashboard.test.tsx",
@@ -424,6 +425,8 @@
       "FE/src/features/lecturer/question-editor-persistence.ts",
       "FE/src/features/lecturer/question-editor-types.ts",
       "FE/src/features/lecturer/question-editor-utils.ts",
+      "FE/src/features/lecturer/question-validation.constants.ts",
+      "FE/src/features/lecturer/question-validation.ts",
       "FE/src/features/student/ExamEventTimeline.tsx",
       "FE/src/features/student/ExamQuestionRenderer.tsx",
       "FE/src/features/student/ExamReadyCheck.tsx",
@@ -473,10 +476,16 @@
       "zalo-webhook-lambda/index.mjs"
     ],
     "document": [
+      ".agents/skills/graphify/SKILL.md",
       ".github/workflows/code-health.yml",
       ".github/workflows/deploy-be.yml",
       ".github/workflows/deploy-fe.yml",
       ".github/workflows/switch-ai.yml",
+      ".graphify/GRAPH_REPORT.md",
+      ".graphify/studio/index.html",
+      ".graphify/studio/studio-template.html",
+      ".graphify/studio/studio.html",
+      "AGENTS.md",
       "BE/API_DOCUMENTATION.md",
       "BE/docker-compose.prod.yml",
       "BE/docs/VI_BE_MESSAGES_PLAN.md",
@@ -529,17 +538,17 @@
     ],
     "video": []
   },
-  "total_files": 520,
-  "total_words": 417225,
+  "total_files": 529,
+  "total_words": 452950,
   "needs_graph": true,
-  "warning": "Large corpus: 520 files · ~417,225 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 529 files · ~452,950 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],
-  "graphifyignore_patterns": 60,
+  "graphifyignore_patterns": 62,
   "git": {
     "source_owner": "git",
-    "source_hash": "f2db3627a96c696bcef9bf5c009bd4debe8d852e",
+    "source_hash": "2701bbceec181cffac5ce38d08a09b4e25a955ba",
     "branches": [
       "duc",
       "main"
@@ -553,13 +562,13 @@
     "source": "default-auto",
     "root": ".",
     "git_root": ".",
-    "head": "f2db3627a96c696bcef9bf5c009bd4debe8d852e",
-    "candidate_count": 559,
-    "included_count": 520,
-    "excluded_untracked_count": 322,
-    "excluded_ignored_count": 99243,
+    "head": "2701bbceec181cffac5ce38d08a09b4e25a955ba",
+    "candidate_count": 586,
+    "included_count": 529,
+    "excluded_untracked_count": 0,
+    "excluded_ignored_count": 100114,
     "excluded_sensitive_count": 1,
-    "missing_committed_count": 0,
+    "missing_committed_count": 1,
     "warnings": [],
     "recommendation": "Use --scope all or graphify.yaml inputs.corpus for a knowledge-base folder."
   }

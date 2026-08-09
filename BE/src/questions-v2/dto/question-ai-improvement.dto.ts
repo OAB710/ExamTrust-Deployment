@@ -1,4 +1,4 @@
-import { IsObject, IsOptional, IsString } from 'class-validator';
+import { IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateQuestionAiImprovementDto {
   @IsString()
@@ -21,6 +21,7 @@ export class CreateQuestionAiImprovementDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   instruction?: string;
 }
 

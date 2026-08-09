@@ -18,6 +18,7 @@ interface ExamSecurityModalProps {
   maxViolations: number;
   isEscalated: boolean;
   countdownSeconds: number;
+  isFullscreenExitPending?: boolean;
   lastViolation: ViolationLog | null;
   canFullscreen: boolean;
   onReturnToExam: () => void;
@@ -29,6 +30,7 @@ export function ExamSecurityModal({
   maxViolations,
   isEscalated,
   countdownSeconds,
+  isFullscreenExitPending = false,
   lastViolation,
   canFullscreen,
   onReturnToExam,
@@ -49,7 +51,9 @@ export function ExamSecurityModal({
         <h2 id="exam-security-title" className="text-xl font-semibold mb-2">Cần trở lại toàn màn hình</h2>
         <p className="text-muted-foreground mb-1">Phiên thi tạm dừng cho đến khi chế độ toàn màn hình được khôi phục.</p>
         <p className="text-sm mb-2">
-          Trở lại toàn màn hình trong <strong>{countdownSeconds} giây</strong>, nếu không bài thi sẽ được tự động nộp.
+          {isFullscreenExitPending
+            ? <>Trở lại toàn màn hình trong <strong>{countdownSeconds} giây</strong> để tránh ghi nhận cảnh báo.</>
+            : <>Trở lại toàn màn hình trong <strong>{countdownSeconds} giây</strong>, nếu không bài thi sẽ được tự động nộp.</>}
         </p>
         {reason && (
           <p className="text-muted-foreground text-sm mb-2">

@@ -204,6 +204,7 @@ export interface BankQuestionOption {
   type: string;
   content: string;
   difficulty?: number;
+  isVersionReady: boolean;
 }
 
 export interface ManualQuestionOption {
