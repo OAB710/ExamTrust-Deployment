@@ -76,7 +76,7 @@ export function buildQuestionPayload(params: BuildPayloadParams) {
           }
           : params.questionType === "ordering" ? orderingItems : {},
     correctAnswer: params.questionType === "find_error"
-      ? { answers: params.options.filter((option) => option.isCorrect).map((option) => option.id) }
+      ? { answers: params.options.filter((option) => option.isCorrect && option.text.trim()).map((option) => option.id) }
       : isOptionQuestion
       ? { answer: params.options.filter((option) => option.isCorrect).map((option) => option.id).join(",") }
       : params.questionType === "true_false" ? { answer: params.tfAnswer === "true" ? "A" : "B" }

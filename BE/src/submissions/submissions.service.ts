@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { isIpInAnyCidr, normalizeIp } from '../common/utils/ip.utils';
@@ -107,7 +107,8 @@ type RequestUser = {
 const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'FIND_ERROR']);
 
 @Injectable()
-export class SubmissionsService {
+export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
+  private expiredSubmissionTimer?: NodeJS.Timeout;
   constructor(
     private prisma: PrismaService,
     private submissionsEvents: SubmissionsEventsService,
@@ -115,6 +116,16 @@ export class SubmissionsService {
     private readonly queueService: QueueService,
     private readonly aiService: AiService,
   ) {}
+
+  onModuleInit() {
+    const run = () => this.finalizeExpiredSubmissions().catch(() => undefined);
+    run();
+    this.expiredSubmissionTimer = setInterval(run, 60_000);
+  }
+
+  onModuleDestroy() {
+    if (this.expiredSubmissionTimer) clearInterval(this.expiredSubmissionTimer);
+  }
 
   private async getLatestExamSnapshotId(examId: string): Promise<string | null> {
     try {
@@ -188,6 +199,52 @@ export class SubmissionsService {
 
     if (candidates.length === 0) return null;
     return new Date(Math.min(...candidates.map((date) => date.getTime())));
+  }
+
+  /**
+   * Finalizes attempts whose server-owned deadline has elapsed. The normal
+   * submit path is reused so saved answers, scoring, snapshots and instances
+   * retain exactly the same semantics as a browser-initiated auto-submit.
+   */
+  async finalizeExpiredSubmissions(): Promise<number> {
+    const now = new Date();
+    const candidates = await this.prisma.examSubmission.findMany({
+      where: { status: 'IN_PROGRESS' },
+      select: {
+        id: true,
+        studentId: true,
+        startedAt: true,
+        exam: {
+          select: {
+            endTime: true,
+            timeLimitMinutes: true,
+            duration: true,
+          },
+        },
+      },
+      take: 500,
+      orderBy: { startedAt: 'asc' },
+    });
+
+    let finalized = 0;
+    for (const submission of candidates) {
+      const deadline = this.resolveSubmissionDeadline(submission);
+      if (!deadline || deadline.getTime() > now.getTime()) continue;
+
+      try {
+        await this.submitExam(submission.id, { answers: [] }, submission.studentId);
+        finalized += 1;
+      } catch (error) {
+        // The submit path atomically locks the row. A competing browser or
+        // another app instance may finish it first; the next interval retries
+        // only rows that remain IN_PROGRESS.
+        if (!(error instanceof ConflictException) && !(error instanceof BadRequestException)) {
+          throw error;
+        }
+      }
+    }
+
+    return finalized;
   }
 
   sanitizeStudentSubmissionView(submission: any) {
@@ -2191,6 +2248,13 @@ export class SubmissionsService {
               studentId: true,
             },
           },
+          exam: {
+            select: {
+              id: true,
+              title: true,
+              totalPoints: true,
+            },
+          },
           examInstance: {
             select: {
               id: true,
@@ -2216,6 +2280,10 @@ export class SubmissionsService {
               id: true,
             },
           },
+          scoreAdjustments: {
+            where: { revokedAt: null },
+            select: { id: true, amount: true },
+          },
         },
         orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * limit,
@@ -2224,7 +2292,27 @@ export class SubmissionsService {
       this.prisma.examSubmission.count({ where }),
     ]);
 
-    return buildPaginatedResult(submissions, total, page, limit);
+    const rows = submissions.map((submission) => {
+      const adjustmentTotal = submission.scoreAdjustments.reduce(
+        (total, adjustment) => total + this.toNumber(adjustment.amount),
+        0,
+      );
+      const baseScore = this.toNumber(submission.score);
+      const adjustedScore = Number(Math.max(0, Math.min(10, baseScore + adjustmentTotal)).toFixed(2));
+      const totalPoints = submission.exam?.totalPoints != null
+        ? submission.exam.totalPoints
+        : 10;
+      return {
+        ...submission,
+        scoreAdjustments: undefined,
+        academicScore: baseScore,
+        adjustmentTotal: Number(adjustmentTotal.toFixed(2)),
+        score: adjustedScore,
+        totalPoints,
+      };
+    });
+
+    return buildPaginatedResult(rows, total, page, limit);
   }
 
   async getManualGradingStatus(examId: string, user?: RequestUser) {

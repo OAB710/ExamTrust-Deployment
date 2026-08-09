@@ -696,6 +696,17 @@ export default function ExamTaking() {
     ? duringReviewFeedback[String((q as Question & { questionId?: string }).questionId)]
     : undefined;
 
+  const hasReviewContent = (fb: DuringReviewFeedback | undefined): boolean => {
+    if (!fb) return false;
+    if (fb.unavailable) return true;
+    return (
+      typeof fb.pointsAwarded === "number" ||
+      typeof fb.isCorrect === "boolean" ||
+      fb.correctAnswer !== undefined ||
+      (typeof fb.explanation === "string" && fb.explanation.length > 0)
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {webcamPolicy?.enabled ? <video ref={webcamVideoRef} muted playsInline className="hidden" /> : null}
@@ -888,7 +899,7 @@ export default function ExamTaking() {
                           <p className="text-xs font-medium uppercase text-muted-foreground">
                             Câu trả lời của bạn
                           </p>
-                          <p className="mt-2 text-base text-foreground">
+                          <p className="mt-2 text-base text-foreground break-words">
                             {renderAnswerPreview(item)}
                           </p>
                         </div>
@@ -965,45 +976,45 @@ export default function ExamTaking() {
 
                   {renderQuestion(q)}
 
-                  {currentReviewFeedback && (
+                  {hasReviewContent(currentReviewFeedback) && (
                     <div
                       className={`mt-4 rounded-lg border p-3 text-sm ${
-                        currentReviewFeedback.unavailable
+                        currentReviewFeedback!.unavailable
                           ? "border-amber-200 bg-amber-50 text-amber-900"
                           : "border-blue-200 bg-blue-50 text-slate-800"
                       }`}
                     >
-                      {currentReviewFeedback.unavailable ? (
+                      {currentReviewFeedback!.unavailable ? (
                         <div className="flex items-start gap-2">
                           <Info className="mt-0.5 h-4 w-4 shrink-0" />
                           <p>Câu này cần giảng viên chấm; phản hồi chưa khả dụng.</p>
                         </div>
                       ) : (
                         <div className="space-y-1.5">
-                          {typeof currentReviewFeedback.pointsAwarded === "number" && (
+                          {typeof currentReviewFeedback!.pointsAwarded === "number" && (
                             <p>
                               <span className="font-medium">Điểm câu này:</span>{" "}
-                              {currentReviewFeedback.pointsAwarded}
-                              {typeof currentReviewFeedback.maxPoints === "number"
-                                ? `/${currentReviewFeedback.maxPoints}`
+                              {currentReviewFeedback!.pointsAwarded}
+                              {typeof currentReviewFeedback!.maxPoints === "number"
+                                ? `/${currentReviewFeedback!.maxPoints}`
                                 : ""}
                             </p>
                           )}
-                          {typeof currentReviewFeedback.isCorrect === "boolean" && (
-                            <p className={currentReviewFeedback.isCorrect ? "text-emerald-700" : "text-red-700"}>
-                              {currentReviewFeedback.isCorrect ? "Trả lời đúng." : "Trả lời chưa đúng."}
+                          {typeof currentReviewFeedback!.isCorrect === "boolean" && (
+                            <p className={currentReviewFeedback!.isCorrect ? "text-emerald-700" : "text-red-700"}>
+                              {currentReviewFeedback!.isCorrect ? "Trả lời đúng." : "Trả lời chưa đúng."}
                             </p>
                           )}
-                          {currentReviewFeedback.correctAnswer !== undefined && (
+                          {currentReviewFeedback!.correctAnswer !== undefined && (
                             <p>
                               <span className="font-medium">Đáp án đúng:</span>{" "}
-                              {formatReviewAnswer(currentReviewFeedback.correctAnswer)}
+                              {formatReviewAnswer(currentReviewFeedback!.correctAnswer)}
                             </p>
                           )}
-                          {currentReviewFeedback.explanation && (
+                          {currentReviewFeedback!.explanation && (
                             <p>
                               <span className="font-medium">Giải thích:</span>{" "}
-                              {currentReviewFeedback.explanation}
+                              {currentReviewFeedback!.explanation}
                             </p>
                           )}
                         </div>

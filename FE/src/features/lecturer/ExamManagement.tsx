@@ -780,7 +780,8 @@ export default function ExamManagement() {
                                 Xem trước
                               </Button>
                               {(exam.status === "ONGOING" ||
-                                exam.status === "PUBLISHED") && (
+                                exam.status === "PUBLISHED") &&
+                                (!exam.endTime || new Date(exam.endTime).getTime() > Date.now()) && (
                                 <Button
                                   variant="outline"
                                   size="sm"

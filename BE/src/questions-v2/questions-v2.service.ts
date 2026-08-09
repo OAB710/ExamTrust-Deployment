@@ -24,6 +24,12 @@ import {
 import { ListQuestionsQueryDto } from './dto/question-v2-query.dto';
 import { CreateQuestionCrudDto, UpdateQuestionCrudDto } from './dto/question-crud.dto';
 import {
+  assertQuestionContentLength,
+  assertOptionsLength,
+  assertExplanationLength,
+  assertLineContent,
+} from './question-validation';
+import {
   ApproveQuestionAiImprovementDto,
   CreateQuestionAiImprovementDto,
   RejectQuestionAiImprovementDto,
@@ -294,6 +300,16 @@ export class QuestionsService {
 
     await this.assertTopicBelongsToCourse(topicId, questionData.courseId);
 
+    // Validate content lengths
+    assertQuestionContentLength(questionData.content);
+    assertOptionsLength(questionData.options);
+    if (questionData.explanation) assertExplanationLength(questionData.explanation);
+
+    // Validate line content for find_error / ordering types
+    if (questionData.type === 'FIND_ERROR' || questionData.type === 'ORDERING') {
+      assertLineContent(questionData.options);
+    }
+
     const created = await this.prisma.question.create({
       data: {
         type: questionData.type,
@@ -513,6 +529,17 @@ export class QuestionsService {
     }
 
     await this.assertTopicBelongsToCourse(topicId, effectiveCourseId);
+
+    // Validate content lengths (only when provided in the update)
+    if (dto.content !== undefined) assertQuestionContentLength(dto.content);
+    if (dto.options !== undefined) assertOptionsLength(dto.options);
+    if (dto.explanation !== undefined) assertExplanationLength(dto.explanation);
+
+    // Validate line content for find_error / ordering when options are provided
+    const effectiveType = dto.type ?? question.type;
+    if (dto.options !== undefined && (effectiveType === 'FIND_ERROR' || effectiveType === 'ORDERING')) {
+      assertLineContent(dto.options);
+    }
 
     const updated = await this.prisma.question.update({
       where: { id },

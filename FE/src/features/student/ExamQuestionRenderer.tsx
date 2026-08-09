@@ -23,7 +23,7 @@ function SingleChoiceRenderer({
   const selected = answers[q.id] as number | undefined;
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground leading-relaxed">
+      <p className="text-sm text-muted-foreground leading-relaxed break-words">
         {q.content}
       </p>
       {q.options.map((opt, idx) => {
@@ -48,7 +48,7 @@ function SingleChoiceRenderer({
             >
               {String.fromCharCode(65 + idx)}
             </span>
-            <span className="text-sm">{opt}</span>
+            <span className="min-w-0 break-words text-sm">{opt}</span>
           </button>
         );
       })}
@@ -75,7 +75,7 @@ function MultiChoiceRenderer({
   };
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground leading-relaxed">
+      <p className="text-sm text-muted-foreground leading-relaxed break-words">
         {q.content}
       </p>
       <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-violet-800">
@@ -100,7 +100,7 @@ function MultiChoiceRenderer({
               onCheckedChange={() => {}} // Controlled by div onClick
               className="pointer-events-none"
             />
-            <span className="text-sm">{opt}</span>
+            <span className="min-w-0 break-words text-sm">{opt}</span>
           </div>
         );
       })}
@@ -121,7 +121,7 @@ function TrueFalseRenderer({
   const selected = answers[q.id] as boolean | undefined;
   return (
     <div>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+      <p className="text-sm text-muted-foreground leading-relaxed mb-6 break-words">
         {q.content}
       </p>
       <div className="flex gap-4">
@@ -184,7 +184,7 @@ function FillBlankRenderer({
       );
     }
     return (
-      <span key={i} className="text-sm leading-relaxed text-foreground">
+      <span key={i} className="text-sm leading-relaxed text-foreground break-words">
         {part}
       </span>
     );
@@ -237,7 +237,7 @@ function MatchingRenderer({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground leading-relaxed">
+      <p className="text-sm text-muted-foreground leading-relaxed break-words">
         {q.content}
       </p>
       <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
@@ -259,7 +259,7 @@ function MatchingRenderer({
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
                   {i + 1}
                 </span>
-                <span className="text-sm font-medium text-slate-900">
+                <span className="min-w-0 break-words text-sm font-medium text-slate-900">
                   {leftItem}
                 </span>
               </div>
@@ -307,33 +307,33 @@ function FindErrorRenderer({
   const toggle = (label: string) => setAnswer(q.id, selected.includes(label) ? selected.filter((item) => item !== label) : [...selected, label]);
   return (
     <div>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+      <p className="text-sm text-muted-foreground leading-relaxed mb-3 break-words">
         {q.content}
       </p>
       <p className="text-xs font-medium text-primary mb-3">
         Nhấp vào dòng bạn cho là có chứa lỗi:
       </p>
-      <div className="bg-zinc-950 rounded-lg p-4 space-y-1 font-mono text-sm border border-zinc-800">
+      <div className="rounded-lg border bg-card p-4 space-y-1">
         {q.segments.map((seg) => {
           const isSel = selected.includes(seg.label);
           return (
             <button
               key={seg.label}
               onClick={() => toggle(seg.label)}
-              className={`w-full text-left flex items-start gap-3 rounded px-3 py-2 transition-all border
+              className={`w-full text-left flex items-start gap-3 rounded px-4 py-2.5 transition-all border
                 ${
                   isSel
-                    ? "bg-red-900/60 border-red-500 text-red-300"
-                    : "border-transparent text-zinc-300 hover:bg-zinc-800 hover:border-zinc-600"
+                    ? "bg-red-50 border-red-300 text-red-800 ring-1 ring-red-200"
+                    : "border-transparent text-foreground hover:bg-muted hover:border-border"
                 }`}
             >
               <span
                 className={`shrink-0 text-xs rounded px-1.5 py-0.5 font-bold mt-0.5
-                ${isSel ? "bg-red-500 text-white" : "bg-zinc-700 text-zinc-300"}`}
+                ${isSel ? "bg-red-500 text-white" : "bg-secondary text-muted-foreground"}`}
               >
                 {q.segments.indexOf(seg) + 1}
               </span>
-              <code className="leading-relaxed">{seg.code}</code>
+              <span className="min-w-0 break-words leading-relaxed text-sm">{seg.code}</span>
             </button>
           );
         })}
@@ -370,7 +370,7 @@ function OrderingRenderer({
   };
   return (
     <div>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+      <p className="text-sm text-muted-foreground leading-relaxed mb-3 break-words">
         {q.content}
       </p>
       <p className="text-xs font-medium text-primary mb-3">
@@ -383,7 +383,7 @@ function OrderingRenderer({
             className="flex items-center gap-3 border rounded-lg px-4 py-3 bg-card hover:bg-secondary/20 transition-colors"
           >
             <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="flex-1 text-sm">{item}</span>
+            <span className="min-w-0 flex-1 break-words text-sm">{item}</span>
             <div className="flex flex-col gap-0.5 shrink-0">
               <button
                 onClick={() => move(idx, "up")}
@@ -426,7 +426,7 @@ function ShortAnswerRenderer({
   const isOver = wordCount > limit;
   return (
     <div>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+      <p className="text-sm text-muted-foreground leading-relaxed mb-4 break-words">
         {q.content}
       </p>
       <Textarea

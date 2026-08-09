@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { Activity, AlertTriangle, ClipboardCheck, Loader2, Search, Send } from "lucide-react";
+import { Activity, AlertTriangle, Camera, ClipboardCheck, History, Loader2, Search, Send, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
   ResponsiveContainer,
@@ -19,6 +19,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -28,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Badge } from "@/components/ui/badge";
 import api, { API_BASE_URL, unwrapPaginatedData } from "@/lib/api";
 
 type ExamOverview = {
@@ -57,6 +59,26 @@ type ExamOverview = {
     student?: { fullName?: string; studentId?: string } | null;
   }>;
   updatedAt: string;
+};
+
+type SubmissionTimeline = {
+  summary?: { tabSwitches?: number; mouseAnomalies?: number; warnings?: number; critical?: number };
+  events?: Array<{ id: string; timestamp: string; description: string; severity: "normal" | "warning" | "critical"; detail?: string }>;
+};
+
+type EvidenceCapture = {
+  id: string;
+  capturedAt?: string | null;
+  scheduledAt?: string | null;
+  createdAt?: string | null;
+  trigger?: string | null;
+  reviewStatus?: string | null;
+};
+
+type RiskFlag = {
+  submissionId?: string | null;
+  status?: string | null;
+  job?: { output?: { riskLevel?: string | null } | null } | null;
 };
 
 function formatTimeSpent(start?: string | null, end?: string | null) {
@@ -104,6 +126,10 @@ function getAnomalyDescription(eventType?: string, details?: string) {
   return "Hệ thống đã lưu sự kiện này để giảng viên đối chiếu khi cần.";
 }
 
+function ReviewStat({ label, value }: { label: string; value: string | number }) {
+  return <div className="rounded-lg border p-3 text-sm"><p className="text-muted-foreground">{label}</p><p className="mt-1 font-semibold">{value}</p></div>;
+}
+
 export default function ExamResultsList() {
   const params = useParams();
   const slug = Array.isArray(params?.slug) ? params.slug : [];
@@ -123,6 +149,14 @@ export default function ExamResultsList() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
+  const [reviewSubmission, setReviewSubmission] = useState<{ id: string; name: string } | null>(null);
+  const [reviewTimeline, setReviewTimeline] = useState<SubmissionTimeline | null>(null);
+  const [reviewCaptures, setReviewCaptures] = useState<EvidenceCapture[]>([]);
+  const [reviewImages, setReviewImages] = useState<Record<string, string>>({});
+  const [reviewRiskFlag, setReviewRiskFlag] = useState<RiskFlag | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [adjustmentHistory, setAdjustmentHistory] = useState<any | null>(null);
+  const [adjustmentHistoryLoading, setAdjustmentHistoryLoading] = useState(false);
   const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
@@ -227,6 +261,54 @@ export default function ExamResultsList() {
       toast.error(err?.message || "Không thể công bố kết quả.");
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const openIntegrityReview = async (submission: { id: string; student?: { fullName?: string | null } | null }) => {
+    setReviewSubmission({ id: submission.id, name: submission.student?.fullName || "Sinh viên" });
+    setReviewTimeline(null);
+    setReviewCaptures([]);
+    setReviewImages({});
+    setReviewRiskFlag(null);
+    setReviewLoading(true);
+    try {
+      const [timeline, captures, riskFlags] = await Promise.all([
+        api.getSubmissionTimeline(submission.id),
+        api.getEvidenceCaptures(submission.id),
+        examId ? api.listExamRiskFlags(examId) : Promise.resolve([]),
+      ]);
+      setReviewTimeline(timeline as SubmissionTimeline);
+      const nextCaptures = (captures || []) as EvidenceCapture[];
+      setReviewCaptures(nextCaptures);
+      setReviewRiskFlag(((riskFlags || []) as RiskFlag[]).find((flag) => flag.submissionId === submission.id) || null);
+      const images = await Promise.all(nextCaptures.map(async (capture) => {
+        try {
+          return [capture.id, await api.getEvidenceImageUrl(submission.id, capture.id)] as const;
+        } catch {
+          return null;
+        }
+      }));
+      setReviewImages(Object.fromEntries(images.filter((item): item is readonly [string, string] => Boolean(item))));
+    } catch (err) {
+      console.error("Không thể tải dữ liệu rà soát", err);
+      toast.error("Không thể tải dữ liệu rà soát toàn vẹn.");
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const openAdjustmentHistory = async (submission: { id: string; student?: { fullName?: string | null } | null }) => {
+    setAdjustmentHistory({ id: submission.id, name: submission.student?.fullName || "Sinh viên", scoreAdjustments: [] });
+    setAdjustmentHistoryLoading(true);
+    try {
+      const res = await api.getManualGradingSubmission(submission.id);
+      setAdjustmentHistory(res);
+    } catch (err) {
+      console.error("Không thể tải lịch sử chỉnh điểm", err);
+      toast.error("Không thể tải lịch sử chỉnh điểm.");
+      setAdjustmentHistory(null);
+    } finally {
+      setAdjustmentHistoryLoading(false);
     }
   };
 
@@ -528,20 +610,34 @@ export default function ExamResultsList() {
                       return (
                       <TableRow key={s.id} className="transition-colors hover:bg-slate-50/80">
                         <TableCell className="py-4">
-                          <a
+                          <button
+                            type="button"
                             className="font-medium text-primary underline-offset-4 hover:underline"
-                            onClick={() => router.push(`${basePath}/exam/${examId}/monitor`)}
+                            onClick={() => openIntegrityReview(s)}
                           >
                             {s.student?.fullName || "—"}
-                          </a>
+                          </button>
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground">
                           {s.student?.studentId || s.student?.id}
                         </TableCell>
                         <TableCell className="py-4 font-medium text-foreground">
-                          {s.score != null
-                            ? `${s.score}/${overview?.exam?.totalPoints ?? "-"}`
-                            : "-"}
+                          <div className="flex items-center gap-2">
+                            <span>{s.score != null
+                              ? `${s.score}/${s.totalPoints ?? overview?.exam?.totalPoints ?? 10}`
+                              : "-"}</span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-muted-foreground hover:text-primary"
+                              title="Lịch sử chỉnh điểm"
+                              aria-label="Lịch sử chỉnh điểm"
+                              onClick={() => openAdjustmentHistory(s)}
+                            >
+                              <History className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground">
                           {formatTimeSpent(s.startedAt, s.submittedAt)}
@@ -600,6 +696,87 @@ export default function ExamResultsList() {
           className="border-t-0 px-0"
         />
       </div>
+      <Dialog open={Boolean(reviewSubmission)} onOpenChange={(open) => !open && setReviewSubmission(null)}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" />Rà soát toàn vẹn: {reviewSubmission?.name}</DialogTitle>
+            <DialogDescription>Dữ liệu hỗ trợ giảng viên đối chiếu sau kỳ thi, không phải kết luận gian lận tự động.</DialogDescription>
+          </DialogHeader>
+          {reviewLoading ? (
+            <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Đang tải dữ liệu rà soát...</div>
+          ) : (
+            <div className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-4">
+                <ReviewStat label="Đổi tab" value={reviewTimeline?.summary?.tabSwitches || 0} />
+                <ReviewStat label="Bất thường chuột" value={reviewTimeline?.summary?.mouseAnomalies || 0} />
+                <ReviewStat label="Cảnh báo" value={reviewTimeline?.summary?.warnings || 0} />
+                <ReviewStat label="Đánh giá rủi ro" value={reviewRiskFlag?.job?.output?.riskLevel || reviewRiskFlag?.status || "Chưa có"} />
+              </div>
+              <section>
+                <h3 className="mb-2 font-medium">Dòng thời gian phiên làm bài</h3>
+                <div className="space-y-2">
+                  {(reviewTimeline?.events || []).length === 0 ? <p className="text-sm text-muted-foreground">Chưa có sự kiện giám sát.</p> : reviewTimeline?.events?.map((event) => <div key={event.id} className="rounded-lg border p-3 text-sm"><div className="flex justify-between gap-3"><span className="font-medium">{event.description}</span><span className="shrink-0 text-muted-foreground">{new Date(event.timestamp).toLocaleString("vi-VN")}</span></div>{event.detail ? <p className="mt-1 text-muted-foreground">{event.detail}</p> : null}</div>)}
+                </div>
+              </section>
+              <section>
+                <h3 className="mb-2 flex items-center gap-2 font-medium"><Camera className="h-4 w-4" />Bằng chứng camera</h3>
+                {reviewCaptures.length === 0 ? <p className="text-sm text-muted-foreground">Không có ảnh bằng chứng cho lượt làm bài này.</p> : <div className="grid gap-3 sm:grid-cols-2">{reviewCaptures.map((capture) => <div key={capture.id} className="overflow-hidden rounded-lg border"><div className="aspect-video bg-muted">{reviewImages[capture.id] ? <img src={reviewImages[capture.id]} alt={`Bằng chứng camera của ${reviewSubmission?.name}`} className="h-full w-full object-contain" /> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Ảnh không còn khả dụng</div>}</div><div className="p-3 text-xs text-muted-foreground">{capture.trigger === "SCHEDULED" ? "Chụp theo lịch" : "Chụp theo tín hiệu"} · {new Date(capture.capturedAt || capture.scheduledAt || capture.createdAt || Date.now()).toLocaleString("vi-VN")} · {capture.reviewStatus || "Chờ rà soát"}</div></div>)}</div>}
+              </section>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(adjustmentHistory)} onOpenChange={(open) => !open && setAdjustmentHistory(null)}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><History className="h-5 w-5 text-primary" />Lịch sử chỉnh điểm: {adjustmentHistory?.student?.fullName || adjustmentHistory?.name}</DialogTitle>
+            <DialogDescription>Các điều chỉnh điểm cho bài nộp này. Điều chỉnh đã thu hồi vẫn được bảo toàn trong lịch sử.</DialogDescription>
+          </DialogHeader>
+          {adjustmentHistoryLoading ? (
+            <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Đang tải lịch sử chỉnh điểm...</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-indigo-100 bg-white/80 p-3 text-sm">
+                Điểm gốc: <strong>{Number(adjustmentHistory?.academicScore ?? 0).toFixed(2)}</strong> · Điều chỉnh đang hiệu lực: <strong>{Number(adjustmentHistory?.activeAdjustmentTotal ?? 0).toFixed(2)}</strong> · Điểm học thuật sau điều chỉnh: <strong>{Number(adjustmentHistory?.adjustedAcademicScore ?? 0).toFixed(2)}</strong>/10
+              </div>
+              {(adjustmentHistory?.scoreAdjustments || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Chưa có điều chỉnh điểm nào cho bài nộp này.</p>
+              ) : (
+                <div className="space-y-2">
+                  {adjustmentHistory.scoreAdjustments.map((adjustment: any) => {
+                    const revoked = Boolean(adjustment.revokedAt);
+                    return (
+                      <div
+                        key={adjustment.id}
+                        className={`flex flex-col gap-2 rounded-lg border p-3 text-sm ${revoked ? "border-rose-200 bg-rose-50/60 opacity-90" : "border-rose-100 bg-white"}`}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong className={revoked ? "text-muted-foreground line-through" : Number(adjustment.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}>{Number(adjustment.amount) >= 0 ? "+" : ""}{Number(adjustment.amount).toFixed(2)}</strong>
+                          <span>{adjustment.category}</span>
+                          <span className="text-muted-foreground">·</span>
+                          <span>{adjustment.reason}</span>
+                          {revoked ? (
+                            <Badge variant="destructive" className="gap-1 text-[11px]">
+                              <History className="h-3 w-3" /> Đã thu hồi
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">{adjustment.createdBy?.fullName || "Giảng viên"} · {new Date(adjustment.createdAt).toLocaleString("vi-VN")}</p>
+                        {revoked ? (
+                          <p className="mt-1 text-xs font-medium text-rose-600">
+                            Đã thu hồi lúc {adjustment.revokedAt ? new Date(adjustment.revokedAt).toLocaleString("vi-VN") : ""}
+                            {adjustment.revocationReason ? ` — Lý do: ${adjustment.revocationReason}` : ""}
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

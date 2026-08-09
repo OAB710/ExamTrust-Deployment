@@ -961,7 +961,7 @@ export default function ExamAnalytics() {
                             <Badge variant="outline" className="shrink-0 border-rose-200 bg-rose-50 text-rose-700">Cảnh báo</Badge>
                           </div>
                           <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{translateMetricText(item.suggestion)}</p>
-                          <Button variant="ghost" size="sm" className="mt-2 h-8 px-0 text-primary hover:bg-transparent hover:text-primary/80" onClick={() => { trackAction("quality_alert_open_question_bank"); openAction(item.action); }}>
+                          <Button variant="ghost" size="sm" className="mt-2 h-8 px-0 text-primary hover:bg-transparent hover:text-primary/80" onClick={() => { trackAction("quality_alert_open_question_preview"); openQuestionPreview(item); }}>
                             Xem câu hỏi <ExternalLink className="ml-1 h-3.5 w-3.5" />
                           </Button>
                         </div>
