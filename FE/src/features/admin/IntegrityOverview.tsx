@@ -44,15 +44,15 @@ import { ActiveFilterChips } from "@/components/common/list/ActiveFilterChips";
 import {
   FilterDefinition,
   FilterValues,
-  TextFilterValue,
 } from "@/components/common/list/filter-types";
 import {
   getActiveFilterCount,
   getFilterChips,
 } from "@/components/common/list/filter-utils";
-import api from "@/lib/api";
+import api, { unwrapPaginatedData } from "@/lib/api";
+import { COURSE_TERM_OPTIONS, getAcademicYearOptions } from "@/lib/course-term";
 import { useAuth } from "@/contexts/AuthContext";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 export interface FlaggedSubmission {
   id: string;
@@ -61,6 +61,8 @@ export interface FlaggedSubmission {
   studentName: string;
   examId: string;
   examTitle: string;
+  academicYear?: string | null;
+  term?: string | null;
   submittedAt: string;
   confidence: "High" | "Medium" | "Low";
   status: "pending" | "reviewed" | "dismissed" | "confirmed";
@@ -70,6 +72,8 @@ export interface FlaggedSubmission {
     reviewerNote?: string | null;
     decidedAt?: string | null;
     penaltyPercent?: number | null;
+    penaltyMode?: 'PERCENT' | 'FIXED' | null;
+    penaltyAmount?: number | null;
     academicScore?: number | null;
     deductedScore?: number | null;
     finalScore?: number | null;
@@ -77,6 +81,7 @@ export interface FlaggedSubmission {
       action: string;
       previousPercent?: number | null;
       nextPercent?: number | null;
+      deductedScore?: number | null;
       note?: string | null;
       createdAt: string;
     }>;
@@ -149,9 +154,11 @@ const EMPTY_PATTERNS: IntegrityPatterns = {
 
 const EMPTY_FILTERS: FilterValues = {
   confidence: "all",
+  examId: "all",
+  term: "all",
+  academicYear: "all",
   submittedAt: { from: undefined, to: undefined },
   timeAnomaly: undefined,
-  examTitle: { value: "", operator: "contains" },
 };
 
 const INTEGRITY_ROWS_PER_VIEW = 10;
@@ -159,6 +166,9 @@ const INTEGRITY_ROWS_PER_VIEW = 10;
 export default function IntegrityOverview({ lecturerScope = false }: { lecturerScope?: boolean }) {
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const directSubmissionId = searchParams.get('submissionId')?.trim() || '';
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [draftFilters, setDraftFilters] = useState<FilterValues>(EMPTY_FILTERS);
@@ -176,6 +186,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [examOptions, setExamOptions] = useState<{ value: string; label: string }[]>([]);
   const [savingReview, setSavingReview] = useState(false);
 
   useEffect(() => {
@@ -186,6 +197,9 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
     status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED',
     notes: string,
     deductionPercent?: 10 | 25 | 50 | 100,
+    applyPenalty?: boolean,
+    penaltyMode?: 'PERCENT' | 'FIXED',
+    penaltyAmount?: number,
   ) => {
     if (!selectedCase?.submissionId) return;
     setSavingReview(true);
@@ -194,6 +208,9 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
         status,
         notes: notes || undefined,
         deductionPercent,
+        applyPenalty,
+        penaltyMode,
+        penaltyAmount,
       });
       const nextStatus = status.toLowerCase() as FlaggedSubmission['status'];
       setSubmissions((items) => items.map((item) => item.id === selectedCase.id ? {
@@ -204,12 +221,15 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
           reviewerNote: updatedReview.reviewerNote,
           decidedAt: updatedReview.decidedAt,
           penaltyPercent: updatedReview.penaltyPercent,
+          penaltyMode: updatedReview.penaltyMode,
+          penaltyAmount: updatedReview.penaltyAmount == null ? null : Number(updatedReview.penaltyAmount),
           academicScore: updatedReview.academicScore == null ? null : Number(updatedReview.academicScore),
           deductedScore: updatedReview.deductedScore == null ? null : Number(updatedReview.deductedScore),
           finalScore: updatedReview.finalScore == null ? null : Number(updatedReview.finalScore),
         } : item.integrityReview,
       } : item));
       setSelectedCase(null);
+      if (directSubmissionId) router.replace(pathname);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không thể lưu kết quả xem xét');
     } finally {
@@ -230,12 +250,25 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
       ],
     },
     {
-      key: "examTitle",
-      label: "Tên bài thi",
-      type: "text",
-      placeholder: "Lọc theo tên bài thi",
-      operators: ["contains", "startsWith", "equals"],
-      defaultOperator: "contains",
+      key: "examId",
+      label: "Bài thi",
+      type: "select",
+      allLabel: "Tất cả bài thi",
+      options: examOptions,
+    },
+    {
+      key: "academicYear",
+      label: "Năm học",
+      type: "select",
+      allLabel: "Tất cả năm học",
+      options: getAcademicYearOptions().map((year) => ({ value: year, label: year })),
+    },
+    {
+      key: "term",
+      label: "Học kỳ",
+      type: "select",
+      allLabel: "Tất cả học kỳ",
+      options: COURSE_TERM_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
     },
     {
       key: "submittedAt",
@@ -253,14 +286,31 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
 
   useEffect(() => {
     let mounted = true;
+    api
+      .getExams({ limit: 500, includeArchived: true })
+      .then((res) => {
+        if (!mounted) return;
+        const exams = unwrapPaginatedData(res);
+        setExamOptions(
+          exams.map((e: any) => ({ value: e.id, label: e.title || "Không tên" })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
 
     const fetchCases = async () => {
       setLoading(true);
       setError(null);
       try {
-        const examTitleFilter = appliedFilters.examTitle as
-          | TextFilterValue
-          | undefined;
+        const examIdFilter = appliedFilters.examId as string | undefined;
+        const termFilter = appliedFilters.term as string | undefined;
+        const academicYearFilter = appliedFilters.academicYear as string | undefined;
         const submittedAtRange = appliedFilters.submittedAt as
           | { from?: string; to?: string }
           | undefined;
@@ -269,11 +319,17 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
           limit: INTEGRITY_ROWS_PER_VIEW,
           search: appliedSearch || undefined,
           confidence: (appliedFilters.confidence as string | undefined) || "all",
-          examTitle: examTitleFilter?.value?.trim() || undefined,
+          examId: examIdFilter && examIdFilter !== "all" ? examIdFilter : undefined,
+          term: termFilter && termFilter !== "all" ? termFilter : undefined,
+          academicYear:
+            academicYearFilter && academicYearFilter !== "all"
+              ? academicYearFilter
+              : undefined,
           submittedFrom: submittedAtRange?.from,
           submittedTo: submittedAtRange?.to,
           timeAnomaly: appliedFilters.timeAnomaly as boolean | undefined,
           status: activeTab,
+          submissionId: directSubmissionId || undefined,
         })) as IntegrityCasesResponse;
 
         if (!mounted) return;
@@ -301,7 +357,17 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
     return () => {
       mounted = false;
     };
-  }, [activeTab, appliedFilters, appliedSearch, page]);
+  }, [activeTab, appliedFilters, appliedSearch, directSubmissionId, page]);
+
+  useEffect(() => {
+    if (!directSubmissionId || loading) return;
+    const matchingCase = submissions.find((item) => item.submissionId === directSubmissionId);
+    if (matchingCase) {
+      setSelectedCase(matchingCase);
+      return;
+    }
+    setError('Không tìm thấy vụ việc hoặc bạn không có quyền xem lượt làm bài này.');
+  }, [directSubmissionId, loading, submissions]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
@@ -397,7 +463,10 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
     return (
       <IntegrityCaseDetail
         submission={selectedCase}
-        onBack={() => setSelectedCase(null)}
+        onBack={() => {
+          setSelectedCase(null);
+          if (directSubmissionId) router.replace(pathname);
+        }}
         onReview={reviewCase}
         isSaving={savingReview}
       />

@@ -106,6 +106,7 @@ export default function ExamTaking() {
   const cameraIssueActiveRef = useRef(false);
   const lastActivityAtRef = useRef(Date.now());
   const idleCaptureArmedRef = useRef(false);
+  const copiedTextRef = useRef<Set<string>>(new Set());
   const autosaveSequenceRef = useRef(new Map<string, number>());
   const autosaveTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
@@ -402,6 +403,48 @@ export default function ExamTaking() {
       window.clearInterval(timer);
     };
   }, [examSessionStatus, isPreviewMode, isSubmitting, markActivity, persistIntegrityEvent, requestWebcamEvidence, webcamPolicy, webcamReady]);
+
+  // Copy/paste tracking: if a student pastes content that was never copied
+  // during this exam session, they likely pasted it from an external source
+  // (e.g. notes, another tab, a document). Record the full pasted content as
+  // evidence via the existing `paste` integrity event type.
+  useEffect(() => {
+    if (
+      isPreviewMode ||
+      examSessionStatus !== "IN_PROGRESS" ||
+      isSubmitting ||
+      !proctoringEnabled
+    ) return;
+
+    const onCopy = () => {
+      const selected = (window.getSelection()?.toString() || "").trim();
+      if (selected) copiedTextRef.current.add(selected);
+    };
+
+    const onPaste = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData("text/plain") || "";
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      // Only flag pasted content that was NOT copied within this session.
+      if (!copiedTextRef.current.has(trimmed)) {
+        persistIntegrityEvent(
+          "paste",
+          `Dán nội dung từ ngoài bài thi (không sao chép trong phiên thi): ${trimmed}`,
+        );
+      }
+      // Bound the set so it cannot grow unboundedly.
+      if (copiedTextRef.current.size > 200) {
+        copiedTextRef.current.clear();
+      }
+    };
+
+    document.addEventListener("copy", onCopy);
+    document.addEventListener("paste", onPaste);
+    return () => {
+      document.removeEventListener("copy", onCopy);
+      document.removeEventListener("paste", onPaste);
+    };
+  }, [isPreviewMode, examSessionStatus, isSubmitting, proctoringEnabled, persistIntegrityEvent]);
 
   useEffect(() => {
     log("exam_start");

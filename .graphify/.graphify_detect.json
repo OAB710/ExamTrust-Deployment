@@ -529,6 +529,7 @@
       "BE/var/proctoring-evidence/2026-08-03/055d2da4-c963-457b-b0a5-3ef5616e3b93.jpg",
       "BE/var/proctoring-evidence/2026-08-03/92880383-b77c-47b2-a078-2533f7e09696.jpg",
       "BE/var/proctoring-evidence/2026-08-03/f06297da-1338-4294-a8f9-9a840d9d545d.jpg",
+      "BE/var/proctoring-evidence/2026-08-09/12b6fc05-bc6d-4aa2-9e98-535b8cd7d183.jpg",
       "FE/public/examtrust-exam-experience.png",
       "FE/public/examtrust-favicon.svg",
       "FE/public/examtrust-hero.png",
@@ -538,17 +539,17 @@
     ],
     "video": []
   },
-  "total_files": 529,
-  "total_words": 453084,
+  "total_files": 530,
+  "total_words": 456261,
   "needs_graph": true,
-  "warning": "Large corpus: 529 files · ~453,084 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 530 files · ~456,261 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],
   "graphifyignore_patterns": 62,
   "git": {
     "source_owner": "git",
-    "source_hash": "e3af0651e6ab41b890280c536405668a0863f078",
+    "source_hash": "3ce42b88941c6c3b418e30a08e6fc9aa77a0a079",
     "branches": [
       "duc",
       "main"
@@ -562,11 +563,11 @@
     "source": "default-auto",
     "root": ".",
     "git_root": ".",
-    "head": "e3af0651e6ab41b890280c536405668a0863f078",
-    "candidate_count": 585,
-    "included_count": 529,
+    "head": "3ce42b88941c6c3b418e30a08e6fc9aa77a0a079",
+    "candidate_count": 586,
+    "included_count": 530,
     "excluded_untracked_count": 1,
-    "excluded_ignored_count": 100163,
+    "excluded_ignored_count": 100476,
     "excluded_sensitive_count": 1,
     "missing_committed_count": 0,
     "warnings": [],

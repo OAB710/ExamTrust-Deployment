@@ -1,4 +1,4 @@
-import { IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export enum RiskFlagDecision {
   REVIEWED = 'REVIEWED',
@@ -28,4 +28,18 @@ export class ReviewIntegrityCaseDto {
   @IsOptional()
   @IsIn([10, 25, 50, 100])
   deductionPercent?: 10 | 25 | 50 | 100;
+
+  @IsOptional()
+  @IsBoolean()
+  applyPenalty?: boolean;
+
+  @IsOptional()
+  @IsIn(['PERCENT', 'FIXED'])
+  penaltyMode?: 'PERCENT' | 'FIXED';
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(10)
+  penaltyAmount?: number;
 }

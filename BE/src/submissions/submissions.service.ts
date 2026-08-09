@@ -55,10 +55,14 @@ type IntegrityCasesQuery = {
   search?: string;
   confidence?: string;
   examTitle?: string;
+  examId?: string;
+  term?: string;
+  academicYear?: string;
   submittedFrom?: string;
   submittedTo?: string;
   timeAnomaly?: string | boolean;
   status?: string;
+  submissionId?: string;
 };
 
 type IntegrityCase = {
@@ -68,6 +72,8 @@ type IntegrityCase = {
   studentName: string;
   examId: string;
   examTitle: string;
+  academicYear?: string | null;
+  term?: string | null;
   submittedAt: string;
   confidence: IntegrityCaseConfidence;
   status: IntegrityCaseStatus;
@@ -76,7 +82,9 @@ type IntegrityCase = {
     status: IntegrityCaseStatus;
     reviewerNote?: string | null;
     decidedAt?: Date | null;
+    penaltyMode?: string | null;
     penaltyPercent?: number | null;
+    penaltyAmount?: number | null;
     academicScore?: number | null;
     deductedScore?: number | null;
     finalScore?: number | null;
@@ -84,6 +92,7 @@ type IntegrityCase = {
       action: string;
       previousPercent?: number | null;
       nextPercent?: number | null;
+      deductedScore?: number | null;
       note?: string | null;
       createdAt: Date;
     }>;
@@ -1698,7 +1707,11 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const search = String(query.search || '').trim().toLowerCase();
     const confidenceFilter = String(query.confidence || 'all').trim();
     const examTitleFilter = String(query.examTitle || '').trim().toLowerCase();
+    const examIdFilter = String(query.examId || '').trim();
+    const termFilter = String(query.term || '').trim().toUpperCase();
+    const academicYearFilter = String(query.academicYear || '').trim();
     const statusFilter = String(query.status || 'all').trim().toLowerCase();
+    const submissionIdFilter = String(query.submissionId || '').trim();
     const timeAnomalyFilter =
       typeof query.timeAnomaly === 'boolean'
         ? query.timeAnomaly
@@ -1747,6 +1760,12 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
               select: {
                 id: true,
                 title: true,
+                course: {
+                  select: {
+                    term: true,
+                    academicYear: true,
+                  },
+                },
               },
             },
             integrityReview: {
@@ -1755,7 +1774,9 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
                 reviewerId: true,
                 reviewerNote: true,
                 decidedAt: true,
+                penaltyMode: true,
                 penaltyPercent: true,
+                penaltyAmount: true,
                 academicScore: true,
                 deductedScore: true,
                 finalScore: true,
@@ -1766,6 +1787,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
                     action: true,
                     previousPercent: true,
                     nextPercent: true,
+                    deductedScore: true,
                     note: true,
                     createdAt: true,
                   },
@@ -1839,6 +1861,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         studentName: session.submission?.student?.fullName || session.submission?.student?.email || 'Unknown student',
         examId: session.submission?.exam?.id || '',
         examTitle: session.submission?.exam?.title || 'Unknown exam',
+        academicYear: session.submission?.exam?.course?.academicYear || null,
+        term: session.submission?.exam?.course?.term || null,
         submittedAt: submittedAt ? new Date(submittedAt).toISOString() : new Date().toISOString(),
         confidence,
         status: String(session.submission?.integrityReview?.status || 'PENDING').toLowerCase() as IntegrityCaseStatus,
@@ -1848,7 +1872,9 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
               status: String(session.submission.integrityReview.status).toLowerCase() as IntegrityCaseStatus,
               reviewerNote: session.submission.integrityReview.reviewerNote,
               decidedAt: session.submission.integrityReview.decidedAt,
+              penaltyMode: session.submission.integrityReview.penaltyMode,
               penaltyPercent: session.submission.integrityReview.penaltyPercent,
+              penaltyAmount: session.submission.integrityReview.penaltyAmount,
               academicScore: this.toNumber(session.submission.integrityReview.academicScore, 0),
               deductedScore: this.toNumber(session.submission.integrityReview.deductedScore, 0),
               finalScore: this.toNumber(session.submission.integrityReview.finalScore, 0),
@@ -1869,9 +1895,13 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     });
 
     const filteredCases = allCases.filter((item) => {
+      if (submissionIdFilter && item.submissionId !== submissionIdFilter) return false;
       if (statusFilter && statusFilter !== 'all' && item.status !== statusFilter) return false;
       if (confidenceFilter && confidenceFilter !== 'all' && item.confidence !== confidenceFilter) return false;
       if (examTitleFilter && !item.examTitle.toLowerCase().includes(examTitleFilter)) return false;
+      if (examIdFilter && item.examId !== examIdFilter) return false;
+      if (academicYearFilter && item.academicYear !== academicYearFilter) return false;
+      if (termFilter && item.term !== termFilter) return false;
       if (typeof timeAnomalyFilter === 'boolean' && Boolean(item.timeAnomaly) !== timeAnomalyFilter) return false;
 
       const submittedAt = new Date(item.submittedAt).getTime();
@@ -1931,7 +1961,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
   async reviewIntegrityCase(
     submissionId: string,
-    dto: { status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED'; notes?: string; deductionPercent?: 10 | 25 | 50 | 100 },
+    dto: { status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED'; notes?: string; deductionPercent?: 10 | 25 | 50 | 100; applyPenalty?: boolean; penaltyMode?: 'PERCENT' | 'FIXED'; penaltyAmount?: number },
     user: RequestUser,
   ) {
     const submission = await this.prisma.examSubmission.findUnique({
@@ -1942,12 +1972,17 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
 
     const note = dto.notes?.trim() || '';
+    const requestedPenaltyMode = dto.penaltyMode === 'FIXED' ? 'FIXED' : 'PERCENT';
+    const requestedPenaltyAmount = Number(dto.penaltyAmount);
     if (dto.status === 'CONFIRMED') {
-      if (!dto.deductionPercent || ![10, 25, 50, 100].includes(dto.deductionPercent)) {
+      if (dto.applyPenalty && requestedPenaltyMode === 'PERCENT' && (!dto.deductionPercent || ![10, 25, 50, 100].includes(dto.deductionPercent))) {
         throw new BadRequestException('Cần nhập tỷ lệ trừ điểm vi phạm hợp lệ');
       }
+      if (dto.applyPenalty && requestedPenaltyMode === 'FIXED' && (!Number.isFinite(requestedPenaltyAmount) || requestedPenaltyAmount <= 0 || requestedPenaltyAmount > 10)) {
+        throw new BadRequestException('Số điểm trừ phải lớn hơn 0 và không vượt quá 10');
+      }
       if (!note) {
-        throw new BadRequestException('Cần ghi chú khi áp dụng hình thức trừ điểm vi phạm');
+        throw new BadRequestException('Cần ghi chú khi xác nhận cần xử lý vụ việc');
       }
     }
 
@@ -1962,14 +1997,30 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       const academicScore = Number(Math.max(0, Math.min(10,
         this.toNumber(submission.score, 0) + this.toNumber(activeAdjustments._sum.amount, 0),
       )).toFixed(2));
-      const keepsExistingPenalty = dto.status === 'REVIEWED' && existing?.status === 'CONFIRMED';
-      const penaltyPercent = dto.status === 'CONFIRMED'
-        ? Number(dto.deductionPercent)
-        : (keepsExistingPenalty ? existing?.penaltyPercent ?? null : null);
-      const deductedScore = penaltyPercent === null
+      const hasExistingPenalty = existing?.status === 'CONFIRMED'
+        && (existing?.penaltyPercent != null || existing?.penaltyAmount != null);
+      const keepsExistingPenalty = dto.status === 'REVIEWED' && hasExistingPenalty;
+      const keepsPenaltyOnConfirmation = dto.status === 'CONFIRMED'
+        && !dto.applyPenalty
+        && hasExistingPenalty;
+      const shouldApplyPenalty = dto.status === 'CONFIRMED' && dto.applyPenalty;
+      const keepsPenalty = keepsExistingPenalty || keepsPenaltyOnConfirmation;
+      const existingPenaltyMode = existing?.penaltyMode === 'FIXED' ? 'FIXED' : 'PERCENT';
+      const penaltyMode = shouldApplyPenalty
+        ? requestedPenaltyMode
+        : (keepsPenalty ? existingPenaltyMode : null);
+      const penaltyPercent = penaltyMode === 'PERCENT'
+        ? (shouldApplyPenalty ? Number(dto.deductionPercent) : existing?.penaltyPercent ?? null)
+        : null;
+      const penaltyAmount = penaltyMode === 'FIXED'
+        ? (shouldApplyPenalty ? Number(requestedPenaltyAmount.toFixed(2)) : existing?.penaltyAmount ?? null)
+        : null;
+      const deductedScore = penaltyMode === null
         ? null
-        : Number((academicScore * penaltyPercent / 100).toFixed(2));
-      const finalScore = penaltyPercent === null
+        : penaltyMode === 'FIXED'
+          ? Number(Math.min(academicScore, this.toNumber(penaltyAmount, 0)).toFixed(2))
+          : Number((academicScore * this.toNumber(penaltyPercent, 0) / 100).toFixed(2));
+      const finalScore = penaltyMode === null
         ? null
         : Number(Math.max(0, academicScore - (deductedScore || 0)).toFixed(2));
       const priorPercent = existing?.penaltyPercent ?? null;
@@ -1982,22 +2033,26 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           reviewerId: user.id,
           reviewerNote: note || null,
           decidedAt: now,
+          penaltyMode,
           penaltyPercent,
-          academicScore: penaltyPercent === null ? null : academicScore,
+          penaltyAmount,
+          academicScore: penaltyMode === null ? null : academicScore,
           deductedScore,
           finalScore,
-          penaltyAppliedAt: penaltyPercent === null ? null : now,
+          penaltyAppliedAt: penaltyMode === null ? null : (shouldApplyPenalty ? now : existing?.penaltyAppliedAt ?? now),
         },
         update: {
           status: keepsExistingPenalty ? 'CONFIRMED' : dto.status,
           reviewerId: user.id,
           reviewerNote: note || null,
           decidedAt: now,
+          penaltyMode,
           penaltyPercent,
-          academicScore: penaltyPercent === null ? null : academicScore,
+          penaltyAmount,
+          academicScore: penaltyMode === null ? null : academicScore,
           deductedScore,
           finalScore,
-          penaltyAppliedAt: penaltyPercent === null ? null : now,
+          penaltyAppliedAt: penaltyMode === null ? null : (shouldApplyPenalty ? now : existing?.penaltyAppliedAt ?? now),
         },
       });
 
@@ -2005,13 +2060,13 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         data: {
           integrityReviewId: review.id,
           action: dto.status === 'CONFIRMED'
-            ? (priorPercent === null ? 'PENALTY_APPLIED' : 'PENALTY_UPDATED')
+            ? (shouldApplyPenalty ? (requestedPenaltyMode === 'FIXED' ? (priorPercent === null && (existing?.penaltyAmount ?? null) === null ? 'PENALTY_FIXED_APPLIED' : 'PENALTY_FIXED_UPDATED') : (priorPercent === null ? 'PENALTY_APPLIED' : 'PENALTY_UPDATED')) : 'CONFIRMED_NO_PENALTY')
             : (dto.status === 'DISMISSED' && existing?.status === 'CONFIRMED' ? 'PENALTY_REVOKED' : dto.status),
           previousPercent: priorPercent,
           nextPercent: penaltyPercent,
-          academicScore: penaltyPercent === null ? this.toNumber(submission.score, 0) : academicScore,
+          academicScore: penaltyMode === null ? this.toNumber(submission.score, 0) : academicScore,
           deductedScore,
-          finalScore: penaltyPercent === null ? this.toNumber(submission.score, 0) : finalScore,
+          finalScore: penaltyMode === null ? this.toNumber(submission.score, 0) : finalScore,
           note: note || null,
           actorId: user.id,
         },
@@ -2317,6 +2372,155 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     return buildPaginatedResult(rows, total, page, limit);
   }
 
+  /**
+   * Lecturer/admin-only comparison view. It deliberately returns classifications
+   * only: never the correct answers or the students' answer payloads.
+   */
+  async getExamAnswerMatrix(examId: string, user?: RequestUser) {
+    if (user) {
+      await this.accessPolicy.assertInstructorCanAccessExam(examId, user);
+    }
+
+    const exam = await this.prisma.exam.findUnique({
+      where: { id: examId },
+      select: { id: true, title: true, maxAttempts: true, questionSelectionConfig: true, settings: true },
+    });
+    if (!exam) throw new NotFoundException('Không tìm thấy bài thi');
+
+    const maxAttempts = Number(exam.maxAttempts);
+    if (maxAttempts !== 1) {
+      throw new BadRequestException('Ma trận đáp án chỉ áp dụng cho bài thi có tối đa một lượt làm.');
+    }
+
+    const submissions = await this.prisma.examSubmission.findMany({
+      where: { examId },
+      select: {
+        id: true,
+        status: true,
+        submittedAt: true,
+        createdAt: true,
+        student: { select: { fullName: true, studentId: true } },
+        examSnapshot: {
+          select: {
+            questions: {
+              select: {
+                questionId: true,
+                questionVersionId: true,
+                questionSnapshotId: true,
+                orderIndex: true,
+                payload: true,
+                questionSnapshot: { select: { id: true, payload: true } },
+              },
+            },
+          },
+        },
+        answers: {
+          select: {
+            questionId: true,
+            questionVersionId: true,
+            questionSnapshotId: true,
+            answer: true,
+            isCorrect: true,
+            pointsAwarded: true,
+            manualGradedAt: true,
+          },
+        },
+      },
+      orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    const selectionConfig = this.parseJsonValue(
+      exam.questionSelectionConfig ?? exam.settings,
+      {},
+    ) as any;
+    const settings = this.parseJsonValue(exam.settings, {}) as any;
+    const randomCount = Math.max(
+      0,
+      Number(
+        selectionConfig?.randomRequestedQuestionCount ??
+        selectionConfig?.requestedQuestionCount ??
+        selectionConfig?.sources?.randomTopicCount ??
+        settings?.randomRequestedQuestionCount ??
+        settings?.requestedQuestionCount ??
+        0,
+      ) || 0,
+    );
+
+    const columns = new Map<string, any>();
+    for (const submission of submissions) {
+      for (const snapshotQuestion of submission.examSnapshot?.questions || []) {
+        const merged = {
+          ...this.parseJsonValue(snapshotQuestion.payload, {}),
+          ...this.parseJsonValue(snapshotQuestion.questionSnapshot?.payload, {}),
+        } as any;
+        const key = snapshotQuestion.questionSnapshotId ||
+          snapshotQuestion.questionVersionId ||
+          snapshotQuestion.questionId;
+        const orderIndex = Number(snapshotQuestion.orderIndex || 0);
+        const isRandomBankQuestion = randomCount > 0 && orderIndex > 0 && orderIndex > (
+          (submission.examSnapshot?.questions?.length || 0) - randomCount
+        );
+        const existing = columns.get(key);
+        columns.set(key, {
+          key,
+          questionId: snapshotQuestion.questionId,
+          questionSnapshotId: snapshotQuestion.questionSnapshotId || snapshotQuestion.questionSnapshot?.id || null,
+          questionVersionId: snapshotQuestion.questionVersionId || null,
+          stem: String(merged.stem || merged.content || 'Nội dung câu hỏi không khả dụng'),
+          orderIndex: Math.min(existing?.orderIndex ?? Number.MAX_SAFE_INTEGER, orderIndex || Number.MAX_SAFE_INTEGER),
+          isRandomBankQuestion: Boolean(existing?.isRandomBankQuestion || isRandomBankQuestion),
+        });
+      }
+    }
+    const questionColumns = [...columns.values()]
+      .sort((left, right) => left.orderIndex - right.orderIndex || left.key.localeCompare(right.key))
+      .map((column, index) => ({ ...column, label: `C${index + 1}` }));
+
+    const isBlank = (value: any): boolean => {
+      const parsed = this.parseJsonValue(value, value);
+      if (parsed === null || typeof parsed === 'undefined') return true;
+      if (typeof parsed === 'string') return parsed.trim().length === 0;
+      if (Array.isArray(parsed)) return parsed.length === 0;
+      if (typeof parsed === 'object') return Object.keys(parsed).length === 0 ||
+        Object.values(parsed).every((item) => item === null || item === '' || (Array.isArray(item) && item.length === 0));
+      return false;
+    };
+
+    const students = submissions.map((submission) => {
+      const assignedKeys = new Set((submission.examSnapshot?.questions || []).map((question) =>
+        question.questionSnapshotId || question.questionVersionId || question.questionId,
+      ));
+      const answersByKey = new Map<string, any>((submission.answers || []).map((answer) => [
+        answer.questionSnapshotId || answer.questionVersionId || answer.questionId,
+        answer,
+      ]));
+      const cells = Object.fromEntries(questionColumns.map((column) => {
+        if (column.isRandomBankQuestion) return [column.key, 'RANDOM_NOT_COMPARABLE'];
+        if (!assignedKeys.has(column.key)) return [column.key, 'NOT_ASSIGNED'];
+        const answer = answersByKey.get(column.key);
+        if (!answer || isBlank(answer.answer)) return [column.key, 'BLANK'];
+        if (!answer.manualGradedAt && answer.isCorrect === null) return [column.key, 'PENDING_MANUAL'];
+        if (answer.isCorrect === true || (answer.manualGradedAt && Number(answer.pointsAwarded || 0) > 0)) {
+          return [column.key, 'CORRECT'];
+        }
+        return [column.key, 'INCORRECT'];
+      }));
+      return {
+        submissionId: submission.id,
+        student: submission.student,
+        status: submission.status,
+        cells,
+      };
+    });
+
+    return {
+      exam: { id: exam.id, title: exam.title, maxAttempts },
+      submittedCount: submissions.filter((item) => item.submittedAt).length,
+      students,
+      questionColumns,
+    };
+  }
+
   async getManualGradingStatus(examId: string, user?: RequestUser) {
     if (user) {
       await this.accessPolicy.assertInstructorCanAccessExam(examId, user);
@@ -2524,7 +2728,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
   private async refreshIntegrityScoreAfterAdjustment(tx: any, submissionId: string, baseScore: number) {
     const review = await tx.integrityReview.findUnique({ where: { submissionId } });
-    if (!review?.penaltyPercent) return;
+    const penaltyMode = review?.penaltyMode === 'FIXED' ? 'FIXED' : (review?.penaltyPercent ? 'PERCENT' : null);
+    if (!penaltyMode) return;
 
     const adjustments = await tx.scoreAdjustment.findMany({
       where: { submissionId, revokedAt: null },
@@ -2534,7 +2739,9 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       (total: number, adjustment: { amount: any }) => total + this.toNumber(adjustment.amount),
       0,
     )));
-    const deductedScore = Number((adjustedAcademicScore * Number(review.penaltyPercent) / 100).toFixed(2));
+    const deductedScore = penaltyMode === 'FIXED'
+      ? Number(Math.min(adjustedAcademicScore, this.toNumber(review.penaltyAmount, 0)).toFixed(2))
+      : Number((adjustedAcademicScore * Number(review.penaltyPercent) / 100).toFixed(2));
     const finalScore = Number(Math.max(0, adjustedAcademicScore - deductedScore).toFixed(2));
 
     await tx.integrityReview.update({

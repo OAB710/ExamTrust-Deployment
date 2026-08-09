@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type ViolationType = "fullscreen_exit" | "tab_switch" | "blur" | "focus";
+export type ViolationType = "fullscreen_exit" | "tab_switch";
 
 export interface ViolationLog {
   timestamp: number;
@@ -39,8 +39,6 @@ interface UseExamSecurityResult {
 const emptyCounts: Record<ViolationType, number> = {
   fullscreen_exit: 0,
   tab_switch: 0,
-  blur: 0,
-  focus: 0,
 };
 
 const DEFAULT_FULLSCREEN_GRACE_MS = 5000;
@@ -81,7 +79,6 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
 
   const logsRef = useRef<ViolationLog[]>([]);
   const escalatedRef = useRef(false);
-  const focusArmedRef = useRef(false);
   const allowClearRef = useRef(false);
   const fullscreenRequestedAtRef = useRef<number | null>(initialFullscreenRequestedAt);
   const hasEnteredFullscreenOnceRef = useRef(false);
@@ -270,34 +267,14 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     const onVisibility = () => {
       if (!isTrackingActive() || isWithinFullscreenGrace()) return;
       if (document.hidden) {
-        focusArmedRef.current = true;
         recordViolation("tab_switch", "Trang bị ẩn (chuyển tab hoặc ứng dụng khác)");
       }
     };
 
-    const onBlur = () => {
-      if (!isTrackingActive() || isWithinFullscreenGrace()) return;
-      focusArmedRef.current = true;
-      recordViolation("blur", "Cửa sổ làm bài mất tiêu điểm");
-    };
-
-    const onFocus = () => {
-      if (!isTrackingActive() || isWithinFullscreenGrace()) return;
-      if (!focusArmedRef.current) return;
-      focusArmedRef.current = false;
-      if (!document.fullscreenElement) {
-        recordViolation("focus", "Cửa sổ được focus lại nhưng không ở chế độ toàn màn hình");
-      }
-    };
-
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", onFocus);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("focus", onFocus);
     };
   }, [enabled, isTrackingActive, isWithinFullscreenGrace, recordViolation]);
 

@@ -668,8 +668,8 @@
     "hash": "d31d4f9e6e0d59db7735e5c958d4ebca"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/dto/risk-assessment.dto.ts": {
-    "mtime": 1785694578555.982,
-    "hash": "60f47f5dd76cf4a816fa788d616d2aea"
+    "mtime": 1786283952028.5369,
+    "hash": "96931eb169f4fe234168bce90f25b118"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/dto/submission.dto.ts": {
     "mtime": 1786078311972.3274,
@@ -692,8 +692,8 @@
     "hash": "c6e0367bdbb63fb579327cab5584e4cf"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/submissions.controller.ts": {
-    "mtime": 1786078311976.447,
-    "hash": "ea3c859bc9cf5903c92c941eb491ee0c"
+    "mtime": 1786286349425.14,
+    "hash": "326f8823663566332b8df9afb3dba724"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/submissions.find-error.spec.ts": {
     "mtime": 1785713160317.9421,
@@ -704,8 +704,8 @@
     "hash": "5a31c3929829fdf3a74f64d50b680e93"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/submissions.service.ts": {
-    "mtime": 1786264493819.744,
-    "hash": "9cc13b391fedd328d4caba0d95b0cb83"
+    "mtime": 1786286571051.8352,
+    "hash": "bc24a256f339096f68fe340e638c51ca"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/submissions.snapshot-score.spec.ts": {
     "mtime": 1786078311981.5254,
@@ -1072,8 +1072,8 @@
     "hash": "9ad38cefe9d1af24d3656aea43cfd165"
   },
   "D:/KLTN2/ExamTrust/FE/src/components/admin/IntegrityCaseDetail.tsx": {
-    "mtime": 1785694578566.4988,
-    "hash": "29e0ac4b2da6cdbc5ac772c068af204c"
+    "mtime": 1786283952044.011,
+    "hash": "9b079bcac9f04b8208d3b0114254ec00"
   },
   "D:/KLTN2/ExamTrust/FE/src/components/common/BackToDashboardButton.tsx": {
     "mtime": 1785694565083.5215,
@@ -1100,8 +1100,8 @@
     "hash": "f77441b57d5be801abcdcda9a7f9ef2b"
   },
   "D:/KLTN2/ExamTrust/FE/src/components/common/ExamSecurityModal.tsx": {
-    "mtime": 1786262207017.24,
-    "hash": "dd85a951bb40b609bee88462325ea734"
+    "mtime": 1786283096981.9165,
+    "hash": "25fb9197fc7f4796831b548e8eb3824e"
   },
   "D:/KLTN2/ExamTrust/FE/src/components/common/MetricCard.tsx": {
     "mtime": 1784203784070.5747,
@@ -1500,8 +1500,8 @@
     "hash": "b3c61fd9aa9480b7184099c40c359d6a"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/IntegrityOverview.tsx": {
-    "mtime": 1785694578573.0103,
-    "hash": "044ec4840e0eb6db6895cc15d023b833"
+    "mtime": 1786283964964.8938,
+    "hash": "6c1a966db0d4c2b5a10a51b381289af2"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/MetricMethodologyReference.tsx": {
     "mtime": 1785694565111.4683,
@@ -1572,8 +1572,8 @@
     "hash": "f1de76d5512447bdcd22fcfb53f57d81"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ExamResultsList.tsx": {
-    "mtime": 1786255443476.9136,
-    "hash": "1eaa5f6a53729f2ab08000e5d591356a"
+    "mtime": 1786286571060.302,
+    "hash": "be02f17a563966f42c456d31a3b789dc"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/GenerateExamLink.tsx": {
     "mtime": 1786078312017.5325,
@@ -1712,8 +1712,8 @@
     "hash": "f29551e6d3bc378b889f6c8cc2b6fdd4"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/ExamTaking.tsx": {
-    "mtime": 1786265659550.1067,
-    "hash": "fed0bdf079dcd5a265a89d02ee21f18e"
+    "mtime": 1786278937353.2378,
+    "hash": "9dc53cb1a18b2e5b554f16f4827336f4"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/FeedbackDetail.tsx": {
     "mtime": 1786078312031.5547,
@@ -1796,8 +1796,8 @@
     "hash": "fd20a75daa4a54a17d9078336a6721a3"
   },
   "D:/KLTN2/ExamTrust/FE/src/hooks/use-exam-security.ts": {
-    "mtime": 1786262981568.1846,
-    "hash": "343641b4c25dabfda924d8d65f06bc10"
+    "mtime": 1786283001163.329,
+    "hash": "d31dbb6b354a3b834a27053f692ee73c"
   },
   "D:/KLTN2/ExamTrust/FE/src/hooks/use-mobile.tsx": {
     "mtime": 1781535642960.7356,
@@ -1808,8 +1808,8 @@
     "hash": "895be3e18021c7c5cd4fac68ea522dd4"
   },
   "D:/KLTN2/ExamTrust/FE/src/lib/api.ts": {
-    "mtime": 1786259751087.035,
-    "hash": "6aed935000804d2e7553ed9f4f990030"
+    "mtime": 1786286349439.5603,
+    "hash": "4f61e746005bf85afcdd2884a9d0a691"
   },
   "D:/KLTN2/ExamTrust/FE/src/lib/course-exam-action.ts": {
     "mtime": 1785694565166.0188,
@@ -2114,5 +2114,9 @@
   "D:/KLTN2/ExamTrust/AGENTS.md": {
     "mtime": 1786182553271.4387,
     "hash": "791739200c5d1d9a18f59c4420c8b595"
+  },
+  "D:/KLTN2/ExamTrust/BE/var/proctoring-evidence/2026-08-09/12b6fc05-bc6d-4aa2-9e98-535b8cd7d183.jpg": {
+    "mtime": 1786265280481.6494,
+    "hash": "779fed287fb511124d64bc6b1f17c779"
   }
 }
