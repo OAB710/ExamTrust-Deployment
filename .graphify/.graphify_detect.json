@@ -539,16 +539,16 @@
     "video": []
   },
   "total_files": 529,
-  "total_words": 452950,
+  "total_words": 453084,
   "needs_graph": true,
-  "warning": "Large corpus: 529 files · ~452,950 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 529 files · ~453,084 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],
   "graphifyignore_patterns": 62,
   "git": {
     "source_owner": "git",
-    "source_hash": "2701bbceec181cffac5ce38d08a09b4e25a955ba",
+    "source_hash": "e3af0651e6ab41b890280c536405668a0863f078",
     "branches": [
       "duc",
       "main"
@@ -562,13 +562,13 @@
     "source": "default-auto",
     "root": ".",
     "git_root": ".",
-    "head": "2701bbceec181cffac5ce38d08a09b4e25a955ba",
-    "candidate_count": 586,
+    "head": "e3af0651e6ab41b890280c536405668a0863f078",
+    "candidate_count": 585,
     "included_count": 529,
-    "excluded_untracked_count": 0,
-    "excluded_ignored_count": 100114,
+    "excluded_untracked_count": 1,
+    "excluded_ignored_count": 100163,
     "excluded_sensitive_count": 1,
-    "missing_committed_count": 1,
+    "missing_committed_count": 0,
     "warnings": [],
     "recommendation": "Use --scope all or graphify.yaml inputs.corpus for a knowledge-base folder."
   }

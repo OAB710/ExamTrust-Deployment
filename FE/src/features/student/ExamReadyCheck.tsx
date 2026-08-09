@@ -76,6 +76,7 @@ export default function ExamReadyCheck() {
   const [allChecksPassed, setAllChecksPassed] = useState(false);
   const [isRunningChecks, setIsRunningChecks] = useState(false);
   const [checkingAttempt, setCheckingAttempt] = useState(false);
+  const [isLoadingPolicy, setIsLoadingPolicy] = useState(Boolean(examId));
   const [proctoringEnabled, setProctoringEnabled] = useState(false);
   const [deviceBlocked, setDeviceBlocked] = useState(false);
   const [webcamPolicy, setWebcamPolicy] = useState<{ enabled?: boolean; examProfile?: string; consentVersion?: string } | null>(null);
@@ -85,14 +86,26 @@ export default function ExamReadyCheck() {
     && String(webcamPolicy?.examProfile || "").toUpperCase() === "THEORY";
 
   useEffect(() => {
-    if (!examId) return;
+    if (!examId) {
+      setIsLoadingPolicy(false);
+      return;
+    }
+    let mounted = true;
+    setIsLoadingPolicy(true);
     api.getExam(examId).then((exam) => {
+      if (!mounted) return;
       const settings = exam?.settings || {};
       const enabled = settings.proctoringEnabled === undefined ? Boolean(settings.requiresProctoring) : Boolean(settings.proctoringEnabled);
       setProctoringEnabled(enabled);
       setWebcamPolicy(settings.webcamEvidencePolicy || null);
+      setWebcamReady(false);
       setDeviceBlocked(enabled && /android|iphone|ipad|ipod|mobile|tablet|silk|kindle/i.test(navigator.userAgent || ""));
-    }).catch(() => {});
+    }).catch(() => {
+      if (mounted) toast.error("Không thể tải chính sách giám sát của bài thi.");
+    }).finally(() => {
+      if (mounted) setIsLoadingPolicy(false);
+    });
+    return () => { mounted = false; };
   }, [examId]);
 
   useEffect(() => {
@@ -409,7 +422,7 @@ export default function ExamReadyCheck() {
             </Card>
 
             <div className="flex gap-3">
-              <Button onClick={handleProceed} disabled={!allChecksPassed || !agreed || deviceBlocked} className="flex-1 h-11 gap-2" size="lg">
+              <Button onClick={handleProceed} disabled={!allChecksPassed || !agreed || deviceBlocked || isLoadingPolicy} className="flex-1 h-11 gap-2" size="lg">
                 {!allChecksPassed ? (
                   <>
                     <AlertTriangle className="h-4 w-4" />
@@ -456,7 +469,7 @@ export default function ExamReadyCheck() {
                 onClick={handleStartExam}
                 className="flex-1 h-12 gap-2 text-base"
                 size="lg"
-                disabled={checkingAttempt || (webcamRequired && !webcamReady)}
+                disabled={checkingAttempt || isLoadingPolicy || (webcamRequired && !webcamReady)}
               >
                 <ArrowRight className="h-5 w-5" />
                 Bắt đầu làm bài

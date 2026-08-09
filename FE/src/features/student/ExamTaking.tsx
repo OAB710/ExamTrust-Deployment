@@ -193,7 +193,9 @@ export default function ExamTaking() {
 
         if (!mounted) return;
         setExamTitle(exam?.title || "Phiên thi");
-        const configuredPolicy = exam?.settings?.webcamEvidencePolicy?.enabled ? exam.settings.webcamEvidencePolicy : null;
+        const configuredPolicy = exam?.settings?.webcamEvidencePolicy?.enabled
+          ? exam.settings.webcamEvidencePolicy
+          : null;
         setWebcamPolicy((current: any) => current?.scheduledCaptureOffsetsMs?.length ? current : configuredPolicy);
         setQuestions(mapped.length > 0 ? mapped : []);
       } catch (err) {
@@ -525,7 +527,8 @@ export default function ExamTaking() {
   });
 
   useEffect(() => {
-    if (isPreviewMode || !isSecurityBlocked || isSubmitting) {
+    const isFullscreenRecoveryActive = isSecurityBlocked || isFullscreenExitPending;
+    if (isPreviewMode || !isFullscreenRecoveryActive || isSubmitting) {
       setFullscreenCountdown(15);
       return;
     }
@@ -537,12 +540,14 @@ export default function ExamTaking() {
       setFullscreenCountdown(remaining);
       if (remaining === 0) {
         window.clearInterval(id);
-        doSubmit();
+        // An Escape/fullscreen recovery is only a pending signal. The hook
+        // confirms it after the grace period; do not submit during that window.
+        if (isSecurityBlocked) doSubmit();
       }
     }, 200);
 
     return () => window.clearInterval(id);
-  }, [isPreviewMode, isSecurityBlocked, isSubmitting, doSubmit]);
+  }, [isPreviewMode, isSecurityBlocked, isFullscreenExitPending, isSubmitting, doSubmit]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -576,6 +581,7 @@ export default function ExamTaking() {
   };
 
   const isRecoveringWebcam = webcamPolicy?.enabled && examSessionStatus === "IN_PROGRESS";
+  const displayedViolationCount = violationCount + (isFullscreenExitPending ? 1 : 0);
 
   const isTimeLow = timeLeft < 300;
   const answeredCount = questions.filter((q) => isAnswered(q, answers)).length;
@@ -770,9 +776,9 @@ export default function ExamTaking() {
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Shield className="h-5 w-5 text-primary" />
           <span className="truncate text-sm font-semibold">{examTitle}</span>
-          {violationCount > 0 && (
+          {displayedViolationCount > 0 && (
             <StatusBadge status="critical" domain="severity">
-              {violationCount} tín hiệu cần xem xét
+              {displayedViolationCount} tín hiệu cần xem xét
             </StatusBadge>
           )}
         </div>
@@ -810,7 +816,7 @@ export default function ExamTaking() {
 
       <ExamSecurityModal
         open={isSecurityBlocked || isFullscreenExitPending}
-        violationCount={violationCount}
+        violationCount={displayedViolationCount}
         maxViolations={MAX_VIOLATIONS}
         isEscalated={isEscalated}
         countdownSeconds={fullscreenCountdown}

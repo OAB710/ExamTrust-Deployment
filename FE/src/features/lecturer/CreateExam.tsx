@@ -858,8 +858,6 @@ export default function CreateExam() {
           proctoringEnabled: effectiveProctoring,
           webcamEvidencePolicy: {
             enabled: effectiveProctoring && form.webcamEvidenceEnabled,
-            // This control is intentionally theory-only; keeping the profile
-            // fixed prevents a contradictory setting from disabling webcam.
             examProfile: "THEORY",
             eventCooldownMs: 120000,
             eventCaptureLimit: 5,
@@ -1548,9 +1546,9 @@ export default function CreateExam() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <Label className="text-sm font-medium">Bằng chứng webcam cho bài lý thuyết</Label>
-                        <p className="text-xs text-muted-foreground mt-1">Bắt buộc cấp webcam; hệ thống chụp ngẫu nhiên theo từng 5 phút và khi có tín hiệu đáng ngờ. Ảnh tự xóa sau 30 ngày.</p>
+                        <p className="text-xs text-muted-foreground mt-1">Khi bật, sinh viên phải cấp webcam trước khi vào bài. Hệ thống chỉ ghi nhận ảnh bằng chứng khi không tương tác 1 phút; ảnh tự xóa sau 30 ngày.</p>
                       </div>
-                      <Switch checked={form.webcamEvidenceEnabled} onCheckedChange={(v) => set("webcamEvidenceEnabled", v)} />
+                      <Switch checked={form.webcamEvidenceEnabled} onCheckedChange={(v) => set("webcamEvidenceEnabled", v)} aria-label="Bật bằng chứng webcam" />
                     </div>
                   </div>
                 ) : null}
