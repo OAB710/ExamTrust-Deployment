@@ -134,10 +134,14 @@ export class SubmissionsController {
     @Query('search') search?: string,
     @Query('confidence') confidence?: string,
     @Query('examTitle') examTitle?: string,
+    @Query('examId') examId?: string,
+    @Query('term') term?: string,
+    @Query('academicYear') academicYear?: string,
     @Query('submittedFrom') submittedFrom?: string,
     @Query('submittedTo') submittedTo?: string,
     @Query('timeAnomaly') timeAnomaly?: string,
     @Query('status') status?: string,
+    @Query('submissionId') submissionId?: string,
     @Request() req?: any,
   ) {
     return this.submissionsService.getIntegrityCases({
@@ -146,10 +150,14 @@ export class SubmissionsController {
       search,
       confidence,
       examTitle,
+      examId,
+      term,
+      academicYear,
       submittedFrom,
       submittedTo,
       timeAnomaly,
       status,
+      submissionId,
     }, req.user);
   }
 
@@ -220,6 +228,13 @@ export class SubmissionsController {
       limit: limit ? parseInt(limit, 10) : 20,
     };
     return this.submissionsService.findAll(pagination);
+  }
+
+  @Get('exam/:examId/answer-matrix')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  getExamAnswerMatrix(@Param('examId') examId: string, @Request() req) {
+    return this.submissionsService.getExamAnswerMatrix(examId, req.user);
   }
 
   @Get('exam/:examId')

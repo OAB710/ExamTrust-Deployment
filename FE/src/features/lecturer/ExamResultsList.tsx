@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { Activity, AlertTriangle, Camera, ClipboardCheck, History, Loader2, Search, Send, ShieldCheck } from "lucide-react";
+import { Activity, AlertTriangle, Camera, ClipboardCheck, History, Loader2, Search, Send, ShieldCheck, TableProperties } from "lucide-react";
 import { toast } from "sonner";
 import {
   ResponsiveContainer,
@@ -37,6 +37,7 @@ type ExamOverview = {
     id: string;
     title: string;
     totalPoints?: number;
+    maxAttempts?: number | null;
   };
   analyticsScope?: "OFFICIAL" | "PRACTICE";
   isUnlimited?: boolean;
@@ -56,9 +57,20 @@ type ExamOverview = {
     details?: string;
     timestamp: string;
     severity: "low" | "medium" | "high";
+    submissionId?: string | null;
     student?: { fullName?: string; studentId?: string } | null;
   }>;
   updatedAt: string;
+};
+
+type MonitoringGroup = {
+  key: string;
+  student?: { fullName?: string; studentId?: string } | null;
+  submissionId?: string | null;
+  severity: "low" | "medium" | "high";
+  latestTimestamp: string;
+  eventTypes: string[];
+  eventCount: number;
 };
 
 type SubmissionTimeline = {
@@ -79,6 +91,25 @@ type RiskFlag = {
   submissionId?: string | null;
   status?: string | null;
   job?: { output?: { riskLevel?: string | null } | null } | null;
+};
+
+type AnswerMatrix = {
+  exam: { id: string; title: string; maxAttempts: number };
+  submittedCount: number;
+  questionColumns: Array<{
+    key: string;
+    label: string;
+    stem: string;
+    questionSnapshotId?: string | null;
+    questionVersionId?: string | null;
+    isRandomBankQuestion: boolean;
+  }>;
+  students: Array<{
+    submissionId: string;
+    student?: { fullName?: string | null; studentId?: string | null } | null;
+    status: string;
+    cells: Record<string, "CORRECT" | "INCORRECT" | "BLANK" | "PENDING_MANUAL" | "NOT_ASSIGNED" | "RANDOM_NOT_COMPARABLE">;
+  }>;
 };
 
 function formatTimeSpent(start?: string | null, end?: string | null) {
@@ -126,6 +157,50 @@ function getAnomalyDescription(eventType?: string, details?: string) {
   return "Hệ thống đã lưu sự kiện này để giảng viên đối chiếu khi cần.";
 }
 
+function formatScoreOnTen(score: unknown, totalPoints: unknown) {
+  const rawScore = Number(score);
+  const maxRawScore = Number(totalPoints);
+  if (!Number.isFinite(rawScore)) return "-";
+  const normalized = Number.isFinite(maxRawScore) && maxRawScore > 0
+    ? (rawScore / maxRawScore) * 10
+    : rawScore;
+  return `${Math.max(0, Math.min(10, normalized)).toFixed(2)}/10`;
+}
+
+function groupAnomaliesByStudent(anomalies: ExamOverview["anomalies"]): MonitoringGroup[] {
+  const severityRank = { low: 1, medium: 2, high: 3 } as const;
+  const grouped = new Map<string, MonitoringGroup>();
+
+  for (const anomaly of anomalies) {
+    const key = anomaly.student?.studentId || anomaly.student?.fullName || anomaly.submissionId || anomaly.id;
+    const current = grouped.get(key);
+    if (!current) {
+      grouped.set(key, {
+        key,
+        student: anomaly.student,
+        submissionId: anomaly.submissionId,
+        severity: anomaly.severity,
+        latestTimestamp: anomaly.timestamp,
+        eventTypes: [anomaly.eventType],
+        eventCount: 1,
+      });
+      continue;
+    }
+
+    current.eventCount += 1;
+    if (!current.eventTypes.includes(anomaly.eventType)) current.eventTypes.push(anomaly.eventType);
+    if (severityRank[anomaly.severity] > severityRank[current.severity]) current.severity = anomaly.severity;
+    if (new Date(anomaly.timestamp).getTime() >= new Date(current.latestTimestamp).getTime()) {
+      current.latestTimestamp = anomaly.timestamp;
+      current.submissionId = anomaly.submissionId || current.submissionId;
+    }
+  }
+
+  return [...grouped.values()].sort(
+    (left, right) => new Date(right.latestTimestamp).getTime() - new Date(left.latestTimestamp).getTime(),
+  );
+}
+
 function ReviewStat({ label, value }: { label: string; value: string | number }) {
   return <div className="rounded-lg border p-3 text-sm"><p className="text-muted-foreground">{label}</p><p className="mt-1 font-semibold">{value}</p></div>;
 }
@@ -157,7 +232,12 @@ export default function ExamResultsList() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [adjustmentHistory, setAdjustmentHistory] = useState<any | null>(null);
   const [adjustmentHistoryLoading, setAdjustmentHistoryLoading] = useState(false);
+  const [answerMatrix, setAnswerMatrix] = useState<AnswerMatrix | null>(null);
+  const [answerMatrixOpen, setAnswerMatrixOpen] = useState(false);
+  const [answerMatrixLoading, setAnswerMatrixLoading] = useState(false);
   const ITEMS_PER_PAGE = 10;
+  const groupedAnomalies = groupAnomaliesByStudent(overview?.anomalies ?? []);
+  const canOpenAnswerMatrix = overview?.exam?.maxAttempts === 1;
 
   useEffect(() => {
     let mounted = true;
@@ -309,6 +389,24 @@ export default function ExamResultsList() {
       setAdjustmentHistory(null);
     } finally {
       setAdjustmentHistoryLoading(false);
+    }
+  };
+
+  const openAnswerMatrix = async () => {
+    if (!examId) return;
+    if (!canOpenAnswerMatrix) {
+      toast.error("Ma trận đáp án không áp dụng cho bài thi có nhiều lượt làm.");
+      return;
+    }
+    setAnswerMatrixLoading(true);
+    try {
+      const matrix = await api.getExamAnswerMatrix(examId);
+      setAnswerMatrix(matrix as AnswerMatrix);
+      setAnswerMatrixOpen(true);
+    } catch (err: any) {
+      toast.error(err?.message || "Không thể tải ma trận đáp án.");
+    } finally {
+      setAnswerMatrixLoading(false);
     }
   };
 
@@ -525,14 +623,14 @@ export default function ExamResultsList() {
               </div>
 
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {(overview?.anomalies?.length || 0) === 0 ? (
+                {groupedAnomalies.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Chưa có dữ liệu giám sát cần xem xét.
                   </p>
                 ) : (
-                  overview?.anomalies?.map((item) => (
+                  groupedAnomalies.map((item) => (
                     <div
-                      key={item.id}
+                      key={item.key}
                       className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-background to-slate-50/70 p-3 shadow-sm"
                     >
                       <div className="mb-1 flex items-center justify-between gap-2">
@@ -541,13 +639,26 @@ export default function ExamResultsList() {
                         </p>
                         <StatusBadge domain="severity" status={item.severity} />
                       </div>
-                      <p className="text-sm font-medium text-slate-700">{getEventTypeLabel(item.eventType)}</p>
+                      <p className="text-sm font-medium text-slate-700">
+                        {item.eventCount} sự kiện cần đối chiếu
+                      </p>
                       <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                        {getAnomalyDescription(item.eventType, item.details)}
+                        {item.eventTypes.map((eventType) => getEventTypeLabel(eventType)).join(", ")}
                       </p>
                       <p className="mt-2 text-[11px] text-muted-foreground">
-                        {new Date(item.timestamp).toLocaleString("vi-VN")}
+                        Sự kiện gần nhất: {new Date(item.latestTimestamp).toLocaleString("vi-VN")}
                       </p>
+                      {item.submissionId ? (
+                        <Button
+                          className="mt-3 w-full"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => router.push(`${basePath}/integrity?submissionId=${encodeURIComponent(item.submissionId)}`)}
+                        >
+                          <ShieldCheck className="mr-2 h-4 w-4" />
+                          Xem xét
+                        </Button>
+                      ) : null}
                     </div>
                   ))
                 )}
@@ -558,7 +669,8 @@ export default function ExamResultsList() {
         <Card className="overflow-hidden border-slate-200/80 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.35)]">
           <CardContent className="p-0">
             <div className="border-b border-slate-200/80 bg-slate-50/70 px-5 py-4">
-              <div className="relative max-w-xl">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative w-full max-w-xl">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Tìm theo tên hoặc mã sinh viên"
@@ -566,6 +678,23 @@ export default function ExamResultsList() {
                   onChange={(e) => setSearch(e.target.value)}
                   className="min-w-0 bg-background/90 pl-9 shadow-sm"
                 />
+              </div>
+              <div className="flex flex-col items-start gap-1 sm:items-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2 bg-background"
+                  onClick={openAnswerMatrix}
+                  disabled={answerMatrixLoading || !canOpenAnswerMatrix}
+                  title={!canOpenAnswerMatrix ? "Ma trận chỉ áp dụng cho bài thi có đúng một lượt làm." : "Xem ma trận đáp án theo sinh viên"}
+                >
+                  {answerMatrixLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <TableProperties className="h-4 w-4" />}
+                  Xem chi tiết
+                </Button>
+                {!canOpenAnswerMatrix ? (
+                  <p className="max-w-xs text-xs text-muted-foreground">Chỉ áp dụng cho bài thi có đúng một lượt làm.</p>
+                ) : null}
+              </div>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -624,7 +753,7 @@ export default function ExamResultsList() {
                         <TableCell className="py-4 font-medium text-foreground">
                           <div className="flex items-center gap-2">
                             <span>{s.score != null
-                              ? `${s.score}/${s.totalPoints ?? overview?.exam?.totalPoints ?? 10}`
+                              ? formatScoreOnTen(s.score, s.totalPoints ?? overview?.exam?.totalPoints)
                               : "-"}</span>
                             <Button
                               type="button"
@@ -775,6 +904,73 @@ export default function ExamResultsList() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={answerMatrixOpen} onOpenChange={setAnswerMatrixOpen}>
+        <DialogContent className="max-h-[92vh] max-w-[calc(100vw-2rem)] overflow-hidden p-0 sm:max-w-[calc(100vw-4rem)]">
+          <DialogHeader className="border-b px-6 py-5">
+            <DialogTitle className="flex items-center gap-2"><TableProperties className="h-5 w-5 text-primary" />Ma trận đáp án theo sinh viên</DialogTitle>
+            <DialogDescription>
+              {answerMatrix?.students.length || 0} sinh viên · {answerMatrix?.submittedCount || 0} lượt đã nộp. Chỉ dùng để đối chiếu nhanh, không thay đổi điểm hay đáp án.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 overflow-auto px-6 py-4">
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              {[
+                ["bg-emerald-100 border-emerald-300", "Đúng"],
+                ["bg-rose-100 border-rose-300", "Sai"],
+                ["bg-amber-100 border-amber-300", "Để trống"],
+                ["bg-slate-300 border-slate-400", "Chờ chấm thủ công"],
+                ["bg-slate-100 border-slate-200", "Không được giao / câu rút ngẫu nhiên"],
+              ].map(([className, label]) => <span key={label} className="inline-flex items-center gap-1.5"><span className={`h-3 w-3 rounded border ${className}`} />{label}</span>)}
+            </div>
+            {!answerMatrix || answerMatrix.students.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">Chưa có lượt làm bài để hiển thị trong ma trận.</p>
+            ) : (
+              <div className="max-h-[62vh] overflow-auto rounded-lg border">
+                <Table className="min-w-max border-separate border-spacing-0 text-xs">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 z-30 min-w-52 border-b bg-slate-50 font-semibold shadow-[1px_0_0_0_rgb(226_232_240)]">Sinh viên</TableHead>
+                      {answerMatrix.questionColumns.map((question) => (
+                        <TableHead
+                          key={question.key}
+                          className={`sticky top-0 z-20 min-w-16 border-b text-center font-semibold ${question.isRandomBankQuestion ? "bg-slate-200 text-slate-500" : "bg-slate-50"}`}
+                          title={question.isRandomBankQuestion
+                            ? "Câu rút ngẫu nhiên từ ngân hàng — không dùng để so sánh"
+                            : `${question.stem}\nSnapshot: ${question.questionSnapshotId || question.questionVersionId || "không có"}`}
+                        >
+                          <span className="cursor-help">{question.label}</span>
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {answerMatrix.students.map((student) => (
+                      <TableRow key={student.submissionId}>
+                        <TableCell className="sticky left-0 z-10 border-b bg-background shadow-[1px_0_0_0_rgb(226_232_240)]">
+                          <p className="font-medium">{student.student?.fullName || "—"}</p>
+                          <p className="text-[11px] text-muted-foreground">{student.student?.studentId || "Không có mã"}</p>
+                        </TableCell>
+                        {answerMatrix.questionColumns.map((question) => {
+                          const state = question.isRandomBankQuestion ? "RANDOM_NOT_COMPARABLE" : student.cells[question.key];
+                          const display = {
+                            CORRECT: ["bg-emerald-100 text-emerald-800", "Đúng", "✓"],
+                            INCORRECT: ["bg-rose-100 text-rose-800", "Sai", "×"],
+                            BLANK: ["bg-amber-100 text-amber-800", "Để trống", "—"],
+                            PENDING_MANUAL: ["bg-slate-300 text-slate-700", "Chờ chấm thủ công", "…"],
+                            NOT_ASSIGNED: ["bg-slate-100 text-slate-400", "Không được giao", "—"],
+                            RANDOM_NOT_COMPARABLE: ["bg-slate-200 text-slate-500", "Câu rút ngẫu nhiên từ ngân hàng — không dùng để so sánh", "—"],
+                          }[state || "NOT_ASSIGNED"];
+                          return <TableCell key={question.key} className={`border-b p-0 text-center ${display[0]}`} title={display[1]}><span className="flex h-11 min-w-16 items-center justify-center font-semibold" aria-label={display[1]}>{display[2]}</span></TableCell>;
+                        })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

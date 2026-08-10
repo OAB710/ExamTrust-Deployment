@@ -7,6 +7,8 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   ArrowLeft,
@@ -19,6 +21,7 @@ import {
   XCircle,
   ExternalLink,
   MessageSquare,
+  Camera,
 } from 'lucide-react';
 import type { FlaggedSubmission, IntegrityReason } from '@/features/admin/IntegrityOverview';
 import { useEffect, useState } from 'react';
@@ -27,7 +30,7 @@ import api from '@/lib/api';
 interface IntegrityCaseDetailProps {
   submission: FlaggedSubmission;
   onBack: () => void;
-  onReview: (status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED', notes: string, deductionPercent?: 10 | 25 | 50 | 100) => Promise<void>;
+  onReview: (status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED', notes: string, deductionPercent?: 10 | 25 | 50 | 100, applyPenalty?: boolean, penaltyMode?: 'PERCENT' | 'FIXED', penaltyAmount?: number) => Promise<void>;
   isSaving?: boolean;
 }
 
@@ -40,13 +43,29 @@ type IntegrityTimelineEvent = {
   detail?: string;
 };
 
+type EvidenceCapture = {
+  id: string;
+  status?: string;
+  triggerDetails?: unknown;
+  capturedAt?: string | null;
+  createdAt?: string | null;
+};
+
 export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = false }: IntegrityCaseDetailProps) {
   const [reviewNotes, setReviewNotes] = useState('');
   const [integrityEvents, setIntegrityEvents] = useState<IntegrityTimelineEvent[]>([]);
+  const [evidenceCaptures, setEvidenceCaptures] = useState<EvidenceCapture[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState('');
+  const [evidenceDialog, setEvidenceDialog] = useState<{ captureId: string; event: IntegrityTimelineEvent } | null>(null);
+  const [evidenceImageUrl, setEvidenceImageUrl] = useState<string | null>(null);
+  const [evidenceImageLoading, setEvidenceImageLoading] = useState(false);
+  const [evidenceImageError, setEvidenceImageError] = useState('');
   const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
   const [deductionPercent, setDeductionPercent] = useState<10 | 25 | 50 | 100>(10);
+  const [applyPenalty, setApplyPenalty] = useState(false);
+  const [penaltyMode, setPenaltyMode] = useState<'PERCENT' | 'FIXED'>('PERCENT');
+  const [penaltyAmount, setPenaltyAmount] = useState('1');
 
   const getConfidenceLabel = (confidence: FlaggedSubmission['confidence']) => ({
     High: 'Cao',
@@ -100,6 +119,30 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
     year: 'numeric',
   }).format(new Date(value));
 
+  const getCaptureSignals = (capture: EvidenceCapture) => {
+    const raw = capture.triggerDetails;
+    const details = typeof raw === 'string'
+      ? (() => { try { return JSON.parse(raw); } catch { return null; } })()
+      : raw;
+    return Array.isArray((details as { signals?: unknown[] } | null)?.signals)
+      ? (details as { signals: unknown[] }).signals.map((signal) => String(signal).toLowerCase())
+      : [];
+  };
+
+  const evidenceForEvent = (event: IntegrityTimelineEvent) => {
+    const eventTime = new Date(event.timestamp).getTime();
+    const nearest = evidenceCaptures
+      .filter((capture) => capture.capturedAt && capture.status !== 'PURGED' && getCaptureSignals(capture).includes(event.type.toLowerCase()))
+      .sort((left, right) => {
+        const leftTime = new Date(left.capturedAt || left.createdAt || 0).getTime();
+        const rightTime = new Date(right.capturedAt || right.createdAt || 0).getTime();
+        return Math.abs(leftTime - eventTime) - Math.abs(rightTime - eventTime);
+      })[0] || null;
+    if (!nearest) return null;
+    const captureTime = new Date(nearest.capturedAt || nearest.createdAt || 0).getTime();
+    return Math.abs(captureTime - eventTime) <= 60_000 ? nearest : null;
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -112,14 +155,19 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
       setEventsLoading(true);
       setEventsError('');
       try {
-        const timeline = await api.getSubmissionTimeline(submission.submissionId);
+        const [timeline, captures] = await Promise.all([
+          api.getSubmissionTimeline(submission.submissionId),
+          api.getEvidenceCaptures(submission.submissionId),
+        ]);
         const events = Array.isArray(timeline?.events) ? timeline.events : [];
         if (active) {
           setIntegrityEvents(events.filter((event: IntegrityTimelineEvent) => event.severity !== 'normal'));
+          setEvidenceCaptures(Array.isArray(captures) ? captures : []);
         }
       } catch (error) {
         if (active) {
           setIntegrityEvents([]);
+          setEvidenceCaptures([]);
           setEventsError(error instanceof Error ? error.message : 'Không thể tải chi tiết sự kiện.');
         }
       } finally {
@@ -132,6 +180,25 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
       active = false;
     };
   }, [submission.submissionId]);
+
+  useEffect(() => () => {
+    if (evidenceImageUrl) URL.revokeObjectURL(evidenceImageUrl);
+  }, [evidenceImageUrl]);
+
+  const openEvidence = async (captureId: string, event: IntegrityTimelineEvent) => {
+    if (!submission.submissionId) return;
+    setEvidenceDialog({ captureId, event });
+    setEvidenceImageUrl(null);
+    setEvidenceImageError('');
+    setEvidenceImageLoading(true);
+    try {
+      setEvidenceImageUrl(await api.getEvidenceImageUrl(submission.submissionId, captureId));
+    } catch (error) {
+      setEvidenceImageError(error instanceof Error ? error.message : 'Không thể tải ảnh bằng chứng.');
+    } finally {
+      setEvidenceImageLoading(false);
+    }
+  };
 
   const getReasonIcon = (type: IntegrityReason['type']) => {
     switch (type) {
@@ -176,13 +243,38 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
 
   const totalWeight = submission.reasons.reduce((sum, r) => sum + r.weight, 0);
   const academicScore = Number(submission.academicScore ?? submission.integrityReview?.academicScore ?? 0);
-  const deductedScore = Number((academicScore * deductionPercent / 100).toFixed(2));
+  const fixedPenaltyAmount = Number(penaltyAmount);
+  const deductedScore = penaltyMode === 'FIXED'
+    ? Number(Math.min(academicScore, Number.isFinite(fixedPenaltyAmount) ? fixedPenaltyAmount : 0).toFixed(2))
+    : Number((academicScore * deductionPercent / 100).toFixed(2));
   const finalScore = Number(Math.max(0, academicScore - deductedScore).toFixed(2));
-  const activePenalty = submission.integrityReview?.status === 'confirmed' && submission.integrityReview.penaltyPercent;
+  const activePenalty = submission.integrityReview?.status === 'confirmed'
+    && (submission.integrityReview.penaltyPercent || submission.integrityReview.penaltyAmount);
 
   const confirmPenalty = async () => {
-    await onReview('CONFIRMED', reviewNotes, deductionPercent);
+    await onReview(
+      'CONFIRMED',
+      reviewNotes,
+      applyPenalty && penaltyMode === 'PERCENT' ? deductionPercent : undefined,
+      applyPenalty,
+      applyPenalty ? penaltyMode : undefined,
+      applyPenalty && penaltyMode === 'FIXED' ? fixedPenaltyAmount : undefined,
+    );
     setPenaltyDialogOpen(false);
+  };
+
+  const openConfirmation = () => {
+    const hasActivePenalty = Boolean(activePenalty);
+    setApplyPenalty(hasActivePenalty);
+    if (hasActivePenalty) {
+      const existingMode = submission.integrityReview?.penaltyMode === 'FIXED' ? 'FIXED' : 'PERCENT';
+      setPenaltyMode(existingMode);
+      if (existingMode === 'FIXED') setPenaltyAmount(String(submission.integrityReview?.penaltyAmount ?? 1));
+      if (existingMode === 'PERCENT' && submission.integrityReview?.penaltyPercent) {
+        setDeductionPercent(submission.integrityReview.penaltyPercent as 10 | 25 | 50 | 100);
+      }
+    }
+    setPenaltyDialogOpen(true);
   };
 
   return (
@@ -207,7 +299,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                 </StatusBadge>
               </div>
               <p className="text-muted-foreground mt-1">
-                Mã vụ việc: {submission.id}
+                Mã vụ việc: {submission.submissionId || submission.id}
               </p>
             </div>
           </div>
@@ -282,10 +374,10 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                 </CardHeader>
                 <CardContent className="grid gap-3 text-sm sm:grid-cols-3">
                   <div><p className="text-muted-foreground">Điểm học thuật</p><p className="font-semibold">{Number(submission.integrityReview?.academicScore ?? academicScore).toFixed(2)} / 10</p></div>
-                  <div><p className="text-muted-foreground">Khấu trừ</p><p className="font-semibold text-destructive">{submission.integrityReview?.penaltyPercent}% (-{Number(submission.integrityReview?.deductedScore ?? 0).toFixed(2)})</p></div>
+                  <div><p className="text-muted-foreground">Khấu trừ</p><p className="font-semibold text-destructive">{submission.integrityReview?.penaltyMode === 'FIXED' ? `-${Number(submission.integrityReview?.penaltyAmount ?? submission.integrityReview?.deductedScore ?? 0).toFixed(2)} điểm` : `${submission.integrityReview?.penaltyPercent}% (-${Number(submission.integrityReview?.deductedScore ?? 0).toFixed(2)})`}</p></div>
                   <div><p className="text-muted-foreground">Điểm cuối</p><p className="font-semibold">{Number(submission.integrityReview?.finalScore ?? 0).toFixed(2)} / 10</p></div>
                   {submission.integrityReview?.reviewerNote ? <p className="sm:col-span-3 text-muted-foreground">Lý do: {submission.integrityReview.reviewerNote}</p> : null}
-                  {submission.integrityReview?.auditLogs?.length ? <div className="sm:col-span-3 border-t border-destructive/15 pt-3"><p className="mb-2 font-medium">Lịch sử quyết định</p><div className="space-y-1 text-xs text-muted-foreground">{submission.integrityReview.auditLogs.map((audit, index) => <p key={`${audit.createdAt}-${index}`}>{new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(audit.createdAt))}: {audit.action === 'PENALTY_APPLIED' ? 'Áp dụng khấu trừ' : audit.action === 'PENALTY_UPDATED' ? 'Điều chỉnh khấu trừ' : audit.action === 'PENALTY_REVOKED' ? 'Hủy khấu trừ' : 'Cập nhật rà soát'}{audit.nextPercent ? ` ${audit.nextPercent}%` : ''}{audit.note ? ` — ${audit.note}` : ''}</p>)}</div></div> : null}
+                  {submission.integrityReview?.auditLogs?.length ? <div className="sm:col-span-3 border-t border-destructive/15 pt-3"><p className="mb-2 font-medium">Lịch sử quyết định</p><div className="space-y-1 text-xs text-muted-foreground">{submission.integrityReview.auditLogs.map((audit, index) => <p key={`${audit.createdAt}-${index}`}>{new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(audit.createdAt))}: {audit.action === 'PENALTY_APPLIED' ? 'Áp dụng khấu trừ' : audit.action === 'PENALTY_UPDATED' ? 'Điều chỉnh khấu trừ' : audit.action === 'PENALTY_FIXED_APPLIED' ? 'Áp dụng trừ thẳng điểm' : audit.action === 'PENALTY_FIXED_UPDATED' ? 'Điều chỉnh trừ thẳng điểm' : audit.action === 'PENALTY_REVOKED' ? 'Hủy khấu trừ' : 'Cập nhật rà soát'}{audit.nextPercent ? ` ${audit.nextPercent}%` : audit.action.startsWith('PENALTY_FIXED') && audit.deductedScore != null ? ` ${Number(audit.deductedScore).toFixed(2)} điểm` : ''}{audit.note ? ` — ${audit.note}` : ''}</p>)}</div></div> : null}
                 </CardContent>
               </Card>
             ) : null}
@@ -357,6 +449,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                     <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
                       {integrityEvents.map((event) => {
                         const severity = getSeverityPresentation(event.severity);
+                        const evidence = evidenceForEvent(event);
                         return (
                         <div key={event.id} className={`rounded-md px-3 py-2 ${severity.rowClassName}`}>
                           <div className="flex items-start justify-between gap-3">
@@ -367,6 +460,12 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                             </div>
                           </div>
                           {event.detail ? <p className="mt-1 text-xs text-muted-foreground">{translateEvidence(event.detail)}</p> : null}
+                          {evidence ? (
+                            <Button className="mt-2 h-7 gap-1.5" size="sm" variant="outline" onClick={() => openEvidence(evidence.id, event)}>
+                              <Camera className="h-3.5 w-3.5" />
+                              Xem camera
+                            </Button>
+                          ) : null}
                         </div>
                         );
                       })}
@@ -447,7 +546,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                   />
                 </div>
                 <div className="space-y-2">
-                  <Button className="w-full" variant="destructive" disabled={isSaving} onClick={() => setPenaltyDialogOpen(true)}>
+                  <Button className="w-full" variant="destructive" disabled={isSaving} onClick={openConfirmation}>
                     <XCircle className="h-4 w-4 mr-2" />
                     {activePenalty ? 'Điều chỉnh mức khấu trừ' : 'Xác nhận cần xử lý'}
                   </Button>
@@ -479,30 +578,66 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
           </div>
         </div>
       </div>
+      <Dialog
+        open={Boolean(evidenceDialog)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEvidenceDialog(null);
+            setEvidenceImageUrl(null);
+            setEvidenceImageError('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Ảnh camera tại thời điểm sự kiện</DialogTitle>
+            <DialogDescription>
+              {evidenceDialog ? `${translateEvidence(evidenceDialog.event.description)} · ${formatEventTime(evidenceDialog.event.timestamp)}` : 'Bằng chứng camera'}
+            </DialogDescription>
+          </DialogHeader>
+          {evidenceImageLoading ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">Đang tải ảnh bằng chứng...</p>
+          ) : evidenceImageError ? (
+            <p className="py-10 text-center text-sm text-destructive">{evidenceImageError}</p>
+          ) : evidenceImageUrl ? (
+            <img className="max-h-[65vh] w-full rounded-lg border object-contain" src={evidenceImageUrl} alt="Bằng chứng camera" />
+          ) : null}
+          <p className="text-xs text-muted-foreground">Ảnh là tín hiệu tham khảo phục vụ rà soát, không phải kết luận gian lận tự động.</p>
+        </DialogContent>
+      </Dialog>
       <Dialog open={penaltyDialogOpen} onOpenChange={setPenaltyDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Xác nhận khấu trừ điểm do gian lận</DialogTitle>
-            <DialogDescription>Quyết định này sẽ được hiển thị ngay cho sinh viên cùng điểm trước và sau khấu trừ.</DialogDescription>
+            <DialogTitle>Xác nhận cần xử lý vụ việc</DialogTitle>
+            <DialogDescription>Xác nhận này ghi nhận kết quả rà soát. Hiệu chỉnh điểm chỉ áp dụng khi bạn chủ động chọn bên dưới.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-4 gap-2">
-              {([10, 25, 50, 100] as const).map((percent) => (
-                <Button key={percent} type="button" variant={deductionPercent === percent ? 'destructive' : 'outline'} onClick={() => setDeductionPercent(percent)}>
-                  {percent}%
-                </Button>
-              ))}
-            </div>
-            <div className="grid grid-cols-3 gap-3 rounded-lg bg-muted/50 p-3 text-sm">
-              <div><p className="text-muted-foreground">Điểm học thuật</p><p className="font-semibold">{academicScore.toFixed(2)}</p></div>
-              <div><p className="text-muted-foreground">Bị trừ</p><p className="font-semibold text-destructive">-{deductedScore.toFixed(2)}</p></div>
-              <div><p className="text-muted-foreground">Điểm cuối</p><p className="font-semibold">{finalScore.toFixed(2)}</p></div>
-            </div>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+              <Checkbox checked={applyPenalty} onCheckedChange={(checked) => setApplyPenalty(Boolean(checked))} />
+              <span className="space-y-1 text-sm">
+                <span className="block font-medium">Hiệu chỉnh điểm của sinh viên</span>
+                <span className="block text-muted-foreground">Chọn tùy chọn này để áp dụng mức khấu trừ cho bài nộp. Nếu không chọn, điểm giữ nguyên.</span>
+              </span>
+            </label>
+            {applyPenalty ? (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button type="button" variant={penaltyMode === 'PERCENT' ? 'destructive' : 'outline'} onClick={() => setPenaltyMode('PERCENT')}>Theo phần trăm</Button>
+                  <Button type="button" variant={penaltyMode === 'FIXED' ? 'destructive' : 'outline'} onClick={() => setPenaltyMode('FIXED')}>Trừ thẳng điểm</Button>
+                </div>
+                {penaltyMode === 'PERCENT' ? <div className="grid grid-cols-4 gap-2">{([10, 25, 50, 100] as const).map((percent) => (<Button key={percent} type="button" variant={deductionPercent === percent ? 'destructive' : 'outline'} onClick={() => setDeductionPercent(percent)}>{percent}%</Button>))}</div> : <div className="space-y-2"><label className="text-sm font-medium">Số điểm trừ (thang 10)</label><Input type="number" min="0.01" max="10" step="0.01" value={penaltyAmount} onChange={(event) => setPenaltyAmount(event.target.value)} /><p className="text-xs text-muted-foreground">Điểm cuối không thấp hơn 0.</p></div>}
+                <div className="grid grid-cols-3 gap-3 rounded-lg bg-muted/50 p-3 text-sm">
+                  <div><p className="text-muted-foreground">Điểm học thuật</p><p className="font-semibold">{academicScore.toFixed(2)} / 10</p></div>
+                  <div><p className="text-muted-foreground">Bị trừ</p><p className="font-semibold text-destructive">-{deductedScore.toFixed(2)}</p></div>
+                  <div><p className="text-muted-foreground">Điểm cuối</p><p className="font-semibold">{finalScore.toFixed(2)} / 10</p></div>
+                </div>
+              </>
+            ) : activePenalty ? <p className="text-xs text-muted-foreground">Mức khấu trừ hiện có sẽ được giữ nguyên. Dùng thao tác loại trừ tín hiệu để hủy một quyết định khấu trừ đang có hiệu lực.</p> : null}
             {!reviewNotes.trim() ? <p className="text-sm text-destructive">Cần nhập lý do rà soát trước khi xác nhận.</p> : null}
           </div>
           <DialogFooter>
             <Button variant="outline" disabled={isSaving} onClick={() => setPenaltyDialogOpen(false)}>Hủy</Button>
-            <Button variant="destructive" disabled={isSaving || !reviewNotes.trim()} onClick={confirmPenalty}>Xác nhận và áp dụng</Button>
+            <Button variant="destructive" disabled={isSaving || !reviewNotes.trim() || (applyPenalty && penaltyMode === 'FIXED' && (!Number.isFinite(fixedPenaltyAmount) || fixedPenaltyAmount <= 0 || fixedPenaltyAmount > 10))} onClick={confirmPenalty}>{applyPenalty ? 'Xác nhận và áp dụng' : 'Xác nhận cần xử lý'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -950,7 +950,9 @@ model IntegrityReview {
   reviewerId   String?
   reviewerNote String?               @db.Text
   decidedAt    DateTime?
+  penaltyMode String?                @db.VarChar(16)
   penaltyPercent Int?
+  penaltyAmount Decimal?             @db.Decimal(5, 2)
   academicScore  Decimal?            @db.Decimal(5, 2)
   deductedScore  Decimal?            @db.Decimal(5, 2)
   finalScore     Decimal?            @db.Decimal(5, 2)

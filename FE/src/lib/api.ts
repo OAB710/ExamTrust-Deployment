@@ -1138,6 +1138,10 @@ class ApiClient {
     return this.request<any>(`/submissions/exam/${examId}${query}`);
   }
 
+  async getExamAnswerMatrix(examId: string) {
+    return this.request<any>(`/submissions/exam/${examId}/answer-matrix`);
+  }
+
   async getExamOverview(examId: string) {
     return this.request<any>(`/submissions/exam/${examId}/overview`);
   }
@@ -1148,10 +1152,14 @@ class ApiClient {
     search?: string;
     confidence?: string;
     examTitle?: string;
+    examId?: string;
+    term?: string;
+    academicYear?: string;
     submittedFrom?: string;
     submittedTo?: string;
     timeAnomaly?: boolean;
     status?: string;
+    submissionId?: string;
   }) {
     const query = new URLSearchParams();
     if (params?.page) query.append('page', String(params.page));
@@ -1159,10 +1167,14 @@ class ApiClient {
     if (params?.search) query.append('search', params.search);
     if (params?.confidence && params.confidence !== 'all') query.append('confidence', params.confidence);
     if (params?.examTitle) query.append('examTitle', params.examTitle);
+    if (params?.examId) query.append('examId', params.examId);
+    if (params?.term) query.append('term', params.term);
+    if (params?.academicYear) query.append('academicYear', params.academicYear);
     if (params?.submittedFrom) query.append('submittedFrom', params.submittedFrom);
     if (params?.submittedTo) query.append('submittedTo', params.submittedTo);
     if (typeof params?.timeAnomaly === 'boolean') query.append('timeAnomaly', String(params.timeAnomaly));
     if (params?.status && params.status !== 'all') query.append('status', params.status);
+    if (params?.submissionId) query.append('submissionId', params.submissionId);
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return this.request<any>(`/submissions/integrity/cases${suffix}`);
   }
@@ -1171,6 +1183,9 @@ class ApiClient {
     status: 'REVIEWED' | 'DISMISSED' | 'CONFIRMED';
     notes?: string;
     deductionPercent?: 10 | 25 | 50 | 100;
+    applyPenalty?: boolean;
+    penaltyMode?: 'PERCENT' | 'FIXED';
+    penaltyAmount?: number;
   }) {
     return this.request<any>(`/submissions/integrity/cases/${submissionId}`, {
       method: 'PATCH',

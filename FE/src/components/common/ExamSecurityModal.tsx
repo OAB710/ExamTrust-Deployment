@@ -8,8 +8,6 @@ import type { ViolationLog, ViolationType } from "../../hooks/use-exam-security"
 const violationLabels: Record<ViolationType, string> = {
   fullscreen_exit: "Đã thoát toàn màn hình",
   tab_switch: "Đã chuyển tab",
-  blur: "Cửa sổ mất tiêu điểm",
-  focus: "Cửa sổ được lấy lại tiêu điểm",
 };
 
 interface ExamSecurityModalProps {
