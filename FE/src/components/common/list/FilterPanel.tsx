@@ -191,17 +191,24 @@ export function FilterPanel({
   const content = (
     <div
       className={cn(
-        "flex min-h-0 flex-col gap-2.5",
+        "flex min-h-0 flex-col gap-3.5",
         inline
-          ? "rounded-xl border border-border bg-card p-3 shadow-sm"
+          ? "rounded-xl border border-border bg-card p-4 shadow-sm"
           : "max-h-[min(50vh,20rem)]",
       )}
     >
-      <div className={cn("flex items-center gap-3", title ? "justify-between" : "justify-end")}>
-        {title ? (
-          <div>
-            <h3 className="text-base font-semibold leading-6 text-foreground">{title}</h3>
-            {!inline ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+      <div className={cn("flex flex-wrap items-start gap-3", title ? "justify-between" : "justify-end")}>
+        {title && !isMobile ? (
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Filter className="h-4 w-4" />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold leading-5 text-foreground">{title}</h3>
+              {description ? (
+                <p className="text-xs text-muted-foreground">{description}</p>
+              ) : null}
+            </div>
           </div>
         ) : null}
         {inline ? (
@@ -218,12 +225,13 @@ export function FilterPanel({
       </div>
 
       {!inline ? <Separator /> : null}
+      {inline && title && !isMobile ? <Separator className="bg-border/60" /> : null}
 
       <div className={cn(inline ? "" : "max-h-[16rem] min-h-[6rem] overflow-y-auto pr-2")}>
         <div
           className={cn(
             inline
-              ? "grid grid-cols-1 items-end gap-x-4 gap-y-3 sm:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]"
+              ? "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
               : "space-y-3",
           )}
         >
@@ -281,11 +289,11 @@ export function FilterPanel({
                   key={filter.key}
                   className={cn(
                     "space-y-1.5",
-                    inline ? "sm:col-span-2" : "mx-auto w-full max-w-[26rem]",
+                    inline ? "sm:col-span-2 lg:col-span-1" : "mx-auto w-full max-w-[26rem]",
                   )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
-                  <div className="rounded-lg border border-border/80 p-2.5">
+                  <div className="rounded-lg border border-border/60 bg-muted/10 p-2.5">
                     <ScrollArea className="max-h-28 pr-1.5">
                       <div className="space-y-1.5">
                         {filter.options.map((option) => {
@@ -337,7 +345,7 @@ export function FilterPanel({
                   )}
                 >
                   <Label className="text-xs font-medium">{filter.label}</Label>
-                  <div className="flex h-9 items-center justify-between rounded-lg px-1">
+                  <div className="flex h-9 items-center justify-between rounded-lg border border-border/60 bg-muted/10 px-2.5">
                     <p className="text-xs font-medium text-foreground">
                       {typeof current === "boolean"
                         ? current
@@ -382,7 +390,7 @@ export function FilterPanel({
                   {filter.showSlider &&
                   typeof filter.min === "number" &&
                   typeof filter.max === "number" ? (
-                    <div className="space-y-3 rounded-lg border border-border/80 px-2.5 py-3">
+                    <div className="space-y-3 rounded-lg border border-border/60 bg-muted/10 px-2.5 py-3">
                       <Slider
                         min={filter.min}
                         max={filter.max}
@@ -466,8 +474,8 @@ export function FilterPanel({
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <div className="space-y-1">
+                    <div className="space-y-1">
+                      <div className="flex h-9 items-center gap-1.5 rounded-lg border border-border/60 bg-muted/10 pl-1 pr-1.5">
                         <Input
                           type="number"
                           min={filter.min ?? 0}
@@ -489,13 +497,11 @@ export function FilterPanel({
                             )
                           }
                           placeholder="Tối thiểu"
-                          className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
+                          className="h-8 flex-1 rounded-md border-0 bg-transparent px-1.5 text-xs ring-0 outline-none focus:ring-0 focus-visible:ring-0"
                         />
-                        {minError ? (
-                          <p className="text-[11px] text-destructive">{minError}</p>
-                        ) : null}
-                      </div>
-                      <div className="space-y-1">
+                        <span className="shrink-0 text-xs text-muted-foreground" aria-hidden>
+                          –
+                        </span>
                         <Input
                           type="number"
                           min={filter.min ?? 0}
@@ -524,12 +530,12 @@ export function FilterPanel({
                             )
                           }
                           placeholder="Tối đa"
-                          className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
+                          className="h-8 flex-1 rounded-md border-0 bg-transparent px-1.5 text-xs ring-0 outline-none focus:ring-0 focus-visible:ring-0"
                         />
-                        {maxError ? (
-                          <p className="text-[11px] text-destructive">{maxError}</p>
-                        ) : null}
                       </div>
+                      {minError || maxError ? (
+                        <p className="text-[11px] text-destructive">{minError || maxError}</p>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -547,45 +553,40 @@ export function FilterPanel({
                   key={filter.key}
                   className={cn(
                     "space-y-1.5",
-                    inline ? "" : "mx-auto w-full max-w-[26rem]",
+                    inline ? "sm:col-span-2" : "mx-auto w-full max-w-[26rem]",
                   )}
                 >
                   {!filter.hideLabel ? (
                     <Label className="text-xs font-medium">{filter.label}</Label>
                   ) : null}
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Từ ngày
-                      </span>
-                      <Input
-                        type={filter.showTime ? "datetime-local" : "date"}
-                        value={range.from || ""}
-                        onChange={(event) =>
-                          onValueChange(filter.key, {
-                            from: event.target.value || undefined,
-                            to: range.to,
-                          })
-                        }
-                        className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Đến ngày
-                      </span>
-                      <Input
-                        type={filter.showTime ? "datetime-local" : "date"}
-                        value={range.to || ""}
-                        onChange={(event) =>
-                          onValueChange(filter.key, {
-                            from: range.from,
-                            to: event.target.value || undefined,
-                          })
-                        }
-                        className="h-9 rounded-lg border-border bg-card text-xs ring-0 outline-none focus:border-primary focus:ring-0 focus-visible:border-primary focus-visible:ring-0"
-                      />
-                    </div>
+                  <div className="flex h-9 items-center gap-1.5 rounded-lg border border-border/60 bg-muted/10 pl-1 pr-1.5">
+                    <Input
+                      type={filter.showTime ? "datetime-local" : "date"}
+                      aria-label="Từ ngày"
+                      value={range.from || ""}
+                      onChange={(event) =>
+                        onValueChange(filter.key, {
+                          from: event.target.value || undefined,
+                          to: range.to,
+                        })
+                      }
+                      className="h-8 flex-1 rounded-md border-0 bg-transparent px-1.5 text-xs ring-0 outline-none focus:ring-0 focus-visible:ring-0"
+                    />
+                    <span className="shrink-0 text-xs text-muted-foreground" aria-hidden>
+                      –
+                    </span>
+                    <Input
+                      type={filter.showTime ? "datetime-local" : "date"}
+                      aria-label="Đến ngày"
+                      value={range.to || ""}
+                      onChange={(event) =>
+                        onValueChange(filter.key, {
+                          from: range.from,
+                          to: event.target.value || undefined,
+                        })
+                      }
+                      className="h-8 flex-1 rounded-md border-0 bg-transparent px-1.5 text-xs ring-0 outline-none focus:ring-0 focus-visible:ring-0"
+                    />
                   </div>
                 </div>
               );
@@ -617,7 +618,10 @@ export function FilterPanel({
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent className="max-h-[78vh]">
           <DrawerHeader className="text-left">
-            <DrawerTitle>{title}</DrawerTitle>
+            <DrawerTitle className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-primary" />
+              {title}
+            </DrawerTitle>
             <DrawerDescription>{description}</DrawerDescription>
           </DrawerHeader>
           <div className="px-4 pb-4">{content}</div>

@@ -201,6 +201,26 @@ export default function ExamReadyCheck() {
       return;
     }
 
+    // Must run synchronously at the top of this click handler, before any
+    // `await`. The Fullscreen API only honors a request made within the
+    // browser's short-lived "transient user activation" window tied to this
+    // click; once we `await` a network call the activation can be consumed/
+    // expired and a later requestFullscreen() call would silently fail. The
+    // route change below is a client-side navigation (no page reload), so a
+    // fullscreen entered here carries over into the exam-taking screen.
+    let fullscreenRequestedAt: number | null = null;
+    if (typeof document !== "undefined" && document.documentElement.requestFullscreen) {
+      try {
+        await document.documentElement.requestFullscreen();
+        fullscreenRequestedAt = Date.now();
+      } catch (error) {
+        // Denied/unsupported in this context (e.g. embedded webview). The
+        // exam-taking screen still falls back to prompting the student to
+        // enter fullscreen manually, so this is not fatal.
+        console.debug("[exam-ready] requestFullscreen ignored", error);
+      }
+    }
+
     try {
     const res = await api.startExam(examId, {
       isMobileOrTablet: deviceBlocked,
@@ -217,7 +237,11 @@ export default function ExamReadyCheck() {
         localStorage.setItem("currentSubmissionStartedAt", String(startedAt));
         const snapshotPolicy = res?.examInstance?.snapshotPayload?.webcamEvidencePolicy;
         if (snapshotPolicy) localStorage.setItem("currentSubmissionWebcamPolicy", JSON.stringify(snapshotPolicy));
-        localStorage.setItem("examFullscreenGraceStartedAt", String(Date.now()));
+        if (fullscreenRequestedAt) {
+          localStorage.setItem("examFullscreenGraceStartedAt", String(fullscreenRequestedAt));
+        } else {
+          localStorage.removeItem("examFullscreenGraceStartedAt");
+        }
       } catch {}
     } catch (err: any) {
       console.error("Failed to start submission on server:", err);
@@ -463,6 +487,13 @@ export default function ExamReadyCheck() {
                 </div>
               </CardContent>
             </Card>
+
+            <Alert className="mb-4 border-amber-200 bg-amber-50 text-amber-900">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-900">
+                Bài thi sẽ chạy ở chế độ toàn màn hình. Tránh nhấn <strong>F11</strong>, <strong>Esc</strong> hoặc chuyển sang ứng dụng/tab khác — lần thoát toàn màn hình đầu tiên sẽ chỉ được cảnh báo, nhưng từ lần thứ hai mỗi lần thoát sẽ bị tính là 1 tín hiệu vi phạm (tối đa 3 lần trước khi bài thi bị nộp tự động).
+              </AlertDescription>
+            </Alert>
 
             <div className="flex gap-3">
               <Button

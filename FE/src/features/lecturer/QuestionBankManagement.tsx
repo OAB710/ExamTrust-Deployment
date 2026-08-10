@@ -56,6 +56,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Search,
   Plus,
   Filter,
@@ -74,6 +80,7 @@ import {
   ChevronRight,
   FolderInput,
   ScanSearch,
+  MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -966,57 +973,60 @@ export default function QuestionBankManagement() {
                                 </span>
                               </TableCell>
                               <TableCell className="text-center">
-                                <div className="flex gap-1 justify-center">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={async () => {
-                                      setPreviewQuestion(question);
-                                      setDetailLoading(true);
-                                      setDetailError(false);
-                                      try {
-                                        const detail = await api.getQuestionById(question.id);
-                                        setDetailQuestion(detail as Question);
-                                      } catch {
-                                        setDetailError(true);
-                                        setDetailQuestion(null);
-                                      } finally {
-                                        setDetailLoading(false);
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      className="gap-2 text-xs"
+                                      onClick={async () => {
+                                        setPreviewQuestion(question);
+                                        setDetailLoading(true);
+                                        setDetailError(false);
+                                        try {
+                                          const detail = await api.getQuestionById(question.id);
+                                          setDetailQuestion(detail as Question);
+                                        } catch {
+                                          setDetailError(true);
+                                          setDetailQuestion(null);
+                                        } finally {
+                                          setDetailLoading(false);
+                                        }
+                                      }}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                      Xem
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="gap-2 text-xs"
+                                      onClick={() =>
+                                        router.push(
+                                          `${questionEditorPath}?id=${question.id}&courseCode=${selectedCourse}`,
+                                        )
                                       }
-                                    }}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() =>
-                                      router.push(
-                                        `${questionEditorPath}?id=${question.id}&courseCode=${selectedCourse}`,
-                                      )
-                                    }
-                                  >
-                                    <Edit2 className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() => handleDuplicate(question)}
-                                  >
-                                    <Copy className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                                    onClick={() => handleDelete(question.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
+                                    >
+                                      <Edit2 className="h-4 w-4" />
+                                      Sửa
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="gap-2 text-xs"
+                                      onClick={() => handleDuplicate(question)}
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                      Sao chép
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="gap-2 text-destructive text-xs"
+                                      onClick={() => handleDelete(question.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Xóa
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </TableCell>
                             </TableRow>
                           );

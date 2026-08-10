@@ -103,7 +103,7 @@ const lecturerNavItems: NavItem[] = [
     icon: <BarChart3 className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Rà soát toàn vẹn",
+    title: "Giám sát rủi ro",
     href: "/lecturer/integrity",
     icon: <Shield className="h-[18px] w-[18px]" />,
   },
@@ -136,7 +136,7 @@ const adminNavItems: NavItem[] = [
     icon: <Users className="h-[18px] w-[18px]" />,
   },
   {
-    title: "Toàn vẹn học thuật",
+    title: "Giám sát rủi ro",
     href: "/admin/integrity",
     icon: <Shield className="h-[18px] w-[18px]" />,
   },
@@ -452,7 +452,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           <div className="page-surface min-h-[calc(100dvh-4rem)] p-4 sm:p-5 lg:p-7">
-            <div className="mx-auto min-w-0 max-w-7xl">{children}</div>
+            <div className="min-w-0">{children}</div>
           </div>
         </main>
       </div>

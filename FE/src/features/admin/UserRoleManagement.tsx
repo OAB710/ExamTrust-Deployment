@@ -34,12 +34,28 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   BadgeCheck,
   Crown,
   Loader2,
   Lock,
+  MoreHorizontal,
   Pencil,
   Trash2,
   Unlock,
@@ -170,6 +186,7 @@ export default function UserRoleManagement() {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [archiveUser, setArchiveUser] = useState<UserRow | null>(null);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -469,6 +486,12 @@ export default function UserRoleManagement() {
     }
   };
 
+  const handleConfirmArchiveUser = async () => {
+    if (!archiveUser) return;
+    await handleDeleteUser(archiveUser);
+    setArchiveUser(null);
+  };
+
   const pageStats = useMemo(
     () => ({
       students: paginatedUsers.filter((item) => item.role === "STUDENT").length,
@@ -766,53 +789,44 @@ export default function UserRoleManagement() {
                         {new Date(item.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(item)}
-                            title="Sửa người dùng"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleToggleStatus(item)}
-                            title={
-                              item.status === "active"
-                                ? "Tạm khóa tài khoản"
-                                : "Kích hoạt tài khoản"
-                            }
-                          >
-                            {item.status === "active" ? (
-                              <Lock className="h-4 w-4" />
-                            ) : (
-                              <Unlock className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <ConfirmActionDialog
-                            title="Lưu trữ người dùng"
-                            description={`Lưu trữ người dùng "${item.fullName}"?`}
-                            confirmText="Lưu trữ"
-                            destructive
-                            onConfirm={() => handleDeleteUser(item)}
-                          >
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive"
-                              disabled={deletingId === item.id}
-                              title="Lưu trữ người dùng"
-                            >
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" disabled={deletingId === item.id}>
                               {deletingId === item.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <Trash2 className="h-4 w-4" />
+                                <MoreHorizontal className="h-4 w-4" />
                               )}
                             </Button>
-                          </ConfirmActionDialog>
-                        </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              className="gap-2 text-xs"
+                              onClick={() => openEditDialog(item)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              Sửa người dùng
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="gap-2 text-xs"
+                              onClick={() => handleToggleStatus(item)}
+                            >
+                              {item.status === "active" ? (
+                                <Lock className="h-4 w-4" />
+                              ) : (
+                                <Unlock className="h-4 w-4" />
+                              )}
+                              {item.status === "active" ? "Tạm khóa tài khoản" : "Kích hoạt tài khoản"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="gap-2 text-destructive text-xs"
+                              onClick={() => setArchiveUser(item)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Lưu trữ người dùng
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -967,6 +981,27 @@ export default function UserRoleManagement() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={Boolean(archiveUser)} onOpenChange={(open) => !open && setArchiveUser(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Lưu trữ người dùng</AlertDialogTitle>
+              <AlertDialogDescription>
+                Lưu trữ người dùng "{archiveUser?.fullName}"?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Hủy</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmArchiveUser}
+                className="bg-destructive hover:bg-destructive/90"
+                disabled={deletingId === archiveUser?.id}
+              >
+                {deletingId === archiveUser?.id ? "Đang lưu trữ..." : "Lưu trữ"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </AdminPageShell>
     </DashboardLayout>
   );

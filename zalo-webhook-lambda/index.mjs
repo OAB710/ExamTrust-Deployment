@@ -280,8 +280,8 @@ async function buildFeInfoText() {
     `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
     `📊 Cloudflare Usage\n` +
     `• Requests today: ${fmt(requests)} / 100,000\n` +
-    `• Observability events today: ${fmt(obsEvents)} / 200,000\n` +
-    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}`
+    `• Observability events today: ${fmt(obsEvents)} / 200,000`
+    // `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}`
   );
 }
 
@@ -331,8 +331,8 @@ async function buildPublicInfoText() {
     `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
     `📊 Cloudflare Usage\n` +
     `• Requests today: ${fmt(requests)} / 100,000\n` +
-    `• Observability events today: ${fmt(obsEvents)} / 200,000\n` +
-    `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}\n\n` +
+    `• Observability events today: ${fmt(obsEvents)} / 200,000` +
+    // `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}\n\n` +
     `--------------------\n\n` +
     `🖥️ BE Info\n` +
     `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +

@@ -51,6 +51,12 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft,
   Search,
   Plus,
@@ -68,6 +74,7 @@ import {
   Eye,
   Clock,
   ChevronDown,
+  MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import api, { unwrapPaginatedData } from "@/lib/api";
@@ -1067,55 +1074,44 @@ export default function CourseDetail() {
                                 <TableCell className="text-sm text-muted-foreground">
                                   {formatDateTime(exam.startTime)}
                                 </TableCell>
-                                <TableCell>
-                                  <div className="flex flex-wrap justify-end gap-2">
-                                    {(exam.status === "ONGOING" ||
-                                      exam.status === "PUBLISHED") &&
-                                      (!exam.endTime || new Date(exam.endTime).getTime() > Date.now()) && (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="gap-2 border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8] shadow-none hover:border-[#93C5FD] hover:bg-[#DBEAFE] hover:text-[#1E40AF] [&>svg]:text-[#2563EB]"
-                                        onClick={() =>
-                                          router.push(
-                                            `${basePath}/exam/${exam.id}/monitor`,
-                                          )
-                                        }
-                                      >
-                                        <Clock className="h-4 w-4" />
-                                        Theo dõi
+                                <TableCell className="text-right">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm">
+                                        <MoreHorizontal className="h-4 w-4" />
                                       </Button>
-                                    )}
-                                    {(exam.status === "COMPLETED" ||
-                                      exam.submissionCount > 0) && (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="gap-2 border-[#BBF7D0] bg-[#F0FDF4] font-semibold text-[#047857] shadow-sm hover:border-[#86EFAC] hover:bg-[#DCFCE7] hover:text-[#065F46] [&>svg]:text-[#059669]"
-                                        onClick={() =>
-                                          router.push(
-                                            `${basePath}/exam/${exam.id}/results`,
-                                          )
-                                        }
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      {(exam.status === "ONGOING" ||
+                                        exam.status === "PUBLISHED") &&
+                                        (!exam.endTime || new Date(exam.endTime).getTime() > Date.now()) && (
+                                        <DropdownMenuItem
+                                          className="gap-2 text-xs"
+                                          onClick={() => router.push(`${basePath}/exam/${exam.id}/monitor`)}
+                                        >
+                                          <Clock className="h-4 w-4" />
+                                          Theo dõi
+                                        </DropdownMenuItem>
+                                      )}
+                                      {(exam.status === "COMPLETED" ||
+                                        exam.submissionCount > 0) && (
+                                        <DropdownMenuItem
+                                          className="gap-2 text-xs"
+                                          onClick={() => router.push(`${basePath}/exam/${exam.id}/results`)}
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          Xem kết quả
+                                        </DropdownMenuItem>
+                                      )}
+                                      <DropdownMenuItem
+                                        className="gap-2 text-xs"
+                                        onClick={() => router.push(`${basePath}/analytics?examId=${exam.id}`)}
                                       >
-                                        <Eye className="h-4 w-4" />
-                                        Xem kết quả
-                                      </Button>
-                                    )}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="gap-2"
-                                      onClick={() =>
-                                        router.push(
-                                          `${basePath}/analytics?examId=${exam.id}`,
-                                        )
-                                      }
-                                    >
-                                      <BarChart3 className="h-4 w-4" />
-                                      Phân tích
-                                    </Button>
-                                  </div>
+                                        <BarChart3 className="h-4 w-4" />
+                                        Phân tích
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </TableCell>
                               </TableRow>
                             ))

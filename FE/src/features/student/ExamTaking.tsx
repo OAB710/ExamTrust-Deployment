@@ -117,6 +117,19 @@ export default function ExamTaking() {
     if (storedSubmissionId && storedExamId === examId) {
       const storedStartedAt = Number(localStorage.getItem("currentSubmissionStartedAt") || 0);
       if (storedStartedAt > 0) setExamStartedAt(storedStartedAt);
+      // ExamReadyCheck already created this submission before navigating here
+      // (or a prior mount of this same page did, e.g. after a refresh).
+      // Hydrating it synchronously here — instead of waiting for exam
+      // questions to load and then re-POSTing startExam below — is what
+      // shrinks the window during which useExamSecurity's `enabled` is still
+      // false and fullscreen/tab-switch monitoring is effectively off.
+      setSubmissionId(storedSubmissionId);
+      setExamSessionStatus("IN_PROGRESS");
+      try {
+        const storedPolicyRaw = localStorage.getItem("currentSubmissionWebcamPolicy");
+        const storedPolicy = storedPolicyRaw ? JSON.parse(storedPolicyRaw) : null;
+        if (storedPolicy?.enabled) setWebcamPolicy(storedPolicy);
+      } catch {}
     }
     const graceStartedAt = Number(localStorage.getItem("examFullscreenGraceStartedAt") || 0);
     if (graceStartedAt > 0 && Date.now() - graceStartedAt < 5000) {
@@ -552,6 +565,7 @@ export default function ExamTaking() {
     returnToExam,
     canFullscreen,
     isFullscreenExitPending,
+    isFirstFullscreenWarning,
     exitFullscreenAfterConfirmation,
   } = useExamSecurity({
     // Preview still enforces fullscreen when explicitly requested, but it is a
@@ -864,6 +878,7 @@ export default function ExamTaking() {
         isEscalated={isEscalated}
         countdownSeconds={fullscreenCountdown}
         isFullscreenExitPending={isFullscreenExitPending}
+        isFirstFullscreenWarning={isFirstFullscreenWarning}
         lastViolation={lastViolation}
         canFullscreen={canFullscreen}
         onReturnToExam={returnToExam}

@@ -41,6 +41,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Plus,
   FileText,
   Clock,
@@ -54,6 +60,7 @@ import {
   Loader2,
   Archive,
   RotateCcw,
+  MoreHorizontal,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -705,11 +712,7 @@ export default function ExamManagement() {
                   </TableHeader>
                   <TableBody>
                     {paginatedExams.map((exam) => {
-                      const endTimeMs = exam.endTime ? new Date(exam.endTime).getTime() : null;
-                      const hasEnded = endTimeMs !== null && Number.isFinite(endTimeMs) && endTimeMs <= currentTime;
-                      const canViewResults =
-                        (!exam.endTime || hasEnded) &&
-                        (exam.status === "COMPLETED" || (exam._count?.submissions ?? 0) > 0);
+                      const canViewResults = (exam._count?.submissions ?? 0) > 0;
                       return (
                         <TableRow key={exam.id} className="hover:bg-muted/50">
                           <TableCell className="min-w-[18rem]">
@@ -775,103 +778,85 @@ export default function ExamManagement() {
                               className="text-xs"
                             />
                           </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap items-center justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  router.push(
-                                    `/lecturer/exam/${exam.id}/preview`,
-                                  )
-                                }
-                                className="h-8 gap-1.5 border-[#E5E7EB] bg-white px-2.5 text-[#374151] shadow-none hover:border-[#D1D5DB] hover:bg-[#F9FAFB] hover:text-[#111827] [&>svg]:text-[#6B7280]"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                                Xem trước
-                              </Button>
-                              {(exam.status === "ONGOING" ||
-                                exam.status === "PUBLISHED") &&
-                                (!exam.endTime || new Date(exam.endTime).getTime() > Date.now()) && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    router.push(
-                                      `/lecturer/exam/${exam.id}/monitor`,
-                                    )
-                                  }
-                                  className="h-8 gap-1.5 border-[#BFDBFE] bg-[#EFF6FF] px-2.5 text-[#1D4ED8] shadow-none hover:border-[#93C5FD] hover:bg-[#DBEAFE] hover:text-[#1E40AF] [&>svg]:text-[#2563EB]"
-                                >
-                                  <Clock className="h-3.5 w-3.5" />
-                                  Theo dõi
-                                </Button>
-                              )}
-
-                              {canViewResults && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    router.push(
-                                      `/lecturer/exam/${exam.id}/results`,
-                                    )
-                                  }
-                                  className="h-8 gap-1.5 border-[#BBF7D0] bg-[#F0FDF4] px-2.5 font-semibold text-[#047857] shadow-sm hover:border-[#86EFAC] hover:bg-[#DCFCE7] hover:text-[#065F46] [&>svg]:text-[#059669]"
-                                >
-                                  <BarChart3 className="h-3.5 w-3.5" />
-                                  Kết quả
-                                </Button>
-                              )}
-                              {(exam.status === "DRAFT" ||
-                                exam.status === "PUBLISHED") && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleOpenRescheduleDialog(exam)}
-                                  className="h-8 gap-1.5 border-indigo-200 bg-indigo-50 px-2.5 text-indigo-700 shadow-none hover:border-indigo-300 hover:bg-indigo-100 hover:text-indigo-800"
-                                >
-                                  <CalendarClock className="h-3.5 w-3.5" />
-                                  Đổi lịch
-                                </Button>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedExam(exam);
-                                  setShowArchiveDialog(true);
-                                }}
-                                className="h-8 gap-1.5 px-2.5"
-                              >
-                                {exam.status === "ARCHIVED" ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-                                {exam.status === "ARCHIVED" ? "Khôi phục" : "Lưu trữ"}
-                              </Button>
-                              {exam.status === "DRAFT" && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleEditExam(exam)}
-                                    className="h-8 gap-1.5 border-slate-200 bg-slate-50 px-2.5 text-slate-700 shadow-none hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900"
-                                  >
-                                    <Edit2 className="h-3.5 w-3.5" />
-                                    Sửa
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreHorizontal className="h-4 w-4" />
                                   </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    className="gap-2 text-xs"
+                                    onClick={() => router.push(`/lecturer/exam/${exam.id}/preview`)}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                    Xem trước
+                                  </DropdownMenuItem>
+                                  {(exam.status === "ONGOING" ||
+                                    exam.status === "PUBLISHED") &&
+                                    (!exam.endTime || new Date(exam.endTime).getTime() > Date.now()) && (
+                                    <DropdownMenuItem
+                                      className="gap-2 text-xs"
+                                      onClick={() => router.push(`/lecturer/exam/${exam.id}/monitor`)}
+                                    >
+                                      <Clock className="h-4 w-4" />
+                                      Theo dõi
+                                    </DropdownMenuItem>
+                                  )}
+                                  {canViewResults && (
+                                    <DropdownMenuItem
+                                      className="gap-2 text-xs"
+                                      onClick={() => router.push(`/lecturer/exam/${exam.id}/results`)}
+                                    >
+                                      <BarChart3 className="h-4 w-4" />
+                                      Kết quả &amp; Chấm bài
+                                    </DropdownMenuItem>
+                                  )}
+                                  {(exam.status === "DRAFT" ||
+                                    exam.status === "PUBLISHED") && (
+                                    <DropdownMenuItem
+                                      className="gap-2 text-xs"
+                                      onClick={() => handleOpenRescheduleDialog(exam)}
+                                    >
+                                      <CalendarClock className="h-4 w-4" />
+                                      Đổi lịch
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem
+                                    className="gap-2 text-xs"
                                     onClick={() => {
                                       setSelectedExam(exam);
-                                      setShowDeleteDialog(true);
+                                      setShowArchiveDialog(true);
                                     }}
-                                    className="h-8 gap-1.5 border-red-200 bg-red-50 px-2.5 text-red-700 shadow-none hover:border-red-300 hover:bg-red-100 hover:text-red-800"
                                   >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                    Xóa
-                                  </Button>
-                                </>
-                              )}
+                                    {exam.status === "ARCHIVED" ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+                                    {exam.status === "ARCHIVED" ? "Khôi phục" : "Lưu trữ"}
+                                  </DropdownMenuItem>
+                                  {exam.status === "DRAFT" && (
+                                    <>
+                                      <DropdownMenuItem
+                                        className="gap-2 text-xs"
+                                        onClick={() => handleEditExam(exam)}
+                                      >
+                                        <Edit2 className="h-4 w-4" />
+                                        Sửa
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        className="gap-2 text-destructive text-xs"
+                                        onClick={() => {
+                                          setSelectedExam(exam);
+                                          setShowDeleteDialog(true);
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Xóa
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>

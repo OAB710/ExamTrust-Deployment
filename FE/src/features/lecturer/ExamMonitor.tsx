@@ -44,6 +44,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Loader2,
   Users,
   Clock,
@@ -63,6 +69,7 @@ import {
   Camera,
   ImageOff,
   Sparkles,
+  MoreHorizontal,
 } from "lucide-react";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
 import { Textarea } from "@/components/ui/textarea";
@@ -1166,34 +1173,36 @@ export default function ExamMonitor() {
                               </Button>
                             )}
                             {s.submissionId && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-xs"
-                                onClick={() => openEvidenceDialog(s.submissionId as string, s.name)}
-                              >
-                                <Camera className="mr-1 h-3.5 w-3.5" />
-                                Bằng chứng camera
-                              </Button>
-                            )}
-                            {s.submissionId && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-xs"
-                                onClick={() => openRiskDialog(s.submissionId as string, s.name)}
-                              >
-                                <Eye className="mr-1 h-3.5 w-3.5" />
-                                {riskFlagsBySubmission.has(s.submissionId) ? (
-                                  <StatusBadge
-                                    domain="severity"
-                                    status={riskFlagsBySubmission.get(s.submissionId)?.job?.output?.riskLevel || "low"}
-                                    className="ml-1"
-                                  />
-                                ) : (
-                                  "Đánh giá rủi ro"
-                                )}
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="text-xs">
+                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    className="gap-2 text-xs"
+                                    onClick={() => openEvidenceDialog(s.submissionId as string, s.name)}
+                                  >
+                                    <Camera className="h-4 w-4" />
+                                    Bằng chứng camera
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="gap-2 text-xs"
+                                    onClick={() => openRiskDialog(s.submissionId as string, s.name)}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                    Đánh giá rủi ro
+                                    {riskFlagsBySubmission.has(s.submissionId) ? (
+                                      <StatusBadge
+                                        domain="severity"
+                                        status={riskFlagsBySubmission.get(s.submissionId)?.job?.output?.riskLevel || "low"}
+                                        className="ml-1"
+                                      />
+                                    ) : null}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </div>
                         </TableCell>
