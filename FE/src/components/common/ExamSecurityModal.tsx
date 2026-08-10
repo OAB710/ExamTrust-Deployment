@@ -17,6 +17,7 @@ interface ExamSecurityModalProps {
   isEscalated: boolean;
   countdownSeconds: number;
   isFullscreenExitPending?: boolean;
+  isFirstFullscreenWarning?: boolean;
   lastViolation: ViolationLog | null;
   canFullscreen: boolean;
   onReturnToExam: () => void;
@@ -29,6 +30,7 @@ export function ExamSecurityModal({
   isEscalated,
   countdownSeconds,
   isFullscreenExitPending = false,
+  isFirstFullscreenWarning = false,
   lastViolation,
   canFullscreen,
   onReturnToExam,
@@ -45,15 +47,23 @@ export function ExamSecurityModal({
       aria-labelledby="exam-security-title"
     >
       <div className="bg-card rounded-xl p-8 max-w-sm text-center border shadow-xl">
-        <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-        <h2 id="exam-security-title" className="text-xl font-semibold mb-2">Cần trở lại toàn màn hình</h2>
+        <AlertTriangle className={`h-12 w-12 mx-auto mb-4 ${isFirstFullscreenWarning ? "text-amber-500" : "text-red-500"}`} />
+        <h2 id="exam-security-title" className="text-xl font-semibold mb-2">
+          {isFirstFullscreenWarning ? "Cảnh báo lần đầu" : "Cần trở lại toàn màn hình"}
+        </h2>
         <p className="text-muted-foreground mb-1">Phiên thi tạm dừng cho đến khi chế độ toàn màn hình được khôi phục.</p>
-        <p className="text-sm mb-2">
-          {isFullscreenExitPending
-            ? <>Trở lại toàn màn hình trong <strong>{countdownSeconds} giây</strong> để tránh ghi nhận cảnh báo.</>
-            : <>Trở lại toàn màn hình trong <strong>{countdownSeconds} giây</strong>, nếu không bài thi sẽ được tự động nộp.</>}
-        </p>
-        {reason && (
+        {isFirstFullscreenWarning ? (
+          <p className="text-sm mb-2">
+            Bạn vừa thoát chế độ toàn màn hình (F11, Esc hoặc chuyển ứng dụng). Đây là <strong>lần đầu tiên</strong> nên hệ thống <strong>chưa ghi nhận vi phạm</strong>. Từ lần thoát tiếp theo, mỗi lần sẽ được tính là 1 tín hiệu vi phạm (tối đa {maxViolations} lần trước khi bài thi bị nộp tự động).
+          </p>
+        ) : (
+          <p className="text-sm mb-2">
+            {isFullscreenExitPending
+              ? <>Trở lại toàn màn hình trong <strong>{countdownSeconds} giây</strong> để tránh ghi nhận cảnh báo.</>
+              : <>Trở lại toàn màn hình trong <strong>{countdownSeconds} giây</strong>, nếu không bài thi sẽ được tự động nộp.</>}
+          </p>
+        )}
+        {reason && !isFirstFullscreenWarning && (
           <p className="text-muted-foreground text-sm mb-2">
             Tín hiệu ghi nhận: <strong>{reason}</strong>
           </p>
@@ -72,7 +82,7 @@ export function ExamSecurityModal({
           </p>
         )}
         <Button onClick={onReturnToExam} disabled={!canFullscreen}>
-          Trở lại bài thi
+          {isFirstFullscreenWarning ? "Đã hiểu, quay lại bài thi" : "Trở lại bài thi"}
         </Button>
       </div>
     </div>

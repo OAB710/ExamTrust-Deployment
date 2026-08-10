@@ -933,7 +933,7 @@ model IntegrityLog {
   proctoring   ProctoringSession @relation(fields: [proctoringId], references: [id])
   proctoringId String
   eventType    String
-  details      String?
+  details      String?           @db.Text
   timestamp    DateTime          @default(now())
 
   @@index([proctoringId])

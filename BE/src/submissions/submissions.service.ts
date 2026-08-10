@@ -1500,7 +1500,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const submission = await this.prisma.examSubmission.findUnique({
       where: { id: submissionId },
       include: {
-        exam: { select: { settings: true, maxAttempts: true, timeLimitMinutes: true } },
+        exam: { select: { settings: true, maxAttempts: true, timeLimitMinutes: true, duration: true } },
         student: {
           select: {
             id: true,
@@ -1523,7 +1523,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       ? Boolean(integritySettings.requiresProctoring)
       : Boolean(integritySettings.proctoringEnabled)) &&
       (submission.exam.maxAttempts ?? integritySettings.maxAttempts ?? null) !== null &&
-      (submission.exam.timeLimitMinutes ?? integritySettings.timeLimitMinutes ?? null) !== null;
+      (submission.exam.timeLimitMinutes ?? integritySettings.timeLimitMinutes ?? submission.exam.duration ?? null) !== null;
     if (!integrityEnabled) return;
 
     // Validate logs payload (reuse same limits as submitExam)
@@ -2687,11 +2687,13 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException('Không tìm thấy lượt làm bài');
     }
 
+    const isManualAnswer = (answer: (typeof submission.answers)[number]) => !this.isAutoGradable(
+      String(answer.question?.type || '').toUpperCase(),
+      this.parseJsonValue(answer.question?.correctAnswer, null),
+    );
+
     const manualAnswers = submission.answers
-      .filter((answer) => !this.isAutoGradable(
-        String(answer.question?.type || '').toUpperCase(),
-        this.parseJsonValue(answer.question?.correctAnswer, null),
-      ))
+      .filter(isManualAnswer)
       .map((answer) => {
         const snapshotPayload = this.parseJsonValue(answer.questionSnapshot?.payload, {});
         const versionPayload = this.parseJsonValue(answer.questionVersion?.payload, {});
@@ -2710,6 +2712,27 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         };
       });
 
+    const autoAnswers = submission.answers
+      .filter((answer) => !isManualAnswer(answer))
+      .map((answer) => {
+        const snapshotPayload = this.parseJsonValue(answer.questionSnapshot?.payload, {});
+        const versionPayload = this.parseJsonValue(answer.questionVersion?.payload, {});
+        return {
+          id: answer.id,
+          questionId: answer.questionId,
+          questionType: answer.question?.type,
+          questionText: answer.questionVersion?.stem || answer.question?.content || 'Question text unavailable',
+          questionOptions: snapshotPayload.options ?? versionPayload.options ?? answer.question?.options ?? null,
+          answer: answer.answer,
+          correctAnswer: snapshotPayload.answerKey ?? snapshotPayload.correctAnswer
+            ?? this.parseJsonValue(answer.question?.correctAnswer, null),
+          isCorrect: answer.isCorrect,
+          pointsAwarded: answer.pointsAwarded,
+          maxPoints: Number(answer.questionVersion?.points ?? answer.question?.points ?? answer.question?.defaultPoints ?? 1),
+          updatedAt: answer.updatedAt,
+        };
+      });
+
     const activeAdjustmentTotal = submission.scoreAdjustments
       .filter((adjustment) => !adjustment.revokedAt)
       .reduce((total, adjustment) => total + this.toNumber(adjustment.amount), 0);
@@ -2720,6 +2743,9 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       manualAnswers,
       manualTotal: manualAnswers.length,
       manualGraded: manualAnswers.filter((answer) => answer.manualGradedAt !== null && answer.manualGradedAt !== undefined).length,
+      autoAnswers,
+      autoTotal: autoAnswers.length,
+      autoCorrect: autoAnswers.filter((answer) => answer.isCorrect === true).length,
       academicScore,
       activeAdjustmentTotal: Number(activeAdjustmentTotal.toFixed(2)),
       adjustedAcademicScore: Number(Math.max(0, Math.min(10, academicScore + activeAdjustmentTotal)).toFixed(2)),

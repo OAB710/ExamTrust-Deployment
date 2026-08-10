@@ -63,6 +63,7 @@ type ExamData = {
   duration: number;
   course?: { code?: string; name?: string };
   examQuestions: ExamQuestion[];
+  _count?: { submissions?: number };
 };
 
 function normalizeType(rawType?: string) {
@@ -293,11 +294,11 @@ export default function ExamPreview() {
               <QrCode className="h-4 w-4 mr-1" />
               Hiện mã QR
             </Button>
-            {timeline.isEnded ? (
+            {(exam._count?.submissions ?? 0) > 0 ? (
               <Button asChild>
                 <Link href={`${basePath}/exam/${exam.id}/results`}>
                   <BarChart3 className="h-4 w-4 mr-2" />
-                  Xem kết quả
+                  Kết quả &amp; Chấm bài
                 </Link>
               </Button>
             ) : (

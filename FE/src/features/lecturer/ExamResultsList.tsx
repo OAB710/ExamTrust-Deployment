@@ -828,7 +828,7 @@ export default function ExamResultsList() {
       <Dialog open={Boolean(reviewSubmission)} onOpenChange={(open) => !open && setReviewSubmission(null)}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" />Rà soát toàn vẹn: {reviewSubmission?.name}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" />Giám sát rủi ro: {reviewSubmission?.name}</DialogTitle>
             <DialogDescription>Dữ liệu hỗ trợ giảng viên đối chiếu sau kỳ thi, không phải kết luận gian lận tự động.</DialogDescription>
           </DialogHeader>
           {reviewLoading ? (

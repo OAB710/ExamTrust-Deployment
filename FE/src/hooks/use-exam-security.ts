@@ -31,6 +31,7 @@ interface UseExamSecurityResult {
   maxViolations: number;
   canFullscreen: boolean;
   isFullscreenExitPending: boolean;
+  isFirstFullscreenWarning: boolean;
   returnToExam: () => Promise<void>;
   exitFullscreenAfterConfirmation: () => Promise<void>;
   getViolationLogs: () => ViolationLog[];
@@ -76,6 +77,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   const [violationCounts, setViolationCounts] = useState<Record<ViolationType, number>>(emptyCounts);
   const [lastViolation, setLastViolation] = useState<ViolationLog | null>(null);
   const [isFullscreenExitPending, setIsFullscreenExitPending] = useState(false);
+  const [isFirstFullscreenWarning, setIsFirstFullscreenWarning] = useState(false);
 
   const logsRef = useRef<ViolationLog[]>([]);
   const escalatedRef = useRef(false);
@@ -85,6 +87,13 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   const lastViolationAtRef = useRef<Partial<Record<ViolationType, number>>>({});
   const fullscreenExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalFullscreenExitRef = useRef(false);
+  // Involuntary fullscreen exits (F11 / Esc / OS gesture) can't be told apart
+  // from each other by the browser, and many are muscle-memory presses
+  // rather than deliberate cheating attempts. The very first one per exam
+  // attempt is a warning only and does not count toward violationCount; the
+  // in-app "exit fullscreen" button is excluded since it already shows its
+  // own confirmation dialog before the exit happens.
+  const firstFullscreenWarningUsedRef = useRef(false);
 
   const clearPendingFullscreenExit = useCallback(() => {
     if (fullscreenExitTimerRef.current) {
@@ -209,6 +218,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
         // it would suppress a subsequent Escape/fullscreen exit for 5 seconds.
         fullscreenRequestedAtRef.current = null;
         setIsBlocked(false);
+        setIsFirstFullscreenWarning(false);
         allowClearRef.current = false;
         return;
       }
@@ -248,6 +258,19 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
         fullscreenExitTimerRef.current = null;
         setIsFullscreenExitPending(false);
         if (!document.fullscreenElement) {
+          if (!firstFullscreenWarningUsedRef.current) {
+            // First unreturned exit this attempt: warn, block until they go
+            // back to fullscreen, but do not spend one of maxViolations.
+            firstFullscreenWarningUsedRef.current = true;
+            setLastViolation({
+              timestamp: Date.now(),
+              type: "fullscreen_exit",
+              detail: "Cảnh báo lần đầu — chưa tính vi phạm",
+            });
+            setIsFirstFullscreenWarning(true);
+            setIsBlocked(true);
+            return;
+          }
           recordViolation("fullscreen_exit", "Sinh viên không quay lại chế độ toàn màn hình trong thời gian cho phép");
         }
       }, fullscreenExitGraceMs);
@@ -266,9 +289,24 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
 
     const onVisibility = () => {
       if (!isTrackingActive() || isWithinFullscreenGrace()) return;
-      if (document.hidden) {
-        recordViolation("tab_switch", "Trang bị ẩn (chuyển tab hoặc ứng dụng khác)");
+      if (!document.hidden) return;
+      if (!document.fullscreenElement) {
+        // Fullscreen and visibility commonly drop together for the exact
+        // same physical action (e.g. on Windows, toggling fullscreen via F11
+        // can blip document.hidden during the OS-level transition). When
+        // both drop at once, this is a single fullscreen-exit event — the
+        // fullscreenchange listener above already owns that case end-to-end
+        // (15s grace to return, first-exit warning, then violation). Firing
+        // an independent, un-lenient tab_switch violation here as well would
+        // race ahead of that 15s grace (visibilitychange is immediate) and
+        // mislabel an F11 press as "chuyển tab" while also bypassing the
+        // first-exit warning entirely. Only treat this as a genuine tab
+        // switch when fullscreen is still active (student left the exam's
+        // foreground without ever leaving fullscreen — e.g. Alt-Tab to
+        // another fullscreen-capable surface).
+        return;
       }
+      recordViolation("tab_switch", "Trang bị ẩn (chuyển tab hoặc ứng dụng khác)");
     };
 
     document.addEventListener("visibilitychange", onVisibility);
@@ -299,6 +337,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     maxViolations,
     canFullscreen,
     isFullscreenExitPending,
+    isFirstFullscreenWarning,
     returnToExam,
     exitFullscreenAfterConfirmation,
     getViolationLogs,

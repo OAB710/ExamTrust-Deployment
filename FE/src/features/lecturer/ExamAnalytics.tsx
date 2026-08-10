@@ -22,7 +22,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ExternalLink, Sparkles, TrendingUp, AlertTriangle, BarChart3, CheckCircle2, X, XCircle } from "lucide-react";
+import { Loader2, ExternalLink, Sparkles, TrendingUp, AlertTriangle, BarChart3, CheckCircle2, Filter, X, XCircle } from "lucide-react";
 import api from "@/lib/api";
 import { unwrapPaginatedData } from "@/lib/api";
 import { AdminPageShell } from "@/components/admin/AdminPageShell";
@@ -587,20 +587,22 @@ export default function ExamAnalytics() {
           </div>
         </div>
 
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 font-bold">
-              <BarChart3 className="h-4 w-4 text-primary" />
-              Bộ lọc phân tích bài thi
-            </CardTitle>
-            <CardDescription>Chọn bài thi để xem phân tích hiệu suất</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[220px_220px_minmax(320px,1fr)]">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex items-center gap-2.5 pb-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Filter className="h-4 w-4" />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold leading-5 text-foreground">Bộ lọc phân tích bài thi</h3>
+              <p className="text-xs text-muted-foreground">Chọn bài thi để xem phân tích hiệu suất</p>
+            </div>
+          </div>
+          <div className="border-t border-border/60 pt-3.5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Năm học</label>
                 <Select value={selectedAcademicYear} onValueChange={(val) => { setSelectedAcademicYear(val); setSelectedTerm(""); }}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 rounded-lg border-border bg-card text-xs">
                     <SelectValue placeholder="Tất cả năm học" />
                   </SelectTrigger>
                   <SelectContent>
@@ -615,7 +617,7 @@ export default function ExamAnalytics() {
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Học kỳ</label>
                 <Select value={selectedTerm} onValueChange={setSelectedTerm}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 rounded-lg border-border bg-card text-xs">
                     <SelectValue placeholder="Tất cả học kỳ" />
                   </SelectTrigger>
                   <SelectContent>
@@ -634,7 +636,7 @@ export default function ExamAnalytics() {
                   onValueChange={setSelectedExamId}
                   disabled={loadingIntelligence || filteredExams.length === 0}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9 rounded-lg border-border bg-card text-xs">
                     <SelectValue placeholder={filteredExams.length === 0 ? "Không tìm thấy bài thi" : "Chọn bài thi"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -647,6 +649,7 @@ export default function ExamAnalytics() {
                 </Select>
               </div>
             </div>
+          </div>
 
             {selectedExamId && (() => {
               const current = examOptions.find((ex) => ex.id === selectedExamId);
@@ -661,8 +664,7 @@ export default function ExamAnalytics() {
                 </div>
               );
             })()}
-          </CardContent>
-        </Card>
+        </div>
 
         {!selectedExamId && !loadingIntelligence ? (
           <Card className="border-border/70 bg-card shadow-sm">

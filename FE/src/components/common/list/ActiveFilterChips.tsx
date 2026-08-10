@@ -29,7 +29,7 @@ export function ActiveFilterChips({
         <Badge
           key={`${chip.key}-${chip.valueLabel}`}
           variant="secondary"
-          className="gap-2 rounded-md px-3 py-1.5 text-xs font-medium"
+          className="gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-1.5 text-xs font-medium"
         >
           <span className="text-muted-foreground">{chip.label}:</span>
           <span className="max-w-[220px] truncate">{chip.valueLabel}</span>

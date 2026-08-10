@@ -50,6 +50,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
@@ -64,6 +80,7 @@ import {
   GraduationCap,
   Info,
   Loader2,
+  MoreHorizontal,
   Pencil,
   Plus,
   Search,
@@ -90,7 +107,6 @@ import {
   sanitizeNumericInput,
 } from "@/lib/number-input";
 import { toast } from "sonner";
-import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Lecturer {
@@ -183,6 +199,8 @@ export default function AdminCourseManagement() {
   const [archiveScope, setArchiveScope] = useState<'active' | 'archived'>('active');
   const [actionCourse, setActionCourse] = useState<CourseItem | null>(null);
   const [archiving, setArchiving] = useState(false);
+  const [deleteCourse, setDeleteCourse] = useState<CourseItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [lecturers, setLecturers] = useState<Lecturer[]>([]);
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
@@ -779,6 +797,17 @@ export default function AdminCourseManagement() {
       toast.error(
         error instanceof Error ? error.message : "Không thể xóa khóa học",
       );
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteCourse) return;
+    try {
+      setDeleting(true);
+      await handleDelete(deleteCourse.id);
+      setDeleteCourse(null);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -1704,47 +1733,43 @@ export default function AdminCourseManagement() {
                           />
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                router.push(`/admin/course/${course.id}`)
-                              }
-                            >
-                              <Users className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEditDialog(course)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setActionCourse(course)}
-                              title={course.status === 'archived' ? 'Khôi phục khóa học' : 'Lưu trữ khóa học'}
-                            >
-                              {course.status === 'archived' ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-                            </Button>
-                            <ConfirmActionDialog
-                              title="Xóa khóa học"
-                              description="Hành động này không thể hoàn tác. Khóa học sẽ bị xóa nếu không có dữ liệu liên quan ngăn cản việc xóa."
-                              confirmText="Xóa"
-                              destructive
-                              onConfirm={() => handleDelete(course.id)}
-                            >
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive hover:text-destructive"
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                className="gap-2 text-xs"
+                                onClick={() => router.push(`/admin/course/${course.id}`)}
+                              >
+                                <Users className="h-4 w-4" />
+                                Xem chi tiết
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="gap-2 text-xs"
+                                onClick={() => openEditDialog(course)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                                Chỉnh sửa
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="gap-2 text-xs"
+                                onClick={() => setActionCourse(course)}
+                              >
+                                {course.status === 'archived' ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+                                {course.status === 'archived' ? 'Khôi phục khóa học' : 'Lưu trữ khóa học'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="gap-2 text-destructive text-xs"
+                                onClick={() => setDeleteCourse(course)}
                               >
                                 <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </ConfirmActionDialog>
-                          </div>
+                                Xóa
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))
@@ -1823,6 +1848,27 @@ export default function AdminCourseManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={Boolean(deleteCourse)} onOpenChange={(open) => !open && setDeleteCourse(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xóa khóa học</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hành động này không thể hoàn tác. Khóa học "{deleteCourse?.name}" sẽ bị xóa nếu không có dữ liệu liên quan ngăn cản việc xóa.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={deleting}
+            >
+              {deleting ? "Đang xóa..." : "Xóa"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

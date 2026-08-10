@@ -7,10 +7,10 @@ describe("theme configuration", () => {
     expect(THEME_OPTIONS).toEqual(["light", "dark", "system"]);
   });
 
-  it("follows the operating system by default", () => {
+  it("defaults to light mode", () => {
     expect(THEME_PROVIDER_OPTIONS).toMatchObject({
       attribute: "class",
-      defaultTheme: "system",
+      defaultTheme: "light",
       enableSystem: true,
     });
   });

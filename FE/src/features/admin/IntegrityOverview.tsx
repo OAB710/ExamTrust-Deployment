@@ -477,7 +477,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
     <DashboardLayout>
       <AdminPageShell>
         {lecturerScope ? <p className="mb-2 text-sm text-muted-foreground">Chỉ hiển thị tín hiệu của bài thi và khóa học do bạn phụ trách.</p> : null}
-        <ListPageHeader title="Toàn vẹn học thuật" className="mb-4" />
+        <ListPageHeader title="Giám sát rủi ro" className="mb-4" />
 
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <AdminStatCard

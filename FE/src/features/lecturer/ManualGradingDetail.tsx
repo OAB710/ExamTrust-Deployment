@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { ArrowLeft, Loader2, Save, UserCheck, Plus, Undo2, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Save, UserCheck, Plus, Undo2, Sparkles, CheckCircle2, XCircle, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -379,6 +379,66 @@ export default function ManualGradingDetail() {
                       <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void reviewEvidence(capture.id, "REVIEWED")}>Đã xem</Button><Button size="sm" variant="ghost" onClick={() => void reviewEvidence(capture.id, "DISMISSED")}>Bỏ qua</Button><span className="ml-auto text-xs text-muted-foreground">{capture.reviewStatus}</span></div>
                     </div>
                   ))}
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {(submission?.autoAnswers || []).length > 0 ? (
+              <Card className="border-slate-200 bg-white/95 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <ListChecks className="h-5 w-5 text-primary" />
+                    Câu tự động chấm
+                  </CardTitle>
+                  <CardDescription>
+                    Các câu trắc nghiệm/tự động đã được hệ thống chấm ngay khi nộp bài — hiển thị để đối chiếu, không cần chấm lại.
+                    Đúng {submission.autoCorrect ?? 0}/{submission.autoTotal ?? submission.autoAnswers.length} câu.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {submission.autoAnswers.map((answer: any, index: number) => {
+                    const answerLines = formatManualAnswer(answer.questionType, answer.answer, answer.questionOptions);
+                    const correctLines = answer.correctAnswer == null
+                      ? ["Không xác định"]
+                      : formatManualAnswer(answer.questionType, answer.correctAnswer, answer.questionOptions);
+                    return (
+                      <div key={answer.id} className="rounded-lg border border-slate-200 p-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">
+                              Câu {index + 1}. {answer.questionText}
+                            </p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{answer.questionType} · tối đa {answer.maxPoints} điểm</p>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={
+                              answer.isCorrect
+                                ? "shrink-0 gap-1 border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : "shrink-0 gap-1 border-rose-200 bg-rose-50 text-rose-700"
+                            }
+                          >
+                            {answer.isCorrect ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                            {answer.pointsAwarded ?? 0}/{answer.maxPoints} điểm
+                          </Badge>
+                        </div>
+                        <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+                          <div className="rounded-md bg-slate-50 p-2">
+                            <p className="text-xs font-semibold uppercase text-muted-foreground">Sinh viên trả lời</p>
+                            <p className="mt-1 whitespace-pre-wrap text-slate-900">
+                              {answerLines.map((line, lineIndex) => <span key={lineIndex} className="block">{line}</span>)}
+                            </p>
+                          </div>
+                          <div className="rounded-md bg-slate-50 p-2">
+                            <p className="text-xs font-semibold uppercase text-muted-foreground">Đáp án đúng</p>
+                            <p className="mt-1 whitespace-pre-wrap text-slate-900">
+                              {correctLines.map((line, lineIndex) => <span key={lineIndex} className="block">{line}</span>)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </CardContent>
               </Card>
             ) : null}
