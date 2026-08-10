@@ -37,7 +37,7 @@ import {
 import { formatCourseTerm } from "@/lib/course-term";
 import { formatScoreVi } from "@/lib/presentation";
 import { useStudentDashboardData } from "./hooks/useStudentDashboardData";
-import { safeLabel } from "./student-dashboard-types";
+import { formatLatestActivityVi, safeLabel } from "./student-dashboard-types";
 import {
   Select,
   SelectContent,
@@ -213,7 +213,7 @@ export default function StudentDashboard() {
                                 {courseAction.summary}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                Hoạt động gần nhất: {safeLabel(course.lastAccessed)}
+                                Hoạt động gần nhất: {formatLatestActivityVi(course.lastAccessed)}
                               </p>
                               {courseAction.disabled ? (
                                 <Button className="w-full cursor-not-allowed" size="sm" disabled>

@@ -32,6 +32,7 @@ import { BookOpen, Loader2, UserRound, CalendarDays } from "lucide-react";
 import api from "@/lib/api";
 import { formatCourseTerm, type CourseTerm } from "@/lib/course-term";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
+import { formatLatestActivityVi } from "./student-dashboard-types";
 
 type StudentCourse = {
   id: string;
@@ -358,7 +359,7 @@ export default function StudentCourses() {
                             </div>
                             <Progress value={progressValue} className="h-2" />
                             <p className="text-xs text-muted-foreground">
-                              Hoạt động gần nhất: {safeLabel(course.lastAccessed)}
+                              Hoạt động gần nhất: {formatLatestActivityVi(course.lastAccessed)}
                             </p>
                             <Button asChild className="w-full" size="sm">
                               <Link href={`/student/courses/${course.id}`}>Xem chi tiết khóa học</Link>

@@ -32,3 +32,18 @@ export type StudentCourse = {
 };
 
 export const safeLabel = (value?: string | null) => value || "Chưa cập nhật";
+
+export const formatLatestActivityVi = (value?: string | null) => {
+  if (!value) return "Chưa cập nhật";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Chưa cập nhật";
+  return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour12: false,
+  }).format(date);
+};

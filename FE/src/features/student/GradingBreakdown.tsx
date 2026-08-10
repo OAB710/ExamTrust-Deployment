@@ -50,6 +50,62 @@ function parseOptionTexts(options: unknown): string[] {
   return [];
 }
 
+type OptionDisplay = { key: string; text: string };
+
+function parseStoredValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed || !["{", "["].includes(trimmed[0])) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function optionDisplays(options: unknown): OptionDisplay[] {
+  const parsed = parseStoredValue(options);
+  if (Array.isArray(parsed)) {
+    return parsed.map((option, index) => {
+      if (option && typeof option === "object" && !Array.isArray(option)) {
+        const item = option as Record<string, unknown>;
+        const key = textValue(item.id ?? item.value ?? item.key ?? String.fromCharCode(65 + index));
+        const text = textValue(item.text ?? item.content ?? item.label ?? item.value);
+        return { key, text };
+      }
+      return { key: String.fromCharCode(65 + index), text: textValue(option) };
+    }).filter((option) => option.text);
+  }
+  if (parsed && typeof parsed === "object") {
+    return Object.entries(parsed as Record<string, unknown>)
+      .map(([key, value]) => ({ key, text: textValue(value) }))
+      .filter((option) => option.text);
+  }
+  return [];
+}
+
+function formatChoiceAnswer(rawAnswer: unknown, questionOptions: unknown): string {
+  const parsed = parseStoredValue(rawAnswer);
+  const values = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>).answers ?? (parsed as Record<string, unknown>).answer ?? parsed
+    : parsed;
+  const answerValues = Array.isArray(values) ? values : [values];
+  const options = optionDisplays(questionOptions);
+
+  return answerValues
+    .map((value) => {
+      const code = textValue(value).trim();
+      if (!code) return "";
+      const matched = options.find((option) => option.key.toLowerCase() === code.toLowerCase());
+      if (!matched) return code;
+      return matched.text.toLowerCase() === matched.key.toLowerCase()
+        ? matched.key
+        : `${matched.key}. ${matched.text}`;
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
 // Renders a student's MATCHING/ORDERING answer as readable text instead of
 // the raw JSON object it's stored as. Mirrors the same options-splitting
 // convention exam-taking-model.ts uses to present these question types.
@@ -108,7 +164,7 @@ export default function GradingBreakdown() {
       // instead of duplicating a type allowlist here that can silently
       // drift out of sync with the backend's.
       type: answer.pointsAwarded === null || answer.pointsAwarded === undefined ? "manual" : "auto",
-      answer: formatStructuredAnswer(question.type, answer.answer, question.options) ?? textValue(answer.answer),
+      answer: formatStructuredAnswer(question.type, answer.answer, question.options) ?? formatChoiceAnswer(answer.answer, question.options),
       correctAnswer: textValue(question.correctAnswer),
       points: Number(answer.pointsAwarded ?? 0), maxPoints: Number(question.points ?? 0),
       isCorrect: Boolean(answer.isCorrect),
