@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Post, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -35,5 +35,11 @@ export class MediaController {
     }
     await this.mediaService.releaseObject(dto.key, dto.sizeBytes);
     return { released: true };
+  }
+
+  @Get('usage')
+  @Roles('ADMIN')
+  listUsageByUser() {
+    return this.mediaService.listUsageByUser();
   }
 }

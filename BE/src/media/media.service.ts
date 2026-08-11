@@ -25,6 +25,14 @@ interface AuthUser {
   id: string;
 }
 
+// Object keys are namespaced as `questions/<uploaderId>/<uuid>.ext` (see
+// createPresignedUpload below) — reuse that instead of threading the
+// authenticated user through confirm/release just for usage bookkeeping.
+function extractUploaderIdFromKey(key: string): string | null {
+  const parts = key.split('/');
+  return parts.length >= 3 && parts[0] === 'questions' ? parts[1] : null;
+}
+
 @Injectable()
 export class MediaService {
   private readonly logger = new Logger(MediaService.name);
@@ -96,7 +104,7 @@ export class MediaService {
     // Re-checked here (not just at presign time) so a burst of concurrent
     // uploads can't collectively sail past the safe cap.
     await this.assertQuotaAvailable(dto.sizeBytes);
-    await this.incrementUsage(dto.sizeBytes);
+    await this.incrementUsage(dto.sizeBytes, extractUploaderIdFromKey(dto.key));
     return { key: dto.key, sizeBytes: dto.sizeBytes };
   }
 
@@ -110,8 +118,20 @@ export class MediaService {
       this.logger.warn(`Failed to delete R2 object ${key}: ${(err as Error)?.message}`);
     }
     if (sizeBytes) {
-      await this.decrementUsage(sizeBytes);
+      await this.decrementUsage(sizeBytes, extractUploaderIdFromKey(key));
     }
+  }
+
+  // Per-user breakdown for admin reporting only — see MediaUserStorageUsage.
+  async listUsageByUser() {
+    const rows = await this.prisma.mediaUserStorageUsage.findMany({
+      orderBy: { totalBytes: 'desc' },
+    });
+    return rows.map((row) => ({
+      userId: row.userId,
+      totalBytes: row.totalBytes.toString(),
+      updatedAt: row.updatedAt,
+    }));
   }
 
   private async assertQuotaAvailable(additionalBytes: number) {
@@ -130,19 +150,41 @@ export class MediaService {
     return value < 0n ? 0n : value;
   }
 
-  private async incrementUsage(bytes: number) {
-    await this.prisma.mediaStorageUsage.upsert({
-      where: { id: USAGE_ROW_ID },
-      create: { id: USAGE_ROW_ID, totalBytes: BigInt(bytes) },
-      update: { totalBytes: { increment: BigInt(bytes) } },
-    });
+  private async incrementUsage(bytes: number, userId: string | null) {
+    await this.prisma.$transaction([
+      this.prisma.mediaStorageUsage.upsert({
+        where: { id: USAGE_ROW_ID },
+        create: { id: USAGE_ROW_ID, totalBytes: BigInt(bytes) },
+        update: { totalBytes: { increment: BigInt(bytes) } },
+      }),
+      ...(userId
+        ? [
+            this.prisma.mediaUserStorageUsage.upsert({
+              where: { userId },
+              create: { userId, totalBytes: BigInt(bytes) },
+              update: { totalBytes: { increment: BigInt(bytes) } },
+            }),
+          ]
+        : []),
+    ]);
   }
 
-  private async decrementUsage(bytes: number) {
-    await this.prisma.mediaStorageUsage.upsert({
-      where: { id: USAGE_ROW_ID },
-      create: { id: USAGE_ROW_ID, totalBytes: 0n },
-      update: { totalBytes: { decrement: BigInt(bytes) } },
-    });
+  private async decrementUsage(bytes: number, userId: string | null) {
+    await this.prisma.$transaction([
+      this.prisma.mediaStorageUsage.upsert({
+        where: { id: USAGE_ROW_ID },
+        create: { id: USAGE_ROW_ID, totalBytes: 0n },
+        update: { totalBytes: { decrement: BigInt(bytes) } },
+      }),
+      ...(userId
+        ? [
+            this.prisma.mediaUserStorageUsage.upsert({
+              where: { userId },
+              create: { userId, totalBytes: 0n },
+              update: { totalBytes: { decrement: BigInt(bytes) } },
+            }),
+          ]
+        : []),
+    ]);
   }
 }

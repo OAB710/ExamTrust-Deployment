@@ -22,6 +22,17 @@ model MediaStorageUsage {
   @@map("media_storage_usage")
 }
 
+// Per-user breakdown of the same cumulative bytes tracked in
+// MediaStorageUsage.global, kept only for reporting (e.g. an admin usage
+// list) — it does not gate uploads, the global row still owns that cap.
+model MediaUserStorageUsage {
+  userId     String   @id
+  totalBytes BigInt   @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@map("media_user_storage_usage")
+}
+
 enum CourseTerm {
   TERM_1
   TERM_2
