@@ -138,7 +138,10 @@ export default function QuestionEditor() {
 
   const handleMediaFile = async (file: File | null | undefined) => {
     if (!file) return;
-    const validationError = validateMediaFile(file, mediaType);
+    // While an attachment already exists, its type is locked — a replacement
+    // must be the same type (Ảnh/Âm thanh toggle is disabled in that state).
+    const effectiveType = mediaAttachment?.mediaType ?? mediaType;
+    const validationError = validateMediaFile(file, effectiveType);
     if (validationError) {
       toast.error(validationError);
       return;
@@ -146,7 +149,7 @@ export default function QuestionEditor() {
     const previous = mediaAttachment;
     setMediaUploading(true);
     try {
-      const uploaded = await uploadMediaFile(file, mediaType);
+      const uploaded = await uploadMediaFile(file, effectiveType);
       setMediaAttachment(uploaded);
       if (previous && previous.mediaKey !== uploaded.mediaKey) {
         releaseMediaUpload(previous);
@@ -167,13 +170,12 @@ export default function QuestionEditor() {
     }
   };
 
+  // Just switches which type the NEXT upload will be — never touches an
+  // attachment that's already there. While an attachment exists, its type
+  // is locked (buttons are disabled below); remove it first to switch type.
   const handleMediaTypeChange = (type: "image" | "audio") => {
-    if (type === mediaType) return;
+    if (mediaAttachment) return;
     setMediaType(type);
-    if (mediaAttachment) {
-      releaseMediaUpload(mediaAttachment);
-      setMediaAttachment(null);
-    }
   };
 
   const handleRemoveMediaAttachment = () => {
@@ -788,30 +790,36 @@ export default function QuestionEditor() {
                           />
                           <Label>Đính kèm phương tiện</Label>
                         </div>
-                        {hasMedia && (
-                          <div className="flex gap-2">
-                            <Button
-                              variant={
-                                mediaType === "image" ? "default" : "outline"
-                              }
-                              size="sm"
-                              onClick={() => handleMediaTypeChange("image")}
-                              className="gap-1"
-                            >
-                              <Image className="h-3.5 w-3.5" /> Ảnh
-                            </Button>
-                            <Button
-                              variant={
-                                mediaType === "audio" ? "default" : "outline"
-                              }
-                              size="sm"
-                              onClick={() => handleMediaTypeChange("audio")}
-                              className="gap-1"
-                            >
-                              <Music className="h-3.5 w-3.5" /> Âm thanh
-                            </Button>
-                          </div>
-                        )}
+                        {hasMedia && (() => {
+                          const lockedType = mediaAttachment?.mediaType ?? mediaType;
+                          return (
+                            <div className="flex gap-2">
+                              <Button
+                                variant={lockedType === "image" ? "default" : "outline"}
+                                size="sm"
+                                disabled={!!mediaAttachment}
+                                onClick={() => handleMediaTypeChange("image")}
+                                className="gap-1"
+                              >
+                                <Image className="h-3.5 w-3.5" /> Ảnh
+                              </Button>
+                              <Button
+                                variant={lockedType === "audio" ? "default" : "outline"}
+                                size="sm"
+                                disabled={!!mediaAttachment}
+                                onClick={() => handleMediaTypeChange("audio")}
+                                className="gap-1"
+                              >
+                                <Music className="h-3.5 w-3.5" /> Âm thanh
+                              </Button>
+                              {mediaAttachment && (
+                                <p className="text-[10px] text-muted-foreground self-center">
+                                  Xoá tệp để đổi loại đính kèm
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {hasMedia && (
@@ -826,7 +834,7 @@ export default function QuestionEditor() {
                           <input
                             ref={mediaFileInputRef}
                             type="file"
-                            accept={MEDIA_ACCEPT[mediaType]}
+                            accept={MEDIA_ACCEPT[mediaAttachment?.mediaType ?? mediaType]}
                             className="hidden"
                             onChange={(e) => {
                               void handleMediaFile(e.target.files?.[0]);
