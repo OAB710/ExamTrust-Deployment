@@ -10,6 +10,18 @@ datasource db {
 
 /// MySQL-compatible schema for Academic Trust Suite
 
+// Singleton row (id always "global") tracking cumulative bytes ever confirmed
+// as uploaded to the R2 media bucket. Used to hard-stop new uploads once the
+// running total nears the safe quota, well before the Cloudflare R2 free tier
+// limit — see MediaModule/media.service.ts.
+model MediaStorageUsage {
+  id         String   @id @default("global")
+  totalBytes BigInt   @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@map("media_storage_usage")
+}
+
 enum CourseTerm {
   TERM_1
   TERM_2
@@ -372,6 +384,14 @@ model Question {
   isReusable      Boolean                 @default(true)
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
+
+  // Single optional media attachment (image or audio), stored in Cloudflare R2.
+  // mediaKey is the R2 object key, kept so we can delete the object and
+  // reclaim its bytes from MediaStorageUsage when the attachment is removed/replaced.
+  mediaUrl       String? @db.Text
+  mediaType      String? // "image" | "audio"
+  mediaKey       String? @db.Text
+  mediaSizeBytes Int?
 
   exams              ExamQuestion[]
   submissionAnswers  SubmissionAnswer[]

@@ -516,6 +516,21 @@ class ApiClient {
     return this.request<any>(`/questions/${id}`);
   }
 
+  async createMediaPresign(data: { mediaType: 'image' | 'audio'; mimetype: string; sizeBytes: number }) {
+    return this.request<{ uploadUrl: string; key: string; publicUrl: string; expiresInSeconds: number }>(
+      '/media/presign',
+      { method: 'POST', body: data },
+    );
+  }
+
+  async confirmMediaUpload(data: { key: string; sizeBytes: number }) {
+    return this.request<{ key: string; sizeBytes: number }>('/media/confirm', { method: 'POST', body: data });
+  }
+
+  async releaseMediaUpload(data: { key: string; sizeBytes: number }) {
+    return this.request<void>('/media/release', { method: 'POST', body: data });
+  }
+
   async getQuestionStats() {
     return this.request<any>('/questions/stats');
   }
@@ -589,6 +604,7 @@ class ApiClient {
     topicId?: string;
     learningObjective?: string;
     topic?: string;
+    media?: { mediaUrl: string; mediaType: 'image' | 'audio'; mediaKey: string; mediaSizeBytes: number } | null;
   }) {
     const questionType = this.normalizeQuestionType(data.type);
     const draft = await this.createQuestionDraft({
@@ -642,6 +658,7 @@ class ApiClient {
           topic: data.topic,
           learningObjective: data.learningObjective,
           courseScopeIds: data.courseId ? [data.courseId] : [],
+          media: data.media ?? null,
         },
       },
     );

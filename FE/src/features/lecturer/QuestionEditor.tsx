@@ -48,6 +48,14 @@ import { QuestionTopicDialog } from "./components/QuestionTopicDialog";
 import { buildQuestionPayload, toEditorDifficulty, toEditorQuestionType } from "./question-editor-persistence";
 import { QUESTION_LIMITS, WARNING_THRESHOLD } from "./question-validation.constants";
 import { validateLineContent, lineContentCounterText } from "./question-validation";
+import {
+  MEDIA_ACCEPT,
+  MEDIA_MAX_BYTES,
+  releaseMediaUpload,
+  uploadMediaFile,
+  validateMediaFile,
+  type MediaAttachment,
+} from "./question-editor-media";
 
 export default function QuestionEditor() {
   const router = useRouter();
@@ -78,6 +86,9 @@ export default function QuestionEditor() {
   const [scoreCoefficient, setScoreCoefficient] = useState("1");
   const [hasMedia, setHasMedia] = useState(false);
   const [mediaType, setMediaType] = useState<"image" | "audio">("image");
+  const [mediaAttachment, setMediaAttachment] = useState<MediaAttachment | null>(null);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const mediaFileInputRef = useRef<HTMLInputElement | null>(null);
   const [learningObjective, setLearningObjective] = useState("");
 
   const answerState = useQuestionAnswerState();
@@ -124,6 +135,54 @@ export default function QuestionEditor() {
       textarea.setSelectionRange(cursorPos, cursorPos);
     }, 0);
   };
+
+  const handleMediaFile = async (file: File | null | undefined) => {
+    if (!file) return;
+    const validationError = validateMediaFile(file, mediaType);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    const previous = mediaAttachment;
+    setMediaUploading(true);
+    try {
+      const uploaded = await uploadMediaFile(file, mediaType);
+      setMediaAttachment(uploaded);
+      if (previous && previous.mediaKey !== uploaded.mediaKey) {
+        releaseMediaUpload(previous);
+      }
+      toast.success("Đã tải lên tệp đính kèm.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Không thể tải tệp lên. Vui lòng thử lại.");
+    } finally {
+      setMediaUploading(false);
+    }
+  };
+
+  const handleMediaToggle = (checked: boolean) => {
+    setHasMedia(checked);
+    if (!checked && mediaAttachment) {
+      releaseMediaUpload(mediaAttachment);
+      setMediaAttachment(null);
+    }
+  };
+
+  const handleMediaTypeChange = (type: "image" | "audio") => {
+    if (type === mediaType) return;
+    setMediaType(type);
+    if (mediaAttachment) {
+      releaseMediaUpload(mediaAttachment);
+      setMediaAttachment(null);
+    }
+  };
+
+  const handleRemoveMediaAttachment = () => {
+    if (mediaAttachment) {
+      releaseMediaUpload(mediaAttachment);
+      setMediaAttachment(null);
+    }
+  };
+
   const saveDraft = (state: QuestionDraft) => {
     try {
       localStorage.setItem(QUESTION_DRAFT_STORAGE_KEY, JSON.stringify({
@@ -207,6 +266,14 @@ export default function QuestionEditor() {
     }
 
     errors.push(...validateAnswer(questionType));
+
+    if (hasMedia) {
+      if (mediaUploading) {
+        errors.push("Tệp đính kèm đang tải lên, vui lòng chờ hoàn tất.");
+      } else if (!mediaAttachment) {
+        errors.push("Cần chọn tệp đính kèm, hoặc tắt mục \"Đính kèm phương tiện\".");
+      }
+    }
 
     setValidationErrors(errors);
     return errors.length === 0;
@@ -331,6 +398,20 @@ export default function QuestionEditor() {
     populateAnswer(questionData);
 
     setLearningObjective(questionData.learningObjectives || "");
+
+    if (questionData.mediaUrl && questionData.mediaKey && questionData.mediaType) {
+      setHasMedia(true);
+      setMediaType(questionData.mediaType);
+      setMediaAttachment({
+        mediaUrl: questionData.mediaUrl,
+        mediaKey: questionData.mediaKey,
+        mediaSizeBytes: questionData.mediaSizeBytes ?? 0,
+        mediaType: questionData.mediaType,
+      });
+    } else {
+      setHasMedia(false);
+      setMediaAttachment(null);
+    }
   };
 
   const resetFormForNextQuestion = () => {
@@ -340,6 +421,7 @@ export default function QuestionEditor() {
     setScoreCoefficient("1");
     setHasMedia(false);
     setMediaType("image");
+    setMediaAttachment(null);
     setLearningObjective("");
     setValidationErrors([]);
     resetAnswer();
@@ -357,6 +439,7 @@ export default function QuestionEditor() {
       payload = buildQuestionPayload({
         questionType, multipleAnswers, content, explanation, difficulty, scoreCoefficient,
         tfAnswer, essayRubric, options,
+        media: hasMedia ? mediaAttachment : null,
       });
       await persistence.save({ questionId, courseId: course, topicId: topic, payload });
       localStorage.removeItem(QUESTION_DRAFT_STORAGE_KEY);
@@ -701,7 +784,7 @@ export default function QuestionEditor() {
                         <div className="flex items-center gap-2">
                           <Switch
                             checked={hasMedia}
-                            onCheckedChange={setHasMedia}
+                            onCheckedChange={handleMediaToggle}
                           />
                           <Label>Đính kèm phương tiện</Label>
                         </div>
@@ -712,7 +795,7 @@ export default function QuestionEditor() {
                                 mediaType === "image" ? "default" : "outline"
                               }
                               size="sm"
-                              onClick={() => setMediaType("image")}
+                              onClick={() => handleMediaTypeChange("image")}
                               className="gap-1"
                             >
                               <Image className="h-3.5 w-3.5" /> Ảnh
@@ -722,7 +805,7 @@ export default function QuestionEditor() {
                                 mediaType === "audio" ? "default" : "outline"
                               }
                               size="sm"
-                              onClick={() => setMediaType("audio")}
+                              onClick={() => handleMediaTypeChange("audio")}
                               className="gap-1"
                             >
                               <Music className="h-3.5 w-3.5" /> Âm thanh
@@ -732,17 +815,83 @@ export default function QuestionEditor() {
                       </div>
 
                       {hasMedia && (
-                        <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center">
-                          <p className="text-sm text-muted-foreground">
-                            Kéo thả{" "}
-                            {mediaType === "image"
-                              ? "một hình ảnh"
-                              : "một tệp âm thanh"}{" "}
-                            vào đây, hoặc nhấn để chọn tệp
-                          </p>
-                          <Button variant="outline" size="sm" className="mt-2">
-                            Chọn tệp
-                          </Button>
+                        <div
+                          className="border-2 border-dashed border-muted rounded-lg p-6 text-center"
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            void handleMediaFile(e.dataTransfer.files?.[0]);
+                          }}
+                        >
+                          <input
+                            ref={mediaFileInputRef}
+                            type="file"
+                            accept={MEDIA_ACCEPT[mediaType]}
+                            className="hidden"
+                            onChange={(e) => {
+                              void handleMediaFile(e.target.files?.[0]);
+                              e.target.value = "";
+                            }}
+                          />
+                          {mediaAttachment ? (
+                            <div className="space-y-2">
+                              {mediaAttachment.mediaType === "image" ? (
+                                <img
+                                  src={mediaAttachment.mediaUrl}
+                                  alt="Xem trước tệp đính kèm"
+                                  className="mx-auto max-h-32 rounded-md object-contain"
+                                />
+                              ) : (
+                                <audio src={mediaAttachment.mediaUrl} controls className="mx-auto" />
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                {(mediaAttachment.mediaSizeBytes / 1024).toFixed(0)} KB
+                              </p>
+                              <div className="flex justify-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={mediaUploading}
+                                  onClick={() => mediaFileInputRef.current?.click()}
+                                >
+                                  Chọn tệp khác
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={handleRemoveMediaAttachment}>
+                                  Xoá
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                Kéo thả{" "}
+                                {mediaType === "image"
+                                  ? "một hình ảnh"
+                                  : "một tệp âm thanh"}{" "}
+                                vào đây, hoặc nhấn để chọn tệp
+                              </p>
+                              <p className="text-[11px] text-muted-foreground mt-1">
+                                {mediaType === "image"
+                                  ? `Tối đa ${MEDIA_MAX_BYTES.image / (1024 * 1024)}MB, PNG/JPEG/WEBP`
+                                  : `Tối đa ${MEDIA_MAX_BYTES.audio / (1024 * 1024)}MB, MP3/WAV`}
+                              </p>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="mt-2"
+                                disabled={mediaUploading}
+                                onClick={() => mediaFileInputRef.current?.click()}
+                              >
+                                {mediaUploading ? (
+                                  <>
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Đang tải lên...
+                                  </>
+                                ) : (
+                                  "Chọn tệp"
+                                )}
+                              </Button>
+                            </>
+                          )}
                         </div>
                       )}
                     </CardContent>

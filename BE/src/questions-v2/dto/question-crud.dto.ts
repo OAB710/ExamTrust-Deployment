@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsObject, IsInt, Min, Max, IsArray } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsObject, IsInt, Min, Max, IsArray, IsIn } from 'class-validator';
 
 export class CopyQuestionBankDto {
   @IsString()
@@ -56,6 +56,25 @@ export class CreateQuestionCrudDto {
   @IsOptional()
   @IsString()
   topicId?: string;
+
+  // Single optional media attachment. All four are set together (after a
+  // successful presigned upload to R2) or all cleared together (null) when
+  // the lecturer removes the attachment.
+  @IsOptional()
+  @IsString()
+  mediaUrl?: string | null;
+
+  @IsOptional()
+  @IsIn(['image', 'audio'])
+  mediaType?: 'image' | 'audio' | null;
+
+  @IsOptional()
+  @IsString()
+  mediaKey?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  mediaSizeBytes?: number | null;
 }
 
 export class UpdateQuestionCrudDto {
@@ -103,4 +122,20 @@ export class UpdateQuestionCrudDto {
   @IsOptional()
   @IsString()
   topicId?: string;
+
+  @IsOptional()
+  @IsString()
+  mediaUrl?: string | null;
+
+  @IsOptional()
+  @IsIn(['image', 'audio'])
+  mediaType?: 'image' | 'audio' | null;
+
+  @IsOptional()
+  @IsString()
+  mediaKey?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  mediaSizeBytes?: number | null;
 }

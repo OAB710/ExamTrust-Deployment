@@ -12,7 +12,16 @@ export function useQuestionPersistence() {
     finally { setLoading(false); }
   };
 
-  const save = async ({ questionId, courseId, topicId, payload }: { questionId?: string | null; courseId: string; topicId: string; payload: { content: string; [key: string]: any } }) => {
+  const save = async ({ questionId, courseId, topicId, payload }: {
+    questionId?: string | null;
+    courseId: string;
+    topicId: string;
+    payload: {
+      content: string;
+      media?: { mediaUrl: string; mediaType: "image" | "audio"; mediaKey: string; mediaSizeBytes: number } | null;
+      [key: string]: any;
+    };
+  }) => {
     setSaving(true);
     try {
       if (questionId) return await api.saveQuestion({ sourceQuestionId: questionId, courseId: courseId || undefined, topicId, ...payload });

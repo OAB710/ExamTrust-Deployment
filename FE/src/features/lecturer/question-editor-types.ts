@@ -30,6 +30,10 @@ export interface EditableQuestion {
   course?: { id: string; code: string; name: string };
   topic?: { id: string; code: string; name: string } | null;
   learningObjectives?: string;
+  mediaUrl?: string | null;
+  mediaType?: "image" | "audio" | null;
+  mediaKey?: string | null;
+  mediaSizeBytes?: number | null;
 }
 
 export type CourseOption = { id: string; code: string; name: string };

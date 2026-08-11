@@ -24,6 +24,7 @@ type BuildPayloadParams = {
   questionType: string; multipleAnswers: boolean; content: string; explanation: string;
   difficulty: number[]; scoreCoefficient: string; tfAnswer: "true" | "false";
   essayRubric: string; options: QuestionOption[];
+  media?: { mediaUrl: string; mediaType: "image" | "audio"; mediaKey: string; mediaSizeBytes: number } | null;
 };
 
 function shuffle<T>(items: T[]): T[] {
@@ -54,6 +55,7 @@ export function buildQuestionPayload(params: BuildPayloadParams) {
     type: backendType,
     content: params.content,
     explanation: params.explanation,
+    media: params.media ?? null,
     difficulty: Math.max(1, Math.min(10, Math.round((params.difficulty[0] <= 1 ? params.difficulty[0] * 10 : params.difficulty[0])))),
     // `points` remains for legacy readers. Exam scoring uses assignedScore,
     // initialized from this bank-level suggestion when the question is added.
