@@ -18,6 +18,7 @@ import { EventsModule } from './events/events.module';
 import { AuditModule } from './audit/audit.module';
 import { LecturerDashboardModule } from './lecturer-dashboard/lecturer-dashboard.module';
 import { AdminDashboardModule } from './admin-dashboard/admin-dashboard.module';
+import { MediaModule } from './media/media.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { AdminDashboardModule } from './admin-dashboard/admin-dashboard.module';
     AuditModule,
     LecturerDashboardModule,
     AdminDashboardModule,
+    MediaModule,
   ],
 })
 export class AppModule {}

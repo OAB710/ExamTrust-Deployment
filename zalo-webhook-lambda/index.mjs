@@ -8,6 +8,7 @@ const {
   ZALO_START_FE_COMMAND = "On FE",
   ZALO_USAGE_FE_COMMAND = "FE Info",
   ZALO_USAGE_BE_COMMAND = "BE Info",
+  ZALO_USAGE_R2_COMMAND = "R2 Info",
   ZALO_PUBLIC_INFO_COMMAND = "Info",
   ZALO_BUILD_BE_COMMAND = "Build BE",
   ZALO_AI_DEEPSEEK_COMMAND = "AI Deepseek",
@@ -24,7 +25,14 @@ const {
   CLOUDFLARE_API_TOKEN,
   CLOUDFLARE_ACCOUNT_ID,
   CLOUDFLARE_WORKER_NAME = "examtrust-deployment-final-thesis",
+  // R2 bucket that stores question media attachments (images/audio) —
+  // see BE/src/media and CLOUDFLARE_DEPLOY_NOTES.txt mục 10.
+  CLOUDFLARE_R2_BUCKET_NAME = "examtrust-media",
 } = process.env;
+
+// Cloudflare R2 free tier: 10 GB storage, 1M Class A ops, 10M Class B ops
+// per month. See CLOUDFLARE_DEPLOY_NOTES.txt mục 10.4.
+const R2_FREE_TIER_STORAGE_BYTES = 10 * 1024 * 1024 * 1024;
 
 function safeEqual(a, b) {
   const bufA = Buffer.from(a ?? "", "utf8");
@@ -226,6 +234,96 @@ async function getTodayObservabilityEventCount() {
     JSON.stringify(data).slice(0, 1000),
   );
   return null;
+}
+
+async function getR2StorageBytes() {
+  // Storage is a point-in-time snapshot, not a sum-over-range metric — take
+  // the single most recent data point in the last 2 days and read its max
+  // payloadSize. Field/dataset names confirmed against Cloudflare's R2
+  // GraphQL Analytics docs (r2StorageAdaptiveGroups / max.payloadSize).
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  const query = `
+    query ($accountTag: string!, $bucketName: string!, $start: Time!, $end: Time!) {
+      viewer {
+        accounts(filter: { accountTag: $accountTag }) {
+          r2StorageAdaptiveGroups(
+            limit: 1
+            orderBy: [datetime_DESC]
+            filter: { datetime_geq: $start, datetime_leq: $end, bucketName: $bucketName }
+          ) {
+            max { payloadSize }
+          }
+        }
+      }
+    }
+  `;
+  const data = await cfGraphQL(query, {
+    accountTag: CLOUDFLARE_ACCOUNT_ID,
+    bucketName: CLOUDFLARE_R2_BUCKET_NAME,
+    start: twoDaysAgo.toISOString(),
+    end: new Date().toISOString(),
+  });
+  if (!data) return null;
+  const groups = data?.data?.viewer?.accounts?.[0]?.r2StorageAdaptiveGroups ?? [];
+  const bytes = groups[0]?.max?.payloadSize;
+  return typeof bytes === "number" ? bytes : null;
+}
+
+async function getR2MonthlyOperationCount() {
+  const startOfMonth = new Date();
+  startOfMonth.setUTCDate(1);
+  startOfMonth.setUTCHours(0, 0, 0, 0);
+  const query = `
+    query ($accountTag: string!, $bucketName: string!, $start: Time!, $end: Time!) {
+      viewer {
+        accounts(filter: { accountTag: $accountTag }) {
+          r2OperationsAdaptiveGroups(
+            limit: 1000
+            filter: { datetime_geq: $start, datetime_leq: $end, bucketName: $bucketName }
+          ) {
+            sum { requests }
+          }
+        }
+      }
+    }
+  `;
+  const data = await cfGraphQL(query, {
+    accountTag: CLOUDFLARE_ACCOUNT_ID,
+    bucketName: CLOUDFLARE_R2_BUCKET_NAME,
+    start: startOfMonth.toISOString(),
+    end: new Date().toISOString(),
+  });
+  if (!data) return null;
+  const groups = data?.data?.viewer?.accounts?.[0]?.r2OperationsAdaptiveGroups ?? [];
+  return groups.reduce((total, g) => total + (g.sum?.requests ?? 0), 0);
+}
+
+function formatBytesGB(bytes) {
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2);
+}
+
+async function buildR2InfoText() {
+  const [storageBytes, monthlyOps] = await Promise.all([
+    getR2StorageBytes(),
+    getR2MonthlyOperationCount(),
+  ]);
+  const storageLine =
+    storageBytes === null
+      ? monthlyOps === null
+        ? "• Dung lượng hiện tại: ? (thiếu quyền 'Workers R2 Storage: Read' trên token)"
+        : "• Dung lượng hiện tại: 0 B / 10 GB (0%) — bucket đang trống hoặc chưa có snapshot dung lượng trong 2 ngày qua"
+      : `• Dung lượng hiện tại: ${formatBytesGB(storageBytes)} GB / 10 GB (${Math.round((storageBytes / R2_FREE_TIER_STORAGE_BYTES) * 100)}%)`;
+  const opsLine =
+    monthlyOps === null
+      ? "• Số lượt request tháng này: ?"
+      : `• Số lượt request tháng này: ${monthlyOps.toLocaleString("en-US")} (không tách Class A/B)`;
+  return (
+    `📦 R2 Info (${CLOUDFLARE_R2_BUCKET_NAME})\n` +
+    `${storageLine}\n` +
+    `${opsLine}\n\n` +
+    `⚠️ Số này là dung lượng THẬT trên Cloudflare (quyết định có bị tính phí không). ` +
+    `App còn có ngưỡng chặn riêng ở 3GB (30% free tier) để không bao giờ chạm mốc này — xem media_storage_usage.`
+  );
 }
 
 async function getThisMonthBuildMinutes() {
@@ -439,6 +537,8 @@ export const handler = async (event) => {
       await replyToZalo(chatId, await buildFeInfoText());
     } else if (text === normalizeCommand(ZALO_USAGE_BE_COMMAND)) {
       await replyToZalo(chatId, await buildBeInfoText());
+    } else if (text === normalizeCommand(ZALO_USAGE_R2_COMMAND)) {
+      await replyToZalo(chatId, await buildR2InfoText());
     } else if (
       text === normalizeCommand(ZALO_AI_DEEPSEEK_COMMAND) ||
       text === normalizeCommand(ZALO_AI_OPENROUTER_COMMAND)
@@ -464,7 +564,7 @@ export const handler = async (event) => {
         `• ${ZALO_BUILD_FE_COMMAND}\n` +
         `• ${ZALO_BUILD_BE_COMMAND}\n` +
         `• On / Off FE\n` +
-        `• ${ZALO_USAGE_FE_COMMAND} / ${ZALO_USAGE_BE_COMMAND}\n` +
+        `• ${ZALO_USAGE_FE_COMMAND} / ${ZALO_USAGE_BE_COMMAND} / ${ZALO_USAGE_R2_COMMAND}\n` +
         `• ${ZALO_AI_DEEPSEEK_COMMAND} / ${ZALO_AI_OPENROUTER_COMMAND}\n` +
         `• ${ZALO_PUBLIC_INFO_COMMAND}`,
       );

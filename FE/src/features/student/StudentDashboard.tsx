@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge, getStatusBadgeLabel } from "@/components/ui/status-badge";
 import {
   Calendar,
-  CalendarDays,
   Clock,
   FileText,
   ArrowRight,
@@ -26,18 +25,12 @@ import {
   TrendingUp,
   Target,
   Award,
-  UserRound,
 } from "lucide-react";
 import { format, formatDistanceToNow, addHours } from "date-fns";
 import { vi } from "date-fns/locale";
 import Link from "next/link";
-import {
-  getCourseExamAction,
-} from "@/lib/course-exam-action";
-import { formatCourseTerm } from "@/lib/course-term";
 import { formatScoreVi } from "@/lib/presentation";
 import { useStudentDashboardData } from "./hooks/useStudentDashboardData";
-import { formatLatestActivityVi, safeLabel } from "./student-dashboard-types";
 import {
   Select,
   SelectContent,
@@ -51,7 +44,6 @@ export default function StudentDashboard() {
   const {
     upcomingExams,
     examHistory,
-    recentCourses,
     latestCompletedSubmissionByExamId,
     loading,
   } = useStudentDashboardData();
@@ -146,95 +138,6 @@ export default function StudentDashboard() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Recent Courses */}
-          <div className="lg:col-span-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <HelpedTitle help="Các khóa học bạn vừa truy cập hoặc có hoạt động gần đây.">
-                    Khóa học gần đây
-                  </HelpedTitle>
-                </CardTitle>
-                <CardDescription>
-                  Các khóa học bạn vừa truy cập.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {recentCourses.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-border p-10 text-center">
-                      <BookOpen className="mx-auto h-6 w-6 text-muted-foreground" />
-                      <p className="mt-2 text-muted-foreground">
-                        Chưa có khóa học được truy cập gần đây.
-                      </p>
-                    </div>
-                  ) : (
-                    recentCourses.map((course) => {
-                      const termText = formatCourseTerm(
-                        course.academicYear,
-                        course.term,
-                      );
-                      const courseAction = getCourseExamAction(course, course.exams ?? []);
-
-                      return (
-                        <div
-                          key={course.id}
-                          className="rounded-xl border border-border/60 p-4"
-                        >
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="font-semibold text-foreground">
-                                  {safeLabel(course.name)}
-                                </h3>
-                                <Badge variant="secondary">
-                                  {safeLabel(course.code)}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                {course.description ||
-                                  "Khóa học chưa có mô tả."}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                                <span className="inline-flex items-center gap-1">
-                                  <CalendarDays className="h-3.5 w-3.5" />
-                                  {termText}
-                                </span>
-                                <span className="inline-flex items-center gap-1">
-                                  <UserRound className="h-3.5 w-3.5" />
-                                  Giảng viên: {safeLabel(course.lecturer?.fullName)}
-                                </span>
-                                <span>Tín chỉ: {course.credits ?? "Chưa cập nhật"}</span>
-                              </div>
-                            </div>
-
-                            <div className="min-w-[220px] space-y-2">
-                              <p className="text-sm font-medium text-foreground">
-                                {courseAction.summary}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Hoạt động gần nhất: {formatLatestActivityVi(course.lastAccessed)}
-                              </p>
-                              {courseAction.disabled ? (
-                                <Button className="w-full cursor-not-allowed" size="sm" disabled>
-                                  {courseAction.label}
-                                </Button>
-                              ) : (
-                                <Button asChild className="w-full" size="sm">
-                                  <Link href={courseAction.href}>{courseAction.label}</Link>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Upcoming Exams */}
           <div className="lg:col-span-3">
             <Card className="card-elevated">

@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiJobsService } from '../ai/ai-jobs.service';
 import { AiService } from '../ai/ai.service';
+import { MediaService } from '../media/media.service';
 import {
   AIGenerateSectionDto,
   AISection,
@@ -68,6 +69,7 @@ export class QuestionsService {
     private readonly prisma: PrismaService,
     private readonly aiJobsService: AiJobsService,
     private readonly aiService: AiService,
+    private readonly mediaService: MediaService,
   ) {}
 
   private normalizeDuplicateText(value: string) {
@@ -324,6 +326,10 @@ export class QuestionsService {
           defaultPoints: questionData.defaultPoints ?? 1,
           courseId: questionData.courseId,
           creatorId: user.id,
+          mediaUrl: questionData.mediaUrl,
+          mediaType: questionData.mediaType,
+          mediaKey: questionData.mediaKey,
+          mediaSizeBytes: questionData.mediaSizeBytes,
         },
       });
 
@@ -475,6 +481,10 @@ export class QuestionsService {
         isReusable: true,
         createdAt: true,
         updatedAt: true,
+        mediaUrl: true,
+        mediaType: true,
+        mediaKey: true,
+        mediaSizeBytes: true,
         creator: {
           select: { id: true, fullName: true, email: true },
         },
@@ -522,6 +532,8 @@ export class QuestionsService {
         isReusable: true,
         createdAt: true,
         updatedAt: true,
+        mediaKey: true,
+        mediaSizeBytes: true,
       },
     });
 
@@ -561,6 +573,12 @@ export class QuestionsService {
       assertLineContent(dto.options);
     }
 
+    // Attachment replaced or removed: release the old R2 object and reclaim
+    // its bytes from the storage-usage counter before writing the new value.
+    if (dto.mediaKey !== undefined && dto.mediaKey !== question.mediaKey) {
+      await this.mediaService.releaseObject(question.mediaKey, question.mediaSizeBytes);
+    }
+
     const updated = await this.prisma.question.update({
       where: { id },
       data: {
@@ -573,6 +591,10 @@ export class QuestionsService {
         points: questionData.points,
         defaultPoints: questionData.defaultPoints ?? question.defaultPoints ?? 1,
         courseId: effectiveCourseId,
+        mediaUrl: questionData.mediaUrl,
+        mediaType: questionData.mediaType,
+        mediaKey: questionData.mediaKey,
+        mediaSizeBytes: questionData.mediaSizeBytes,
       },
     });
 
@@ -1827,6 +1849,17 @@ export class QuestionsService {
       ? state.classification.courseScopeIds.map((x: any) => String(x)).filter(Boolean)
       : [];
 
+    // Single optional media attachment. `media` is `null` when the lecturer
+    // has no attachment (or explicitly removed it), or an object describing
+    // an already-confirmed R2 upload otherwise. See MediaModule.
+    const media = state?.classification?.media || null;
+    const mediaFields = {
+      mediaUrl: media?.mediaUrl ?? null,
+      mediaType: media?.mediaType ?? null,
+      mediaKey: media?.mediaKey ?? null,
+      mediaSizeBytes: media?.mediaSizeBytes ?? null,
+    };
+
     const requestedCourseId =
       courseScopeIds.length > 0
         ? courseScopeIds[0]
@@ -1840,7 +1873,7 @@ export class QuestionsService {
     if (questionId) {
       const existing = await this.prisma.question.findUnique({
         where: { id: questionId },
-        select: { id: true, creatorId: true, courseId: true },
+        select: { id: true, creatorId: true, courseId: true, mediaKey: true, mediaSizeBytes: true },
       });
       if (!existing) throw new NotFoundException('Không tìm thấy câu hỏi liên kết');
 
@@ -1851,6 +1884,12 @@ export class QuestionsService {
       }
 
       await this.assertTopicBelongsToCourse(topicId, resolvedCourseId);
+
+      // Attachment replaced or removed: release the old R2 object and
+      // reclaim its bytes from the storage-usage counter first.
+      if (mediaFields.mediaKey !== existing.mediaKey) {
+        await this.mediaService.releaseObject(existing.mediaKey, existing.mediaSizeBytes);
+      }
 
       await this.prisma.question.update({
         where: { id: questionId },
@@ -1864,6 +1903,7 @@ export class QuestionsService {
           points: defaultPoints,
           defaultPoints,
           courseId: requestedCourseId || existingCourseId,
+          ...mediaFields,
         },
       });
     } else {
@@ -1884,6 +1924,7 @@ export class QuestionsService {
           defaultPoints,
           courseId: requestedCourseId,
           creatorId: user.id,
+          ...mediaFields,
         },
         select: {
           id: true,

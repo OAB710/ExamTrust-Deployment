@@ -11,7 +11,7 @@ describe('QuestionsService duplicate question checks', () => {
       ...overrides,
     };
     const aiService = { suggestSimilarTopics: jest.fn() };
-    return { service: new QuestionsService(prisma as any, {} as any, aiService as any), prisma, aiService };
+    return { service: new QuestionsService(prisma as any, {} as any, aiService as any, {} as any), prisma, aiService };
   };
 
   it('returns an exact 100% pair after normalizing question text', async () => {
