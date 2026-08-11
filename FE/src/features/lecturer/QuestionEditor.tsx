@@ -89,6 +89,12 @@ export default function QuestionEditor() {
   const [mediaAttachment, setMediaAttachment] = useState<MediaAttachment | null>(null);
   const [mediaUploading, setMediaUploading] = useState(false);
   const mediaFileInputRef = useRef<HTMLInputElement | null>(null);
+  // Tracks the mediaKey actually persisted on the question right now (null
+  // for a brand-new question, or once the current attachment has never been
+  // saved). Only a key that is NOT this one is safe to delete from R2
+  // immediately — deleting the currently-saved key must wait for a
+  // successful "Lưu" so the DB reference never dangles ahead of the save.
+  const persistedMediaKeyRef = useRef<string | null>(null);
   const [learningObjective, setLearningObjective] = useState("");
 
   const answerState = useQuestionAnswerState();
@@ -151,7 +157,10 @@ export default function QuestionEditor() {
     try {
       const uploaded = await uploadMediaFile(file, effectiveType);
       setMediaAttachment(uploaded);
-      if (previous && previous.mediaKey !== uploaded.mediaKey) {
+      // Only clean up the old object immediately if it was never saved to
+      // this question — releasing the currently-saved one before "Lưu" is
+      // confirmed would dangle the DB reference if the save never happens.
+      if (previous && previous.mediaKey !== uploaded.mediaKey && previous.mediaKey !== persistedMediaKeyRef.current) {
         releaseMediaUpload(previous);
       }
       toast.success("Đã tải lên tệp đính kèm.");
@@ -165,7 +174,9 @@ export default function QuestionEditor() {
   const handleMediaToggle = (checked: boolean) => {
     setHasMedia(checked);
     if (!checked && mediaAttachment) {
-      releaseMediaUpload(mediaAttachment);
+      if (mediaAttachment.mediaKey !== persistedMediaKeyRef.current) {
+        releaseMediaUpload(mediaAttachment);
+      }
       setMediaAttachment(null);
     }
   };
@@ -180,7 +191,13 @@ export default function QuestionEditor() {
 
   const handleRemoveMediaAttachment = () => {
     if (mediaAttachment) {
-      releaseMediaUpload(mediaAttachment);
+      // Same rule as above: only delete right away if this file was never
+      // saved on the question. Otherwise leave it in R2 — "Lưu" (via
+      // publishDraft on the backend, which diffs against the DB's current
+      // mediaKey) is what actually commits the removal and cleans it up.
+      if (mediaAttachment.mediaKey !== persistedMediaKeyRef.current) {
+        releaseMediaUpload(mediaAttachment);
+      }
       setMediaAttachment(null);
     }
   };
@@ -410,9 +427,11 @@ export default function QuestionEditor() {
         mediaSizeBytes: questionData.mediaSizeBytes ?? 0,
         mediaType: questionData.mediaType,
       });
+      persistedMediaKeyRef.current = questionData.mediaKey;
     } else {
       setHasMedia(false);
       setMediaAttachment(null);
+      persistedMediaKeyRef.current = null;
     }
   };
 
@@ -424,6 +443,7 @@ export default function QuestionEditor() {
     setHasMedia(false);
     setMediaType("image");
     setMediaAttachment(null);
+    persistedMediaKeyRef.current = null;
     setLearningObjective("");
     setValidationErrors([]);
     resetAnswer();
@@ -444,6 +464,11 @@ export default function QuestionEditor() {
         media: hasMedia ? mediaAttachment : null,
       });
       await persistence.save({ questionId, courseId: course, topicId: topic, payload });
+      // The save just committed this as the question's saved attachment (or
+      // cleared it) — from now on this key is the one BE-side removal logic
+      // owns; further FE-side removes/replaces are eager-cleanup-eligible
+      // again once a NEW upload/removal happens on top of it.
+      persistedMediaKeyRef.current = hasMedia ? (mediaAttachment?.mediaKey ?? null) : null;
       localStorage.removeItem(QUESTION_DRAFT_STORAGE_KEY);
       if (addAnother && !questionId) {
         toast.success("Đã thêm câu hỏi.");
