@@ -623,9 +623,17 @@ model ExamSubmission {
   finalSnapshotVersion Int?
   examSnapshotId       String?
   examSnapshot         ExamSnapshot?     @relation(fields: [examSnapshotId], references: [id])
-  score                Int?
+  /// Vietnamese 10-point scale. Keep decimals so normalized scores such as
+  /// 0.87 are not truncated to 0 after automated or manual grading.
+  score                Decimal?          @db.Decimal(5, 2)
   startedAt            DateTime?
   submittedAt          DateTime?
+  /// An instructor-granted, per-attempt deadline. When present it overrides
+  /// the normal exam-window/time-limit deadline for this submission only.
+  deadlineOverrideAt   DateTime?
+  /// Set only when the server finalized the submission because its effective
+  /// deadline elapsed. It distinguishes auto-submission from voluntary submit.
+  autoSubmittedAt      DateTime?
   gradedAt             DateTime?
   createdAt            DateTime          @default(now())
 
@@ -643,6 +651,7 @@ model ExamSubmission {
   @@index([examInstanceId])
   @@index([examId, studentId, status])
   @@index([studentId, status, createdAt])
+  @@index([status, deadlineOverrideAt])
   @@index([submitIdempotencyKey])
   @@map("exam_submissions")
 }
@@ -932,11 +941,15 @@ model IntegrityLog {
   id           String            @id @default(uuid())
   proctoring   ProctoringSession @relation(fields: [proctoringId], references: [id])
   proctoringId String
+  /// Stable client-side id for retry-safe delivery during page navigation.
+  /// Nullable so historical integrity evidence remains untouched.
+  clientEventId String?          @db.VarChar(80)
   eventType    String
   details      String?           @db.Text
   timestamp    DateTime          @default(now())
 
   @@index([proctoringId])
+  @@unique([proctoringId, clientEventId])
   @@map("integrity_logs")
 }
 

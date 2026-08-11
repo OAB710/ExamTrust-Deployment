@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject, IsArray, IsInt, Min, Max, IsEnum, IsBoolean, IsNumber, MaxLength, MinLength } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsArray, IsInt, Min, Max, IsEnum, IsBoolean, IsNumber, MaxLength, MinLength, IsDateString } from 'class-validator';
 
 export class StartExamDto {
   @IsString()
@@ -101,7 +101,7 @@ export class AutosaveExamDto {
 
 export class AddLogsDto {
   @IsArray()
-  logs: Array<{ type: string; details?: any; ts?: number }>;
+  logs: Array<{ type: string; details?: any; ts?: number; clientEventId?: string }>;
 }
 
 export class GradeAnswerDto {
@@ -142,6 +142,23 @@ export class CreateScoreAdjustmentDto {
 }
 
 export class RevokeScoreAdjustmentDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(2000)
+  reason: string;
+}
+
+export class ReopenSubmissionDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(2000)
+  reason: string;
+}
+
+export class ExtendSubmissionDeadlineDto {
+  @IsDateString()
+  deadlineAt: string;
+
   @IsString()
   @MinLength(3)
   @MaxLength(2000)

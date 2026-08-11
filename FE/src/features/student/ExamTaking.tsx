@@ -29,6 +29,7 @@ import { api } from "@/lib/api";
 import { ExamSecurityModal } from "../../components/common/ExamSecurityModal";
 import {
   useExamSecurity,
+  type ExamSecurityState,
   type ViolationLog,
 } from "../../hooks/use-exam-security";
 import {
@@ -57,13 +58,29 @@ type DuringReviewFeedback = {
   explanation?: string;
 };
 
+type PendingIntegrityEvent = {
+  type: string;
+  details: string;
+  ts: number;
+  clientEventId: string;
+};
+
+function createIntegrityEventId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `integrity-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // ─── Main component ───────────────────────────────────────────────
 export default function ExamTaking() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const examId = searchParams.get("examId") || undefined;
   const isPreviewMode = searchParams.get("mode") === "preview";
-  const proctoringEnabled = searchParams.get("proctoring") !== "0";
+  // The URL is not a security policy. Resolve proctoring from the persisted
+  // exam configuration before enabling/turning off any exam safeguards.
+  const [proctoringEnabled, setProctoringEnabled] = useState(false);
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [examTitle, setExamTitle] = useState("Phiên thi");
@@ -76,6 +93,8 @@ export default function ExamTaking() {
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [flagged, setFlagged] = useState<Record<number, boolean>>({});
   const [timeLeft, setTimeLeft] = useState(EXAM_DURATION);
+  const [submissionDeadlineAt, setSubmissionDeadlineAt] = useState<number | null>(null);
+  const [showDeadlineNotice, setShowDeadlineNotice] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fullscreenCountdown, setFullscreenCountdown] = useState(15);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
@@ -93,13 +112,14 @@ export default function ExamTaking() {
   const [cameraRecoverySeconds, setCameraRecoverySeconds] = useState(0);
   const [cameraRecoveryExpired, setCameraRecoveryExpired] = useState(false);
   const [showFullscreenExitConfirm, setShowFullscreenExitConfirm] = useState(false);
+  const [showNavigationGuard, setShowNavigationGuard] = useState(false);
+  const [securityState, setSecurityState] = useState<ExamSecurityState | null>(null);
   const [duringReviewFeedback, setDuringReviewFeedback] = useState<
     Record<string, DuringReviewFeedback>
   >({});
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const logRef = useRef<{ type: string; ts: number; detail?: string }[]>([]);
-  const startSessionRequestedRef = useRef(false);
   const webcamStreamRef = useRef<MediaStream | null>(null);
   const webcamVideoRef = useRef<HTMLVideoElement | null>(null);
   const evidenceCaptureInFlightRef = useRef(false);
@@ -109,14 +129,28 @@ export default function ExamTaking() {
   const copiedTextRef = useRef<Set<string>>(new Set());
   const autosaveSequenceRef = useRef(new Map<string, number>());
   const autosaveTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const hydratedSubmissionRef = useRef(false);
+  const pendingIntegrityEventsRef = useRef(new Map<string, PendingIntegrityEvent>());
+  const pageUnloadRecordedRef = useRef(false);
+  const deadlineAutoSubmitRef = useRef(false);
 
   useEffect(() => {
     if (!examId || isPreviewMode) return;
+    const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (navigation?.type === "reload") {
+      // A browser reload cannot restore fullscreen without a user gesture.
+      // Return through the ready gate so webcam/fullscreen policies are applied
+      // again before the existing attempt is resumed.
+      router.replace(`/student/exam-ready?examId=${encodeURIComponent(examId)}`);
+      return;
+    }
     const storedSubmissionId = localStorage.getItem("currentSubmissionId");
     const storedExamId = localStorage.getItem("currentSubmissionExamId");
     if (storedSubmissionId && storedExamId === examId) {
       const storedStartedAt = Number(localStorage.getItem("currentSubmissionStartedAt") || 0);
       if (storedStartedAt > 0) setExamStartedAt(storedStartedAt);
+      const storedDeadlineAt = new Date(localStorage.getItem("currentSubmissionDeadline") || "").getTime();
+      if (Number.isFinite(storedDeadlineAt)) setSubmissionDeadlineAt(storedDeadlineAt);
       // ExamReadyCheck already created this submission before navigating here
       // (or a prior mount of this same page did, e.g. after a refresh).
       // Hydrating it synchronously here — instead of waiting for exam
@@ -125,6 +159,14 @@ export default function ExamTaking() {
       // false and fullscreen/tab-switch monitoring is effectively off.
       setSubmissionId(storedSubmissionId);
       setExamSessionStatus("IN_PROGRESS");
+      hydratedSubmissionRef.current = true;
+      void api.getMySubmissionById(storedSubmissionId)
+        .then((submission) => {
+          if (submission?.securityState) setSecurityState(submission.securityState);
+          const serverDeadlineAt = new Date(submission?.deadline || "").getTime();
+          if (Number.isFinite(serverDeadlineAt)) setSubmissionDeadlineAt(serverDeadlineAt);
+        })
+        .catch((error) => console.warn("Could not restore exam security state:", error));
       try {
         const storedPolicyRaw = localStorage.getItem("currentSubmissionWebcamPolicy");
         const storedPolicy = storedPolicyRaw ? JSON.parse(storedPolicyRaw) : null;
@@ -136,39 +178,14 @@ export default function ExamTaking() {
       setFullscreenRequestedAt(graceStartedAt);
     }
     localStorage.removeItem("examFullscreenGraceStartedAt");
-  }, [examId, isPreviewMode]);
+  }, [examId, isPreviewMode, router]);
 
   useEffect(() => {
-    if (!examId || isPreviewMode || isLoadingExam || !webcamPolicyResolved || submissionId) return;
-    if (webcamPolicy?.enabled && !webcamReady) return;
-    if (startSessionRequestedRef.current) return;
-    startSessionRequestedRef.current = true;
-
-    let cancelled = false;
-    api
-      .startExam(examId, webcamPolicy?.enabled ? { webcamReady: true, webcamConsentVersion: webcamPolicy.consentVersion } : undefined)
-      .then((started) => {
-        if (cancelled || !started?.id) return;
-        setSubmissionId(started.id);
-        const snapshotPolicy = started?.examInstance?.snapshotPayload?.webcamEvidencePolicy;
-        if (snapshotPolicy?.enabled) setWebcamPolicy(snapshotPolicy);
-        const startedAt = new Date(started?.startedAt || Date.now()).getTime();
-        setExamStartedAt(startedAt);
-        setExamSessionStatus("IN_PROGRESS");
-        localStorage.setItem("currentSubmissionId", started.id);
-        localStorage.setItem("currentSubmissionExamId", examId);
-        localStorage.setItem("currentSubmissionStartedAt", String(startedAt));
-        if (snapshotPolicy) localStorage.setItem("currentSubmissionWebcamPolicy", JSON.stringify(snapshotPolicy));
-      })
-      .catch((error) => {
-        startSessionRequestedRef.current = false;
-        console.error("Failed to initialize exam session:", error);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [examId, isLoadingExam, isPreviewMode, submissionId, webcamPolicy, webcamPolicyResolved, webcamReady]);
+    if (!examId || isPreviewMode || isLoadingExam || !webcamPolicyResolved || submissionId || hydratedSubmissionRef.current) return;
+    // A direct URL must not bypass the final user gesture that requests
+    // fullscreen. New attempts always begin from ExamReadyCheck.
+    router.replace(`/student/exam-ready?examId=${encodeURIComponent(examId)}`);
+  }, [examId, isLoadingExam, isPreviewMode, router, submissionId, webcamPolicyResolved]);
 
   useEffect(() => {
     let mounted = true;
@@ -210,6 +227,13 @@ export default function ExamTaking() {
         const configuredPolicy = exam?.settings?.webcamEvidencePolicy?.enabled
           ? exam.settings.webcamEvidencePolicy
           : null;
+        const settings = exam?.settings || {};
+        const configuredAttempts = exam?.maxAttempts ?? settings.maxAttempts ?? null;
+        const configuredTimeLimit = exam?.timeLimitMinutes ?? settings.timeLimitMinutes ?? exam?.duration ?? null;
+        const configuredProctoring = settings.proctoringEnabled === undefined
+          ? Boolean(settings.requiresProctoring)
+          : Boolean(settings.proctoringEnabled);
+        setProctoringEnabled(configuredProctoring && configuredAttempts !== null && configuredTimeLimit !== null);
         setWebcamPolicy((current: any) => current?.scheduledCaptureOffsetsMs?.length ? current : configuredPolicy);
         setQuestions(mapped.length > 0 ? mapped : []);
       } catch (err) {
@@ -256,16 +280,52 @@ export default function ExamTaking() {
     logRef.current.push({ type, ts: Date.now(), detail });
   }, []);
 
-  const persistIntegrityEvent = useCallback((type: string, detail?: string) => {
-    log(type, detail);
-    const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
-    if (!activeSubmissionId) return;
-    void api.sendExamLogs(activeSubmissionId, [{
+  const persistIntegrityEvent = useCallback(async (type: string, detail?: string, clientEventId = createIntegrityEventId()) => {
+    const event: PendingIntegrityEvent = {
       type,
       details: detail ?? `Integrity event: ${type}`,
       ts: Date.now(),
-    }]).catch((error) => console.error("sendExamLogs failed", error));
+      clientEventId,
+    };
+    log(type, detail);
+    const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
+    if (!activeSubmissionId) return undefined;
+    pendingIntegrityEventsRef.current.set(event.clientEventId, event);
+    try {
+      const response = await api.sendExamLogs(activeSubmissionId, [event]);
+      if (response?.securityState) setSecurityState(response.securityState);
+      pendingIntegrityEventsRef.current.delete(event.clientEventId);
+      return response?.securityState as ExamSecurityState | undefined;
+    } catch (error) {
+      // Retain the exact event for pagehide/retry. The server deduplicates it
+      // by clientEventId, so this cannot inflate the violation count.
+      console.error("sendExamLogs failed", error);
+      return undefined;
+    }
   }, [log, submissionId]);
+
+  useEffect(() => {
+    if (isPreviewMode) return;
+    const flushPendingIntegrityEvents = () => {
+      if (examSessionStatus !== "IN_PROGRESS") return;
+      const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
+      if (!activeSubmissionId) return;
+      if (!pageUnloadRecordedRef.current) {
+        pageUnloadRecordedRef.current = true;
+        const clientEventId = createIntegrityEventId();
+        pendingIntegrityEventsRef.current.set(clientEventId, {
+          type: "page_reload",
+          details: "Sinh viên đã tải lại hoặc rời trang trong khi lượt làm bài còn đang diễn ra",
+          ts: Date.now(),
+          clientEventId,
+        });
+      }
+      const pending = Array.from(pendingIntegrityEventsRef.current.values()).slice(0, 20);
+      if (pending.length > 0) api.sendExamLogsKeepalive(activeSubmissionId, pending);
+    };
+    window.addEventListener("pagehide", flushPendingIntegrityEvents);
+    return () => window.removeEventListener("pagehide", flushPendingIntegrityEvents);
+  }, [examSessionStatus, isPreviewMode, submissionId]);
 
   useEffect(() => () => {
     autosaveTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
@@ -464,7 +524,7 @@ export default function ExamTaking() {
   }, [log]);
 
   // Timer with auto-submit
-  const doSubmit = useCallback(async () => {
+  const doSubmit = useCallback(async (options: { deadlineReached?: boolean } = {}) => {
     setIsSubmitting(true);
     log("submit");
     // attempt to submit answers + logs if we have a submissionId stored
@@ -490,6 +550,11 @@ export default function ExamTaking() {
           const startedAt = new Date(started.startedAt || Date.now()).getTime();
           setExamStartedAt(startedAt);
           localStorage.setItem("currentSubmissionStartedAt", String(startedAt));
+          const startedDeadlineAt = new Date(started.deadline || "").getTime();
+          if (Number.isFinite(startedDeadlineAt)) {
+            setSubmissionDeadlineAt(startedDeadlineAt);
+            localStorage.setItem("currentSubmissionDeadline", String(started.deadline));
+          }
           const snapshotPolicy = started?.examInstance?.snapshotPayload?.webcamEvidencePolicy;
           if (snapshotPolicy) localStorage.setItem("currentSubmissionWebcamPolicy", JSON.stringify(snapshotPolicy));
         }
@@ -524,7 +589,7 @@ export default function ExamTaking() {
         details: l.detail,
         ts: l.ts,
       }));
-      await api.submitExam(activeSubmissionId, payloadAnswers, logs);
+      const submitResult = await api.submitExam(activeSubmissionId, payloadAnswers, logs);
       setExamSessionStatus("SUBMITTED");
 
       // Clear active submission markers after successful submit.
@@ -532,8 +597,16 @@ export default function ExamTaking() {
         localStorage.removeItem("currentSubmissionId");
         localStorage.removeItem("currentSubmissionExamId");
         localStorage.removeItem("currentSubmissionStartedAt");
+        localStorage.removeItem("currentSubmissionDeadline");
         localStorage.removeItem("currentSubmissionWebcamPolicy");
       } catch {}
+
+      if (options.deadlineReached || submitResult?.autoSubmitted) {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        toast.success("Đã tới hạn khóa bài thi, bài đã được nộp tự động.");
+        setShowDeadlineNotice(true);
+        return;
+      }
     } catch (err) {
       console.error("Failed to submit to server:", err);
       toast.error("Nộp bài không thành công. Vui lòng thử lại.");
@@ -549,10 +622,42 @@ export default function ExamTaking() {
     else router.push("/student/grading");
   }, [log, router, examId, answers, questions, submissionId]);
 
+  useEffect(() => {
+    deadlineAutoSubmitRef.current = false;
+  }, [submissionDeadlineAt]);
+
+  useEffect(() => {
+    if (!submissionId || isPreviewMode || examSessionStatus !== "IN_PROGRESS") return;
+
+    const syncServerDeadline = () => {
+      void api.getMySubmissionById(submissionId)
+        .then((submission) => {
+          const serverDeadlineAt = new Date(submission?.deadline || "").getTime();
+          if (Number.isFinite(serverDeadlineAt)) {
+            setSubmissionDeadlineAt(serverDeadlineAt);
+            localStorage.setItem("currentSubmissionDeadline", String(submission.deadline));
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    syncServerDeadline();
+    const interval = window.setInterval(syncServerDeadline, 15_000);
+    return () => window.clearInterval(interval);
+  }, [examSessionStatus, isPreviewMode, submissionId]);
+
   const handleViolation = useCallback(
     (entry: ViolationLog) => {
-      if (!proctoringEnabled) return;
-      persistIntegrityEvent(entry.type, entry.detail);
+      if (!proctoringEnabled) return undefined;
+      return persistIntegrityEvent(entry.type, entry.detail, entry.clientEventId);
+    },
+    [persistIntegrityEvent, proctoringEnabled],
+  );
+
+  const handleFirstFullscreenWarning = useCallback(
+    (entry: ViolationLog) => {
+      if (!proctoringEnabled) return undefined;
+      return persistIntegrityEvent("fullscreen_exit_warning", entry.detail, entry.clientEventId);
     },
     [persistIntegrityEvent, proctoringEnabled],
   );
@@ -575,13 +680,47 @@ export default function ExamTaking() {
     sessionStatus: isPreviewMode ? "IN_PROGRESS" : examSessionStatus,
     isSubmitting,
     initialFullscreenRequestedAt: fullscreenRequestedAt,
+    initialSecurityState: securityState,
     onViolation: isPreviewMode ? undefined : handleViolation,
+    onFullscreenWarning: isPreviewMode ? undefined : handleFirstFullscreenWarning,
     onEscalate: isPreviewMode ? undefined : () => {
       if (isSubmitting) return;
       log("violation_escalation", `Reached ${MAX_VIOLATIONS} violations`);
       doSubmit();
     },
   });
+
+  useEffect(() => {
+    if (
+      isPreviewMode ||
+      !proctoringEnabled ||
+      examSessionStatus !== "IN_PROGRESS" ||
+      !submissionId
+    ) return;
+
+    let restoringHistory = false;
+    window.history.pushState({ examNavigationGuard: submissionId }, "", window.location.href);
+
+    const onPopState = () => {
+      if (restoringHistory) {
+        restoringHistory = false;
+        return;
+      }
+      // popstate cannot be cancelled. Move forward synchronously before Next
+      // commits the route change, preserving the active recovery timer/state.
+      restoringHistory = true;
+      window.history.go(1);
+      window.setTimeout(() => { restoringHistory = false; }, 0);
+      void persistIntegrityEvent(
+        "navigation_attempt",
+        "Sinh viên đã dùng nút Quay lại của trình duyệt khi lượt làm bài còn đang diễn ra",
+      );
+      setShowNavigationGuard(true);
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [examSessionStatus, isPreviewMode, persistIntegrityEvent, proctoringEnabled, submissionId]);
 
   useEffect(() => {
     const isFullscreenRecoveryActive = isSecurityBlocked || isFullscreenExitPending;
@@ -607,17 +746,32 @@ export default function ExamTaking() {
   }, [isPreviewMode, isSecurityBlocked, isFullscreenExitPending, isSubmitting, doSubmit]);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          doSubmit();
+    if (isPreviewMode) return;
+
+    const updateTimer = () => {
+      if (submissionDeadlineAt) {
+        const remaining = Math.max(0, Math.ceil((submissionDeadlineAt - Date.now()) / 1000));
+        setTimeLeft(remaining);
+        if (remaining === 0 && !deadlineAutoSubmitRef.current) {
+          deadlineAutoSubmitRef.current = true;
+          void doSubmit({ deadlineReached: true });
+        }
+        return;
+      }
+
+      setTimeLeft((currentTime) => {
+        if (currentTime <= 1) {
+          void doSubmit();
           return 0;
         }
-        return t - 1;
+        return currentTime - 1;
       });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [doSubmit]);
+    };
+
+    updateTimer();
+    const id = window.setInterval(updateTimer, submissionDeadlineAt ? 250 : 1000);
+    return () => window.clearInterval(id);
+  }, [doSubmit, isPreviewMode, submissionDeadlineAt]);
 
   useEffect(() => () => {
     webcamStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -884,6 +1038,66 @@ export default function ExamTaking() {
         onReturnToExam={returnToExam}
       />
 
+      <Dialog
+        open={showDeadlineNotice}
+        onOpenChange={(open) => {
+          setShowDeadlineNotice(open);
+          if (!open) {
+            router.push(
+              examId
+                ? `/student/grading?examId=${encodeURIComponent(examId)}`
+                : "/student/grading",
+            );
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Đã tới hạn khóa bài thi, bài đã được nộp tự động</DialogTitle>
+            <DialogDescription>
+              Bài đã được nộp tự động từ các câu trả lời đã lưu trên hệ thống.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() =>
+                router.push(
+                  examId
+                    ? `/student/grading?examId=${encodeURIComponent(examId)}`
+                    : "/student/grading",
+                )
+              }
+            >
+              Xem kết quả
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showNavigationGuard} onOpenChange={setShowNavigationGuard}>
+        <DialogContent className="sm:max-w-md" onEscapeKeyDown={(event) => event.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Phiên làm bài vẫn đang diễn ra</DialogTitle>
+            <DialogDescription>
+              Hệ thống đã giữ bạn ở lại bài thi để không làm mất dữ liệu và số lần cảnh báo hiện có. Thao tác quay lại đã được ghi nhận để giảng viên xem xét khi cần.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Số tín hiệu toàn màn hình đã ghi nhận: <strong>{violationCount} / {MAX_VIOLATIONS}</strong>.
+          </p>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setShowNavigationGuard(false);
+                void returnToExam();
+              }}
+            >
+              Quay lại toàn màn hình
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showFullscreenExitConfirm} onOpenChange={setShowFullscreenExitConfirm}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1067,7 +1281,7 @@ export default function ExamTaking() {
                     <Button variant="outline" onClick={leavePreview}>
                       Tiếp tục chỉnh sửa
                     </Button>
-                    <Button variant="destructive" onClick={doSubmit} disabled={isSubmitting}>
+                    <Button variant="destructive" onClick={() => void doSubmit()} disabled={isSubmitting}>
                       {isSubmitting ? "Đang nộp bài..." : "Nộp bài"}
                     </Button>
                   </div>

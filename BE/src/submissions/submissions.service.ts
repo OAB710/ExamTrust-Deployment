@@ -195,8 +195,10 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
    */
   private resolveSubmissionDeadline(submission: {
     startedAt?: Date | null;
+    deadlineOverrideAt?: Date | null;
     exam?: { endTime?: Date | null; timeLimitMinutes?: number | null; duration?: number | null } | null;
   }): Date | null {
+    if (submission.deadlineOverrideAt) return new Date(submission.deadlineOverrideAt);
     const candidates: Date[] = [];
     const scheduledEnd = submission.exam?.endTime;
     if (scheduledEnd) candidates.push(new Date(scheduledEnd));
@@ -223,6 +225,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         id: true,
         studentId: true,
         startedAt: true,
+        deadlineOverrideAt: true,
         exam: {
           select: {
             endTime: true,
@@ -278,10 +281,16 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       const showAnswerReview = canShowAnswers && autoGradable;
       const showScoreReview = canShowScore && (autoGradable || manualGradeAvailable);
       const showFeedbackReview = canShowFeedback && (autoGradable || manualGradeAvailable);
+      const assignedScore = this.toNumber(
+        snapshot.assignedScore ?? snapshot.points ?? question.points ?? question.defaultPoints,
+        0,
+      );
 
       return {
         ...answer,
         questionSnapshot: undefined,
+        gradingMode: autoGradable ? 'AUTO' : 'MANUAL',
+        maxPoints: assignedScore,
         ...(showAnswerReview ? {} : { isCorrect: undefined }),
         ...(showScoreReview ? {} : { pointsAwarded: undefined, manualGradedAt: undefined }),
         ...(showFeedbackReview ? {} : { feedback: undefined }),
@@ -586,8 +595,17 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         });
       }
 
+      const securityState = await this.getStudentSecurityState(updatedSubmission.id);
+
       return {
         ...updatedSubmission,
+        resumed: true,
+        deadline: this.resolveSubmissionDeadline({
+          startedAt: updatedSubmission.startedAt,
+          deadlineOverrideAt: updatedSubmission.deadlineOverrideAt,
+          exam,
+        })?.toISOString() ?? null,
+        securityState,
         examInstance: this.sanitizeExamInstanceForStudent(
           updatedSubmission.examInstance,
           ProctoringEvidenceService.normalizePolicy(webcamPolicyInput),
@@ -778,6 +796,17 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
     return {
       ...startedSubmission,
+      resumed: false,
+      deadline: this.resolveSubmissionDeadline({
+        startedAt: startedSubmission.startedAt,
+        deadlineOverrideAt: startedSubmission.deadlineOverrideAt,
+        exam,
+      })?.toISOString() ?? null,
+      securityState: {
+        fullscreenExitCount: 0,
+        firstFullscreenWarningUsed: false,
+        navigationAttemptCount: 0,
+      },
       examInstance: this.sanitizeExamInstanceForStudent(startedSubmission.examInstance),
       proctoringEnabled: requiresDesktop,
       devicePolicy: requiresDesktop ? 'DESKTOP_ONLY' : 'ANY',
@@ -806,6 +835,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         gradedAt: true,
         score: true,
         startedAt: true,
+        deadlineOverrideAt: true,
         examInstanceId: true,
         examSnapshotId: true,
         submitIdempotencyKey: true,
@@ -1162,6 +1192,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           submittedAt: now,
           gradedAt: hasManualGrading ? null : now,
           score: normalizedScore,
+          autoSubmittedAt: autoSubmitted ? now : null,
           finalSnapshotVersion: lockedSubmission.version,
           lastActivityAt: now,
           version: { increment: 1 },
@@ -1179,6 +1210,9 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
               id: true,
               title: true,
               totalPoints: true,
+              endTime: true,
+              timeLimitMinutes: true,
+              duration: true,
             },
           },
           answers: {
@@ -1263,6 +1297,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             version: true,
             examSnapshotId: true,
             startedAt: true,
+            deadlineOverrideAt: true,
             exam: {
               select: {
                 id: true,
@@ -1492,11 +1527,36 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       : autosaveResult;
   }
 
+  private async getStudentSecurityState(submissionId: string) {
+    const [proctoringSession, fullscreenExitCount, firstFullscreenWarningCount, navigationAttemptCount] = await Promise.all([
+      this.prisma.proctoringSession.findUnique({
+        where: { submissionId },
+        select: { tabSwitchCount: true },
+      }),
+      this.prisma.integrityLog.count({
+        where: { eventType: 'fullscreen_exit', proctoring: { submissionId } },
+      }),
+      this.prisma.integrityLog.count({
+        where: { eventType: 'fullscreen_exit_warning', proctoring: { submissionId } },
+      }),
+      this.prisma.integrityLog.count({
+        where: { eventType: 'navigation_attempt', proctoring: { submissionId } },
+      }),
+    ]);
+
+    return {
+      fullscreenExitCount,
+      tabSwitchCount: Number(proctoringSession?.tabSwitchCount || 0),
+      firstFullscreenWarningUsed: firstFullscreenWarningCount > 0,
+      navigationAttemptCount,
+    };
+  }
+
   async addLogs(
     submissionId: string,
-    logs: Array<{ type: string; details?: any; ts?: number }>,
+    logs: Array<{ type: string; details?: any; ts?: number; clientEventId?: string }>,
     studentId: string
-  ): Promise<void> {
+  ): Promise<any> {
     const submission = await this.prisma.examSubmission.findUnique({
       where: { id: submissionId },
       include: {
@@ -1545,42 +1605,60 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
     // Persist proctoring aggregates and integrity logs
     const result = await this.prisma.$transaction(async (tx) => {
-      const tabSwitchCount = entries.filter((x) => String(x.type).toLowerCase() === 'tab_switch').length;
-      const mouseAnomalies = entries.filter((x) => String(x.type).toLowerCase() === 'mouse_anomaly').length;
       const now = new Date();
 
       const proctoringSession = await tx.proctoringSession.upsert({
         where: { submissionId },
         create: {
           submissionId,
-          tabSwitchCount,
-          mouseAnomalies,
+          tabSwitchCount: 0,
+          mouseAnomalies: 0,
         },
-        update: {
-          tabSwitchCount: { increment: tabSwitchCount },
-          mouseAnomalies: { increment: mouseAnomalies },
-        },
+        update: {},
       });
 
       const proctoringId = proctoringSession.id;
-      const createLogs = entries.map((l) => ({
-        proctoringId,
-        eventType: String(l.type).slice(0, 100),
-        details: l.details ? String(l.details).slice(0, 2000) : undefined,
-        timestamp: l.ts ? new Date(l.ts) : new Date(),
-      }));
-
-      if (createLogs.length > 0) {
-        await tx.integrityLog.createMany({ data: createLogs });
+      const acceptedEntries: typeof entries = [];
+      for (const entry of entries) {
+        const clientEventId = String(entry.clientEventId || '').trim().slice(0, 80) || null;
+        try {
+          await tx.integrityLog.create({
+            data: {
+              proctoringId,
+              clientEventId: clientEventId ?? undefined,
+              eventType: String(entry.type).slice(0, 100),
+              details: entry.details ? String(entry.details).slice(0, 2000) : undefined,
+              timestamp: entry.ts ? new Date(entry.ts) : new Date(),
+            },
+          });
+          acceptedEntries.push(entry);
+        } catch (error: any) {
+          // Navigation/unload retries reuse the same clientEventId. A duplicate
+          // means the original evidence is already durable, never a second event.
+          if (clientEventId && error?.code === 'P2002') continue;
+          throw error;
+        }
       }
 
-      if (submission.examInstanceId && entries.length > 0) {
+      const tabSwitchCount = acceptedEntries.filter((x) => String(x.type).toLowerCase() === 'tab_switch').length;
+      const mouseAnomalies = acceptedEntries.filter((x) => String(x.type).toLowerCase() === 'mouse_anomaly').length;
+      if (tabSwitchCount || mouseAnomalies) {
+        await tx.proctoringSession.update({
+          where: { id: proctoringId },
+          data: {
+            tabSwitchCount: { increment: tabSwitchCount },
+            mouseAnomalies: { increment: mouseAnomalies },
+          },
+        });
+      }
+
+      if (submission.examInstanceId && acceptedEntries.length > 0) {
         await tx.examInstance.update({
           where: { id: submission.examInstanceId },
           data: { lastActivityAt: now },
         });
 
-        const tabEvents = entries
+        const tabEvents = acceptedEntries
           .filter((l) => String(l.type).toLowerCase() === 'tab_switch')
           .map((l) => ({
             examInstanceId: submission.examInstanceId!,
@@ -1592,7 +1670,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           await tx.tabSwitchEvent.createMany({ data: tabEvents });
         }
 
-        const focusEvents = entries
+        const focusEvents = acceptedEntries
           .filter((l) => ['blur', 'window_blur', 'fullscreen_exit'].includes(String(l.type).toLowerCase()))
           .map((l) => ({
             examInstanceId: submission.examInstanceId!,
@@ -1604,7 +1682,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           await tx.focusEvent.createMany({ data: focusEvents });
         }
 
-        const interactionEvents = entries.map((l) => ({
+        const interactionEvents = acceptedEntries.map((l) => ({
           examInstanceId: submission.examInstanceId!,
           eventType: String(l.type).slice(0, 100),
           payload: {
@@ -1616,11 +1694,31 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         await tx.interactionLog.createMany({ data: interactionEvents });
       }
 
-      return { success: true };
+      const [securitySession, fullscreenExitCount, firstFullscreenWarningCount, navigationAttemptCount] = await Promise.all([
+        tx.proctoringSession.findUnique({
+          where: { id: proctoringId },
+          select: { tabSwitchCount: true },
+        }),
+        tx.integrityLog.count({ where: { proctoringId, eventType: 'fullscreen_exit' } }),
+        tx.integrityLog.count({ where: { proctoringId, eventType: 'fullscreen_exit_warning' } }),
+        tx.integrityLog.count({ where: { proctoringId, eventType: 'navigation_attempt' } }),
+      ]);
+
+      return {
+        success: true,
+        acceptedCount: acceptedEntries.length,
+        acceptedEntries,
+        securityState: {
+          fullscreenExitCount,
+          tabSwitchCount: Number(securitySession?.tabSwitchCount || 0),
+          firstFullscreenWarningUsed: firstFullscreenWarningCount > 0,
+          navigationAttemptCount,
+        },
+      };
     });
 
     // Publish realtime logs
-    if (entries.length > 0) {
+    if (result.acceptedEntries.length > 0) {
       this.publishRealtimeLogs(
         submission.examId,
         submission.id,
@@ -1629,11 +1727,15 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           fullName: submission.student?.fullName,
           studentId: submission.student?.studentId,
         },
-        entries,
+        result.acceptedEntries,
       );
     }
 
-    return result;
+    return {
+      success: result.success,
+      acceptedCount: result.acceptedCount,
+      securityState: result.securityState,
+    };
   }
 
 
@@ -2102,6 +2204,73 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  private async recalculateSubmissionScore(submissionId: string, client: any = this.prisma) {
+    const submission = await client.examSubmission.findUnique({
+      where: { id: submissionId },
+      select: {
+        id: true,
+        status: true,
+        examSnapshot: {
+          select: {
+            questions: {
+              select: {
+                questionId: true,
+                questionVersionId: true,
+                questionSnapshotId: true,
+                orderIndex: true,
+                assignedScore: true,
+                payload: true,
+                questionSnapshot: { select: { payload: true } },
+              },
+            },
+          },
+        },
+        answers: {
+          select: {
+            questionId: true,
+            pointsAwarded: true,
+            manualGradedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!submission) throw new NotFoundException('Không tìm thấy lượt làm bài');
+
+    const snapshotQuestions = this.mapSnapshotQuestions(submission.examSnapshot?.questions || []);
+    const answersByQuestionId = new Map<string, { manualGradedAt: Date | null }>(
+      submission.answers.map((answer) => [answer.questionId, answer]),
+    );
+    const rawScore = submission.answers.reduce(
+      (sum, answer) => sum + this.toNumber(answer.pointsAwarded),
+      0,
+    );
+    const maxRawScore = snapshotQuestions.reduce(
+      (sum, question) => sum + this.toNumber(question.assignedScore),
+      0,
+    );
+    const pendingManualGrading = snapshotQuestions.some((question) => {
+      if (this.isAutoGradable(question.type, question.answerKey)) return false;
+      return !answersByQuestionId.get(question.questionId)?.manualGradedAt;
+    });
+    const gradingComplete = !pendingManualGrading;
+    const nextStatus = submission.status === 'FINALIZED'
+      ? 'FINALIZED'
+      : gradingComplete
+        ? 'GRADED'
+        : 'SUBMITTED';
+
+    return client.examSubmission.update({
+      where: { id: submissionId },
+      data: {
+        score: this.normalizeScore(rawScore, maxRawScore),
+        status: nextStatus,
+        gradedAt: gradingComplete ? new Date() : null,
+      },
+      select: { id: true, score: true, status: true, gradedAt: true },
+    });
+  }
+
   async gradeAnswer(gradeDto: GradeAnswerDto, actor: { id: string; role?: string }) {
     await this.accessPolicy.assertInstructorCanAccessSubmissionAnswer(gradeDto.submissionAnswerId, actor);
 
@@ -2177,6 +2346,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         });
       }
 
+      await this.recalculateSubmissionScore(existing.submissionId, tx);
       return next;
     });
 
@@ -2366,6 +2536,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         adjustmentTotal: Number(adjustmentTotal.toFixed(2)),
         score: adjustedScore,
         totalPoints,
+        deadline: this.resolveSubmissionDeadline(submission)?.toISOString() ?? null,
       };
     });
 
@@ -3993,6 +4164,113 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /** Student-facing, grouped result history. Scores remain subject to the
+   * existing publication/review policy and are never inferred from pending work. */
+  async getMyResultsHistory(studentId: string) {
+    const submissions = await this.prisma.examSubmission.findMany({
+      where: { studentId },
+      select: {
+        id: true,
+        examId: true,
+        attemptNo: true,
+        status: true,
+        score: true,
+        startedAt: true,
+        submittedAt: true,
+        createdAt: true,
+        exam: {
+          select: {
+            id: true,
+            title: true,
+            resultsPublishedAt: true,
+            reviewSettings: true,
+            gradingStrategy: true,
+            settings: true,
+            course: { select: { code: true, name: true } },
+          },
+        },
+        integrityReview: {
+          select: { status: true, finalScore: true },
+        },
+        scoreAdjustments: {
+          where: { revokedAt: null },
+          select: { amount: true },
+        },
+      },
+      orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    const groups = new Map<string, any>();
+    for (const submission of submissions) {
+      const afterReview = (submission.exam.reviewSettings as any)?.enabled
+        ? (submission.exam.reviewSettings as any)?.phases?.after
+        : null;
+      const canShowScore = Boolean(submission.exam.resultsPublishedAt)
+        && (afterReview ? Boolean(afterReview.showScore) : true);
+      const adjustmentTotal = submission.scoreAdjustments.reduce(
+        (total, adjustment) => total + this.toNumber(adjustment.amount),
+        0,
+      );
+      const integrityFinalScore = String(submission.integrityReview?.status || '').toUpperCase() === 'CONFIRMED'
+        ? submission.integrityReview?.finalScore
+        : null;
+      const effectiveScore = integrityFinalScore != null
+        ? this.toNumber(integrityFinalScore)
+        : Number(Math.max(0, Math.min(10, this.toNumber(submission.score) + adjustmentTotal)).toFixed(2));
+      const visibleScore = canShowScore && submission.score != null ? effectiveScore : null;
+      const strategy = String(
+        submission.exam.gradingStrategy ?? (submission.exam.settings as any)?.gradingStrategy ?? 'HIGHEST',
+      ).toUpperCase();
+      const group = groups.get(submission.examId) || {
+        examId: submission.examId,
+        exam: {
+          id: submission.exam.id,
+          title: submission.exam.title,
+          course: submission.exam.course,
+          gradingStrategy: strategy,
+        },
+        attempts: [],
+        lastActivityAt: submission.submittedAt || submission.startedAt || submission.createdAt,
+        resultsPublished: Boolean(submission.exam.resultsPublishedAt),
+      };
+      group.attempts.push({
+        submissionId: submission.id,
+        attemptNo: submission.attemptNo,
+        status: submission.status,
+        startedAt: submission.startedAt,
+        submittedAt: submission.submittedAt,
+        score: visibleScore,
+        scoreAvailable: canShowScore && submission.score != null,
+      });
+      const currentActivity = new Date(group.lastActivityAt || 0).getTime();
+      const candidateActivity = new Date(submission.submittedAt || submission.startedAt || submission.createdAt).getTime();
+      if (candidateActivity > currentActivity) group.lastActivityAt = submission.submittedAt || submission.startedAt || submission.createdAt;
+      groups.set(submission.examId, group);
+    }
+
+    return [...groups.values()]
+      .map((group) => {
+        group.attempts.sort((left: any, right: any) => left.attemptNo - right.attemptNo);
+        const scoredAttempts = group.attempts.filter((attempt: any) => attempt.scoreAvailable && attempt.score !== null);
+        let officialScore: number | null = null;
+        if (scoredAttempts.length > 0) {
+          const strategy = group.exam.gradingStrategy;
+          if (strategy === 'AVERAGE') {
+            officialScore = scoredAttempts.reduce((sum: number, attempt: any) => sum + attempt.score, 0) / scoredAttempts.length;
+          } else if (strategy === 'FIRST_ATTEMPT') {
+            officialScore = scoredAttempts[0].score;
+          } else if (strategy === 'LAST_ATTEMPT') {
+            officialScore = scoredAttempts[scoredAttempts.length - 1].score;
+          } else {
+            officialScore = Math.max(...scoredAttempts.map((attempt: any) => attempt.score));
+          }
+          officialScore = Number(Math.max(0, Math.min(10, Number(officialScore))).toFixed(2));
+        }
+        return { ...group, officialScore, attemptCount: group.attempts.length };
+      })
+      .sort((left, right) => new Date(right.lastActivityAt || 0).getTime() - new Date(left.lastActivityAt || 0).getTime());
+  }
+
   async getMySubmissionById(submissionId: string, studentId: string) {
     const submission = await this.prisma.examSubmission.findFirst({
       where: {
@@ -4005,6 +4283,9 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             id: true,
             title: true,
             totalPoints: true,
+            endTime: true,
+            timeLimitMinutes: true,
+            duration: true,
             resultsPublishedAt: true,
             maxAttempts: true,
             settings: true,
@@ -4064,7 +4345,19 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       where: { submissionId: submission.id, revokedAt: null },
       select: { amount: true },
     });
-    return this.sanitizeStudentSubmissionView({ ...submission, scoreAdjustments });
+    const [sanitizedSubmission, securityState] = await Promise.all([
+      Promise.resolve(this.sanitizeStudentSubmissionView({ ...submission, scoreAdjustments })),
+      this.getStudentSecurityState(submission.id),
+    ]);
+    return {
+      ...sanitizedSubmission,
+      securityState,
+      deadline: this.resolveSubmissionDeadline({
+        startedAt: submission.startedAt,
+        deadlineOverrideAt: submission.deadlineOverrideAt,
+        exam: submission.exam,
+      })?.toISOString() ?? null,
+    };
   }
 
   async findOne(id: string, user?: RequestUser) {
@@ -4164,9 +4457,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getStudentSubmission(examId: string, studentId: string) {
-    return this.prisma.examSubmission.findFirst({
-      where: { examId, studentId },
-      include: {
+    const include = {
+        include: {
         exam: {
           select: {
             id: true,
@@ -4222,11 +4514,256 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           },
         },
       },
-      orderBy: [
-        { attemptNo: 'desc' },
-        { createdAt: 'desc' },
-      ],
+    } as const;
+
+    // A refresh/resume must resolve the active attempt first. Returning the
+    // latest completed attempt here made the ready screen look like a new
+    // start and could surface the max-attempt error for an unfinished exam.
+    const active = await this.prisma.examSubmission.findFirst({
+      where: { examId, studentId, status: 'IN_PROGRESS' },
+      ...include,
+      orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
     });
+    if (active) return active;
+
+    return this.prisma.examSubmission.findFirst({
+      where: { examId, studentId },
+      ...include,
+      orderBy: [{ attemptNo: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async reopenSubmission(submissionId: string, reason: string, user: RequestUser) {
+    const trimmedReason = String(reason || '').trim();
+    if (trimmedReason.length < 3) {
+      throw new BadRequestException('Cần ghi rõ lý do mở lại lượt làm bài');
+    }
+
+    const submission = await this.prisma.examSubmission.findUnique({
+      where: { id: submissionId },
+      include: {
+        exam: { select: { id: true, resultsPublishedAt: true } },
+        answers: { select: { id: true, manualGradedAt: true } },
+        scoreAdjustments: { where: { revokedAt: null }, select: { id: true } },
+        examInstance: { select: { id: true } },
+      },
+    });
+    if (!submission) throw new NotFoundException('Không tìm thấy lượt làm bài');
+    await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
+
+    if (!['SUBMITTED', 'GRADED', 'FLAGGED'].includes(String(submission.status).toUpperCase())) {
+      throw new ConflictException('Chỉ có thể mở lại lượt đã nộp nhưng chưa chấm/khóa kết quả');
+    }
+    if (submission.exam.resultsPublishedAt) {
+      throw new ConflictException('Không thể mở lại lượt sau khi kết quả bài thi đã được công bố');
+    }
+    if (submission.answers.some((answer) => Boolean(answer.manualGradedAt))) {
+      throw new ConflictException('Không thể mở lại lượt đã có chấm thủ công');
+    }
+    if (submission.scoreAdjustments.length > 0) {
+      throw new ConflictException('Không thể mở lại lượt đã có hiệu chỉnh điểm');
+    }
+
+    const now = new Date();
+    const reopened = await this.prisma.$transaction(async (tx) => {
+      await tx.submissionAnswer.updateMany({
+        where: { submissionId },
+        data: {
+          isCorrect: null,
+          pointsAwarded: null,
+          feedback: null,
+          manualGradedAt: null,
+        },
+      });
+      const nextSubmission = await tx.examSubmission.update({
+        where: { id: submissionId },
+        data: {
+          status: 'IN_PROGRESS',
+          score: null,
+          submittedAt: null,
+          autoSubmittedAt: null,
+          gradedAt: null,
+          submitLockedAt: null,
+          submitIdempotencyKey: null,
+          finalSnapshotVersion: null,
+          lastActivityAt: now,
+          version: { increment: 1 },
+        },
+      });
+      if (submission.examInstance?.id) {
+        await tx.examInstance.update({
+          where: { id: submission.examInstance.id },
+          data: {
+            status: 'IN_PROGRESS',
+            submittedAt: null,
+            rawScore: null,
+            maxRawScore: null,
+            normalizedScore: null,
+            lastActivityAt: now,
+          },
+        });
+      }
+      return nextSubmission;
+    });
+
+    // EventStore is the durable audit trail already used by the platform.
+    // A failed realtime publish is non-fatal inside QueueService; persistence
+    // of this critical event remains explicit and searchable by submission.
+    await this.queueService.publishEvent({
+      kind: 'exam_submission_reopened',
+      critical: true,
+      dedupId: `exam_submission_reopened:${submissionId}:${reopened.version}`,
+      payload: {
+        submissionId,
+        examId: submission.examId,
+        previousStatus: submission.status,
+        actor: { id: user.id, role: user.role },
+        reason: trimmedReason,
+        reopenedAt: now.toISOString(),
+      },
+    });
+
+    return {
+      id: reopened.id,
+      status: reopened.status,
+      attemptNo: reopened.attemptNo,
+      reopenedAt: now.toISOString(),
+    };
+  }
+
+  async extendSubmissionDeadline(
+    submissionId: string,
+    dto: { deadlineAt: string; reason: string },
+    user: RequestUser,
+  ) {
+    const reason = String(dto.reason || '').trim();
+    const deadlineAt = new Date(dto.deadlineAt);
+    if (reason.length < 3) {
+      throw new BadRequestException('Cần ghi rõ lý do gia hạn deadline');
+    }
+    if (!Number.isFinite(deadlineAt.getTime()) || deadlineAt.getTime() <= Date.now()) {
+      throw new BadRequestException('Deadline mới phải là một thời điểm trong tương lai');
+    }
+
+    const submission = await this.prisma.examSubmission.findUnique({
+      where: { id: submissionId },
+      include: {
+        exam: {
+          select: {
+            id: true,
+            endTime: true,
+            timeLimitMinutes: true,
+            duration: true,
+            resultsPublishedAt: true,
+          },
+        },
+        answers: { select: { manualGradedAt: true } },
+        scoreAdjustments: { where: { revokedAt: null }, select: { id: true } },
+        examInstance: { select: { id: true } },
+      },
+    });
+    if (!submission) throw new NotFoundException('Không tìm thấy lượt làm bài');
+    await this.accessPolicy.assertInstructorCanAccessExam(submission.examId, user);
+
+    const previousDeadline = this.resolveSubmissionDeadline(submission);
+    if (previousDeadline && deadlineAt.getTime() <= previousDeadline.getTime()) {
+      throw new BadRequestException('Deadline mới phải muộn hơn deadline hiện tại');
+    }
+
+    const status = String(submission.status || '').toUpperCase();
+    const shouldReopen = status !== 'IN_PROGRESS';
+    if (shouldReopen) {
+      if (!['SUBMITTED', 'GRADED', 'FLAGGED'].includes(status) || !submission.autoSubmittedAt) {
+        throw new ConflictException('Chỉ có thể gia hạn lại lượt đang làm hoặc lượt đã được hệ thống tự nộp');
+      }
+      if (submission.exam.resultsPublishedAt) {
+        throw new ConflictException('Không thể mở lại lượt sau khi kết quả bài thi đã được công bố');
+      }
+      if (submission.answers.some((answer) => Boolean(answer.manualGradedAt))) {
+        throw new ConflictException('Không thể mở lại lượt đã có chấm thủ công');
+      }
+      if (submission.scoreAdjustments.length > 0) {
+        throw new ConflictException('Không thể mở lại lượt đã có hiệu chỉnh điểm');
+      }
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (shouldReopen) {
+        await tx.submissionAnswer.updateMany({
+          where: { submissionId },
+          data: {
+            isCorrect: null,
+            pointsAwarded: null,
+            feedback: null,
+            manualGradedAt: null,
+          },
+        });
+      }
+
+      const nextSubmission = await tx.examSubmission.update({
+        where: { id: submissionId },
+        data: shouldReopen
+          ? {
+              status: 'IN_PROGRESS',
+              deadlineOverrideAt: deadlineAt,
+              autoSubmittedAt: null,
+              score: null,
+              submittedAt: null,
+              gradedAt: null,
+              submitLockedAt: null,
+              submitIdempotencyKey: null,
+              finalSnapshotVersion: null,
+              lastActivityAt: now,
+              version: { increment: 1 },
+            }
+          : {
+              deadlineOverrideAt: deadlineAt,
+              lastActivityAt: now,
+              version: { increment: 1 },
+            },
+      });
+
+      if (shouldReopen && submission.examInstance?.id) {
+        await tx.examInstance.update({
+          where: { id: submission.examInstance.id },
+          data: {
+            status: 'IN_PROGRESS',
+            submittedAt: null,
+            rawScore: null,
+            maxRawScore: null,
+            normalizedScore: null,
+            lastActivityAt: now,
+          },
+        });
+      }
+      return nextSubmission;
+    });
+
+    await this.queueService.publishEvent({
+      kind: 'exam_submission_deadline_extended',
+      critical: true,
+      dedupId: `exam_submission_deadline_extended:${submissionId}:${updated.version}`,
+      payload: {
+        submissionId,
+        examId: submission.examId,
+        actor: { id: user.id, role: user.role },
+        reason,
+        previousDeadline: previousDeadline?.toISOString() ?? null,
+        deadlineAt: deadlineAt.toISOString(),
+        previousStatus: submission.status,
+        reopened: shouldReopen,
+        extendedAt: now.toISOString(),
+      },
+    });
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      attemptNo: updated.attemptNo,
+      deadline: deadlineAt.toISOString(),
+      reopened: shouldReopen,
+    };
   }
 
   private resolveConfiguredMaxAttempts(exam: { maxAttempts?: number | null; settings?: any }): number | null {

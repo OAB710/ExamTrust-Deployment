@@ -95,7 +95,7 @@ export function formatDateTimeVi(value?: string | Date | null) {
 
 export function formatScoreVi(value?: number | null, maximum = 10) {
   if (value === null || value === undefined || Number.isNaN(value)) return "Chưa chấm";
-  return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value)}/${maximum}`;
+  return `${new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)}/${maximum}`;
 }
 
 export function formatPercentVi(value?: number | null) {

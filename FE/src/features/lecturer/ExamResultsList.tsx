@@ -19,6 +19,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Table,
@@ -120,6 +121,13 @@ function formatTimeSpent(start?: string | null, end?: string | null) {
   const m = mins % 60;
   if (h > 0) return `${h} giờ ${m} phút`;
   return `${m} phút`;
+}
+
+function toLocalDateTimeInput(value: string | Date) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
 function getEventTypeLabel(eventType?: string) {
@@ -235,6 +243,17 @@ export default function ExamResultsList() {
   const [answerMatrix, setAnswerMatrix] = useState<AnswerMatrix | null>(null);
   const [answerMatrixOpen, setAnswerMatrixOpen] = useState(false);
   const [answerMatrixLoading, setAnswerMatrixLoading] = useState(false);
+  const [reopenSubmission, setReopenSubmission] = useState<{ id: string; name: string } | null>(null);
+  const [reopenReason, setReopenReason] = useState("");
+  const [isReopening, setIsReopening] = useState(false);
+  const [deadlineExtensionSubmission, setDeadlineExtensionSubmission] = useState<{
+    id: string;
+    name: string;
+    deadline?: string | null;
+  } | null>(null);
+  const [deadlineExtensionAt, setDeadlineExtensionAt] = useState("");
+  const [deadlineExtensionReason, setDeadlineExtensionReason] = useState("");
+  const [isExtendingDeadline, setIsExtendingDeadline] = useState(false);
   const ITEMS_PER_PAGE = 10;
   const groupedAnomalies = groupAnomaliesByStudent(overview?.anomalies ?? []);
   const canOpenAnswerMatrix = overview?.exam?.maxAttempts === 1;
@@ -407,6 +426,62 @@ export default function ExamResultsList() {
       toast.error(err?.message || "Không thể tải ma trận đáp án.");
     } finally {
       setAnswerMatrixLoading(false);
+    }
+  };
+
+  const handleReopenSubmission = async () => {
+    if (!reopenSubmission) return;
+    if (reopenReason.trim().length < 3) {
+      toast.error("Hãy nhập lý do mở lại lượt làm bài.");
+      return;
+    }
+    try {
+      setIsReopening(true);
+      await api.reopenSubmission(reopenSubmission.id, reopenReason.trim());
+      toast.success("Đã mở lại lượt làm bài. Sinh viên sẽ tiếp tục đúng lượt này.");
+      setReopenSubmission(null);
+      setReopenReason("");
+      const next = await api.getExamSubmissions(examId!, page, ITEMS_PER_PAGE);
+      setSubmissions(unwrapPaginatedData(next));
+    } catch (err: any) {
+      toast.error(err?.message || "Không thể mở lại lượt làm bài.");
+    } finally {
+      setIsReopening(false);
+    }
+  };
+
+  const handleExtendDeadline = async () => {
+    if (!deadlineExtensionSubmission) return;
+    const deadline = new Date(deadlineExtensionAt);
+    if (!Number.isFinite(deadline.getTime()) || deadline.getTime() <= Date.now()) {
+      toast.error("Hãy chọn deadline mới trong tương lai.");
+      return;
+    }
+    if (deadlineExtensionReason.trim().length < 3) {
+      toast.error("Hãy nhập lý do gia hạn deadline.");
+      return;
+    }
+    try {
+      setIsExtendingDeadline(true);
+      const result = await api.extendSubmissionDeadline(
+        deadlineExtensionSubmission.id,
+        deadline.toISOString(),
+        deadlineExtensionReason.trim(),
+      );
+      toast.success(
+        result?.reopened
+          ? "Đã gia hạn và mở lại lượt làm bài của sinh viên."
+          : "Đã gia hạn deadline cho lượt làm bài.",
+      );
+      setDeadlineExtensionSubmission(null);
+      setDeadlineExtensionAt("");
+      setDeadlineExtensionReason("");
+      const next = await api.getExamSubmissions(examId!, page, ITEMS_PER_PAGE);
+      setSubmissions(unwrapPaginatedData(next));
+    } catch (err: any) {
+      toast.error(err?.message || "Không thể gia hạn deadline cho lượt làm bài.");
+    } finally {
+      setIsExtendingDeadline(false);
     }
   };
 
@@ -736,6 +811,8 @@ export default function ExamResultsList() {
                       const manualRow = manualBySubmission.get(s.id) as any;
                       const isManualCompleted = Boolean(manualRow?.completed);
                       const isPublished = Boolean(manualStatus?.published);
+                      const canExtendDeadline = String(s.status || "").toUpperCase() === "IN_PROGRESS"
+                        || Boolean(s.autoSubmittedAt);
                       return (
                       <TableRow key={s.id} className="transition-colors hover:bg-slate-50/80">
                         <TableCell className="py-4">
@@ -775,6 +852,7 @@ export default function ExamResultsList() {
                           <StatusBadge domain="submission" status={s.status} />
                         </TableCell>
                         <TableCell className="py-4 text-right">
+                          <div className="flex flex-wrap justify-end gap-2">
                           {manualRow?.manualTotal > 0 ? (
                             <Button
                               size="sm"
@@ -805,6 +883,38 @@ export default function ExamResultsList() {
                               Điều chỉnh điểm
                             </Button>
                           )}
+                          {!isPublished && ["SUBMITTED", "GRADED", "FLAGGED"].includes(String(s.status || "").toUpperCase()) ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-300 text-amber-800 hover:bg-amber-50"
+                              onClick={() => {
+                                setReopenSubmission({ id: s.id, name: s.student?.fullName || "Sinh viên" });
+                                setReopenReason("");
+                              }}
+                            >
+                              Mở lại lượt
+                            </Button>
+                          ) : null}
+                          {!isPublished && canExtendDeadline ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-sky-300 text-sky-800 hover:bg-sky-50"
+                              onClick={() => {
+                                setDeadlineExtensionSubmission({
+                                  id: s.id,
+                                  name: s.student?.fullName || "Sinh viên",
+                                  deadline: s.deadline,
+                                });
+                                setDeadlineExtensionAt("");
+                                setDeadlineExtensionReason("");
+                              }}
+                            >
+                              Gia hạn deadline
+                            </Button>
+                          ) : null}
+                          </div>
                         </TableCell>
                       </TableRow>
                       );
@@ -853,6 +963,70 @@ export default function ExamResultsList() {
               </section>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(reopenSubmission)} onOpenChange={(open) => {
+        if (!open && !isReopening) setReopenSubmission(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mở lại lượt làm bài</DialogTitle>
+            <DialogDescription>
+              {reopenSubmission?.name} sẽ tiếp tục đúng lượt đã nộp. Snapshot, câu trả lời autosave và dữ liệu giám sát được giữ nguyên; điểm tự động của lượt này sẽ được chấm lại khi nộp.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={reopenReason}
+            onChange={(event) => setReopenReason(event.target.value)}
+            placeholder="Lý do mở lại lượt làm bài (bắt buộc)"
+            disabled={isReopening}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setReopenSubmission(null)} disabled={isReopening}>Hủy</Button>
+            <Button onClick={handleReopenSubmission} disabled={isReopening || reopenReason.trim().length < 3}>
+              {isReopening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Xác nhận mở lại
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(deadlineExtensionSubmission)} onOpenChange={(open) => {
+        if (!open && !isExtendingDeadline) setDeadlineExtensionSubmission(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gia hạn deadline lượt làm bài</DialogTitle>
+            <DialogDescription>
+              {deadlineExtensionSubmission?.name} sẽ có deadline riêng. Nếu lượt này đã được hệ thống tự nộp, hệ thống sẽ mở lại đúng lượt đó; snapshot, autosave và log giám sát vẫn được giữ nguyên.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p className="text-muted-foreground">Deadline hiện tại: <strong className="text-foreground">{deadlineExtensionSubmission?.deadline ? new Date(deadlineExtensionSubmission.deadline).toLocaleString("vi-VN") : "Chưa giới hạn"}</strong></p>
+            <label className="font-medium" htmlFor="deadline-extension-at">Deadline mới</label>
+            <Input
+              id="deadline-extension-at"
+              type="datetime-local"
+              min={toLocalDateTimeInput(new Date())}
+              value={deadlineExtensionAt}
+              onChange={(event) => setDeadlineExtensionAt(event.target.value)}
+              disabled={isExtendingDeadline}
+            />
+            <label className="font-medium" htmlFor="deadline-extension-reason">Lý do gia hạn</label>
+            <Textarea
+              id="deadline-extension-reason"
+              value={deadlineExtensionReason}
+              onChange={(event) => setDeadlineExtensionReason(event.target.value)}
+              placeholder="Lý do chính đáng (bắt buộc)"
+              disabled={isExtendingDeadline}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeadlineExtensionSubmission(null)} disabled={isExtendingDeadline}>Hủy</Button>
+            <Button onClick={handleExtendDeadline} disabled={isExtendingDeadline || !deadlineExtensionAt || deadlineExtensionReason.trim().length < 3}>
+              {isExtendingDeadline ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Xác nhận gia hạn
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
       <Dialog open={Boolean(adjustmentHistory)} onOpenChange={(open) => !open && setAdjustmentHistory(null)}>

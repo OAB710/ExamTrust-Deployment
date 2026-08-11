@@ -395,9 +395,6 @@ export default function StudentCourseDetail() {
                               {action.label}
                             </Button>
                           ) : null}
-                          <Button asChild variant="outline">
-                            <Link href={`/student/exams/${exam.id}`}>Chi tiết</Link>
-                          </Button>
                         </div>
                       </div>
                     );

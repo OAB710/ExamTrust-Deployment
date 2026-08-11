@@ -1111,15 +1111,38 @@ class ApiClient {
     });
   }
 
-  async sendExamLogs(submissionId: string, logs: Array<{ type: string; details?: any; ts?: number }>) {
+  async sendExamLogs(submissionId: string, logs: Array<{ type: string; details?: any; ts?: number; clientEventId?: string }>) {
     return this.request<any>(`/submissions/${submissionId}/logs`, {
       method: 'POST',
       body: { logs },
     });
   }
 
+  /**
+   * Best-effort delivery for pagehide/unload. It deliberately does not refresh
+   * authentication: that asynchronous work is unreliable while the document is
+   * closing. The regular sender remains the source for normal delivery.
+   */
+  sendExamLogsKeepalive(submissionId: string, logs: Array<{ type: string; details?: any; ts?: number; clientEventId?: string }>) {
+    if (!submissionId || logs.length === 0) return;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = this.getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    void fetch(`${this.baseUrl}/submissions/${submissionId}/logs`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      keepalive: true,
+      body: JSON.stringify({ logs }),
+    }).catch(() => undefined);
+  }
+
   async getMySubmissions() {
     return this.request<any[]>('/submissions/my-submissions');
+  }
+
+  async getMyResultsHistory() {
+    return this.request<any[]>('/submissions/my-results-history');
   }
 
   async getMyExamSubmission(examId: string) {
@@ -1277,6 +1300,20 @@ class ApiClient {
     return this.request<any>(`/submissions/${submissionId}/score-adjustments/${adjustmentId}/revoke`, {
       method: "PATCH",
       body: { reason },
+    });
+  }
+
+  async reopenSubmission(submissionId: string, reason: string) {
+    return this.request<any>(`/submissions/${submissionId}/reopen`, {
+      method: "POST",
+      body: { reason },
+    });
+  }
+
+  async extendSubmissionDeadline(submissionId: string, deadlineAt: string, reason: string) {
+    return this.request<any>(`/submissions/${submissionId}/deadline-extension`, {
+      method: "POST",
+      body: { deadlineAt, reason },
     });
   }
 

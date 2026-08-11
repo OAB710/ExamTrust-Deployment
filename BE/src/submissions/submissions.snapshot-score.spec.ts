@@ -338,7 +338,7 @@ describe('SubmissionsService snapshot and score normalization', () => {
         feedback: 'Private until manually graded.',
         manualGradedAt: null,
         question: { type: 'ESSAY', correctAnswer: { rubric: 'Private' }, explanation: 'Private' },
-        questionSnapshot: { payload: { type: 'ESSAY', answerKey: { rubric: 'Private' }, explanation: 'Private' } },
+        questionSnapshot: { payload: { type: 'ESSAY', answerKey: { rubric: 'Private' }, explanation: 'Private', assignedScore: 4 } },
       }],
     });
 
@@ -347,5 +347,7 @@ describe('SubmissionsService snapshot and score normalization', () => {
     expect(view.answers[0].feedback).toBeUndefined();
     expect(view.answers[0].question.correctAnswer).toBeUndefined();
     expect(view.answers[0].question.explanation).toBeUndefined();
+    expect(view.answers[0].gradingMode).toBe('MANUAL');
+    expect(view.answers[0].maxPoints).toBe(4);
   });
 });

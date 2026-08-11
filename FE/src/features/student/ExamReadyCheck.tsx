@@ -76,6 +76,7 @@ export default function ExamReadyCheck() {
   const [allChecksPassed, setAllChecksPassed] = useState(false);
   const [isRunningChecks, setIsRunningChecks] = useState(false);
   const [checkingAttempt, setCheckingAttempt] = useState(false);
+  const [resumingAttempt, setResumingAttempt] = useState<{ attemptNo: number } | null>(null);
   const [isLoadingPolicy, setIsLoadingPolicy] = useState(Boolean(examId));
   const [proctoringEnabled, setProctoringEnabled] = useState(false);
   const [deviceBlocked, setDeviceBlocked] = useState(false);
@@ -119,6 +120,9 @@ export default function ExamReadyCheck() {
         if (!mounted || !existing) return;
         const status = String(existing.status || "").toUpperCase();
         if (["SUBMITTED", "GRADED", "FLAGGED", "IN_PROGRESS"].includes(status)) {
+          if (status === "IN_PROGRESS") {
+            setResumingAttempt({ attemptNo: Number(existing.attemptNo || 1) });
+          }
           setCurrentStep("system-check");
         }
       } catch {
@@ -201,24 +205,24 @@ export default function ExamReadyCheck() {
       return;
     }
 
-    // Must run synchronously at the top of this click handler, before any
-    // `await`. The Fullscreen API only honors a request made within the
-    // browser's short-lived "transient user activation" window tied to this
-    // click; once we `await` a network call the activation can be consumed/
-    // expired and a later requestFullscreen() call would silently fail. The
-    // route change below is a client-side navigation (no page reload), so a
-    // fullscreen entered here carries over into the exam-taking screen.
-    let fullscreenRequestedAt: number | null = null;
-    if (typeof document !== "undefined" && document.documentElement.requestFullscreen) {
-      try {
-        await document.documentElement.requestFullscreen();
-        fullscreenRequestedAt = Date.now();
-      } catch (error) {
-        // Denied/unsupported in this context (e.g. embedded webview). The
-        // exam-taking screen still falls back to prompting the student to
-        // enter fullscreen manually, so this is not fatal.
-        console.debug("[exam-ready] requestFullscreen ignored", error);
+    // This call itself must be the first asynchronous browser action of the
+    // final click. A browser only permits fullscreen inside this user gesture;
+    // it cannot be requested reliably after creating the session or navigating.
+    let fullscreenRequestedAt: number;
+    try {
+      if (typeof document === "undefined" || !document.documentElement.requestFullscreen) {
+        throw new Error("Trình duyệt không hỗ trợ chế độ toàn màn hình.");
       }
+      const fullscreenRequest = document.documentElement.requestFullscreen();
+      await fullscreenRequest;
+      if (!document.fullscreenElement) {
+        throw new Error("Không thể xác nhận chế độ toàn màn hình.");
+      }
+      fullscreenRequestedAt = Date.now();
+    } catch (error) {
+      console.warn("[exam-ready] fullscreen request was denied", error);
+      toast.error("Bạn cần cho phép chế độ toàn màn hình trước khi bắt đầu làm bài.");
+      return;
     }
 
     try {
@@ -235,6 +239,11 @@ export default function ExamReadyCheck() {
         localStorage.setItem("currentSubmissionExamId", examId);
         const startedAt = new Date(res.startedAt || Date.now()).getTime();
         localStorage.setItem("currentSubmissionStartedAt", String(startedAt));
+        if (res.deadline) {
+          localStorage.setItem("currentSubmissionDeadline", String(res.deadline));
+        } else {
+          localStorage.removeItem("currentSubmissionDeadline");
+        }
         const snapshotPolicy = res?.examInstance?.snapshotPayload?.webcamEvidencePolicy;
         if (snapshotPolicy) localStorage.setItem("currentSubmissionWebcamPolicy", JSON.stringify(snapshotPolicy));
         if (fullscreenRequestedAt) {
@@ -245,6 +254,9 @@ export default function ExamReadyCheck() {
       } catch {}
     } catch (err: any) {
       console.error("Failed to start submission on server:", err);
+      if (document.fullscreenElement) {
+        void document.exitFullscreen().catch(() => undefined);
+      }
       toast.error(err?.message || "Không thể bắt đầu bài thi. Vui lòng thử lại.");
       return;
     }
@@ -480,8 +492,14 @@ export default function ExamReadyCheck() {
                     <CheckCircle2 className="h-8 w-8 text-emerald-600" />
                   </div>
                   <div>
-                    <h2 className="mb-1 text-xl font-semibold text-foreground">Sẵn sàng bắt đầu</h2>
-                    <p className="text-muted-foreground">Phiên thi đã sẵn sàng. Bạn có thể bắt đầu ngay.</p>
+                    <h2 className="mb-1 text-xl font-semibold text-foreground">
+                      {resumingAttempt ? `Tiếp tục lượt ${resumingAttempt.attemptNo}` : "Sẵn sàng bắt đầu"}
+                    </h2>
+                    <p className="text-muted-foreground">
+                      {resumingAttempt
+                        ? "Lượt làm bài trước chưa được nộp. Hệ thống sẽ khôi phục câu trả lời và thời gian còn lại sau khi bạn vào lại toàn màn hình."
+                        : "Phiên thi đã sẵn sàng. Bạn có thể bắt đầu ngay."}
+                    </p>
                     {checkingAttempt && <p className="mt-2 text-xs text-muted-foreground">Đang kiểm tra trạng thái lượt thi...</p>}
                   </div>
                 </div>
@@ -503,7 +521,7 @@ export default function ExamReadyCheck() {
                 disabled={checkingAttempt || isLoadingPolicy || (webcamRequired && !webcamReady)}
               >
                 <ArrowRight className="h-5 w-5" />
-                Bắt đầu làm bài
+                {resumingAttempt ? `Tiếp tục lượt ${resumingAttempt.attemptNo} và vào toàn màn hình` : "Bắt đầu và vào toàn màn hình"}
               </Button>
               <BackToDashboardButton to="/student" label="Về trang tổng quan" variant="outline" size="default" className="h-12" />
             </div>

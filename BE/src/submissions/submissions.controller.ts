@@ -20,7 +20,7 @@ import { createReadStream } from 'fs';
 import { Response } from 'express';
 import { SubmissionsService } from './submissions.service';
 import { ExamRiskAssessmentService } from './exam-risk-assessment.service';
-import { StartExamDto, SubmitExamDto, GradeAnswerDto, SuggestGradeDto, UpdateSubmissionStatusDto, AddLogsDto, AutosaveExamDto, CreateScoreAdjustmentDto, RevokeScoreAdjustmentDto, RequestEvidenceCaptureDto, FinalizeEvidenceCaptureDto, ReviewEvidenceCaptureDto } from './dto/submission.dto';
+import { StartExamDto, SubmitExamDto, GradeAnswerDto, SuggestGradeDto, UpdateSubmissionStatusDto, AddLogsDto, AutosaveExamDto, CreateScoreAdjustmentDto, RevokeScoreAdjustmentDto, ReopenSubmissionDto, ExtendSubmissionDeadlineDto, RequestEvidenceCaptureDto, FinalizeEvidenceCaptureDto, ReviewEvidenceCaptureDto } from './dto/submission.dto';
 import { ProctoringEvidenceService } from './proctoring-evidence.service';
 import { ReviewAnomalyFlagDto, ReviewIntegrityCaseDto } from './dto/risk-assessment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -344,6 +344,12 @@ export class SubmissionsController {
     return this.submissionsService.findByStudent(req.user.id);
   }
 
+  @Get('my-results-history')
+  @UseGuards(JwtAuthGuard)
+  getMyResultsHistory(@Request() req) {
+    return this.submissionsService.getMyResultsHistory(req.user.id);
+  }
+
   @Get('exam/:examId/my-submission')
   @UseGuards(JwtAuthGuard)
   getMyExamSubmission(@Param('examId') examId: string, @Request() req) {
@@ -412,6 +418,20 @@ export class SubmissionsController {
     @Request() req,
   ) {
     return this.submissionsService.revokeScoreAdjustment(id, adjustmentId, dto, req.user);
+  }
+
+  @Post(':id/reopen')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  reopenSubmission(@Param('id') id: string, @Body() dto: ReopenSubmissionDto, @Request() req) {
+    return this.submissionsService.reopenSubmission(id, dto.reason, req.user);
+  }
+
+  @Post(':id/deadline-extension')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('LECTURER', 'ADMIN')
+  extendSubmissionDeadline(@Param('id') id: string, @Body() dto: ExtendSubmissionDeadlineDto, @Request() req) {
+    return this.submissionsService.extendSubmissionDeadline(id, dto, req.user);
   }
 
   @Get(':id')

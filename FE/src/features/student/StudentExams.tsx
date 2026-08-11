@@ -24,8 +24,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Loader2 } from "lucide-react";
+import { Calendar, Loader2, RotateCcw } from "lucide-react";
 import api from "@/lib/api";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
 
@@ -229,7 +230,6 @@ export default function StudentExams() {
         key: "startTime",
         label: "Thời gian bắt đầu",
         type: "date-range",
-        hideLabel: true,
       },
     ],
     [exams],
@@ -445,7 +445,10 @@ export default function StudentExams() {
                       const canStartNewAttempt =
                         !attemptLimitReached || submissionStatus === "IN_PROGRESS";
                       const hasResult = hasCompletedAttempt || attemptLimitReached;
-                      const resultUrl = exam.myCompletedSubmissionId || exam.mySubmissionId
+                      const supportsMultipleAttempts = Number(configuredMaxAttempts || 0) > 1;
+                      const resultUrl = supportsMultipleAttempts
+                        ? `/student/results?examId=${exam.id}`
+                        : exam.myCompletedSubmissionId || exam.mySubmissionId
                         ? `/student/grading?examId=${exam.id}&submissionId=${exam.myCompletedSubmissionId || exam.mySubmissionId}`
                         : `/student/grading?examId=${exam.id}`;
 
@@ -481,6 +484,10 @@ export default function StudentExams() {
                               Đã nộp
                             </StatusBadge>
                           ) : null}
+                          <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                            <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                            Số lần thi: {latestAttemptNo}{configuredMaxAttempts !== null ? `/${configuredMaxAttempts}` : " / Không giới hạn"}
+                          </Badge>
                         </div>
                       </div>
 
@@ -491,13 +498,14 @@ export default function StudentExams() {
                           </Button>
                         ) : null}
 
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/student/exams/${exam.id}`}>Chi tiết</Link>
-                        </Button>
-
                         {hasResult ? (
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={resultUrl}>Kết quả</Link>
+                          <Button
+                            asChild
+                            variant="outline"
+                            size="sm"
+                            className="border-emerald-500/50 bg-emerald-50 text-emerald-700 hover:border-emerald-600 hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+                          >
+                            <Link href={resultUrl}>Xem kết quả</Link>
                           </Button>
                         ) : null}
                       </div>
