@@ -47,6 +47,8 @@ import {
   type ComparisonFieldKey,
   type EditableOption,
   type ExamOption,
+  pickDefaultAnalyticsExamId,
+  sortExamsForAnalytics,
   type IntelligencePayload,
   type PreviewQuestion,
   type QuestionComparisonSnapshot,
@@ -131,7 +133,7 @@ export default function ExamAnalytics() {
       return;
     }
     if (!stillValid) {
-      setSelectedExamId(filteredExams[0].id);
+      setSelectedExamId(pickDefaultAnalyticsExamId(filteredExams));
     }
   }, [filteredExams, requestedExamId, selectedExamId]);
 
@@ -144,7 +146,7 @@ export default function ExamAnalytics() {
         setExamOptions(items);
         if (items.length > 0) {
           const requestedExam = items.find((item) => item.id === requestedExamId);
-          setSelectedExamId(requestedExam?.id || items[0].id);
+          setSelectedExamId(requestedExam?.id || pickDefaultAnalyticsExamId(items));
         }
       } catch (error) {
         console.error("Failed to load exams for analytics:", error);
@@ -323,6 +325,7 @@ export default function ExamAnalytics() {
           incorrectRate: item.incorrectRate,
           skipRate: item.skipRate,
           flaggedCount: item.flaggedCount,
+          possibleKeyError: item.possibleKeyError || undefined,
         },
       });
       setQuestionImprovement(item.questionId, response as AiImprovementSummary);
@@ -640,9 +643,10 @@ export default function ExamAnalytics() {
                     <SelectValue placeholder={filteredExams.length === 0 ? "Không tìm thấy bài thi" : "Chọn bài thi"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {filteredExams.map((e) => (
+                    {sortExamsForAnalytics(filteredExams).map((e) => (
                       <SelectItem key={e.id} value={e.id}>
                         {e.course?.code ? `${e.course.code} - ` : ""}{e.title}
+                        {!(Number(e._count?.submissions || 0) > 0) ? " (chưa có lượt nộp)" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -871,6 +875,11 @@ export default function ExamAnalytics() {
                                 <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{translateMetricText(item.questionText)}</p>
                               </div>
                               <div className="flex shrink-0 flex-wrap gap-2">
+                                {item.possibleKeyError ? (
+                                  <Badge variant="outline" className="border-red-300 bg-red-50 text-red-700">
+                                    ⚠ Nghi ngờ sai đáp án
+                                  </Badge>
+                                ) : null}
                                 <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">{item.incorrectRate.toFixed(0)}% sai</Badge>
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">Bỏ qua {item.skipRate.toFixed(0)}%</Badge>
                                 {item.flaggedCount > 0 ? (
@@ -878,6 +887,21 @@ export default function ExamAnalytics() {
                                 ) : null}
                               </div>
                             </div>
+
+                            {item.possibleKeyError ? (
+                              <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                                <p className="font-medium">
+                                  {item.possibleKeyError.mostPickedOptionRate.toFixed(0)}% sinh viên chọn đáp án{" "}
+                                  <span className="font-semibold">{item.possibleKeyError.mostPickedOptionLetter}</span>
+                                  , cao hơn hẳn đáp án hệ thống đang chấm đúng là{" "}
+                                  <span className="font-semibold">{item.possibleKeyError.correctOptionLetter}</span>{" "}
+                                  (chỉ {item.possibleKeyError.correctOptionRate.toFixed(0)}%).
+                                </p>
+                                <p className="mt-1 text-xs text-red-700">
+                                  Đây là dấu hiệu thống kê điển hình của việc nhập sai đáp án đúng khi tạo câu hỏi (trên {item.possibleKeyError.sampleSize} lượt trả lời) — không phải câu hỏi khó. Nên kiểm tra lại đáp án trước khi công bố điểm.
+                                </p>
+                              </div>
+                            ) : null}
 
                             {status === "APPROVED" ? (
                               <div className="mt-2 flex flex-wrap items-center gap-2">

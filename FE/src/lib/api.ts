@@ -1036,6 +1036,13 @@ class ApiClient {
     return this.request<any>(`/admin/dashboard/analytics${query.size ? `?${query}` : ''}`);
   }
 
+  async getAdminDevopsStatus() {
+    return this.request<{
+      ai: { provider: string; model: string };
+      botCommands: Array<{ command: string; description: string }>;
+    }>('/admin/dashboard/devops-status');
+  }
+
   async archiveExam(id: string) {
     return this.request<any>(`/exams/${id}/archive`, { method: 'PATCH' });
   }

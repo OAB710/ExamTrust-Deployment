@@ -331,10 +331,23 @@ export class SubmissionsController {
   @Get('exam/:examId/export')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('LECTURER', 'ADMIN')
-  async exportExamResults(@Param('examId') examId: string, @Request() req, @Res() res: Response) {
-    const csv = await this.submissionsService.exportExamResults(examId, req.user);
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="exam-${examId}-results.csv"`);
+  async exportExamResults(
+    @Param('examId') examId: string,
+    @Query('format') format: string,
+    @Request() req,
+    @Res() res: Response,
+  ) {
+    const fileBase = `exam-${examId}-results`;
+    if (String(format || 'csv').toLowerCase() === 'pdf') {
+      const pdf = await this.submissionsService.exportExamResultsPdf(examId, req.user);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileBase}.pdf"`);
+      return res.send(pdf);
+    }
+
+    const csv = await this.submissionsService.exportExamResultsCsv(examId, req.user);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileBase}.csv"`);
     return res.send(csv);
   }
 

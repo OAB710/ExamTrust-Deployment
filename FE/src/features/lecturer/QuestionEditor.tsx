@@ -632,8 +632,7 @@ export default function QuestionEditor() {
                         <Button
                           onClick={ai.generate}
                           disabled={ai.isGenerating || !ai.aiPrompt.trim() || !course}
-                          className="gap-2 w-full sm:w-auto"
-                          size="sm"
+                          className="h-11 w-full gap-2 sm:w-auto"
                           title={!course ? "Chọn học phần để dùng tính năng tạo bằng AI" : ""}
                         >
                           {ai.isGenerating ? (

@@ -91,11 +91,15 @@ import {
   FolderInput,
   ScanSearch,
   MoreHorizontal,
+  Image,
+  Music,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { unwrapPaginatedData } from "@/lib/api";
 import {
+  CANONICAL_QUESTION_TYPE_COUNT,
+  canonicalQuestionType,
   difficultyLabel as getDifficultyLabel,
   formatDateSafe as formatQuestionDate,
   typeLabels as questionTypeLabels,
@@ -306,6 +310,7 @@ export default function QuestionBankManagement() {
   const [duplicateScanCount, setDuplicateScanCount] = useState(0);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [missingExplanationOnly, setMissingExplanationOnly] = useState(false);
 
   useQuestionBankRouteState({
     courses, questions, searchParams, selectedCourse, setSelectedCourse,
@@ -334,7 +339,7 @@ export default function QuestionBankManagement() {
     setQuestionDraft(null);
   };
 
-  const filtered = filterAndSortQuestions({
+  const filteredBase = filterAndSortQuestions({
     questions,
     selectedCourse,
     search: appliedQuestionSearch,
@@ -342,6 +347,36 @@ export default function QuestionBankManagement() {
     sortBy,
     sortDir,
   });
+  const filtered = missingExplanationOnly
+    ? filteredBase.filter((q) => !q.explanation || !q.explanation.trim())
+    : filteredBase;
+
+  // Course summary stats (based on the full course bank, not the current search/filter)
+  const courseQuestions = selectedCourse
+    ? questions.filter((q) => q.course?.code === selectedCourse)
+    : [];
+  const totalCourseQuestions = courseQuestions.length;
+  const easyCount = courseQuestions.filter(
+    (q) => getDifficultyLabel(q.difficulty || 1).text === "Dễ",
+  ).length;
+  const mediumCount = courseQuestions.filter(
+    (q) => getDifficultyLabel(q.difficulty || 1).text === "Trung bình",
+  ).length;
+  const hardCount = courseQuestions.filter(
+    (q) => getDifficultyLabel(q.difficulty || 1).text === "Khó",
+  ).length;
+  const totalPoints = courseQuestions.reduce((s, q) => s + (q.points || 0), 0);
+  const avgPoints =
+    totalCourseQuestions > 0 ? (totalPoints / totalCourseQuestions).toFixed(1) : "0";
+  const distinctTypesUsed = new Set(
+    courseQuestions.map((q) => canonicalQuestionType(q.type)),
+  ).size;
+  const missingExplanationCount = courseQuestions.filter(
+    (q) => !q.explanation || !q.explanation.trim(),
+  ).length;
+  const withMediaCount = courseQuestions.filter((q) => !!q.mediaType).length;
+  const difficultyPct = (count: number) =>
+    totalCourseQuestions > 0 ? Math.round((count / totalCourseQuestions) * 100) : 0;
 
   const handleDelete = async (id: string) => {
     setDeleteTargetId(id);
@@ -598,7 +633,18 @@ export default function QuestionBankManagement() {
 
   useEffect(() => {
     setQuestionPage(1);
-  }, [selectedCourse, appliedQuestionSearch, appliedQuestionFilters, sortBy, sortDir]);
+  }, [
+    selectedCourse,
+    appliedQuestionSearch,
+    appliedQuestionFilters,
+    sortBy,
+    sortDir,
+    missingExplanationOnly,
+  ]);
+
+  useEffect(() => {
+    setMissingExplanationOnly(false);
+  }, [selectedCourse]);
 
   if (loading) {
     return (
@@ -940,6 +986,130 @@ export default function QuestionBankManagement() {
               </div>
             </div>
 
+            {totalCourseQuestions > 0 && (
+              <div className="grid gap-4 lg:grid-cols-3 mb-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold">
+                      Phân bố độ khó
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {totalCourseQuestions} câu hỏi trong ngân hàng
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pt-0">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-green-600">Dễ</span>
+                        <span className="text-muted-foreground">
+                          {easyCount} câu ({difficultyPct(easyCount)}%)
+                        </span>
+                      </div>
+                      <Progress value={difficultyPct(easyCount)} className="h-1.5 [&>div]:bg-green-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-yellow-600">Trung bình</span>
+                        <span className="text-muted-foreground">
+                          {mediumCount} câu ({difficultyPct(mediumCount)}%)
+                        </span>
+                      </div>
+                      <Progress value={difficultyPct(mediumCount)} className="h-1.5 [&>div]:bg-yellow-500" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-red-600">Khó</span>
+                        <span className="text-muted-foreground">
+                          {hardCount} câu ({difficultyPct(hardCount)}%)
+                        </span>
+                      </div>
+                      <Progress value={difficultyPct(hardCount)} className="h-1.5 [&>div]:bg-red-500" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold">Điểm số</CardTitle>
+                    <CardDescription className="text-xs">
+                      Tổng quan điểm trong ngân hàng câu hỏi
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2.5 pt-0 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Tổng điểm khả dụng</span>
+                      <span className="font-semibold tabular-nums">{totalPoints}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Điểm TB / câu</span>
+                      <span className="font-semibold tabular-nums">{avgPoints}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Loại câu hỏi đang dùng</span>
+                      <span className="font-semibold tabular-nums">
+                        {distinctTypesUsed}/{CANONICAL_QUESTION_TYPE_COUNT}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold">Chất lượng nội dung</CardTitle>
+                    <CardDescription className="text-xs">
+                      Chỉ số hỗ trợ rà soát trước khi ra đề — bấm để xem danh sách
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2.5 pt-0 text-sm">
+                    <button
+                      type="button"
+                      disabled={missingExplanationCount === 0}
+                      onClick={() => setMissingExplanationOnly((v) => !v)}
+                      className={`flex w-full items-center justify-between rounded-md px-2 py-1 -mx-2 text-left transition-colors ${
+                        missingExplanationCount > 0
+                          ? "hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                          : ""
+                      } ${missingExplanationOnly ? "bg-amber-50 dark:bg-amber-950/30 ring-1 ring-amber-300" : ""}`}
+                    >
+                      <span className="text-muted-foreground">
+                        Chưa có giải thích
+                        {missingExplanationOnly && (
+                          <span className="ml-1 text-xs text-amber-600">(đang lọc)</span>
+                        )}
+                      </span>
+                      <span
+                        className={`font-semibold tabular-nums underline-offset-2 ${
+                          missingExplanationCount > 0 ? "text-amber-600 underline" : ""
+                        }`}
+                      >
+                        {missingExplanationCount}
+                      </span>
+                    </button>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Có kèm hình ảnh / âm thanh</span>
+                      <span className="font-semibold tabular-nums">{withMediaCount}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {missingExplanationOnly && (
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                <span>
+                  Đang lọc: {missingExplanationCount} câu chưa có giải thích
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-amber-800 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40"
+                  onClick={() => setMissingExplanationOnly(false)}
+                >
+                  Xóa lọc
+                </Button>
+              </div>
+            )}
+
             <div className="mb-6 space-y-3">
               <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
                 <SearchBar
@@ -1025,7 +1195,14 @@ export default function QuestionBankManagement() {
                                 {formatQuestionDate(question.updatedAt)}
                               </TableCell>
                               <TableCell className="max-w-[360px] text-sm">
-                                <span className="block truncate" title={question.content}>{question.content}</span>
+                                <span className="flex items-center gap-1.5">
+                                  {question.mediaType === "image" ? (
+                                    <Image className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Câu hỏi có hình ảnh đính kèm" />
+                                  ) : question.mediaType === "audio" ? (
+                                    <Music className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Câu hỏi có âm thanh đính kèm" />
+                                  ) : null}
+                                  <span className="block truncate" title={question.content}>{question.content}</span>
+                                </span>
                               </TableCell>
                               <TableCell className="text-sm whitespace-nowrap">
                                 {questionTypeLabels[question.type] || question.type}

@@ -1,5 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
+import * as path from 'path';
+import * as PDFDocument from 'pdfkit';
+
+// pdfkit's built-in standard fonts (Helvetica etc.) only cover WinAnsi and
+// cannot render Vietnamese diacritics. DejaVu Sans has full Vietnamese
+// Unicode coverage, so we embed it for the exam-results PDF export.
+const VN_FONT_DIR = path.join(path.dirname(require.resolve('dejavu-fonts-ttf/package.json')), 'ttf');
+const VN_FONT_REGULAR = path.join(VN_FONT_DIR, 'DejaVuSans.ttf');
+const VN_FONT_BOLD = path.join(VN_FONT_DIR, 'DejaVuSans-Bold.ttf');
 import { PrismaService } from '../prisma/prisma.service';
 import { isIpInAnyCidr, normalizeIp } from '../common/utils/ip.utils';
 import { AccessPolicyService } from '../common/services/access-policy.service';
@@ -857,6 +866,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             timeLimitMinutes: true,
             duration: true,
             endTime: true,
+            resultsPublishedAt: true,
           },
         },
       },
@@ -1081,6 +1091,22 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         (eq) => !this.isAutoGradable(eq.type, eq.answerKey),
       );
 
+      // "Hiển thị kết quả ngay" (settings.showResultImmediately) promises the
+      // student their score right after submitting. That is only honest for
+      // fully auto-graded submissions — anything with essay/manual questions
+      // still needs the instructor's explicit publish action once grading is
+      // done (see publishExamResults).
+      if (
+        !hasManualGrading &&
+        submitSettings.showResultImmediately === true &&
+        !submission.exam.resultsPublishedAt
+      ) {
+        await tx.exam.updateMany({
+          where: { id: submission.examId, resultsPublishedAt: null },
+          data: { resultsPublishedAt: now },
+        });
+      }
+
       await tx.submissionAnswer.deleteMany({
         where: { submissionId },
       });
@@ -1158,7 +1184,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
       if (logs.length > 0) {
         const tabSwitchCount = logs.filter((x) => String(x.type).toLowerCase() === 'tab_switch').length;
-        const mouseAnomalies = logs.filter((x) => String(x.type).toLowerCase() === 'mouse_anomaly').length;
+        // Same fix as addLogs() above: the client only ever emits 'mouse_idle'.
+        const mouseAnomalies = logs.filter((x) => ['mouse_anomaly', 'mouse_idle'].includes(String(x.type).toLowerCase())).length;
 
         const proctoringSession = await tx.proctoringSession.upsert({
           where: { submissionId },
@@ -1641,7 +1668,12 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       }
 
       const tabSwitchCount = acceptedEntries.filter((x) => String(x.type).toLowerCase() === 'tab_switch').length;
-      const mouseAnomalies = acceptedEntries.filter((x) => String(x.type).toLowerCase() === 'mouse_anomaly').length;
+      // The client only ever emits 'mouse_idle' (see ExamTaking.tsx's mouse
+      // idle detector) — it never emits 'mouse_anomaly'. Counting only the
+      // latter meant this aggregate was permanently stuck at 0, silently
+      // disabling mouse-anomaly monitoring end-to-end (no counter increment,
+      // so the overview's synthetic mouse-anomaly alert never fired either).
+      const mouseAnomalies = acceptedEntries.filter((x) => ['mouse_anomaly', 'mouse_idle'].includes(String(x.type).toLowerCase())).length;
       if (tabSwitchCount || mouseAnomalies) {
         await tx.proctoringSession.update({
           where: { id: proctoringId },
@@ -2699,7 +2731,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
     const exam = await this.prisma.exam.findUnique({
       where: { id: examId },
-      select: { id: true, title: true },
+      select: { id: true, title: true, resultsPublishedAt: true },
     });
 
     if (!exam) {
@@ -2769,11 +2801,12 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
     const manualTotal = rows.reduce((sum, row) => sum + row.manualTotal, 0);
     const manualGraded = rows.reduce((sum, row) => sum + row.manualGraded, 0);
-    const published =
-      rows.length > 0 &&
-      rows
-        .filter((row) => row.manualTotal > 0)
-        .every((row) => ['GRADED', 'FINALIZED'].includes(String(row.status).toUpperCase()));
+    // `resultsPublishedAt` is the only real source of truth for "published"
+    // (it's what gates score/answer visibility in sanitizeStudentSubmissionView).
+    // Submission status alone is not — a pure auto-graded exam has every
+    // submission at GRADED the instant a student submits, long before anyone
+    // has published anything.
+    const published = Boolean(exam.resultsPublishedAt);
 
     return {
       exam,
@@ -2782,7 +2815,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       manualGraded,
       manualPending: Math.max(0, manualTotal - manualGraded),
       published,
-      canPublish: manualTotal > 0 && manualTotal === manualGraded && !published,
+      canPublish: rows.length > 0 && !published && manualTotal === manualGraded,
       submissions: rows,
     };
   }
@@ -3120,10 +3153,99 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Pulls a single option letter ("A"/"B"/"C"/"D"...) out of an answer/answerKey
+   * JSON value, for the single-answer close-ended types (MULTIPLE_CHOICE,
+   * TRUE_FALSE, FIND_ERROR) that store `{ answer: "X" }` (see
+   * normalizeSubmissionAnswer on the client and buildQuestionSnapshotPayload
+   * on the exam-publish path). Returns null for anything else (multi-select,
+   * matching, ordering, fill-blank, essay, or malformed data) — this
+   * intentionally only recognizes the shape it knows how to compare, rather
+   * than guessing at multi-value or free-text answers.
+   */
+  private extractSingleAnswerLetter(raw: any): string | null {
+    const parsed = this.parseJsonValue(raw, null);
+    if (parsed === null || typeof parsed === 'undefined') return null;
+    const candidate = typeof parsed === 'object' && parsed !== null ? parsed.answer : parsed;
+    if (typeof candidate === 'boolean') return candidate ? 'TRUE' : 'FALSE';
+    if (typeof candidate !== 'string') return null;
+    const trimmed = candidate.trim().toUpperCase();
+    // Reject multi-letter/comma-joined answers ("A,C") — those are
+    // multi-select, not the single-option case this analysis compares.
+    return /^[A-Z]$/.test(trimmed) ? trimmed : null;
+  }
+
   private toNumber(value: any, fallback = 0): number {
     if (value === null || typeof value === 'undefined') return fallback;
     const parsed = Number(typeof value?.toString === 'function' ? value.toString() : value);
     return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  /**
+   * Item-analysis technique: a distractor (wrong option) that is chosen more
+   * often than the keyed correct answer is the classic statistical signature
+   * of a mis-keyed item — e.g. the lecturer set "A" as correct but wrote the
+   * question so "D" is actually right, so most students (correctly) pick D
+   * and get marked wrong. A generic "high incorrect rate" flag can't tell
+   * that apart from a genuinely hard-but-correctly-keyed question; this can,
+   * because it looks at WHICH wrong option concentrates the misses rather
+   * than just how many there are.
+   *
+   * Deliberately conservative — this is meant to be a confident, actionable
+   * signal a lecturer can trust, not a guess:
+   *   - Only single-answer close-ended types (MULTIPLE_CHOICE/TRUE_FALSE/
+   *     FIND_ERROR) whose answer reduces to one option letter are evaluated.
+   *   - Requires the key itself (never inferred from student answers, so it
+   *     still works even if 100% of students were marked wrong).
+   *   - Requires a minimum sample size so a handful of answers can't trigger it.
+   *   - Requires the top distractor to outnumber the keyed answer AND clear
+   *     an absolute floor, so a narrowly-more-popular wrong option on an
+   *     otherwise close spread doesn't get over-flagged.
+   */
+  private detectPossibleKeyError(
+    rows: Array<{ selectedLetter: string | null }>,
+    correctOptionLetter: string | null,
+  ): { mostPickedOptionLetter: string; mostPickedOptionRate: number; correctOptionLetter: string; correctOptionRate: number; sampleSize: number } | null {
+    if (!correctOptionLetter) return null;
+
+    const MIN_SAMPLE_SIZE = 5;
+    const MIN_TOP_DISTRACTOR_RATE = 0.3;
+
+    const withSelection = rows.filter((r) => r.selectedLetter);
+    if (withSelection.length < MIN_SAMPLE_SIZE) return null;
+
+    const counts = new Map<string, number>();
+    for (const row of withSelection) {
+      const letter = row.selectedLetter!;
+      counts.set(letter, (counts.get(letter) || 0) + 1);
+    }
+
+    let topLetter = correctOptionLetter;
+    let topCount = 0;
+    for (const [letter, count] of counts) {
+      if (letter === correctOptionLetter) continue;
+      if (count > topCount) {
+        topLetter = letter;
+        topCount = count;
+      }
+    }
+    if (topLetter === correctOptionLetter) return null;
+
+    const correctCount = counts.get(correctOptionLetter) || 0;
+    const total = withSelection.length;
+    const topRate = topCount / total;
+    const correctRate = correctCount / total;
+
+    if (topCount <= correctCount) return null;
+    if (topRate < MIN_TOP_DISTRACTOR_RATE) return null;
+
+    return {
+      mostPickedOptionLetter: topLetter,
+      mostPickedOptionRate: this.clampPercent(topRate * 100),
+      correctOptionLetter,
+      correctOptionRate: this.clampPercent(correctRate * 100),
+      sampleSize: total,
+    };
   }
 
   private normalizeScore(rawScore: number, maxRawScore: number): number {
@@ -3437,11 +3559,14 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
               type: true,
               content: true,
               updatedAt: true,
+              correctAnswer: true,
+              options: true,
             },
           },
           questionVersion: {
             select: {
               stem: true,
+              answerKey: true,
             },
           },
         },
@@ -3479,6 +3604,13 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       questionType: item.question?.type || 'UNKNOWN',
       questionContent: item.questionVersion?.stem || item.question?.content || '',
       questionUpdatedAt: item.question?.updatedAt || null,
+      // Read the key straight from the source of truth, never inferred from
+      // student answers — if every single student answered "wrong", inferring
+      // the key from (rare/zero) correct rows would silently miss exactly the
+      // mis-keyed-answer case this is meant to catch.
+      correctOptionLetter: this.extractSingleAnswerLetter(
+        item.questionVersion?.answerKey ?? item.question?.correctAnswer,
+      ),
     }));
 
     const topicByQuestionId = new Map<string, { topicId: string; topicName: string }>();
@@ -3525,6 +3657,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             questionVersionId: true,
             isCorrect: true,
             timeTaken: true,
+            answer: true,
           },
         })
       : [];
@@ -3566,11 +3699,15 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const statsByVersionId = new Map(statsRows.map((row) => [row.questionVersionId, row]));
 
     const attemptsPerQuestion = Math.max(1, scopedCompletedSubmissions.length);
-    const byQuestion = new Map<string, Array<{ isCorrect: boolean; timeTaken: number | null }>>();
+    const byQuestion = new Map<string, Array<{ isCorrect: boolean; timeTaken: number | null; selectedLetter: string | null }>>();
     for (const row of answers) {
       const key = row.questionVersionId || row.questionId;
       const list = byQuestion.get(key) || [];
-      list.push({ isCorrect: Boolean(row.isCorrect), timeTaken: row.timeTaken ?? null });
+      list.push({
+        isCorrect: Boolean(row.isCorrect),
+        timeTaken: row.timeTaken ?? null,
+        selectedLetter: this.extractSingleAnswerLetter(row.answer),
+      });
       byQuestion.set(key, list);
     }
 
@@ -3653,6 +3790,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       const topic = topicByQuestionId.get(eq.questionId);
       const stats = eq.questionVersionId ? statsByVersionId.get(eq.questionVersionId) : null;
       const aiImprovement = aiImprovementByQuestion.get(eq.questionId) || null;
+      const keyErrorSignal = this.detectPossibleKeyError(rows, eq.correctOptionLetter);
       if (
         aiImprovement?.status === 'READY_FOR_REVIEW'
         && aiImprovement.sourceUpdatedAt
@@ -3680,6 +3818,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         pValue: stats?.pValue !== undefined && stats?.pValue !== null ? Number(stats.pValue) : null,
         difficultyIndex: stats?.difficultyIndex !== undefined && stats?.difficultyIndex !== null ? Number(stats.difficultyIndex) : null,
         discriminationIndex: stats?.discriminationIndex !== undefined && stats?.discriminationIndex !== null ? Number(stats.discriminationIndex) : null,
+        possibleKeyError: keyErrorSignal,
         action: {
           path: '/lecturer/question-bank',
           params: {
@@ -3755,6 +3894,11 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const mostIncorrectLimit = Math.min(8, Math.max(5, Math.round(questionMetrics.length * 0.2)));
     const mostIncorrectQuestions = [...questionMetrics]
       .sort((a, b) => {
+        // A likely mis-keyed answer is the single most actionable finding
+        // this report can surface — it points at a lecturer error, not just
+        // "students struggled" — so it outranks raw incorrect-rate ordering.
+        const keyErrorDelta = Number(Boolean(b.possibleKeyError)) - Number(Boolean(a.possibleKeyError));
+        if (keyErrorDelta !== 0) return keyErrorDelta;
         const incorrectDelta = b.incorrectRate - a.incorrectRate;
         if (incorrectDelta !== 0) return incorrectDelta;
         const skipDelta = b.skipRate - a.skipRate;
@@ -4412,48 +4556,252 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Export exam results as CSV string. Returns CSV content (headers + rows).
+   * Shared data-shaping for both the CSV and PDF exports so the two formats
+   * never drift apart. Scores/dates are kept in machine-friendly forms
+   * (ISO-8601, plain decimals) so the same export can be re-imported into
+   * a gradebook or analytics tool later, not just read by a human.
    */
-  async exportExamResults(examId: string, user?: RequestUser) {
+  private async getExamResultsExportData(examId: string, user?: RequestUser) {
     if (user) {
       await this.accessPolicy.assertInstructorCanAccessExam(examId, user);
     }
 
-    const submissions = await this.prisma.examSubmission.findMany({
-      where: { examId, status: { in: ['SUBMITTED', 'GRADED', 'FLAGGED'] } },
-      include: {
-        student: {
-          select: { fullName: true, studentId: true, email: true },
-        },
-        answers: true,
-        exam: { select: { id: true, title: true, totalPoints: true } },
+    const exam = await this.prisma.exam.findUnique({
+      where: { id: examId },
+      select: {
+        id: true,
+        title: true,
+        totalPoints: true,
+        passingScore: true,
+        resultsPublishedAt: true,
+        course: { select: { code: true, name: true } },
       },
-      orderBy: { submittedAt: 'desc' },
     });
-
-    // Build CSV
-    const rows: string[] = [];
-    // header
-    rows.push(['Student Name', 'Student ID', 'Email', 'Score', 'Total Points', 'Time Spent (mins)', 'Status', 'Submitted At'].join(','));
-
-    for (const s of submissions) {
-      const studentName = (s.student?.fullName || '').replace(/,/g, '');
-      const studentId = s.student?.studentId || '';
-      const email = s.student?.email || '';
-      const score = s.score != null ? String(s.score) : '';
-      const totalPoints = s.exam?.totalPoints != null ? String(s.exam.totalPoints) : '';
-      let timeSpentMins = '';
-      if (s.startedAt && s.submittedAt) {
-        const diffMs = new Date(s.submittedAt).getTime() - new Date(s.startedAt).getTime();
-        timeSpentMins = String(Math.round(diffMs / 60000));
-      }
-      const status = s.status || '';
-      const submittedAt = s.submittedAt ? new Date(s.submittedAt).toISOString() : '';
-
-      rows.push([studentName, studentId, email, score, totalPoints, timeSpentMins, status, submittedAt].join(','));
+    if (!exam) {
+      throw new NotFoundException('Không tìm thấy bài thi');
     }
 
-    return rows.join('\n');
+    const submissions = await this.prisma.examSubmission.findMany({
+      where: { examId, status: { in: ['SUBMITTED', 'GRADED', 'FLAGGED', 'FINALIZED'] } },
+      include: {
+        student: { select: { fullName: true, studentId: true, email: true } },
+        scoreAdjustments: { select: { amount: true, revokedAt: true } },
+        integrityReview: { select: { status: true, penaltyPercent: true } },
+      },
+      orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    const resultsPublished = Boolean(exam.resultsPublishedAt);
+    const passingScorePct = exam.passingScore != null ? Number(exam.passingScore) : null;
+
+    const rows = submissions.map((s) => {
+      const adjustmentTotal = (s.scoreAdjustments || [])
+        .filter((a) => !a.revokedAt)
+        .reduce((sum, a) => sum + this.toNumber(a.amount), 0);
+      const rawScore = s.score != null ? this.toNumber(s.score) : null;
+      const finalScore = rawScore != null
+        ? Number(Math.max(0, Math.min(10, rawScore + adjustmentTotal)).toFixed(2))
+        : null;
+      const percentage = finalScore != null ? Number((finalScore * 10).toFixed(1)) : null;
+      const passed = percentage != null && passingScorePct != null ? percentage >= passingScorePct : null;
+      const durationMinutes = s.startedAt && s.submittedAt
+        ? Math.max(0, Math.round((new Date(s.submittedAt).getTime() - new Date(s.startedAt).getTime()) / 60000))
+        : null;
+
+      return {
+        studentId: s.student?.studentId || '',
+        studentName: s.student?.fullName || '',
+        email: s.student?.email || '',
+        attemptNo: s.attemptNo,
+        status: s.status || '',
+        startedAt: s.startedAt ? new Date(s.startedAt).toISOString() : null,
+        submittedAt: s.submittedAt ? new Date(s.submittedAt).toISOString() : null,
+        gradedAt: s.gradedAt ? new Date(s.gradedAt).toISOString() : null,
+        durationMinutes,
+        rawScore,
+        adjustmentTotal: Number(adjustmentTotal.toFixed(2)),
+        finalScore,
+        scale: 10,
+        percentage,
+        passed,
+        integrityStatus: s.integrityReview?.status || null,
+        integrityPenaltyPercent: s.integrityReview?.penaltyPercent ?? null,
+        resultsPublished,
+      };
+    });
+
+    return {
+      exam: {
+        id: exam.id,
+        title: exam.title,
+        courseCode: exam.course?.code || '',
+        courseName: exam.course?.name || '',
+        totalPoints: exam.totalPoints,
+        passingScorePct,
+        resultsPublishedAt: exam.resultsPublishedAt ? exam.resultsPublishedAt.toISOString() : null,
+      },
+      rows,
+    };
+  }
+
+  private csvEscape(value: unknown): string {
+    const str = value === null || value === undefined ? '' : String(value);
+    return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  }
+
+  /**
+   * Export exam results as CSV. UTF-8 BOM is prepended so Excel renders
+   * Vietnamese names correctly instead of mojibake; scores/dates stay in
+   * plain machine-readable form for downstream re-import.
+   */
+  async exportExamResultsCsv(examId: string, user?: RequestUser): Promise<string> {
+    const { rows } = await this.getExamResultsExportData(examId, user);
+
+    const header = [
+      'Mã sinh viên', 'Họ và tên', 'Email', 'Lượt thi', 'Trạng thái',
+      'Thời gian bắt đầu', 'Thời gian nộp bài', 'Thời gian chấm',
+      'Thời gian làm bài (phút)', 'Điểm gốc (/10)', 'Điều chỉnh điểm',
+      'Điểm cuối cùng (/10)', 'Tỷ lệ (%)', 'Kết quả',
+      'Trạng thái toàn vẹn', 'Mức phạt toàn vẹn (%)', 'Đã công bố kết quả',
+    ];
+
+    const lines = [header.map((h) => this.csvEscape(h)).join(',')];
+    for (const row of rows) {
+      lines.push(
+        [
+          row.studentId,
+          row.studentName,
+          row.email,
+          row.attemptNo,
+          row.status,
+          row.startedAt ?? '',
+          row.submittedAt ?? '',
+          row.gradedAt ?? '',
+          row.durationMinutes ?? '',
+          row.rawScore ?? '',
+          row.adjustmentTotal,
+          row.finalScore ?? '',
+          row.percentage ?? '',
+          row.passed === null ? '' : row.passed ? 'Đạt' : 'Không đạt',
+          row.integrityStatus ?? '',
+          row.integrityPenaltyPercent ?? '',
+          row.resultsPublished ? 'Có' : 'Chưa',
+        ]
+          .map((v) => this.csvEscape(v))
+          .join(','),
+      );
+    }
+
+    return String.fromCharCode(0xfeff) + lines.join('\r\n');
+  }
+
+  /**
+   * Export exam results as a printable PDF report (summary + per-student table).
+   */
+  async exportExamResultsPdf(examId: string, user?: RequestUser): Promise<Buffer> {
+    const { exam, rows } = await this.getExamResultsExportData(examId, user);
+
+    return new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 40, size: 'A4' });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.registerFont('VN', VN_FONT_REGULAR);
+      doc.registerFont('VN-Bold', VN_FONT_BOLD);
+      doc.font('VN');
+
+      const gradedRows = rows.filter((r) => r.finalScore !== null);
+      const avgScore = gradedRows.length
+        ? gradedRows.reduce((sum, r) => sum + (r.finalScore || 0), 0) / gradedRows.length
+        : null;
+      const passedCount = rows.filter((r) => r.passed === true).length;
+
+      doc.fontSize(16).text('Báo cáo kết quả bài thi', { align: 'center' });
+      doc.moveDown(0.3);
+      doc.fontSize(12).text(exam.title, { align: 'center' });
+      doc.moveDown(0.8);
+
+      doc.fontSize(9).fillColor('#444');
+      doc.text(`Học phần: ${exam.courseCode ? `${exam.courseCode} - ${exam.courseName}` : exam.courseName || '-'}`);
+      doc.text(`Tổng điểm: ${exam.totalPoints ?? '-'}    Điểm đạt: ${exam.passingScorePct != null ? exam.passingScorePct + '%' : '-'}`);
+      doc.text(`Kết quả đã công bố cho sinh viên: ${exam.resultsPublishedAt ? 'Có' : 'Chưa'}`);
+      doc.text(`Tổng số lượt nộp bài: ${rows.length}    Điểm trung bình: ${avgScore != null ? avgScore.toFixed(2) : '-'}/10    Tỷ lệ đạt: ${rows.length ? Math.round((passedCount / rows.length) * 100) : 0}%`);
+      doc.text(`Xuất lúc: ${new Date().toLocaleString('vi-VN')}`);
+      doc.moveDown(0.8);
+      doc.fillColor('#000');
+
+      const columns: { key: keyof typeof rows[number]; label: string; width: number }[] = [
+        { key: 'studentId', label: 'MSSV', width: 60 },
+        { key: 'studentName', label: 'Họ và tên', width: 115 },
+        { key: 'attemptNo', label: 'Lượt', width: 30 },
+        { key: 'finalScore', label: 'Điểm', width: 40 },
+        { key: 'percentage', label: 'Tỷ lệ', width: 40 },
+        { key: 'passed', label: 'Kết quả', width: 45 },
+        { key: 'status', label: 'Trạng thái', width: 70 },
+        { key: 'submittedAt', label: 'Nộp lúc', width: 100 },
+      ];
+      const tableLeft = doc.page.margins.left;
+      const tableWidth = columns.reduce((sum, c) => sum + c.width, 0);
+      const rowHeight = 18;
+      const bottomLimit = doc.page.height - doc.page.margins.bottom;
+
+      const formatCell = (row: (typeof rows)[number], key: string): string => {
+        switch (key) {
+          case 'finalScore':
+            return row.finalScore != null ? row.finalScore.toFixed(2) : '-';
+          case 'percentage':
+            return row.percentage != null ? `${row.percentage}%` : '-';
+          case 'passed':
+            return row.passed === null ? '-' : row.passed ? 'Đạt' : 'Không đạt';
+          case 'submittedAt':
+            return row.submittedAt ? new Date(row.submittedAt).toLocaleString('vi-VN') : '-';
+          default:
+            return String((row as any)[key] ?? '-');
+        }
+      };
+
+      const drawHeaderRow = (y: number) => {
+        doc.font('VN-Bold').fontSize(8);
+        let x = tableLeft;
+        for (const col of columns) {
+          doc.text(col.label, x + 2, y + 4, { width: col.width - 4 });
+          x += col.width;
+        }
+        doc.font('VN').fontSize(8);
+        doc
+          .moveTo(tableLeft, y + rowHeight)
+          .lineTo(tableLeft + tableWidth, y + rowHeight)
+          .strokeColor('#999')
+          .stroke();
+      };
+
+      let y = doc.y;
+      drawHeaderRow(y);
+      y += rowHeight;
+
+      if (rows.length === 0) {
+        doc.fontSize(9).text('Chưa có lượt nộp bài nào cho bài thi này.', tableLeft, y + 6);
+      }
+
+      for (const row of rows) {
+        if (y + rowHeight > bottomLimit) {
+          doc.addPage();
+          y = doc.page.margins.top;
+          drawHeaderRow(y);
+          y += rowHeight;
+        }
+        let x = tableLeft;
+        for (const col of columns) {
+          doc.text(formatCell(row, col.key as string), x + 2, y + 4, { width: col.width - 4, ellipsis: true });
+          x += col.width;
+        }
+        y += rowHeight;
+      }
+
+      doc.end();
+    });
   }
 
   async getStudentSubmission(examId: string, studentId: string) {

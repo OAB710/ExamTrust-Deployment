@@ -51,6 +51,8 @@ type ExamQuestion = {
     explanation?: string | null;
     difficulty?: number;
     points?: number;
+    mediaType?: "image" | "audio" | null;
+    mediaUrl?: string | null;
   };
 };
 
@@ -423,7 +425,7 @@ export default function ExamPreview() {
               Rà soát câu hỏi, đáp án đúng và cấu hình trước khi sinh viên làm bài.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="flex items-center gap-3 flex-wrap text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <Clock className="h-4 w-4" /> {exam.duration} phút
@@ -468,7 +470,7 @@ export default function ExamPreview() {
                 : "Xem trước câu hỏi, đáp án đúng và chỉnh sửa từng câu nếu cần."}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {!exam.examQuestions?.length ? (
               <div className="py-8 text-center text-muted-foreground">
                 Bài thi chưa có câu hỏi.
@@ -510,6 +512,15 @@ export default function ExamPreview() {
                       </div>
 
                       <div className="space-y-4 p-4">
+                        {eq.question?.mediaType === "image" && eq.question?.mediaUrl ? (
+                          <img
+                            src={eq.question.mediaUrl}
+                            alt="Hình ảnh minh họa câu hỏi"
+                            className="max-h-80 w-full rounded-md border object-contain"
+                          />
+                        ) : eq.question?.mediaType === "audio" && eq.question?.mediaUrl ? (
+                          <audio src={eq.question.mediaUrl} controls className="w-full" />
+                        ) : null}
                         <p className="rounded-md border border-border/70 bg-background px-4 py-3 text-sm font-medium leading-6 whitespace-pre-wrap">
                           {eq.question?.content || "Chưa có nội dung"}
                         </p>

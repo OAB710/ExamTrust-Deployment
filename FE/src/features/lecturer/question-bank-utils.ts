@@ -11,6 +11,8 @@ export interface Question {
   explanation?: string | null;
   createdAt: string;
   updatedAt: string;
+  mediaType?: "image" | "audio" | null;
+  mediaUrl?: string | null;
 }
 
 export interface QuestionDraftSummary {
@@ -28,6 +30,30 @@ export const typeLabels: Record<string, string> = {
   SHORT_ANSWER: "Trả lời ngắn", ESSAY: "Tự luận", FILL_IN_BLANK: "Điền khuyết",
   MATCHING: "Ghép đôi", ORDERING: "Sắp xếp", FIND_ERROR: "Tìm lỗi sai",
 };
+
+// The 9 backend `type` values collapse into 7 real question-type categories in
+// the editor/exam UI: MULTIPLE_CHOICE/MULTI_SELECT are both "choice" questions
+// (single vs. multi-select is just an answer-count toggle) and SHORT_ANSWER/ESSAY
+// are both free-text answers. Use this canonical grouping wherever "how many of
+// the N question types are used" is reported, so the denominator matches what
+// lecturers actually pick from (7), not the raw enum count (9).
+const CANONICAL_TYPE_BY_RAW_TYPE: Record<string, string> = {
+  MULTIPLE_CHOICE: "CHOICE", MULTI_SELECT: "CHOICE",
+  TRUE_FALSE: "TRUE_FALSE",
+  FILL_IN_BLANK: "FILL_IN_BLANK",
+  MATCHING: "MATCHING",
+  ORDERING: "ORDERING",
+  FIND_ERROR: "FIND_ERROR",
+  SHORT_ANSWER: "TEXT_ANSWER", ESSAY: "TEXT_ANSWER",
+};
+
+export const CANONICAL_QUESTION_TYPE_COUNT = new Set(
+  Object.values(CANONICAL_TYPE_BY_RAW_TYPE),
+).size;
+
+export function canonicalQuestionType(type: string): string {
+  return CANONICAL_TYPE_BY_RAW_TYPE[type] || type;
+}
 
 const safeParseJson = (value: unknown): unknown => {
   if (value == null || typeof value !== "string") return value;

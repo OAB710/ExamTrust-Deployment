@@ -67,6 +67,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft,
   ArrowRight,
   Plus,
@@ -90,6 +96,7 @@ import {
   ChevronDown,
   Clock,
   Eye,
+  MoreHorizontal,
 } from "lucide-react";
 import api, { unwrapPaginatedData } from "@/lib/api";
 import { toast } from "sonner";
@@ -2136,32 +2143,38 @@ export default function CreateCourse() {
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => event.stopPropagation()}
                     >
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(course)}
-                        title="Sửa khóa học"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <ConfirmActionDialog
-                        title="Xóa khóa học"
-                        description="Hành động này không thể hoàn tác. Khóa học sẽ bị xóa nếu không có dữ liệu phụ thuộc ngăn thao tác."
-                        confirmText="Xóa"
-                        destructive
-                        onConfirm={() => handleDelete(course.id)}
-                      >
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          title="Xóa khóa học"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </ConfirmActionDialog>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="gap-2 text-xs"
+                            onClick={() => openEditDialog(course)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                            Sửa
+                          </DropdownMenuItem>
+                          <ConfirmActionDialog
+                            title="Xóa khóa học"
+                            description="Hành động này không thể hoàn tác. Khóa học sẽ bị xóa nếu không có dữ liệu phụ thuộc ngăn thao tác."
+                            confirmText="Xóa"
+                            destructive
+                            onConfirm={() => handleDelete(course.id)}
+                          >
+                            <DropdownMenuItem
+                              className="gap-2 text-xs text-destructive"
+                              onSelect={(event) => event.preventDefault()}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Xóa
+                            </DropdownMenuItem>
+                          </ConfirmActionDialog>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <ChevronRight className="hidden h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground md:block" />
                   </div>
                     </div>
 

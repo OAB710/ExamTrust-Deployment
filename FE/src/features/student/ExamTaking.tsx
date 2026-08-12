@@ -140,8 +140,21 @@ export default function ExamTaking() {
 
   useEffect(() => {
     if (!examId || isPreviewMode) return;
+
+    // `PerformanceNavigationTiming.type` describes how the CURRENT DOCUMENT was
+    // loaded, not how this specific page was reached — client-side router.push
+    // navigations (like the one ExamReadyCheck just did) never create a new
+    // navigation entry, so this stays "reload" for the rest of the browser tab's
+    // life after any earlier full-page refresh (even one on a completely
+    // different page). Checking it BEFORE urlSubmissionId below made a stale
+    // "reload" from minutes/pages earlier bounce a just-started attempt straight
+    // back to exam-ready — before the student ever saw the exam — leaving an
+    // orphaned IN_PROGRESS submission server-side (surfacing next time as
+    // "Tiếp tục lượt N" instead of a fresh start). A fresh submissionId in the
+    // URL is the authoritative signal that this navigation came from
+    // ExamReadyCheck's own user gesture, so it must always win over this guard.
     const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-    if (navigation?.type === "reload") {
+    if (navigation?.type === "reload" && !urlSubmissionId) {
       // A browser reload cannot restore fullscreen without a user gesture.
       // Return through the ready gate so webcam/fullscreen policies are applied
       // again before the existing attempt is resumed.
@@ -717,6 +730,17 @@ export default function ExamTaking() {
     [persistIntegrityEvent, proctoringEnabled],
   );
 
+  // Must be a stable reference: an inline arrow here would give
+  // useExamSecurity's onEscalate a new identity every render, which (via its
+  // reconcileSecurityState dependency) re-fires an effect that re-derives
+  // violationCounts into a brand-new object every time — an infinite
+  // render loop (React error #185 / "Maximum update depth exceeded").
+  const handleEscalate = useCallback(() => {
+    if (isSubmitting) return;
+    log("violation_escalation", `Reached ${MAX_VIOLATIONS} violations`);
+    doSubmitRef.current();
+  }, [isSubmitting, log]);
+
   const {
     isBlocked: isSecurityBlocked,
     violationCount,
@@ -738,11 +762,7 @@ export default function ExamTaking() {
     initialSecurityState: securityState,
     onViolation: isPreviewMode ? undefined : handleViolation,
     onFullscreenWarning: isPreviewMode ? undefined : handleFirstFullscreenWarning,
-    onEscalate: isPreviewMode ? undefined : () => {
-      if (isSubmitting) return;
-      log("violation_escalation", `Reached ${MAX_VIOLATIONS} violations`);
-      doSubmit();
-    },
+    onEscalate: isPreviewMode ? undefined : handleEscalate,
   });
 
   useEffect(() => {
@@ -1036,7 +1056,12 @@ export default function ExamTaking() {
 
   const hasReviewContent = (fb: DuringReviewFeedback | undefined): boolean => {
     if (!fb) return false;
-    if (fb.unavailable) return true;
+    // `unavailable` just means "this question type can't be auto-graded"
+    // (e.g. essay) — surfacing that mid-attempt, while the student hasn't
+    // even submitted yet, reads as a premature/confusing "grading" message
+    // with no actionable content. Say nothing instead; there is nothing to
+    // show until an instructor actually grades it post-submission.
+    if (fb.unavailable) return false;
     return (
       typeof fb.pointsAwarded === "number" ||
       typeof fb.isCorrect === "boolean" ||

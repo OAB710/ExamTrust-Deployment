@@ -16,4 +16,9 @@ export class AdminDashboardController {
   analytics(@Query('from') from?: string, @Query('to') to?: string) {
     return this.service.analytics(from, to);
   }
+
+  @Get('devops-status')
+  devopsStatus() {
+    return this.service.devopsStatus();
+  }
 }

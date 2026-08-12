@@ -15,6 +15,7 @@ export interface BaseQ {
   title: string;
   points: number;
   audioUrl?: string;
+  imageUrl?: string;
 }
 
 export interface SingleChoiceQ extends BaseQ {
@@ -223,6 +224,8 @@ export function mapBackendToUiQuestion(q: any, index: number): Question {
     title: resolveQuestionTitle(q, index),
     points: Number(q?.points ?? 1),
     content: String(q?.content || ""),
+    imageUrl: q?.mediaType === "image" && q?.mediaUrl ? String(q.mediaUrl) : undefined,
+    audioUrl: q?.mediaType === "audio" && q?.mediaUrl ? String(q.mediaUrl) : undefined,
   };
 
   if (type === "TRUE_FALSE") {
@@ -394,8 +397,12 @@ export type AnswerMap = Record<number, unknown>;
 
 export function isAnswered(q: Question, answers: AnswerMap): boolean {
   const a = answers[q.id];
-  if (q.type === "ordering") return true; // any arrangement counts
   if (a === undefined || a === null) return false;
+  if (q.type === "ordering")
+    // The student must have actually reordered something (setAnswer is only
+    // called from a move action) — the untouched default arrangement must
+    // not read as "answered".
+    return Array.isArray(a) && (a as string[]).length > 0;
   if (q.type === "multi-choice")
     return Array.isArray(a) && (a as number[]).length > 0;
   if (q.type === "fill-blank")

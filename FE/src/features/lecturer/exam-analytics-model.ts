@@ -14,7 +14,33 @@ export type ExamOption = {
   status?: string;
   endTime?: string | null;
   course?: AnalyticsCourseInfo;
+  _count?: { submissions?: number };
 };
+
+/**
+ * The exam list from GET /exams sorts by `updatedAt desc` — whichever exam a
+ * lecturer last edited, not whichever has something worth analyzing. Ranks
+ * exams with at least one submission first (most recently concluded first
+ * within that group, since that's realistically what a lecturer is checking
+ * in on right after grading closes), then exams with no data yet, so the
+ * dropdown itself guides toward something worth looking at instead of just
+ * mirroring "last touched".
+ */
+export function sortExamsForAnalytics(exams: ExamOption[]): ExamOption[] {
+  const byRecency = (a: ExamOption, b: ExamOption) => {
+    const aTime = a.endTime ? new Date(a.endTime).getTime() : -Infinity;
+    const bTime = b.endTime ? new Date(b.endTime).getTime() : -Infinity;
+    return bTime - aTime;
+  };
+  const withSubmissions = exams.filter((exam) => Number(exam._count?.submissions || 0) > 0).sort(byRecency);
+  const withoutSubmissions = exams.filter((exam) => !(Number(exam._count?.submissions || 0) > 0)).sort(byRecency);
+  return [...withSubmissions, ...withoutSubmissions];
+}
+
+export function pickDefaultAnalyticsExamId(exams: ExamOption[]): string {
+  const sorted = sortExamsForAnalytics(exams);
+  return sorted[0]?.id || "";
+}
 
 export type AiImprovementStatus =
   | "IDLE"
@@ -396,6 +422,20 @@ export type IntelligencePayload = {
     skipRate: number;
     flaggedCount: number;
     aiImprovement?: AiImprovementSummary | null;
+    /**
+     * Item-analysis signal, computed deterministically in code (not by AI):
+     * set when one specific wrong option was picked by more students than
+     * the keyed correct answer — the classic statistical signature of a
+     * mis-keyed answer (lecturer marked the wrong option as correct), as
+     * opposed to a question that's just genuinely hard.
+     */
+    possibleKeyError?: {
+      mostPickedOptionLetter: string;
+      mostPickedOptionRate: number;
+      correctOptionLetter: string;
+      correctOptionRate: number;
+      sampleSize: number;
+    } | null;
     action?: { path: string; params?: Record<string, string> };
   }>;
   weakestTopics: Array<{

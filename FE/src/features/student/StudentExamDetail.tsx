@@ -293,7 +293,7 @@ export default function StudentExamDetail() {
                   Kiểm tra trạng thái mở bài thi, lượt làm và thao tác tiếp theo của bạn.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className={accessBadgeClass(accessState)}>
                     Trạng thái: {getExamWindowLabel(accessState)}
