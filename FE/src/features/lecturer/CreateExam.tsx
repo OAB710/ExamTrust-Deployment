@@ -62,6 +62,8 @@ import {
   Database,
   Loader2,
   Trash2,
+  Image,
+  Music,
 } from "lucide-react";
 import { toast } from "sonner";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
@@ -72,6 +74,14 @@ import { QuestionTopicDialog } from "./components/QuestionTopicDialog";
 import { buildQuestionPayload } from "./question-editor-persistence";
 import { findMostSimilarQuestion } from "./question-editor-utils";
 import {
+  MEDIA_ACCEPT,
+  MEDIA_MAX_BYTES,
+  releaseMediaUpload,
+  uploadMediaFile,
+  validateMediaFile,
+  type MediaAttachment,
+} from "./question-editor-media";
+import {
   getNumericInputError,
   parseNumericInput,
   sanitizeNumericInput,
@@ -80,7 +90,6 @@ import {
   COURSE_TERM_OPTIONS,
   formatCourseTerm,
   getAcademicYearOptions,
-  getCurrentAcademicTerm,
   type CourseTerm,
 } from "@/lib/course-term";
 import { cn } from "@/lib/utils";
@@ -160,6 +169,11 @@ export default function CreateExam() {
   const [manualExplanation, setManualExplanation] = useState("");
   const [manualDifficulty, setManualDifficulty] = useState("medium");
   const [manualTopicId, setManualTopicId] = useState("");
+  const [manualHasMedia, setManualHasMedia] = useState(false);
+  const [manualMediaType, setManualMediaType] = useState<"image" | "audio">("image");
+  const [manualMediaAttachment, setManualMediaAttachment] = useState<MediaAttachment | null>(null);
+  const [manualMediaUploading, setManualMediaUploading] = useState(false);
+  const manualMediaFileInputRef = useRef<HTMLInputElement | null>(null);
   const manualTopics = useQuestionTopics({
     courseId: form.course,
     courses,
@@ -173,12 +187,8 @@ export default function CreateExam() {
   const [courseComboboxOpen, setCourseComboboxOpen] = useState(false);
   const [courseSearch, setCourseSearch] = useState("");
   const skipNextCourseFocusRef = useRef(false);
-  const [courseAcademicYearFilter, setCourseAcademicYearFilter] = useState(
-    () => getCurrentAcademicTerm().academicYear,
-  );
-  const [courseTermFilter, setCourseTermFilter] = useState<CourseTerm | "all">(
-    () => getCurrentAcademicTerm().term,
-  );
+  const [courseAcademicYearFilter, setCourseAcademicYearFilter] = useState("all");
+  const [courseTermFilter, setCourseTermFilter] = useState<CourseTerm | "all">("all");
   const isSingleAttempt = form.maxAttempts === "1";
   const hasUnlimitedAttempts = form.maxAttempts === "unlimited";
   const proctoringForcedOff = hasUnlimitedAttempts || form.unlimitedTime;
@@ -446,6 +456,7 @@ export default function CreateExam() {
               content: String(question.content || question.stem || "Untitled question"),
               difficulty: Number(question.difficulty || 0) || undefined,
               isVersionReady: Boolean(question?.latestVersion?.id),
+              mediaType: question.mediaType === "image" || question.mediaType === "audio" ? question.mediaType : undefined,
             })),
           );
         }
@@ -501,6 +512,56 @@ export default function CreateExam() {
   );
   const composedQuestionCount =
     aiGeneratedQuestions.length + selectedBankQuestionIds.length + randomQuestionCount;
+
+  // Manual entry's questions are never persisted until "addManualQuestion"
+  // stages them (and the exam-create submit later saves them for real), so —
+  // unlike the question bank editor — there is no "already saved" attachment
+  // to protect: any attachment can always be released immediately on
+  // replace/remove/toggle-off.
+  const handleManualMediaFile = async (file: File | null | undefined) => {
+    if (!file) return;
+    const effectiveType = manualMediaAttachment?.mediaType ?? manualMediaType;
+    const validationError = validateMediaFile(file, effectiveType);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    const previous = manualMediaAttachment;
+    setManualMediaUploading(true);
+    try {
+      const uploaded = await uploadMediaFile(file, effectiveType);
+      setManualMediaAttachment(uploaded);
+      if (previous && previous.mediaKey !== uploaded.mediaKey) {
+        releaseMediaUpload(previous);
+      }
+      toast.success("Đã tải lên tệp đính kèm.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Không thể tải tệp lên. Vui lòng thử lại.");
+    } finally {
+      setManualMediaUploading(false);
+    }
+  };
+
+  const handleManualMediaToggle = (checked: boolean) => {
+    setManualHasMedia(checked);
+    if (!checked && manualMediaAttachment) {
+      releaseMediaUpload(manualMediaAttachment);
+      setManualMediaAttachment(null);
+    }
+  };
+
+  const handleManualMediaTypeChange = (type: "image" | "audio") => {
+    if (manualMediaAttachment) return;
+    setManualMediaType(type);
+  };
+
+  const handleManualRemoveMediaAttachment = () => {
+    if (manualMediaAttachment) {
+      releaseMediaUpload(manualMediaAttachment);
+      setManualMediaAttachment(null);
+    }
+    if (manualMediaFileInputRef.current) manualMediaFileInputRef.current.value = "";
+  };
 
   const addManualQuestion = () => {
     if (!manualQuestionContent.trim()) {
@@ -574,11 +635,17 @@ export default function CreateExam() {
         points: 1,
         topicId: manualTopicId || undefined,
         learningObjective: manualLearningObjective.trim() || undefined,
+        media: manualHasMedia ? manualMediaAttachment : null,
       },
     ]);
     setManualQuestionContent("");
     setManualExplanation("");
     resetManualAnswer();
+    // The attachment now belongs to the staged question above — clear the
+    // form's media state without releasing the R2 object out from under it.
+    setManualHasMedia(false);
+    setManualMediaAttachment(null);
+    if (manualMediaFileInputRef.current) manualMediaFileInputRef.current.value = "";
   };
 
   const applyGeneratedQuestionToManualForm = (question: any) => {
@@ -788,6 +855,7 @@ export default function CreateExam() {
               courseId: form.course,
               topicId: q.topicId || undefined,
               learningObjective: q.learningObjective || undefined,
+              media: q.media || undefined,
             }),
           ),
         );
@@ -1823,6 +1891,127 @@ export default function CreateExam() {
                                 onChange={(event) => setManualQuestionContent(event.target.value)}
                                 placeholder="Nhập nội dung câu hỏi tại đây..."
                               />
+
+                              <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                  <Switch
+                                    checked={manualHasMedia}
+                                    onCheckedChange={handleManualMediaToggle}
+                                  />
+                                  <Label>Đính kèm phương tiện</Label>
+                                </div>
+                                {manualHasMedia && (() => {
+                                  const lockedType = manualMediaAttachment?.mediaType ?? manualMediaType;
+                                  return (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        variant={lockedType === "image" ? "default" : "outline"}
+                                        size="sm"
+                                        disabled={!!manualMediaAttachment}
+                                        onClick={() => handleManualMediaTypeChange("image")}
+                                        className="gap-1"
+                                      >
+                                        <Image className="h-3.5 w-3.5" /> Ảnh
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant={lockedType === "audio" ? "default" : "outline"}
+                                        size="sm"
+                                        disabled={!!manualMediaAttachment}
+                                        onClick={() => handleManualMediaTypeChange("audio")}
+                                        className="gap-1"
+                                      >
+                                        <Music className="h-3.5 w-3.5" /> Âm thanh
+                                      </Button>
+                                      {manualMediaAttachment && (
+                                        <p className="self-center text-[10px] text-muted-foreground">
+                                          Xoá tệp để đổi loại đính kèm
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+
+                              {manualHasMedia && (
+                                <div
+                                  className="rounded-lg border-2 border-dashed border-muted p-6 text-center"
+                                  onDragOver={(event) => event.preventDefault()}
+                                  onDrop={(event) => {
+                                    event.preventDefault();
+                                    void handleManualMediaFile(event.dataTransfer.files?.[0]);
+                                  }}
+                                >
+                                  <input
+                                    ref={manualMediaFileInputRef}
+                                    type="file"
+                                    accept={MEDIA_ACCEPT[manualMediaAttachment?.mediaType ?? manualMediaType]}
+                                    className="hidden"
+                                    onChange={(event) => {
+                                      void handleManualMediaFile(event.target.files?.[0]);
+                                      event.target.value = "";
+                                    }}
+                                  />
+                                  {manualMediaAttachment ? (
+                                    <div className="space-y-2">
+                                      {manualMediaAttachment.mediaType === "image" ? (
+                                        <img
+                                          src={manualMediaAttachment.mediaUrl}
+                                          alt="Xem trước tệp đính kèm"
+                                          className="mx-auto max-h-32 rounded-md object-contain"
+                                        />
+                                      ) : (
+                                        <audio src={manualMediaAttachment.mediaUrl} controls className="mx-auto" />
+                                      )}
+                                      <p className="text-xs text-muted-foreground">
+                                        {(manualMediaAttachment.mediaSizeBytes / 1024).toFixed(0)} KB
+                                      </p>
+                                      <div className="flex justify-center gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          disabled={manualMediaUploading}
+                                          onClick={() => manualMediaFileInputRef.current?.click()}
+                                        >
+                                          Chọn tệp khác
+                                        </Button>
+                                        <Button type="button" variant="ghost" size="sm" onClick={handleManualRemoveMediaAttachment}>
+                                          Xoá
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <p className="text-sm text-muted-foreground">
+                                        Kéo thả {manualMediaType === "image" ? "một hình ảnh" : "một tệp âm thanh"} vào đây, hoặc nhấn để chọn tệp
+                                      </p>
+                                      <p className="mt-1 text-[11px] text-muted-foreground">
+                                        {manualMediaType === "image"
+                                          ? `Tối đa ${MEDIA_MAX_BYTES.image / (1024 * 1024)}MB, PNG/JPEG/WEBP`
+                                          : `Tối đa ${MEDIA_MAX_BYTES.audio / (1024 * 1024)}MB, MP3/WAV`}
+                                      </p>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-2"
+                                        disabled={manualMediaUploading}
+                                        onClick={() => manualMediaFileInputRef.current?.click()}
+                                      >
+                                        {manualMediaUploading ? (
+                                          <>
+                                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Đang tải lên...
+                                          </>
+                                        ) : (
+                                          "Chọn tệp"
+                                        )}
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              )}
                             </CardContent>
                           </Card>
 
@@ -2030,7 +2219,14 @@ export default function CreateExam() {
                                       onCheckedChange={(value) => setSelectedBankQuestionIds((ids) => value && question.isVersionReady ? [...new Set([...ids, question.id])] : ids.filter((id) => id !== question.id))}
                                     />
                                     <div className="min-w-0 flex-1">
-                                      <p className="text-sm font-medium">{question.content}</p>
+                                      <p className="flex items-center gap-1.5 text-sm font-medium">
+                                        {question.mediaType === "image" ? (
+                                          <Image className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Câu hỏi có hình ảnh đính kèm" />
+                                        ) : question.mediaType === "audio" ? (
+                                          <Music className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Câu hỏi có âm thanh đính kèm" />
+                                        ) : null}
+                                        <span className="min-w-0 truncate">{question.content}</span>
+                                      </p>
                                       <div className="mt-2 flex gap-2">
                                         <Badge variant="outline">{question.type}</Badge>
                                         <Badge variant="outline">{difficultyLabelViFromValue(question.difficulty)}</Badge>

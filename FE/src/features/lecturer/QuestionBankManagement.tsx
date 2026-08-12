@@ -91,6 +91,8 @@ import {
   FolderInput,
   ScanSearch,
   MoreHorizontal,
+  Image,
+  Music,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -1025,7 +1027,14 @@ export default function QuestionBankManagement() {
                                 {formatQuestionDate(question.updatedAt)}
                               </TableCell>
                               <TableCell className="max-w-[360px] text-sm">
-                                <span className="block truncate" title={question.content}>{question.content}</span>
+                                <span className="flex items-center gap-1.5">
+                                  {question.mediaType === "image" ? (
+                                    <Image className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Câu hỏi có hình ảnh đính kèm" />
+                                  ) : question.mediaType === "audio" ? (
+                                    <Music className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Câu hỏi có âm thanh đính kèm" />
+                                  ) : null}
+                                  <span className="block truncate" title={question.content}>{question.content}</span>
+                                </span>
                               </TableCell>
                               <TableCell className="text-sm whitespace-nowrap">
                                 {questionTypeLabels[question.type] || question.type}

@@ -144,11 +144,14 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     }
     const totalPersistedViolations = persistedFullscreenExitCountRef.current + persistedTabSwitchCountRef.current;
     if (serverCount > 0 || serverTabSwitchCount > 0) {
-      setViolationCounts((previous) => ({
-        ...previous,
-        fullscreen_exit: Math.max(previous.fullscreen_exit, persistedFullscreenExitCountRef.current),
-        tab_switch: Math.max(previous.tab_switch, persistedTabSwitchCountRef.current),
-      }));
+      setViolationCounts((previous) => {
+        const nextFullscreenExit = Math.max(previous.fullscreen_exit, persistedFullscreenExitCountRef.current);
+        const nextTabSwitch = Math.max(previous.tab_switch, persistedTabSwitchCountRef.current);
+        if (nextFullscreenExit === previous.fullscreen_exit && nextTabSwitch === previous.tab_switch) {
+          return previous;
+        }
+        return { ...previous, fullscreen_exit: nextFullscreenExit, tab_switch: nextTabSwitch };
+      });
       setViolationCount((previous) => Math.max(previous, totalPersistedViolations));
       if (totalPersistedViolations >= maxViolations && !escalatedRef.current) {
         escalatedRef.current = true;

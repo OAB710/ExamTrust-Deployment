@@ -11,6 +11,8 @@ export interface Question {
   explanation?: string | null;
   createdAt: string;
   updatedAt: string;
+  mediaType?: "image" | "audio" | null;
+  mediaUrl?: string | null;
 }
 
 export interface QuestionDraftSummary {

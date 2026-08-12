@@ -168,6 +168,34 @@ export class AiService implements OnModuleInit {
     return explicitlyRequestsEnglish ? 'en' : 'vi';
   }
 
+  /**
+   * Small/free LLMs often ignore a soft "pick whatever difficulty fits"
+   * instruction and default to Medium regardless of the topic. When the
+   * lecturer's own prompt already signals a level explicitly (e.g. "cơ bản",
+   * "nâng cao"), trust that keyword over the model's judgment.
+   */
+  private containsCue(normalized: string, cue: string): boolean {
+    // A plain \b-anchored regex would silently fail here: \b relies on \w,
+    // which doesn't treat Vietnamese diacritic letters (đ, ơ, ê, ...) as word
+    // characters, so a boundary right before "đơn giản" never matches. A bare
+    // substring check overcorrects the other way — "kho" as a stand-in for
+    // "khó" would false-positive inside "Khoa học" (Computer Science). Using
+    // \p{L}/\p{N} (Unicode letter/number classes) for the boundary instead
+    // of \w gets both cases right.
+    const escaped = cue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'u').test(normalized);
+  }
+
+  private inferDifficultyFromPrompt(prompt: string): number | undefined {
+    const normalized = String(prompt || '').toLowerCase();
+    const easyCues = ['đơn giản', 'don gian', 'cơ bản', 'co ban', 'sơ cấp', 'so cap', 'dễ', 'basic', 'simple', 'easy', 'introductory', 'beginner'];
+    const hardCues = ['nâng cao', 'nang cao', 'phức tạp', 'phuc tap', 'chuyên sâu', 'chuyen sau', 'khó', 'kho', 'advanced', 'complex', 'difficult', 'hard', 'expert'];
+
+    if (hardCues.some((cue) => this.containsCue(normalized, cue))) return 0.8;
+    if (easyCues.some((cue) => this.containsCue(normalized, cue))) return 0.2;
+    return undefined;
+  }
+
   async generateQuestion(params: {
     prompt: string;
     questionType?: string;
@@ -180,15 +208,23 @@ export class AiService implements OnModuleInit {
     const {
       prompt,
       questionType = 'MULTIPLE_CHOICE',
-      difficulty = 0.5,
+      difficulty,
       language,
       courseName,
       useCase = 'question_bank',
       context,
     } = params;
 
+    // No difficulty was requested: check the lecturer's own wording for an
+    // explicit level first (reliable), and only leave it to the model's
+    // judgment (unreliable on small/free models) when no such cue exists.
+    const requestedAutoDifficulty = difficulty === undefined || difficulty === null;
+    const inferredDifficulty = requestedAutoDifficulty ? this.inferDifficultyFromPrompt(prompt) : undefined;
+    const autoDifficulty = requestedAutoDifficulty && inferredDifficulty === undefined;
+    const effectiveDifficulty = inferredDifficulty ?? difficulty ?? 0.5;
+
     const targetLanguage = this.resolveQuestionOutputLanguage(prompt);
-    const difficultyLabel = difficulty <= 0.4 ? 'Easy' : difficulty <= 0.7 ? 'Medium' : 'Hard';
+    const difficultyLabel = effectiveDifficulty <= 0.4 ? 'Easy' : effectiveDifficulty <= 0.7 ? 'Medium' : 'Hard';
     const langInstruction = targetLanguage === 'vi'
       ? 'Generate the question and every human-readable field (content, options, answers, explanation, topic, learningObjective) in Vietnamese. Do not switch to English merely because the source prompt contains English technical terms.'
       : 'The user explicitly requested English. Generate the question and every human-readable field (content, options, answers, explanation, topic, learningObjective) in English.';
@@ -202,12 +238,16 @@ export class AiService implements OnModuleInit {
       context: {
         courseName,
         questionType,
-        difficulty,
+        difficulty: effectiveDifficulty,
         currentStem: prompt,
         extra: { useCase },
         ...(context || {}),
       },
     });
+
+    const difficultyInstruction = autoDifficulty
+      ? 'Choose whichever difficulty (Easy, Medium, or Hard) best fits this topic and phrasing, and report your choice in the "difficulty" field (0 = easiest, 1 = hardest).'
+      : `Difficulty level: ${difficultyLabel} (${effectiveDifficulty}/5)`;
 
     const systemPrompt = `${profilePrompt}
 ${langInstruction}
@@ -215,14 +255,14 @@ ${langInstruction}
 Generate a ${this.getTypeLabel(questionType)} question about the following topic:
 "${prompt}"
 
-Difficulty level: ${difficultyLabel} (${difficulty}/5)
+${difficultyInstruction}
 
 You MUST respond with a valid JSON object (no markdown, no code fences, just pure JSON) with this exact structure:
 {
   "content": "The question text",
   "type": "${questionType}",
   "explanation": "Detailed explanation of the correct answer",
-  "difficulty": ${difficulty},
+  "difficulty": ${autoDifficulty ? '<your chosen difficulty, 0-1>' : effectiveDifficulty},
   "points": <appropriate points 1-10>,
   "topic": "specific topic name",
   "learningObjective": "Action verb + what students should be able to do"${this.getOptionsInstruction(questionType) ? `,\n  ${this.getOptionsInstruction(questionType)}` : ''}
@@ -271,7 +311,7 @@ Rules:
           content: `Câu hỏi mẫu về ${prompt}`,
           type: questionType,
           explanation: 'Đây là giải thích mẫu dùng cho môi trường phát triển.',
-          difficulty: Math.round(difficulty * 4) / 4,
+          difficulty: Math.round(effectiveDifficulty * 4) / 4,
           points: 1,
           options: questionType === 'MULTIPLE_CHOICE' || questionType === 'FIND_ERROR' ? { A: 'Phương án A', B: 'Phương án B', C: 'Phương án C', D: 'Phương án D' } : null,
           correctAnswer: questionType === 'MULTIPLE_CHOICE' || questionType === 'FIND_ERROR' ? { answer: 'A' } : null,
@@ -332,12 +372,15 @@ Rules:
       };
 
       const parsedDifficulty = normalizeDifficulty(parsed.difficulty);
+      // A keyword cue in the lecturer's own prompt is more trustworthy than
+      // what the model reports, so it wins even if the model answered anyway.
+      const finalDifficulty = inferredDifficulty ?? (parsedDifficulty !== undefined ? parsedDifficulty : effectiveDifficulty);
 
       return {
         content: parsed.content || '',
         type: parsed.type || questionType,
         explanation: parsed.explanation || '',
-        difficulty: parsedDifficulty !== undefined ? parsedDifficulty : difficulty,
+        difficulty: finalDifficulty,
         points: parsed.points || 1,
         topic: parsed.topic || '',
         learningObjective: parsed.learningObjective || '',

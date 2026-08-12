@@ -2089,6 +2089,8 @@ export class QuestionsService {
         creatorId: true,
         createdAt: true,
         updatedAt: true,
+        mediaType: true,
+        mediaUrl: true,
         course: { select: { id: true, code: true, name: true } },
       },
     });
@@ -2137,6 +2139,8 @@ export class QuestionsService {
       creatorId: q.creatorId,
       createdAt: q.createdAt,
       updatedAt: q.updatedAt,
+      mediaType: q.mediaType,
+      mediaUrl: q.mediaUrl,
       latestVersion: latestVersionsMap.get(q.id) || null,
     }));
 

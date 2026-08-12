@@ -205,6 +205,7 @@ export interface BankQuestionOption {
   content: string;
   difficulty?: number;
   isVersionReady: boolean;
+  mediaType?: "image" | "audio";
 }
 
 export interface ManualQuestionOption {

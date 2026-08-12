@@ -89,7 +89,9 @@ export function useQuestionAiGeneration(params: Params) {
       const backendType = typeMap[params.questionType] || "MULTIPLE_CHOICE";
       const result = await api.aiGenerateQuestion({
         prompt: aiPrompt, questionType: backendType,
-        difficulty: snapQuestionDifficulty(Math.max(0, Math.min(1, params.difficulty[0]))), language: "vi", useCase: "question_bank",
+        // Let the AI pick the most fitting difficulty itself; the lecturer can
+        // still override it afterward via the difficulty selector.
+        language: "vi", useCase: "question_bank",
         context: { courseId: params.courseId, courseName: params.courses.find((course) => course.id === params.courseId)?.name, courseCode: params.courses.find((course) => course.id === params.courseId)?.code, questionType: backendType, source: "question_editor" },
       }) as GeneratedQuestion;
       const duplicate = await findMostSimilarQuestion({

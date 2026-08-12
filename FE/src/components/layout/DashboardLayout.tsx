@@ -22,6 +22,7 @@ import {
   Menu,
   X,
   User,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
@@ -144,6 +145,11 @@ const adminNavItems: NavItem[] = [
     title: "Thiết lập",
     href: "/admin/settings",
     icon: <Settings className="h-[18px] w-[18px]" />,
+  },
+  {
+    title: "DevOps & Bot",
+    href: "/admin/devops",
+    icon: <Bot className="h-[18px] w-[18px]" />,
   },
 ];
 

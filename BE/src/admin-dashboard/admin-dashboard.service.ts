@@ -1,12 +1,37 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiService } from '../ai/ai.service';
 
 const TZ = 'Asia/Ho_Chi_Minh';
 const COMPLETED = ['SUBMITTED', 'GRADED', 'FLAGGED'];
 
+// Read-only cheat sheet of what the Zalo ops bot accepts — kept in sync by
+// hand with the ZALO_*_COMMAND constants in zalo-webhook-lambda/index.mjs,
+// which is a separate deployable with no shared source of truth to import
+// this from.
+const ZALO_BOT_COMMANDS = [
+  { command: 'Build FE', description: 'Build + deploy FE lên Cloudflare Workers' },
+  { command: 'Build BE', description: 'Build + deploy BE lên EC2' },
+  { command: 'On FE / Off FE', description: 'Bật / tắt FE (Cloudflare Worker)' },
+  { command: 'FE Info / BE Info / R2 Info', description: 'Xem mức dùng tài nguyên FE, BE, và Cloudflare R2' },
+  { command: 'AI Deepseek / AI Openrouter', description: 'Chuyển provider AI đang dùng' },
+  { command: 'Info', description: 'Xem danh sách lệnh (bot tự trả lời hướng dẫn này)' },
+];
+
 @Injectable()
 export class AdminDashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiService: AiService,
+  ) {}
+
+  async devopsStatus() {
+    return {
+      ai: this.aiService.getProviderStatus(),
+      botCommands: ZALO_BOT_COMMANDS,
+    };
+  }
+
   private key(date: Date, bucket: 'day' | 'week' | 'month') {
     const parts = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
     const part = (type: string) => parts.find((p) => p.type === type)?.value || '';
