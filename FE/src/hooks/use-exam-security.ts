@@ -292,6 +292,13 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       const active = Boolean(document.fullscreenElement);
       setIsFullscreen(active);
       if (active) {
+        // A pending exit (the 15s "please come back" timer from an earlier
+        // involuntary exit) being cancelled here because the student returned
+        // in time must NOT be a free pass every time — only the very first
+        // exit of the attempt is forgiven. Without this check a student could
+        // repeatedly tap out of fullscreen and back in under the grace window
+        // forever without ever accumulating a single recorded violation.
+        const hadPendingExit = fullscreenExitTimerRef.current !== null;
         clearPendingFullscreenExit();
         hasEnteredFullscreenOnceRef.current = true;
         // Clear the grace window as soon as fullscreen is restored. Keeping
@@ -300,6 +307,25 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
         setIsBlocked(false);
         setIsFirstFullscreenWarning(false);
         allowClearRef.current = false;
+        if (hadPendingExit) {
+          if (firstFullscreenWarningUsedRef.current) {
+            recordViolation(
+              "fullscreen_exit",
+              "Sinh viên rời rồi quay lại toàn màn hình nhanh (đã dùng cảnh báo miễn phí lần đầu)",
+            );
+          } else {
+            firstFullscreenWarningUsedRef.current = true;
+            const warning: ViolationLog = {
+              timestamp: Date.now(),
+              type: "fullscreen_exit",
+              detail: "Cảnh báo lần đầu (quay lại nhanh) — chưa tính vi phạm",
+              clientEventId: createClientEventId(),
+            };
+            void Promise.resolve(onFullscreenWarning?.(warning))
+              .then((state) => reconcileSecurityState(state))
+              .catch(() => undefined);
+          }
+        }
         return;
       }
 
@@ -408,6 +434,32 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [enabled, isTrackingActive, isWithinFullscreenGrace, recordViolation]);
+
+  // document.hidden (Page Visibility API, used above) only flips when the tab
+  // is switched, minimized, or fully occluded — it does NOT reliably change
+  // when the fullscreen window simply loses OS-level input focus while
+  // remaining visible and unminimized, which is exactly what happens on a
+  // multi-monitor setup: the exam stays fullscreen on one display while the
+  // student clicks into another app/window on a second display. That case
+  // was previously undetectable. `window.blur` fires whenever the OS moves
+  // input focus away, regardless of visibility/occlusion/monitor, so it
+  // catches this gap. Only counted while still fullscreen (same rationale as
+  // the visibilitychange handler above: an involuntary fullscreen exit is
+  // owned end-to-end by the fullscreenchange handler's grace/warning flow).
+  useEffect(() => {
+    if (!enabled) return;
+
+    const onWindowBlur = () => {
+      if (!isTrackingActive() || isWithinFullscreenGrace()) return;
+      if (!document.fullscreenElement) return;
+      recordViolation("tab_switch", "Cửa sổ mất focus khi vẫn ở chế độ toàn màn hình (có thể do chuyển sang màn hình/ứng dụng khác)");
+    };
+
+    window.addEventListener("blur", onWindowBlur);
+    return () => {
+      window.removeEventListener("blur", onWindowBlur);
     };
   }, [enabled, isTrackingActive, isWithinFullscreenGrace, recordViolation]);
 

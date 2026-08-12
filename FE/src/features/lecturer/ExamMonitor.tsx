@@ -33,7 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { StatusBadge, getStatusBadgeLabel } from "@/components/ui/status-badge";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -131,6 +131,29 @@ interface IntegrityAlert {
   severity: "low" | "warning" | "critical";
   time: string;
   hasEvidence?: boolean;
+}
+
+// tab_switch/mouse_pattern are aggregate running counters (one row per
+// submission, message text like "Detected N tab switches") — the polled
+// value always supersedes. Every other type is one row per discrete event.
+// The realtime SSE stream, the per-event overview log, and the aggregate
+// overview log each mint the alert's `id` differently (see
+// submissions.service.ts: `${submissionId}-${eventType}-${ts}` vs `log.id`
+// vs `tab-${proctoringId}`), so ids never line up across sources. Replacing
+// the whole alerts array on every 10s poll (the old behavior) therefore
+// silently erased whatever the realtime stream had just shown the instant a
+// poll ran before the underlying DB write/aggregation caught up. Merging by
+// submission+type instead keeps discrete-event alerts until something
+// legitimately supersedes them, and always freshens aggregate counters.
+const AGGREGATE_ALERT_TYPES = new Set<IntegrityAlert["type"]>(["tab_switch", "mouse_pattern"]);
+
+function mergeIntegrityAlerts(existing: IntegrityAlert[], incoming: IntegrityAlert[]): IntegrityAlert[] {
+  const merged = new Map<string, IntegrityAlert>();
+  const keyFor = (a: IntegrityAlert) =>
+    AGGREGATE_ALERT_TYPES.has(a.type) ? `${a.submissionId || "unknown"}|${a.type}` : `id:${a.id}`;
+  existing.forEach((a) => merged.set(keyFor(a), a));
+  incoming.forEach((a) => merged.set(keyFor(a), a));
+  return [...merged.values()].slice(0, 100);
 }
 
 interface EvidenceCapture {
@@ -306,9 +329,14 @@ export default function ExamMonitor() {
         enrollments = await api.getCourseEnrollments(courseId);
       }
 
+      // `submissions` comes back newest-first (BE orders by startedAt desc).
+      // A student can have multiple attempts; only keep the first one seen
+      // per student — i.e. their latest attempt — instead of letting later
+      // (older) entries in the array overwrite it, which previously left the
+      // monitor permanently stuck showing each student's very first attempt.
       const submissionByStudentId = new Map<string, any>();
       for (const submission of submissions) {
-        if (submission?.student?.id) {
+        if (submission?.student?.id && !submissionByStudentId.has(submission.student.id)) {
           submissionByStudentId.set(submission.student.id, submission);
         }
       }
@@ -409,7 +437,7 @@ export default function ExamMonitor() {
           hasEvidence: Boolean(anomaly.hasEvidence),
         }),
       );
-      setAlerts(mappedAlerts);
+      setAlerts((prev) => mergeIntegrityAlerts(prev, mappedAlerts));
       setLastRefresh(new Date().toLocaleTimeString());
       if (process.env.NODE_ENV !== "production") {
         console.debug("[exam-monitor] fetched", {
@@ -615,10 +643,7 @@ export default function ExamMonitor() {
             : new Date().toLocaleTimeString(),
         };
 
-        setAlerts((prev) => {
-          if (prev.some((a) => a.id === mapped.id)) return prev;
-          return [mapped, ...prev].slice(0, 100);
-        });
+        setAlerts((prev) => mergeIntegrityAlerts(prev, [mapped]));
 
         if (mapped.submissionId) {
           setStudents((prev) =>
@@ -830,18 +855,18 @@ export default function ExamMonitor() {
     ],
   };
 
+  // Sized/colored to sit inside the status badge itself (h-3 w-3, no
+  // hardcoded color) rather than as a separate sibling element — a
+  // differently-colored icon (blue/green/red) next to a badge with its own
+  // tone color is what made this column look busy/mismatched. Using
+  // currentColor lets the icon inherit whatever text tone the badge applies.
   const statusIcon = (status: StudentSession["status"]) => {
     switch (status) {
-      case "in_progress":
-        return <Activity className="h-4 w-4 text-blue-600" />;
-      case "submitted":
-        return <CheckCircle2 className="h-4 w-4 text-green-600" />;
-      case "not_joined":
-        return <Clock className="h-4 w-4 text-muted-foreground" />;
-      case "flagged":
-        return <Flag className="h-4 w-4 text-red-600" />;
-      case "disconnected":
-        return <XCircle className="h-4 w-4 text-yellow-600" />;
+      case "in_progress": return <Activity className="h-3 w-3" />;
+      case "submitted": return <CheckCircle2 className="h-3 w-3" />;
+      case "not_joined": return <Clock className="h-3 w-3" />;
+      case "flagged": return <Flag className="h-3 w-3" />;
+      case "disconnected": return <XCircle className="h-3 w-3" />;
     }
   };
 
@@ -1051,50 +1076,49 @@ export default function ExamMonitor() {
           </Card>
         )}
 
+        <div className="mb-6 space-y-3">
+          <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
+            <SearchBar
+              value={searchInput}
+              onChange={setSearchInput}
+              onSearch={runSearch}
+              placeholder="Tìm theo tên hoặc mã sinh viên"
+              className="flex-1"
+            />
+            <SortButton
+              options={studentSortOptions}
+              value={sortField}
+              order={sortOrder}
+              onSortChange={(field, order) => {
+                setSortField(field);
+                setSortOrder(order);
+                setPage(1);
+              }}
+            />
+            <FilterPanel
+              title="Bộ lọc sinh viên"
+              description="Lọc phiên làm bài theo trạng thái và mức độ rủi ro."
+              filters={studentFilterDefinitions}
+              value={draftFilters}
+              onValueChange={(key, nextValue) =>
+                setDraftFilters((prev) => ({ ...prev, [key]: nextValue }))
+              }
+              onApply={applyFilters}
+              onClear={clearFilters}
+              activeCount={activeFilterCount}
+            />
+          </div>
+          <ActiveFilterChips
+            chips={activeFilterChips}
+            onRemove={removeFilter}
+            onClearAll={clearFilters}
+          />
+        </div>
+
         <div className="mb-6">
           <Card>
             <CardHeader className="pb-3">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Phiên làm bài</CardTitle>
-                </div>
-                <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
-                  <SearchBar
-                    value={searchInput}
-                    onChange={setSearchInput}
-                    onSearch={runSearch}
-                    placeholder="Tìm theo tên hoặc mã sinh viên"
-                    className="flex-1"
-                  />
-                  <SortButton
-                    options={studentSortOptions}
-                    value={sortField}
-                    order={sortOrder}
-                    onSortChange={(field, order) => {
-                      setSortField(field);
-                      setSortOrder(order);
-                      setPage(1);
-                    }}
-                  />
-                  <FilterPanel
-                    title="Bộ lọc sinh viên"
-                    description="Lọc phiên làm bài theo trạng thái và mức độ rủi ro."
-                    filters={studentFilterDefinitions}
-                    value={draftFilters}
-                    onValueChange={(key, nextValue) =>
-                      setDraftFilters((prev) => ({ ...prev, [key]: nextValue }))
-                    }
-                    onApply={applyFilters}
-                    onClear={clearFilters}
-                    activeCount={activeFilterCount}
-                  />
-                </div>
-                <ActiveFilterChips
-                  chips={activeFilterChips}
-                  onRemove={removeFilter}
-                  onClearAll={clearFilters}
-                />
-              </div>
+              <CardTitle className="text-base">Phiên làm bài</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -1150,10 +1174,10 @@ export default function ExamMonitor() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1.5">
+                          <StatusBadge status={s.status} domain="session" className="gap-1">
                             {statusIcon(s.status)}
-                            <StatusBadge status={s.status} domain="session" />
-                          </div>
+                            {getStatusBadgeLabel(s.status, "session")}
+                          </StatusBadge>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">

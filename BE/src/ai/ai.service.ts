@@ -939,7 +939,9 @@ ${JSON.stringify(original, null, 2)}
 
 Aggregated performance analytics, without student identities:
 ${JSON.stringify(params.analytics || {}, null, 2)}
-
+${params.analytics?.possibleKeyError ? `
+IMPORTANT — a deterministic statistical check (not a guess) found that option "${params.analytics.possibleKeyError.mostPickedOptionLetter}" was chosen by ${params.analytics.possibleKeyError.mostPickedOptionRate}% of students, more than the option currently marked correct ("${params.analytics.possibleKeyError.correctOptionLetter}", chosen by only ${params.analytics.possibleKeyError.correctOptionRate}%), across ${params.analytics.possibleKeyError.sampleSize} answers. This is the classic signature of a MIS-KEYED ANSWER (the lecturer marked the wrong option as correct), not a hard-but-correctly-keyed question. Read the question content and every option's actual text yourself and independently verify which option is truly correct. If "${params.analytics.possibleKeyError.mostPickedOptionLetter}" is indeed correct, set "diagnosis.issues" to include type "INCORRECT_ANSWER" and change "suggestion.correctAnswer" to it — do not just keep the original answer key out of caution. If your own reading of the question shows the original key ("${params.analytics.possibleKeyError.correctOptionLetter}") actually IS correct and the question is simply ambiguous/misleading, say so explicitly in "diagnosis.reason" instead of silently agreeing with the statistical signal.
+` : ''}
 Quality review signals:
 ${JSON.stringify(params.qualitySignals || [], null, 2)}
 

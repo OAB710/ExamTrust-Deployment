@@ -322,12 +322,12 @@ export default function ExamResultsList() {
     (manualStatus?.submissions || []).map((row: any) => [row.submissionId, row]),
   );
 
-  const handleExport = async (format = "csv") => {
+  const handleExport = async (format: "csv" | "pdf" = "csv") => {
     if (!examId) return;
     try {
       const token = api.getToken();
       const res = await fetch(
-        `${API_BASE_URL}/submissions/exam/${examId}/export`,
+        `${API_BASE_URL}/submissions/exam/${examId}/export?format=${format}`,
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         },
@@ -344,6 +344,7 @@ export default function ExamResultsList() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Không thể xuất dữ liệu", err);
+      toast.error("Xuất dữ liệu không thành công. Vui lòng thử lại.");
     }
   };
 
@@ -499,10 +500,7 @@ export default function ExamResultsList() {
     <DashboardLayout>
       <div className="mx-auto max-w-7xl space-y-5 rounded-3xl bg-gradient-to-b from-slate-50/90 via-background to-background px-4 py-5 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-4 rounded-3xl border border-border/70 bg-card/90 p-5 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-600">
-              Phân tích bài thi
-            </div>
+          <div className="flex flex-col items-start gap-2">
             {overview?.analyticsScope ? (
               <StatusBadge
                 status={overview.analyticsScope === "OFFICIAL" ? "published" : "available"}
@@ -535,7 +533,7 @@ export default function ExamResultsList() {
           </div>
         </div>
 
-        {manualStatus?.hasManualGrading ? (
+        {manualStatus && manualStatus.submissions.length > 0 ? (
           <Card
             className={
               manualStatus.manualPending > 0
@@ -566,7 +564,9 @@ export default function ExamResultsList() {
                       ? "Cần chấm thủ công"
                       : manualStatus.published
                         ? "Đã công bố kết quả"
-                        : "Đã hoàn tất chấm thủ công"}
+                        : manualStatus.hasManualGrading
+                          ? "Đã hoàn tất chấm thủ công"
+                          : "Sẵn sàng công bố kết quả"}
                   </h2>
                   <p
                     className={
@@ -575,12 +575,14 @@ export default function ExamResultsList() {
                         : "mt-1 text-sm text-emerald-800"
                     }
                   >
-                    Đã chấm {manualStatus.manualGraded}/{manualStatus.manualTotal} câu trả lời tự luận.
+                    {manualStatus.hasManualGrading
+                      ? `Đã chấm ${manualStatus.manualGraded}/${manualStatus.manualTotal} câu trả lời tự luận. `
+                      : "Bài thi chỉ có câu hỏi chấm tự động. "}
                     {manualStatus.published
-                      ? " Kết quả đã được công bố cho sinh viên."
+                      ? "Kết quả đã được công bố cho sinh viên."
                       : manualStatus.manualPending > 0
-                      ? ` Còn ${manualStatus.manualPending} câu cần nhập điểm và nhận xét.`
-                      : " Tất cả câu tự luận đã sẵn sàng để công bố."}
+                        ? `Còn ${manualStatus.manualPending} câu cần nhập điểm và nhận xét.`
+                        : "Sẵn sàng công bố để sinh viên xem điểm và đáp án."}
                   </p>
                 </div>
               </div>

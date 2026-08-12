@@ -236,7 +236,9 @@ export class ExamsService {
         q.courseId,
         q.creatorId,
         q.createdAt,
-        q.updatedAt
+        q.updatedAt,
+        q.mediaUrl,
+        q.mediaType
       FROM exam_questions eq
       LEFT JOIN question_versions qv
         ON qv.id COLLATE utf8mb4_unicode_ci = eq.questionVersionId COLLATE utf8mb4_unicode_ci
@@ -269,6 +271,8 @@ export class ExamsService {
         creatorId: row.creatorId,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
+        mediaUrl: row.mediaUrl ?? null,
+        mediaType: row.mediaType ?? null,
         // MySQL's COALESCE(intCol, 0) widens the result to BIGINT, so Prisma
         // returns this as a JS BigInt even though the schema column is Int —
         // JSON.stringify can't serialize BigInt, so it must be converted.
@@ -780,6 +784,8 @@ export class ExamsService {
           content: eq.question.content,
           options: eq.question.options,
           points: eq.question.points,
+          mediaUrl: eq.question.mediaUrl,
+          mediaType: eq.question.mediaType,
         },
       })),
     };

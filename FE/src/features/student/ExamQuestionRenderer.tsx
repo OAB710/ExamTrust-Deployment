@@ -479,15 +479,34 @@ export function QuestionRenderer({
   orderState: Record<number, string[]>;
   setOrderState: Dispatch<SetStateAction<Record<number, string[]>>>;
 }) {
-  switch (question.type) {
-    case "single-choice": return <SingleChoiceRenderer q={question} answers={answers} setAnswer={setAnswer} />;
-    case "multi-choice": return <MultiChoiceRenderer q={question} answers={answers} setAnswer={setAnswer} />;
-    case "true-false": return <TrueFalseRenderer q={question} answers={answers} setAnswer={setAnswer} />;
-    case "fill-blank": return <FillBlankRenderer q={question} answers={answers} setAnswer={setAnswer} />;
-    case "matching": return <MatchingRenderer q={question} answers={answers} setAnswer={setAnswer} />;
-    case "find-error": return <FindErrorRenderer q={question} answers={answers} setAnswer={setAnswer} />;
-    case "ordering": return <OrderingRenderer q={question} orderState={orderState} setOrderState={setOrderState} setAnswer={setAnswer} />;
-    case "short-answer": return <ShortAnswerRenderer q={question} answers={answers} setAnswer={setAnswer} />;
-  }
+  const media = question.imageUrl ? (
+    <img
+      src={question.imageUrl}
+      alt="Hình ảnh minh họa câu hỏi"
+      className="mb-4 max-h-96 w-full rounded-lg border object-contain"
+    />
+  ) : question.audioUrl ? (
+    <audio src={question.audioUrl} controls className="mb-4 w-full" />
+  ) : null;
+
+  const renderer = (() => {
+    switch (question.type) {
+      case "single-choice": return <SingleChoiceRenderer q={question} answers={answers} setAnswer={setAnswer} />;
+      case "multi-choice": return <MultiChoiceRenderer q={question} answers={answers} setAnswer={setAnswer} />;
+      case "true-false": return <TrueFalseRenderer q={question} answers={answers} setAnswer={setAnswer} />;
+      case "fill-blank": return <FillBlankRenderer q={question} answers={answers} setAnswer={setAnswer} />;
+      case "matching": return <MatchingRenderer q={question} answers={answers} setAnswer={setAnswer} />;
+      case "find-error": return <FindErrorRenderer q={question} answers={answers} setAnswer={setAnswer} />;
+      case "ordering": return <OrderingRenderer q={question} orderState={orderState} setOrderState={setOrderState} setAnswer={setAnswer} />;
+      case "short-answer": return <ShortAnswerRenderer q={question} answers={answers} setAnswer={setAnswer} />;
+    }
+  })();
+
+  return (
+    <>
+      {media}
+      {renderer}
+    </>
+  );
 }
 

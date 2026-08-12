@@ -1049,7 +1049,12 @@ export default function ExamTaking() {
 
   const hasReviewContent = (fb: DuringReviewFeedback | undefined): boolean => {
     if (!fb) return false;
-    if (fb.unavailable) return true;
+    // `unavailable` just means "this question type can't be auto-graded"
+    // (e.g. essay) — surfacing that mid-attempt, while the student hasn't
+    // even submitted yet, reads as a premature/confusing "grading" message
+    // with no actionable content. Say nothing instead; there is nothing to
+    // show until an instructor actually grades it post-submission.
+    if (fb.unavailable) return false;
     return (
       typeof fb.pointsAwarded === "number" ||
       typeof fb.isCorrect === "boolean" ||
