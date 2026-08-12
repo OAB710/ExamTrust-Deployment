@@ -674,7 +674,10 @@ export class ExamsService {
             },
           },
         },
-        orderBy: filters?.sort === 'title' ? { title: 'asc' } : filters?.sort === 'startTime' ? { startTime: 'asc' } : { updatedAt: 'desc' },
+        orderBy: filters?.sort === 'title' ? { title: 'asc' }
+        : filters?.sort === 'startTime' ? { startTime: 'asc' }
+        : filters?.sort === 'createdAt' ? { createdAt: 'desc' }
+        : { updatedAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),

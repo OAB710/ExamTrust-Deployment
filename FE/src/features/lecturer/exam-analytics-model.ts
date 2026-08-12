@@ -11,6 +11,8 @@ export type AnalyticsCourseInfo = {
 export type ExamOption = {
   id: string;
   title: string;
+  status?: string;
+  endTime?: string | null;
   course?: AnalyticsCourseInfo;
 };
 
@@ -185,13 +187,15 @@ export const normalizeCorrectAnswerIds = (value: any): string[] => {
     const obj = raw as Record<string, any>;
     if (obj.optionId) return [String(obj.optionId)];
     if (obj.answer !== undefined && obj.answer !== null) {
-      const answer = String(obj.answer);
+      const answer = typeof obj.answer === "object" ? JSON.stringify(obj.answer) : String(obj.answer);
       return answer.includes(",") ? answer.split(",").map((item) => item.trim()) : [answer];
     }
     const checked = Object.entries(obj)
       .filter(([, value]) => value === true || value === "true" || value === 1 || value === "1")
       .map(([key]) => key);
     if (checked.length) return checked;
+    // Empty or unrecognized object → no answers
+    return [];
   }
   if (typeof raw === "boolean") return [raw ? "True" : "False"];
   return [String(raw)];

@@ -56,8 +56,14 @@ export function normalizeCorrectAnswer(correctAnswer: unknown): string[] {
   if (typeof raw === "object") {
     const value = raw as Record<string, unknown>;
     if (value.optionId) return [String(value.optionId)];
-    if (value.answer != null) return String(value.answer).split(",").map((answer) => answer.trim());
-    return Object.entries(value).filter(([, answer]) => [true, "true", 1, "1"].includes(answer as any)).map(([key]) => key);
+    if (value.answer != null) {
+      const ans = typeof value.answer === "object" ? JSON.stringify(value.answer) : String(value.answer);
+      return ans.split(",").map((a) => a.trim());
+    }
+    const keys = Object.entries(value).filter(([, a]) => [true, "true", 1, "1"].includes(a as any)).map(([key]) => key);
+    if (keys.length > 0) return keys;
+    // Empty or unrecognized object → no answers to display
+    return [];
   }
   return [String(raw)];
 }

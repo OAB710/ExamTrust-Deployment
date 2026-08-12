@@ -98,6 +98,7 @@ export default function ExamTaking() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fullscreenCountdown, setFullscreenCountdown] = useState(15);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const doSubmitRef = useRef<any>(null);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [examSessionStatus, setExamSessionStatus] = useState<
     "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED"
@@ -174,7 +175,7 @@ export default function ExamTaking() {
       } catch {}
     }
     const graceStartedAt = Number(localStorage.getItem("examFullscreenGraceStartedAt") || 0);
-    if (graceStartedAt > 0 && Date.now() - graceStartedAt < 5000) {
+    if (graceStartedAt > 0 && Date.now() - graceStartedAt < 10000) {
       setFullscreenRequestedAt(graceStartedAt);
     }
     localStorage.removeItem("examFullscreenGraceStartedAt");
@@ -621,6 +622,7 @@ export default function ExamTaking() {
       router.push(`/student/grading?examId=${encodeURIComponent(examId)}`);
     else router.push("/student/grading");
   }, [log, router, examId, answers, questions, submissionId]);
+  doSubmitRef.current = doSubmit;
 
   useEffect(() => {
     deadlineAutoSubmitRef.current = false;
@@ -736,14 +738,12 @@ export default function ExamTaking() {
       setFullscreenCountdown(remaining);
       if (remaining === 0) {
         window.clearInterval(id);
-        // An Escape/fullscreen recovery is only a pending signal. The hook
-        // confirms it after the grace period; do not submit during that window.
-        if (isSecurityBlocked) doSubmit();
+        if (isSecurityBlocked) doSubmitRef.current();
       }
     }, 200);
 
     return () => window.clearInterval(id);
-  }, [isPreviewMode, isSecurityBlocked, isFullscreenExitPending, isSubmitting, doSubmit]);
+  }, [isPreviewMode, isSecurityBlocked, isFullscreenExitPending, isSubmitting]);
 
   useEffect(() => {
     if (isPreviewMode) return;
@@ -754,14 +754,14 @@ export default function ExamTaking() {
         setTimeLeft(remaining);
         if (remaining === 0 && !deadlineAutoSubmitRef.current) {
           deadlineAutoSubmitRef.current = true;
-          void doSubmit({ deadlineReached: true });
+          void doSubmitRef.current({ deadlineReached: true });
         }
         return;
       }
 
       setTimeLeft((currentTime) => {
         if (currentTime <= 1) {
-          void doSubmit();
+          void doSubmitRef.current();
           return 0;
         }
         return currentTime - 1;
@@ -771,7 +771,7 @@ export default function ExamTaking() {
     updateTimer();
     const id = window.setInterval(updateTimer, submissionDeadlineAt ? 250 : 1000);
     return () => window.clearInterval(id);
-  }, [doSubmit, isPreviewMode, submissionDeadlineAt]);
+  }, [isPreviewMode, submissionDeadlineAt]);
 
   useEffect(() => () => {
     webcamStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -931,6 +931,19 @@ export default function ExamTaking() {
       const selected = Array.isArray(answer) ? answer.map(String) : typeof answer === "string" ? [answer] : [];
       const lineNumbers = selected.map((label) => question.segments.findIndex((segment) => segment.label === label) + 1).filter((line) => line > 0);
       return <span>Dòng {lineNumbers.join(", ")}</span>;
+    }
+
+    if (question.type === "matching") {
+      const pairs = answer as Record<string, string> | undefined;
+      if (pairs && typeof pairs === "object") {
+        return <span>{Object.entries(pairs).map(([k, v]) => `${k} → ${v}`).join("; ")}</span>;
+      }
+      return <span>Đã trả lời</span>;
+    }
+
+    if (question.type === "ordering") {
+      const items = Array.isArray(answer) ? (answer as string[]) : [];
+      return <span>{items.map((item, i) => `${i + 1}. ${item}`).join("; ")}</span>;
     }
 
     if (question.type === "short-answer") {

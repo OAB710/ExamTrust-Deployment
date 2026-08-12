@@ -143,6 +143,32 @@ function getCorrectAnswerText(correctAnswer: any, options: ExamQuestion["questio
   return optionMap.has(key) ? `${key}. ${optionMap.get(key)}` : key;
 }
 
+// ─── Special parsers for MATCHING / ORDERING / FIND_ERROR ───
+
+function parseMatchingPairs(options: any): { left: string; right: string }[] {
+  if (!options || typeof options !== "object" || Array.isArray(options)) return [];
+  const left = Array.isArray(options.left) ? options.left.map(String) : [];
+  const right = Array.isArray(options.right) ? options.right.map(String) : [];
+  return left.map((l, i) => ({ left: l, right: right[i] || "" }));
+}
+
+function parseMatchingAnswer(correctAnswer: any): { left: string; right: string }[] {
+  const raw = correctAnswer?.pairs;
+  if (Array.isArray(raw)) return raw.map((p: any) => ({ left: String(p.left || ""), right: String(p.right || "") }));
+  return [];
+}
+
+function parseOrderingItems(options: any): string[] {
+  if (Array.isArray(options)) return options.map(String);
+  return [];
+}
+
+function parseOrderingAnswer(correctAnswer: any): string[] {
+  const raw = correctAnswer?.items;
+  if (Array.isArray(raw)) return raw.map(String);
+  return [];
+}
+
 export default function ExamPreview() {
   const params = useParams();
   const slug = Array.isArray(params?.slug) ? params.slug : [];
@@ -451,6 +477,12 @@ export default function ExamPreview() {
               <div className="space-y-4">
                 {exam.examQuestions.map((eq, index) => {
                   const options = getOptionEntries(eq.question?.options);
+                  const rawType = String(eq.question?.type || "").toUpperCase();
+                  const qType = normalizeType(rawType);
+                  const matchingPairs = rawType === "MATCHING" ? parseMatchingPairs(eq.question?.options) : [];
+                  const matchingAnswer = rawType === "MATCHING" ? parseMatchingAnswer(eq.question?.correctAnswer) : [];
+                  const orderingItems = rawType === "ORDERING" ? parseOrderingItems(eq.question?.options) : [];
+                  const orderingAnswer = rawType === "ORDERING" ? parseOrderingAnswer(eq.question?.correctAnswer) : [];
                   const correctKeys = new Set(getCorrectAnswerKeys(eq.question?.correctAnswer));
                   const correctAnswerText = getCorrectAnswerText(
                     eq.question?.correctAnswer,
@@ -482,7 +514,60 @@ export default function ExamPreview() {
                           {eq.question?.content || "Chưa có nội dung"}
                         </p>
 
-                        {options.length > 0 ? (
+                        {rawType === "MATCHING" ? (
+                          /* MATCHING: show pairs */
+                          matchingPairs.length > 0 ? (
+                            <div className="space-y-2">
+                              {matchingPairs.map((pair, i) => {
+                                const isCorrect = matchingAnswer.some(
+                                  (a) => a.left === pair.left && a.right === pair.right,
+                                );
+                                return (
+                                  <div key={i} className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm ${isCorrect ? "border-success/35 bg-success/10 text-success" : "border-border bg-muted/20 text-foreground"}`}>
+                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-background text-xs font-semibold text-muted-foreground">{i + 1}</span>
+                                    <span className="font-medium min-w-0 break-words">{pair.left}</span>
+                                    <span className="text-muted-foreground shrink-0">→</span>
+                                    <span className="min-w-0 break-words">{pair.right}</span>
+                                    {isCorrect ? <CheckCircle2 className="ml-auto h-4 w-4 shrink-0" /> : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : null
+                        ) : rawType === "ORDERING" ? (
+                          /* ORDERING: show numbered items */
+                          orderingItems.length > 0 ? (
+                            <div className="space-y-2">
+                              {orderingItems.map((item, i) => {
+                                const isCorrect = orderingAnswer[i] === item;
+                                return (
+                                  <div key={i} className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm ${isCorrect ? "border-success/35 bg-success/10 text-success" : "border-border bg-muted/20 text-foreground"}`}>
+                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-background text-xs font-semibold text-muted-foreground">{i + 1}</span>
+                                    <span className="min-w-0 break-words">{item}</span>
+                                    {isCorrect ? <CheckCircle2 className="ml-auto h-4 w-4 shrink-0" /> : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : null
+                        ) : rawType === "FIND_ERROR" ? (
+                          /* FIND_ERROR: show code lines */
+                          options.length > 0 ? (
+                            <div className="space-y-1">
+                              {options.map((option) => {
+                                const isCorrect = correctKeys.has(option.key);
+                                return (
+                                  <div key={option.key} className={`flex items-start gap-3 rounded-md border px-3 py-2 text-sm font-mono ${isCorrect ? "border-destructive/35 bg-destructive/10 text-destructive" : "border-border bg-muted/20 text-foreground"}`}>
+                                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isCorrect ? "bg-destructive text-destructive-foreground" : "bg-background text-muted-foreground"}`}>{option.key}</span>
+                                    <span className="min-w-0 break-words whitespace-pre-wrap leading-6">{option.value}</span>
+                                    {isCorrect ? <span className="ml-auto shrink-0 text-xs font-medium text-destructive">Dòng lỗi</span> : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : null
+                        ) : options.length > 0 ? (
+                          /* Default: show options A/B/C/D */
                           <div className="grid gap-2 sm:grid-cols-2">
                             {options.map((option) => {
                               const isCorrect = correctKeys.has(option.key);
@@ -519,9 +604,47 @@ export default function ExamPreview() {
                             <CheckCircle2 className="h-4 w-4" />
                             Đáp án đúng
                           </div>
-                          <p className="text-sm leading-6 text-foreground break-words">
-                            {correctAnswerText}
-                          </p>
+                          {rawType === "MATCHING" ? (
+                            matchingAnswer.length > 0 ? (
+                              <div className="space-y-1">
+                                {matchingAnswer.map((pair, i) => (
+                                  <p key={i} className="text-sm leading-6 text-foreground">
+                                    <span className="font-medium">{pair.left}</span> → {pair.right}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm leading-6 text-foreground break-words">{correctAnswerText}</p>
+                            )
+                          ) : rawType === "ORDERING" ? (
+                            orderingAnswer.length > 0 ? (
+                              <div className="space-y-1">
+                                {orderingAnswer.map((item, i) => (
+                                  <p key={i} className="text-sm leading-6 text-foreground">
+                                    <span className="font-medium">{i + 1}.</span> {item}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : orderingItems.length > 0 ? (
+                              <div className="space-y-1">
+                                {orderingItems.map((item, i) => (
+                                  <p key={i} className="text-sm leading-6 text-foreground">
+                                    <span className="font-medium">{i + 1}.</span> {item}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm leading-6 text-foreground break-words">{correctAnswerText}</p>
+                            )
+                          ) : rawType === "FIND_ERROR" ? (
+                            <p className="text-sm leading-6 text-foreground">
+                              Dòng chứa lỗi: <span className="font-bold text-destructive">{correctAnswerText}</span>
+                            </p>
+                          ) : (
+                            <p className="text-sm leading-6 text-foreground break-words">
+                              {correctAnswerText}
+                            </p>
+                          )}
                         </div>
 
                         {eq.question?.explanation ? (

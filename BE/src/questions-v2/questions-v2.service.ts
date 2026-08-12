@@ -324,8 +324,10 @@ export class QuestionsService {
           points: questionData.points,
           // Suggested coefficient only; the effective score belongs to each ExamQuestion.
           defaultPoints: questionData.defaultPoints ?? 1,
-          courseId: questionData.courseId,
-          creatorId: user.id,
+          course: questionData.courseId
+            ? { connect: { id: questionData.courseId } }
+            : undefined,
+          creator: { connect: { id: user.id } },
           mediaUrl: questionData.mediaUrl,
           mediaType: questionData.mediaType,
           mediaKey: questionData.mediaKey,
@@ -426,8 +428,8 @@ export class QuestionsService {
           difficulty: question.difficulty,
           points: question.points,
           defaultPoints: question.defaultPoints,
-          courseId: targetCourseId,
-          creatorId: user.id,
+          course: { connect: { id: targetCourseId } },
+          creator: { connect: { id: user.id } },
           status: 'PUBLISHED',
           isReusable: true,
         },
@@ -590,7 +592,9 @@ export class QuestionsService {
         difficulty: questionData.difficulty,
         points: questionData.points,
         defaultPoints: questionData.defaultPoints ?? question.defaultPoints ?? 1,
-        courseId: effectiveCourseId,
+        course: effectiveCourseId
+          ? { connect: { id: effectiveCourseId } }
+          : undefined,
         mediaUrl: questionData.mediaUrl,
         mediaType: questionData.mediaType,
         mediaKey: questionData.mediaKey,
@@ -960,7 +964,10 @@ export class QuestionsService {
     }
 
     this.assertCanAccessQuestion(question, user);
-    await this.prisma.question.delete({ where: { id } });
+    await this.prisma.question.update({
+      where: { id },
+      data: { status: 'ARCHIVED' },
+    });
     return { message: 'Đã xóa câu hỏi thành công' };
   }
 
@@ -1335,6 +1342,19 @@ export class QuestionsService {
         errors.push({ code: 'INSUFFICIENT_OPTIONS', path: 'answers.options', message: 'Cần ít nhất 2 phương án trả lời' });
       }
 
+      // FIND_ERROR: each line must be unique
+      if (type === 'FIND_ERROR') {
+        const trimmedLines = filled.map((x: any) => String(x || '').trim());
+        const seen = new Set<string>();
+        for (const line of trimmedLines) {
+          if (seen.has(line)) {
+            errors.push({ code: 'DUPLICATE_FIND_ERROR_LINE', path: 'answers.options', message: 'Các dòng trong câu hỏi tìm lỗi sai không được trùng lặp. Hãy tạo lại bằng AI hoặc sửa thủ công.' });
+            break;
+          }
+          seen.add(line);
+        }
+      }
+
       const answerSize = Array.isArray(correctAnswer)
         ? correctAnswer.length
         : Object.keys(correctAnswer || {}).length;
@@ -1376,6 +1396,16 @@ export class QuestionsService {
     if (Number.isNaN(n)) return 5;
     if (n <= 1) return Math.max(1, Math.min(10, Math.round(n * 10)));
     return Math.max(1, Math.min(10, Math.round(n)));
+  }
+
+  private extractBlankAnswers(content: string): { answers: string[] } {
+    const regex = /\[\[([^\]]+)\]\]/g;
+    const answers: string[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(content)) !== null) {
+      answers.push(match[1].trim());
+    }
+    return { answers };
   }
 
   async getQuestionHistory(params: { courseId?: string }, user: AuthUser) {
@@ -1832,7 +1862,9 @@ export class QuestionsService {
     const type = this.normalizeQuestionType(state?.intent?.questionType || state?.content?.type);
     const content = String(state?.content?.content || state?.content?.stem || '').trim();
     const options = state?.answers?.options || {};
-    const correctAnswer = state?.answers?.correctAnswer || {};
+    const correctAnswer = type === 'FILL_IN_BLANK'
+      ? this.extractBlankAnswers(content)
+      : (state?.answers?.correctAnswer || {});
     const explanation = String(state?.answers?.explanation || '').trim() || null;
     const difficulty = this.normalizeDifficultyRaw(state?.classification?.difficulty);
     const defaultPoints = Number(state?.classification?.points ?? 1);
@@ -1902,7 +1934,9 @@ export class QuestionsService {
           difficulty,
           points: defaultPoints,
           defaultPoints,
-          courseId: requestedCourseId || existingCourseId,
+          course: (requestedCourseId || existingCourseId)
+            ? { connect: { id: (requestedCourseId || existingCourseId)! } }
+            : undefined,
           ...mediaFields,
         },
       });
@@ -1922,8 +1956,8 @@ export class QuestionsService {
           difficulty,
           points: defaultPoints,
           defaultPoints,
-          courseId: requestedCourseId,
-          creatorId: user.id,
+          course: { connect: { id: requestedCourseId } },
+          creator: { connect: { id: user.id } },
           ...mediaFields,
         },
         select: {

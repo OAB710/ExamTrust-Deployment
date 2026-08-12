@@ -236,7 +236,7 @@ Rules:
 - For fill in the blank: do NOT include "options" or "correctAnswer". Instead, embed every blank directly inside "content" using double square brackets around the correct answer, e.g. "The capital of France is [[Paris]]." or "What is the sum of 7 and 5? [[12]]." Every blank must have its answer inside the brackets.
 - For matching: do NOT include "options" or "correctAnswer". Instead provide exactly 4 "pairs", each a {"left", "right"} object; "content" should be the matching instructions/prompt, not the pairs themselves.
 - For ordering: do NOT include "options" or "correctAnswer". Instead provide exactly 4 "items" as an array of strings already sorted in the single correct order; "content" should be the instructions asking the student to arrange them, not the items themselves.
-- For find the error: "content" should be a short intro/prompt only (e.g. "Find the bug in this function:"), NOT the code itself. Split the code/text snippet into exactly 4 lines and put each line as one option (A-D), in the same order as the original snippet, preserving exact whitespace/syntax of that line. Set "correctAnswer" to the letter of the ONE line that contains the bug.
+- For find the error: "content" should be ONLY a short intro (e.g. "Find the bug in this code:"), NOT the code. The options are 4 individual lines of code from a single code snippet. Each option is ONE line of real code (A, B, C, D). Only ONE line has a bug; the other 3 are correct. The lines must be actual code, not meta-descriptions. Example: {"options": {"A": "int x = 1;", "B": "int y = 2", "C": "int z = 3;", "D": "return x + z;"}, "correctAnswer": {"answer": "B"}} — line B is missing the semicolon. Do NOT write descriptions like "this line has a typo" — write the actual buggy code line itself.
 - Tags should be relevant academic topics (2-4 tags)
 // Tags removed from schema - do not request tags
 - Points should reflect difficulty (easy: 1-3, medium: 3-5, hard: 5-10)
@@ -287,12 +287,12 @@ Rules:
         responseText = result.response.text();
       }
 
-      const cleaned = responseText
-        .replace(/```json\s*/gi, '')
-        .replace(/```\s*/gi, '')
-        .trim();
-
-      let parsed = JSON.parse(cleaned);
+      let parsed: any;
+      try {
+        parsed = await this.safeJsonParse(responseText);
+      } catch (parseError: any) {
+        throw new Error(parseError.message);
+      }
 
       const hasCompleteMatchingPairs = (value: unknown) =>
         Array.isArray(value)
@@ -315,9 +315,7 @@ Rules:
           `${systemPrompt}\n\nYour previous response was invalid because one or more matching pairs had an empty or missing \"right\" value. Generate the complete question again. Each of the exactly 4 pairs MUST have non-empty \"left\" and non-empty \"right\" strings.`,
           this.buildOllamaOptions('question_generation'),
         );
-        parsed = JSON.parse(
-          repairedText.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim(),
-        );
+        parsed = await this.safeJsonParse(repairedText);
         if (!hasCompleteMatchingPairs(parsed.pairs)) {
           throw new Error('AI vẫn trả về danh sách ghép cặp chưa đầy đủ sau khi thử lại; vui lòng tạo lại');
         }
@@ -479,12 +477,7 @@ ${typeInstruction}
         responseText = result.response.text();
       }
 
-      const cleaned = responseText
-        .replace(/```json\s*/gi, '')
-        .replace(/```\s*/gi, '')
-        .trim();
-
-      const parsed = JSON.parse(cleaned);
+      const parsed = await this.safeJsonParse(responseText);
 
       if (!parsed.questions || !Array.isArray(parsed.questions)) {
         throw new Error('Định dạng phản hồi không hợp lệ: thiếu danh sách câu hỏi');
@@ -1479,7 +1472,7 @@ Rules:
       case 'MULTIPLE_CHOICE':
         return '"options": {"A": "option text", "B": "option text", "C": "option text", "D": "option text"},\n  "correctAnswer": {"answer": "B"}';
       case 'FIND_ERROR':
-        return '"options": {"A": "line or dialogue item", "B": "line or dialogue item", "C": "line or dialogue item", "D": "line or dialogue item"},\n  "correctAnswer": {"answers": ["B", "D"]}';
+        return '"options": {"A": "int x = 1;", "B": "int y = 2", "C": "int z = 3;", "D": "return x + z;"},\n  "correctAnswer": {"answer": "B"}';
       case 'TRUE_FALSE':
         return '"options": {"A": "True", "B": "False"},\n  "correctAnswer": {"answer": "A"}';
       case 'ESSAY':
@@ -1493,6 +1486,25 @@ Rules:
         return '"items": ["first step or item, in the correct order", "second step or item", "third step or item", "fourth step or item"]';
       default:
         return '"options": {"A": "option text", "B": "option text", "C": "option text", "D": "option text"},\n  "correctAnswer": {"answer": "B"}';
+    }
+  }
+
+  private async safeJsonParse(text: string): Promise<any> {
+    const cleaned = text
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/gi, '')
+      .trim();
+
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      try {
+        const { jsonrepair } = await import('jsonrepair');
+        const repaired = (jsonrepair as (input: string) => string)(cleaned);
+        return JSON.parse(repaired);
+      } catch {
+        throw new Error('AI trả về JSON không hợp lệ. Vui lòng thử lại với prompt khác.');
+      }
     }
   }
 

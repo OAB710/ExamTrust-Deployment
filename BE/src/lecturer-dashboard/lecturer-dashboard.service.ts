@@ -46,12 +46,14 @@ export class LecturerDashboardService {
           where: {
             ...ownedExamWhere,
             status: 'DRAFT',
+            deletedAt: null,
           },
         }),
         this.prisma.exam.findFirst({
           where: {
             ...ownedExamWhere,
             status: 'DRAFT',
+            deletedAt: null,
           },
           orderBy: { updatedAt: 'desc' },
           select: { id: true },
@@ -60,6 +62,7 @@ export class LecturerDashboardService {
           where: {
             ...ownedExamWhere,
             status: 'PUBLISHED',
+            deletedAt: null,
             startTime: {
               gt: now,
               lte: next24Hours,

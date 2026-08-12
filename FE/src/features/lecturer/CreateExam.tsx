@@ -1601,9 +1601,6 @@ export default function CreateExam() {
                                   {phase.description}
                                 </CardDescription>
                               </div>
-                              <Badge variant={isActive ? "default" : "secondary"}>
-                                {reviewPhaseSummary(config)}
-                              </Badge>
                             </div>
                           </CardHeader>
                           <CardContent className="space-y-3">

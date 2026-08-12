@@ -313,34 +313,47 @@ function FindErrorRenderer({
       <p className="text-xs font-medium text-primary mb-3">
         Nhấp vào dòng bạn cho là có chứa lỗi:
       </p>
-      <div className="rounded-lg border bg-card p-4 space-y-1">
-        {q.segments.map((seg) => {
+      <div className="rounded-lg border bg-card">
+        {q.segments.map((seg, idx) => {
           const isSel = selected.includes(seg.label);
           return (
             <button
               key={seg.label}
               onClick={() => toggle(seg.label)}
-              className={`w-full text-left flex items-start gap-3 rounded px-4 py-2.5 transition-all border
-                ${
-                  isSel
-                    ? "bg-red-50 border-red-300 text-red-800 ring-1 ring-red-200"
-                    : "border-transparent text-foreground hover:bg-muted hover:border-border"
-                }`}
+              className={`group flex w-full items-start gap-3 px-4 py-2.5 text-left transition-all duration-150 cursor-pointer
+                first:rounded-t-lg last:rounded-b-lg
+                ${idx < q.segments.length - 1 ? "border-b" : ""}
+                ${isSel
+                  ? "bg-red-50 border-red-200 text-red-800 ring-1 ring-red-200"
+                  : "border-transparent text-foreground hover:bg-red-50/50 hover:border-red-200/50 hover:text-red-800"}`}
             >
               <span
-                className={`shrink-0 text-xs rounded px-1.5 py-0.5 font-bold mt-0.5
-                ${isSel ? "bg-red-500 text-white" : "bg-secondary text-muted-foreground"}`}
+                className={`shrink-0 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold mt-0.5 transition-all duration-150
+                ${isSel
+                  ? "bg-red-500 text-white"
+                  : "bg-secondary text-muted-foreground border border-gray-300 group-hover:border-red-400 group-hover:bg-red-100"}`}
               >
-                {q.segments.indexOf(seg) + 1}
+                {isSel ? (
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : (
+                  idx + 1
+                )}
               </span>
-              <span className="min-w-0 break-words leading-relaxed text-sm">{seg.code}</span>
+              <span className="min-w-0 break-words leading-relaxed text-sm font-mono">{seg.code}</span>
+              {!isSel && (
+                <span className="ml-auto shrink-0 self-center text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                  Nhấn để chọn
+                </span>
+              )}
             </button>
           );
         })}
       </div>
       {selected.length > 0 && (
         <p className="text-xs text-amber-600 mt-2 font-medium">
-          Đã chọn: Dòng <strong>{selected}</strong>
+          Đã chọn: Dòng <strong>{selected.join(", ")}</strong>
         </p>
       )}
     </div>

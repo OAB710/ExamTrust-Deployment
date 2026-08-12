@@ -43,25 +43,41 @@ export function useQuestionAiGeneration(params: Params) {
   const [aiSimilarityWarning, setAiSimilarityWarning] = useState("");
 
   const applyGeneratedQuestion = (result: GeneratedQuestion) => {
-    params.onContent(result.content);
-    if (result.explanation) params.onExplanation(result.explanation);
+    // Always overwrite content and explanation with AI result
+    params.onContent(result.content || "");
+    params.onExplanation(result.explanation || "");
     if (result.difficulty !== undefined && result.difficulty !== null) params.onDifficulty([snapQuestionDifficulty(Math.max(0, Math.min(1, result.difficulty)))]);
     if (result.topic) params.onTopic(result.topic);
     if (result.learningObjective) params.onLearningObjective(result.learningObjective);
-    if (result.options && ["multiple_choice", "true_false", "find_error"].includes(params.questionType)) {
-      const correctIds = Array.isArray((result.correctAnswer as any)?.answers)
-        ? (result.correctAnswer as any).answers.map(String)
-        : String(result.correctAnswer?.answer || "").split(",");
-      params.onOptions(Object.entries(result.options).map(([id, text]) => ({ id, text, isCorrect: correctIds.includes(id) })));
-    }
-    if (params.questionType === "essay" && result.correctAnswer?.answer) {
-      params.onEssayRubric(result.correctAnswer.answer);
-    }
-    if (params.questionType === "matching" && Array.isArray(result.pairs)) {
-      params.onOptions(result.pairs.map((pair, index) => ({ id: String.fromCharCode(65 + index), text: pair.left || "", match: pair.right || "", isCorrect: false })));
-    }
-    if (params.questionType === "ordering" && Array.isArray(result.items)) {
-      params.onOptions(result.items.map((item, index) => ({ id: String.fromCharCode(65 + index), text: item || "", isCorrect: false })));
+
+    // Replace options for question types that use them
+    if (["multiple_choice", "true_false", "find_error"].includes(params.questionType)) {
+      if (result.options && typeof result.options === "object") {
+        const correctIds = Array.isArray((result.correctAnswer as any)?.answers)
+          ? (result.correctAnswer as any).answers.map(String)
+          : String(result.correctAnswer?.answer || "").split(",");
+        params.onOptions(Object.entries(result.options).map(([id, text]) => ({ id, text, isCorrect: correctIds.includes(id) })));
+      } else {
+        // No options in AI result → clear to defaults
+        params.onOptions([]);
+      }
+    } else if (params.questionType === "essay") {
+      params.onEssayRubric(result.correctAnswer?.answer || "");
+    } else if (params.questionType === "matching") {
+      if (Array.isArray(result.pairs)) {
+        params.onOptions(result.pairs.map((pair, index) => ({ id: String.fromCharCode(65 + index), text: pair.left || "", match: pair.right || "", isCorrect: false })));
+      } else {
+        params.onOptions([]);
+      }
+    } else if (params.questionType === "ordering") {
+      if (Array.isArray(result.items)) {
+        params.onOptions(result.items.map((item, index) => ({ id: String.fromCharCode(65 + index), text: item || "", isCorrect: false })));
+      } else {
+        params.onOptions([]);
+      }
+    } else {
+      // fill_blank: no options needed
+      params.onOptions([]);
     }
   };
 

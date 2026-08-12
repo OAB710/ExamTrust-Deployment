@@ -694,8 +694,28 @@ export default function ExamAnalytics() {
               <p className="text-sm mt-1">Bài thi này chưa có dữ liệu hiệu suất.</p>
             </CardContent>
           </Card>
-        ) : (
-          <div className="space-y-5">
+        ) : (() => {
+            const currentExam = examOptions.find((ex) => ex.id === selectedExamId);
+            const isInProgress = currentExam?.status === "PUBLISHED" && currentExam?.endTime && new Date(currentExam.endTime) > new Date();
+            if (isInProgress) {
+              return (
+                <Card className="border-amber-200 bg-amber-50/50">
+                  <CardContent className="py-12 text-center">
+                    <div className="h-14 w-14 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                      <AlertTriangle className="h-7 w-7 text-amber-600" />
+                    </div>
+                    <p className="text-lg font-semibold text-amber-800">Bài thi đang diễn ra</p>
+                    <p className="text-sm text-amber-700 mt-2 max-w-md mx-auto">
+                      Bài thi chưa kết thúc nên hệ thống chưa thể phân tích dữ liệu.
+                      Hãy quay lại sau khi bài thi kết thúc vào lúc{" "}
+                      <strong>{currentExam?.endTime ? new Date(currentExam.endTime).toLocaleString("vi-VN") : "chưa xác định"}</strong>.
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            }
+            return (
+            <div className="space-y-5">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {getKpiCards(data).map((card) => (
                 <AdminStatCard
@@ -989,7 +1009,8 @@ export default function ExamAnalytics() {
               </Card>
             </div>
           </div>
-        )}
+            );
+          })()}
 
         <Dialog open={Boolean(previewQuestion)} onOpenChange={(open) => {
           if (!open) closeQuestionPreview();

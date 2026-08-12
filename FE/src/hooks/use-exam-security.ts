@@ -52,7 +52,7 @@ const emptyCounts: Record<ViolationType, number> = {
   tab_switch: 0,
 };
 
-const DEFAULT_FULLSCREEN_GRACE_MS = 5000;
+const DEFAULT_FULLSCREEN_GRACE_MS = 10_000;
 const DEFAULT_FULLSCREEN_EXIT_GRACE_MS = 15_000;
 const DEFAULT_VIOLATION_COOLDOWN_MS = 3000;
 

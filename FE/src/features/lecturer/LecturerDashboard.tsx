@@ -344,11 +344,11 @@ export default function LecturerDashboard() {
                       const start = exam.startTime
                         ? new Date(exam.startTime)
                         : null;
-                      const end = start
-                        ? new Date(
-                            start.getTime() + (exam.duration || 0) * 60000,
-                          )
-                        : null;
+                      const end = exam.endTime
+                        ? new Date(exam.endTime)
+                        : start
+                          ? new Date(start.getTime() + (exam.duration || 0) * 60000)
+                          : null;
                       const isScheduled = start ? now < start.getTime() : false;
                       const isExpired = end ? end.getTime() < now : false;
                       const isLiveByTime =

@@ -49,6 +49,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -172,7 +182,7 @@ function normalizeCorrectAnswer(
     if (obj.optionId) return [String(obj.optionId)];
     // Format: { answer: "B" } or { answer: "A,B,C" }
     if ("answer" in obj && obj.answer !== undefined && obj.answer !== null) {
-      const ans = String(obj.answer);
+      const ans = typeof obj.answer === "object" ? JSON.stringify(obj.answer) : String(obj.answer);
       return ans.includes(",") ? ans.split(",").map((s) => s.trim()) : [ans];
     }
     // Could be a key-value mapping like { "A": true }
@@ -180,6 +190,8 @@ function normalizeCorrectAnswer(
       .filter(([, v]) => v === true || v === "true" || v === 1 || v === "1")
       .map(([k]) => k);
     if (keys.length > 0) return keys;
+    // Empty object or unrecognized object format (e.g. FILL_IN_BLANK with answers in content)
+    return [];
   }
 
   // Boolean (True/False questions)
@@ -207,6 +219,41 @@ function formatDateSafe(value?: string | Date | null): string {
 
 // Types that don't use options
 const NO_OPTIONS_TYPES = new Set(["ESSAY", "SHORT_ANSWER"]);
+
+function extractBlankAnswers(content: string): string[] {
+  const regex = /\[\[([^\]]+)\]\]/g;
+  const answers: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(content)) !== null) {
+    answers.push(match[1].trim());
+  }
+  return answers;
+}
+
+function parseMatchingPairs(options: unknown): { left: string; right: string }[] {
+  const raw = safeParseJson(options);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const obj = raw as Record<string, unknown>;
+  const left = Array.isArray(obj.left) ? obj.left.map(String) : [];
+  const right = Array.isArray(obj.right) ? obj.right.map(String) : [];
+  return left.map((l, i) => ({ left: l, right: right[i] || "" }));
+}
+
+function parseOrderingItems(options: unknown): string[] {
+  const raw = safeParseJson(options);
+  if (Array.isArray(raw)) return raw.map(String);
+  return [];
+}
+
+function parseMatchingAnswers(correctAnswer: unknown): string[] {
+  const raw = safeParseJson(correctAnswer);
+  if (!raw || typeof raw !== "object") return [];
+  const obj = raw as Record<string, unknown>;
+  if (Array.isArray(obj.pairs)) {
+    return obj.pairs.map((p: any) => `${p.left || ""} → ${p.right || ""}`);
+  }
+  return [];
+}
 
 // --- Preview modal sub-components ---
 
@@ -249,13 +296,16 @@ export default function QuestionBankManagement() {
   const [copyLoading, setCopyLoading] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateLoading, setDuplicateLoading] = useState(false);
-  const [duplicateThreshold, setDuplicateThreshold] = useState(80);
+  const [duplicateThresholdMin, setDuplicateThresholdMin] = useState(50);
+  const [duplicateThresholdMax, setDuplicateThresholdMax] = useState(100);
   const [duplicatePairs, setDuplicatePairs] = useState<Array<{
     questionA: { id: string; type: string; content: string };
     questionB: { id: string; type: string; content: string };
     similarityPercent: number; matchMethod: 'EXACT' | 'TEXT' | 'AI'; reason: string;
   }>>([]);
   const [duplicateScanCount, setDuplicateScanCount] = useState(0);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useQuestionBankRouteState({
     courses, questions, searchParams, selectedCourse, setSelectedCourse,
@@ -275,7 +325,7 @@ export default function QuestionBankManagement() {
     // Use the stable generic API method so Fast Refresh does not retain an
     // older ApiClient prototype after this feature adds convenience methods.
     api.request<{ similarityThreshold: number }>('/questions/duplicate-preference')
-      .then((preference) => setDuplicateThreshold(preference.similarityThreshold))
+      .then((preference) => setDuplicateThresholdMax(preference.similarityThreshold))
       .catch(() => undefined);
   }, []);
 
@@ -294,11 +344,22 @@ export default function QuestionBankManagement() {
   });
 
   const handleDelete = async (id: string) => {
+    setDeleteTargetId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
+    setDeleteLoading(true);
     try {
-      await api.deleteQuestion(id);
-      setQuestions((prev) => prev.filter((q) => q.id !== id));
+      await api.deleteQuestion(deleteTargetId);
+      setQuestions((prev) => prev.filter((q) => q.id !== deleteTargetId));
+      toast.success("Đã xóa câu hỏi");
     } catch (error) {
       console.error("Failed to delete question:", error);
+      toast.error("Xóa câu hỏi thất bại");
+    } finally {
+      setDeleteLoading(false);
+      setDeleteTargetId(null);
     }
   };
 
@@ -387,12 +448,14 @@ export default function QuestionBankManagement() {
     }
   };
 
-  const saveDuplicateThreshold = async (value: string) => {
-    const next = Math.max(1, Math.min(100, Number.parseInt(value, 10) || 80));
-    setDuplicateThreshold(next);
+  const saveDuplicateThreshold = async (min: number, max: number) => {
+    const nextMin = Math.max(0, Math.min(100, min));
+    const nextMax = Math.max(nextMin, Math.min(100, max));
+    setDuplicateThresholdMin(nextMin);
+    setDuplicateThresholdMax(nextMax);
     try {
       await api.request('/questions/duplicate-preference', {
-        method: 'PATCH', body: { similarityThreshold: next },
+        method: 'PATCH', body: { similarityThreshold: nextMax },
       });
     } catch {
       toast.error("Không thể lưu ngưỡng tương đồng.");
@@ -1122,35 +1185,87 @@ export default function QuestionBankManagement() {
         </Dialog>
 
         <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
-          <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+          <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Lọc các câu trùng lặp</DialogTitle>
               <DialogDescription>
                 Đối chiếu {duplicateScanCount} câu hỏi cùng học phần. Kết quả chỉ là gợi ý để giảng viên xem xét.
               </DialogDescription>
             </DialogHeader>
-            <div className="flex items-end gap-3 rounded-lg border bg-muted/30 p-3">
+            <div className="flex items-end gap-4 rounded-lg border bg-muted/30 p-4 flex-wrap">
               <div className="space-y-1">
-                <label className="text-sm font-medium">Ngưỡng tương đồng (%)</label>
-                <Input type="number" min={1} max={100} value={duplicateThreshold} onChange={(event) => setDuplicateThreshold(Number(event.target.value.replace(/[^0-9]/g, "")) || 0)} onBlur={(event) => saveDuplicateThreshold(event.target.value)} className="w-28" />
+                <label className="text-sm font-medium">Ngưỡng dưới (%)</label>
+                <Input type="number" min={0} max={100} value={duplicateThresholdMin} onChange={(event) => {
+                  const v = Number(event.target.value.replace(/[^0-9]/g, "")) || 0;
+                  setDuplicateThresholdMin(Math.min(v, duplicateThresholdMax));
+                }} onBlur={() => saveDuplicateThreshold(duplicateThresholdMin, duplicateThresholdMax)} className="w-24" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Ngưỡng trên (%)</label>
+                <Input type="number" min={0} max={100} value={duplicateThresholdMax} onChange={(event) => {
+                  const v = Number(event.target.value.replace(/[^0-9]/g, "")) || 0;
+                  setDuplicateThresholdMax(Math.max(v, duplicateThresholdMin));
+                }} onBlur={() => saveDuplicateThreshold(duplicateThresholdMin, duplicateThresholdMax)} className="w-24" />
               </div>
               <p className="pb-1 text-xs text-muted-foreground">Cài đặt được lưu theo tài khoản.</p>
             </div>
             {duplicateLoading ? (
               <div className="flex min-h-44 items-center justify-center gap-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Đang phân tích câu hỏi...</div>
-            ) : duplicatePairs.filter((pair) => pair.similarityPercent >= Number(duplicateThreshold || 80)).length === 0 ? (
-              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Không tìm thấy cặp câu hỏi nào đạt ngưỡng hiện tại.</div>
-            ) : (
-              <div className="space-y-3">
-                {duplicatePairs.filter((pair) => pair.similarityPercent >= Number(duplicateThreshold || 80)).map((pair) => (
-                  <div key={`${pair.questionA.id}-${pair.questionB.id}`} className="rounded-lg border p-4">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><span className="font-semibold">Tương đồng {pair.similarityPercent}%</span><StatusBadge status={pair.matchMethod === 'AI' ? 'success' : pair.matchMethod === 'EXACT' ? 'info' : 'warning'}>{pair.matchMethod === 'AI' ? 'AI xác nhận' : pair.matchMethod === 'EXACT' ? 'Trùng chính xác' : 'So khớp văn bản'}</StatusBadge></div>
-                    <div className="grid gap-3 md:grid-cols-2"><div className="rounded-md bg-muted/50 p-3 text-sm"><p className="mb-1 text-xs font-medium text-muted-foreground">Câu A</p>{pair.questionA.content}</div><div className="rounded-md bg-muted/50 p-3 text-sm"><p className="mb-1 text-xs font-medium text-muted-foreground">Câu B</p>{pair.questionB.content}</div></div>
-                    <p className="mt-3 text-xs text-muted-foreground">{pair.reason}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            ) : (() => {
+              const filteredPairs = duplicatePairs.filter((pair) =>
+                pair.similarityPercent >= duplicateThresholdMin && pair.similarityPercent <= duplicateThresholdMax
+              );
+              return filteredPairs.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  Không tìm thấy cặp câu hỏi nào trong khoảng {duplicateThresholdMin}%–{duplicateThresholdMax}%.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    Hiển thị {filteredPairs.length} cặp trùng lặp ({duplicateThresholdMin}%–{duplicateThresholdMax}%)
+                  </p>
+                  {filteredPairs.map((pair) => (
+                    <div key={`${pair.questionA.id}-${pair.questionB.id}`} className="rounded-lg border p-4">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold">Tương đồng {pair.similarityPercent}%</span>
+                        <StatusBadge status={pair.matchMethod === 'AI' ? 'success' : pair.matchMethod === 'EXACT' ? 'info' : 'warning'}>
+                          {pair.matchMethod === 'AI' ? 'AI xác nhận' : pair.matchMethod === 'EXACT' ? 'Trùng chính xác' : 'So khớp văn bản'}
+                        </StatusBadge>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="rounded-md bg-muted/50 p-3 text-sm relative group">
+                          <p className="mb-1 text-xs font-medium text-muted-foreground">Câu A</p>
+                          <p className="pr-8">{pair.questionA.content}</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2 h-7 w-7 p-0 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => handleDelete(pair.questionA.id)}
+                            title="Xóa câu hỏi này"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        <div className="rounded-md bg-muted/50 p-3 text-sm relative group">
+                          <p className="mb-1 text-xs font-medium text-muted-foreground">Câu B</p>
+                          <p className="pr-8">{pair.questionB.content}</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2 h-7 w-7 p-0 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => handleDelete(pair.questionB.id)}
+                            title="Xóa câu hỏi này"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-muted-foreground">{pair.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 
@@ -1209,8 +1324,14 @@ export default function QuestionBankManagement() {
               const diff = getDifficultyLabel(q.difficulty || 1);
               const typeLabel = questionTypeLabels[q.type] || q.type;
               const options = normalizeOptions(q.options);
-              const correctAnswers = normalizeCorrectAnswer(q.correctAnswer);
-              const hasOptions = !NO_OPTIONS_TYPES.has(q.type);
+              const matchingPairs = q.type === "MATCHING" ? parseMatchingPairs(q.options) : [];
+              const orderingItems = q.type === "ORDERING" ? parseOrderingItems(q.options) : [];
+              const correctAnswers = q.type === "FILL_IN_BLANK"
+                ? extractBlankAnswers(q.content)
+                : q.type === "MATCHING"
+                  ? parseMatchingAnswers(q.correctAnswer)
+                  : normalizeCorrectAnswer(q.correctAnswer);
+              const hasOptions = !NO_OPTIONS_TYPES.has(q.type) && q.type !== "MATCHING" && q.type !== "ORDERING";
 
               return (
                 <>
@@ -1258,8 +1379,44 @@ export default function QuestionBankManagement() {
                       </p>
                     </Section>
 
-                    {/* 2. Answer Options */}
-                    {hasOptions ? (
+                    {/* 2. Answer Options / Matching Pairs / Ordering Items */}
+                    {q.type === "MATCHING" ? (
+                      <Section title="Các cặp ghép đôi">
+                        {matchingPairs.length > 0 ? (
+                          <div className="space-y-2">
+                            {matchingPairs.map((pair, i) => (
+                              <div key={i} className="flex items-center gap-3 rounded-lg border p-3 text-sm border-border bg-card">
+                                <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold bg-muted text-muted-foreground">
+                                  {i + 1}
+                                </span>
+                                <span className="flex-1 font-medium">{pair.left}</span>
+                                <svg className="h-4 w-4 text-muted-foreground shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                                <span className="flex-1 text-muted-foreground">{pair.right}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">Chưa có cặp ghép đôi</p>
+                        )}
+                      </Section>
+                    ) : q.type === "ORDERING" ? (
+                      <Section title="Các phần tử cần sắp xếp">
+                        {orderingItems.length > 0 ? (
+                          <div className="space-y-2">
+                            {orderingItems.map((item, i) => (
+                              <div key={i} className="flex items-center gap-3 rounded-lg border p-3 text-sm border-border bg-card">
+                                <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold bg-muted text-muted-foreground">
+                                  {i + 1}
+                                </span>
+                                <span className="flex-1">{item}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">Chưa có phần tử nào</p>
+                        )}
+                      </Section>
+                    ) : hasOptions ? (
                       <Section title="Các lựa chọn">
                         {options.length > 0 ? (
                           <div className="space-y-2">
@@ -1316,7 +1473,49 @@ export default function QuestionBankManagement() {
                       title="Đáp án đúng"
                       className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20"
                     >
-                      {correctAnswers.length > 0 ? (
+                      {q.type === "MATCHING" ? (
+                        matchingPairs.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {matchingPairs.map((pair, i) => (
+                              <div key={i} className="flex items-center gap-2 text-sm text-green-800 dark:text-green-300">
+                                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                                <span className="font-medium">{pair.left}</span>
+                                <span>→</span>
+                                <span>{pair.right}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : correctAnswers.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {correctAnswers.map((ans, i) => (
+                              <span key={i} className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700">
+                                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                {ans}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">Chưa có đáp án đúng</p>
+                        )
+                      ) : q.type === "ORDERING" ? (
+                        orderingItems.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {orderingItems.map((item, i) => (
+                              <div key={i} className="flex items-center gap-2 text-sm text-green-800 dark:text-green-300">
+                                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                                <span className="font-medium">{i + 1}.</span>
+                                <span>{item}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">Thứ tự đúng được lưu trong đáp án</p>
+                        )
+                      ) : correctAnswers.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                           {correctAnswers.map((ans, i) => (
                             <span
@@ -1400,6 +1599,29 @@ export default function QuestionBankManagement() {
             })()}
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!deleteTargetId} onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Xác nhận xóa câu hỏi</AlertDialogTitle>
+              <AlertDialogDescription>
+                Bạn có chắc chắn muốn xóa câu hỏi này? Hành động này không thể hoàn tác.
+                Câu hỏi sẽ bị xóa vĩnh viễn khỏi ngân hàng câu hỏi.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteLoading}>Hủy</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                disabled={deleteLoading}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Xóa"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </AdminPageShell>
     </DashboardLayout>
   );

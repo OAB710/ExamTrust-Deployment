@@ -121,8 +121,8 @@ export default function ExamManagement() {
     title: { value: "", operator: "contains" },
     createdAt: { from: undefined, to: undefined },
   });
-  const [sortField, setSortField] = useState("title");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+  const [sortField, setSortField] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -539,6 +539,7 @@ export default function ExamManagement() {
   const activeFilterChips = getFilterChips(appliedFilters, examFilterDefinitions);
 
   const examSortOptions = [
+    { field: "createdAt", label: "Mới nhất" },
     { field: "course.code", label: "Khóa học" },
     { field: "startTime", label: "Lịch thi" },
     { field: "status", label: "Trạng thái" },

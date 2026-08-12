@@ -134,10 +134,6 @@ export function QuestionAnswerEditor({
 function FindErrorLineEditor({ options, onReplaceOptions }: { options: QuestionOption[]; onReplaceOptions: (options: QuestionOption[]) => void }) {
   const lines = options.filter((option) => option.text.trim());
   const updateLines = (value: string) => {
-    // Split preserving empty lines so the controlled textarea round-trips
-    // faithfully. Previously `filter(Boolean)` dropped empty (trailing) lines,
-    // which made it impossible to start a new line: pressing Enter inserted a
-    // newline that was instantly removed on re-render, snapping the value back.
     const parsed = value.split(/\r?\n/).map((line) => line.trim());
     const next = parsed.map((text, index) => ({ id: String.fromCharCode(65 + index), text, isCorrect: options[index]?.isCorrect || false }));
     while (next.length < 2) next.push({ id: String.fromCharCode(65 + next.length), text: "", isCorrect: false });
@@ -145,12 +141,50 @@ function FindErrorLineEditor({ options, onReplaceOptions }: { options: QuestionO
   };
   const toggleLine = (id: string) => onReplaceOptions(options.map((option) => option.id === id ? { ...option, isCorrect: !option.isCorrect } : option));
 
-  return <div className="space-y-4">
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Nhập một dòng cho mỗi câu, lượt thoại hoặc dòng code. Trong bản xem trước, chọn tất cả các dòng có lỗi.</div>
-    <div className="space-y-2">
+  const textareaValue = options.map((option) => option.text).join("\n");
+  const lineCount = Math.max(lines.length, textareaValue.split("\n").length);
+
+  return <div className="space-y-3">
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+      Nhập code theo từng dòng. Nhấn vào số dòng bên trái để đánh dấu dòng có lỗi (màu đỏ).
+    </div>
+    <div className="space-y-1">
       <Label>Nội dung theo dòng</Label>
-      <Textarea value={options.map((option) => option.text).join("\n")} onChange={(event) => updateLines(event.target.value)} rows={Math.max(5, options.length + 1)} placeholder={"A: I has finished my homework.\nB: She has already checked it.\nC: They goes home together."} className="resize-y font-mono text-sm break-words" />
-      <p className="text-xs text-muted-foreground">Cần ít nhất 2 dòng không trống.</p>
+      <div className="relative rounded-lg border bg-card overflow-hidden">
+        <div className="flex">
+          {/* Line numbers + error toggles */}
+          <div className="shrink-0 border-r bg-muted/30 py-2 select-none">
+            {Array.from({ length: Math.max(lineCount, 1) }).map((_, idx) => {
+              const opt = options[idx];
+              const isError = opt?.isCorrect || false;
+              const hasText = opt?.text?.trim();
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => opt?.id && hasText ? toggleLine(opt.id) : undefined}
+                  disabled={!hasText}
+                  className={`flex items-center justify-center w-10 h-6 text-xs font-mono transition-all duration-150
+                    ${hasText ? "cursor-pointer hover:bg-red-100" : "cursor-default"}
+                    ${isError ? "bg-red-500 text-white font-bold" : "text-muted-foreground hover:text-red-600"}`}
+                  title={hasText ? (isError ? "Dòng có lỗi — nhấn để bỏ chọn" : "Nhấn để đánh dấu dòng có lỗi") : ""}
+                >
+                  {isError ? "✕" : idx + 1}
+                </button>
+              );
+            })}
+          </div>
+          {/* Textarea */}
+          <Textarea
+            value={textareaValue}
+            onChange={(event) => updateLines(event.target.value)}
+            rows={Math.max(6, lineCount + 1)}
+            placeholder={"public class Main {\n  public static void main(String[] args) {\n    int x = 1\n  }\n}"}
+            className="flex-1 border-0 rounded-none resize-y font-mono text-sm leading-6 py-2 focus-visible:ring-0 focus-visible:ring-offset-0"
+            style={{ lineHeight: "1.5rem" }}
+          />
+        </div>
+      </div>
       {(() => {
         const raw = options.map((o) => o.text).join("\n");
         const counter = lineContentCounterText(raw);
@@ -162,14 +196,19 @@ function FindErrorLineEditor({ options, onReplaceOptions }: { options: QuestionO
         );
       })()}
     </div>
-    <div className="overflow-hidden rounded-lg border bg-muted/20">
-      <div className="border-b bg-muted/60 px-3 py-2 text-sm font-medium">Bản xem trước — chọn dòng lỗi</div>
-      {lines.map((option, index) => <button type="button" key={option.id} onClick={() => toggleLine(option.id)} className={`flex w-full items-start gap-3 border-b px-3 py-2.5 text-left last:border-b-0 ${option.isCorrect ? "bg-red-50 text-red-900" : "hover:bg-muted/50"}`}>
-        <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${option.isCorrect ? "border-red-500 bg-red-500 text-white" : "bg-background"}`}>{index + 1}</span>
-        <span className="min-w-0 break-words whitespace-pre-wrap font-mono text-sm">{option.text}</span>
-      </button>)}
-    </div>
-    {!lines.some((option) => option.isCorrect) ? <p className="text-sm text-destructive">Hãy chọn ít nhất một dòng có lỗi.</p> : null}
+    {lines.length > 0 && !lines.some((option) => option.isCorrect) && (
+      <p className="text-sm text-destructive">Hãy chọn ít nhất một dòng có lỗi bằng cách nhấn vào số dòng bên trái.</p>
+    )}
+    {lines.length > 0 && lines.some((option) => option.isCorrect) && (
+      <p className="text-xs text-green-600">
+        Đã đánh dấu {lines.filter((option) => option.isCorrect).length} dòng lỗi: {" "}
+        {lines.filter((option) => option.isCorrect).map((option, i) => (
+          <span key={option.id} className="font-medium">
+            {i > 0 && ", "}Dòng {options.indexOf(option) + 1}
+          </span>
+        ))}
+      </p>
+    )}
   </div>;
 }
 
