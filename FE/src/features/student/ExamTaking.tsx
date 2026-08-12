@@ -78,6 +78,9 @@ export default function ExamTaking() {
   const searchParams = useSearchParams();
   const examId = searchParams.get("examId") || undefined;
   const isPreviewMode = searchParams.get("mode") === "preview";
+  // URL-based handoff: ExamReadyCheck passes the submissionId so this page
+  // can verify the attempt with the backend instead of trusting localStorage alone.
+  const urlSubmissionId = searchParams.get("submissionId") || undefined;
   // The URL is not a security policy. Resolve proctoring from the persisted
   // exam configuration before enabling/turning off any exam safeguards.
   const [proctoringEnabled, setProctoringEnabled] = useState(false);
@@ -145,6 +148,51 @@ export default function ExamTaking() {
       router.replace(`/student/exam-ready?examId=${encodeURIComponent(examId)}`);
       return;
     }
+
+    // ── Priority 1: URL-based handoff (most reliable) ──
+    // ExamReadyCheck passes submissionId in the URL. This is the authoritative
+    // signal that a submission was just created/resumed. Verify with backend.
+    if (urlSubmissionId) {
+      setSubmissionId(urlSubmissionId);
+      setExamSessionStatus("IN_PROGRESS");
+      hydratedSubmissionRef.current = true;
+      void api.getMySubmissionById(urlSubmissionId)
+        .then((submission) => {
+          if (submission?.securityState) setSecurityState(submission.securityState);
+          const serverDeadlineAt = new Date(submission?.deadline || "").getTime();
+          if (Number.isFinite(serverDeadlineAt)) setSubmissionDeadlineAt(serverDeadlineAt);
+          const startedAt = new Date(submission?.startedAt || Date.now()).getTime();
+          if (startedAt > 0) setExamStartedAt(startedAt);
+          // Sync verified state to localStorage so refreshes still work
+          try {
+            localStorage.setItem("currentSubmissionId", urlSubmissionId);
+            localStorage.setItem("currentSubmissionExamId", examId);
+            if (startedAt > 0) localStorage.setItem("currentSubmissionStartedAt", String(startedAt));
+            if (submission?.deadline) localStorage.setItem("currentSubmissionDeadline", String(submission.deadline));
+          } catch {}
+        })
+        .catch((error) => {
+          console.warn("URL submission verification failed, redirecting to ready gate:", error);
+          setSubmissionId(null);
+          setExamSessionStatus("NOT_STARTED");
+          hydratedSubmissionRef.current = false;
+          router.replace(`/student/exam-ready?examId=${encodeURIComponent(examId)}`);
+        });
+      // Restore webcam policy & grace period from localStorage (cached from ExamReadyCheck)
+      try {
+        const storedPolicyRaw = localStorage.getItem("currentSubmissionWebcamPolicy");
+        const storedPolicy = storedPolicyRaw ? JSON.parse(storedPolicyRaw) : null;
+        if (storedPolicy?.enabled) setWebcamPolicy(storedPolicy);
+      } catch {}
+      const graceStartedAt = Number(localStorage.getItem("examFullscreenGraceStartedAt") || 0);
+      if (graceStartedAt > 0 && Date.now() - graceStartedAt < 10000) {
+        setFullscreenRequestedAt(graceStartedAt);
+      }
+      localStorage.removeItem("examFullscreenGraceStartedAt");
+      return; // URL handoff handled — skip localStorage fallback
+    }
+
+    // ── Priority 2: localStorage (fallback for page refreshes) ──
     const storedSubmissionId = localStorage.getItem("currentSubmissionId");
     const storedExamId = localStorage.getItem("currentSubmissionExamId");
     if (storedSubmissionId && storedExamId === examId) {
@@ -152,12 +200,6 @@ export default function ExamTaking() {
       if (storedStartedAt > 0) setExamStartedAt(storedStartedAt);
       const storedDeadlineAt = new Date(localStorage.getItem("currentSubmissionDeadline") || "").getTime();
       if (Number.isFinite(storedDeadlineAt)) setSubmissionDeadlineAt(storedDeadlineAt);
-      // ExamReadyCheck already created this submission before navigating here
-      // (or a prior mount of this same page did, e.g. after a refresh).
-      // Hydrating it synchronously here — instead of waiting for exam
-      // questions to load and then re-POSTing startExam below — is what
-      // shrinks the window during which useExamSecurity's `enabled` is still
-      // false and fullscreen/tab-switch monitoring is effectively off.
       setSubmissionId(storedSubmissionId);
       setExamSessionStatus("IN_PROGRESS");
       hydratedSubmissionRef.current = true;
@@ -179,15 +221,19 @@ export default function ExamTaking() {
       setFullscreenRequestedAt(graceStartedAt);
     }
     localStorage.removeItem("examFullscreenGraceStartedAt");
-  }, [examId, isPreviewMode, router]);
+  }, [examId, isPreviewMode, router, urlSubmissionId]);
 
   useEffect(() => {
-    if (!examId || isPreviewMode || isLoadingExam || !webcamPolicyResolved || submissionId || hydratedSubmissionRef.current) return;
+    const storedSubmissionId = localStorage.getItem("currentSubmissionId");
+    const storedExamId = localStorage.getItem("currentSubmissionExamId");
+    const hasValidSubmission = storedSubmissionId && storedExamId === examId;
+    // The URL handoff (submissionId in query params) is the authoritative signal.
+    // Do NOT redirect if it's present — the init useEffect above will verify it.
+    if (!examId || isPreviewMode || isLoadingExam || !webcamPolicyResolved || hasValidSubmission || hydratedSubmissionRef.current || urlSubmissionId) return;
     // A direct URL must not bypass the final user gesture that requests
     // fullscreen. New attempts always begin from ExamReadyCheck.
     router.replace(`/student/exam-ready?examId=${encodeURIComponent(examId)}`);
-  }, [examId, isLoadingExam, isPreviewMode, router, submissionId, webcamPolicyResolved]);
-
+  }, [examId, isLoadingExam, isPreviewMode, router, webcamPolicyResolved, urlSubmissionId]);
   useEffect(() => {
     let mounted = true;
 

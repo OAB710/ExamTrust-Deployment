@@ -205,63 +205,71 @@ export default function ExamReadyCheck() {
       return;
     }
 
-    // This call itself must be the first asynchronous browser action of the
-    // final click. A browser only permits fullscreen inside this user gesture;
-    // it cannot be requested reliably after creating the session or navigating.
-    let fullscreenRequestedAt: number;
+    // Request fullscreen FIRST — must happen inside the user gesture.
+    // We save the promise and await it later so a slow server call does not
+    // consume the gesture before the browser acts on the fullscreen request.
+    let fullscreenPromise: Promise<void> | null = null;
     try {
-      if (typeof document === "undefined" || !document.documentElement.requestFullscreen) {
-        throw new Error("Trình duyệt không hỗ trợ chế độ toàn màn hình.");
+      if (typeof document !== "undefined" && document.documentElement.requestFullscreen) {
+        fullscreenPromise = document.documentElement.requestFullscreen();
       }
-      const fullscreenRequest = document.documentElement.requestFullscreen();
-      await fullscreenRequest;
-      if (!document.fullscreenElement) {
-        throw new Error("Không thể xác nhận chế độ toàn màn hình.");
-      }
-      fullscreenRequestedAt = Date.now();
-    } catch (error) {
-      console.warn("[exam-ready] fullscreen request was denied", error);
-      toast.error("Bạn cần cho phép chế độ toàn màn hình trước khi bắt đầu làm bài.");
-      return;
+    } catch {
+      // Some browsers throw synchronously for nested fullscreen or
+      // sandboxed iframes. We continue anyway.
     }
 
+    // Start/resume the exam on the server.
+    let submission: any;
     try {
-    const res = await api.startExam(examId, {
-      isMobileOrTablet: deviceBlocked,
-      ...(webcamRequired ? { webcamReady, webcamConsentVersion: webcamPolicy?.consentVersion } : {}),
-    });
-      if (!res?.id) {
+      submission = await api.startExam(examId, {
+        isMobileOrTablet: deviceBlocked,
+        ...(webcamRequired ? { webcamReady, webcamConsentVersion: webcamPolicy?.consentVersion } : {}),
+      });
+      if (!submission?.id) {
         toast.error("Không thể bắt đầu lượt thi. Vui lòng thử lại.");
         return;
       }
-      try {
-        localStorage.setItem("currentSubmissionId", res.id);
-        localStorage.setItem("currentSubmissionExamId", examId);
-        const startedAt = new Date(res.startedAt || Date.now()).getTime();
-        localStorage.setItem("currentSubmissionStartedAt", String(startedAt));
-        if (res.deadline) {
-          localStorage.setItem("currentSubmissionDeadline", String(res.deadline));
-        } else {
-          localStorage.removeItem("currentSubmissionDeadline");
-        }
-        const snapshotPolicy = res?.examInstance?.snapshotPayload?.webcamEvidencePolicy;
-        if (snapshotPolicy) localStorage.setItem("currentSubmissionWebcamPolicy", JSON.stringify(snapshotPolicy));
-        if (fullscreenRequestedAt) {
-          localStorage.setItem("examFullscreenGraceStartedAt", String(fullscreenRequestedAt));
-        } else {
-          localStorage.removeItem("examFullscreenGraceStartedAt");
-        }
-      } catch {}
     } catch (err: any) {
       console.error("Failed to start submission on server:", err);
-      if (document.fullscreenElement) {
-        void document.exitFullscreen().catch(() => undefined);
-      }
       toast.error(err?.message || "Không thể bắt đầu bài thi. Vui lòng thử lại.");
       return;
     }
 
-    router.push(`/student/exam-taking?examId=${encodeURIComponent(examId)}&proctoring=${proctoringEnabled ? "1" : "0"}`);
+    // Save submission info to localStorage before navigation
+    try {
+      localStorage.setItem("currentSubmissionId", submission.id);
+      localStorage.setItem("currentSubmissionExamId", examId);
+      const startedAt = new Date(submission.startedAt || Date.now()).getTime();
+      localStorage.setItem("currentSubmissionStartedAt", String(startedAt));
+      if (submission.deadline) {
+        localStorage.setItem("currentSubmissionDeadline", String(submission.deadline));
+      } else {
+        localStorage.removeItem("currentSubmissionDeadline");
+      }
+      const snapshotPolicy = submission?.examInstance?.snapshotPayload?.webcamEvidencePolicy;
+      if (snapshotPolicy) localStorage.setItem("currentSubmissionWebcamPolicy", JSON.stringify(snapshotPolicy));
+    } catch {}
+
+    // Await the fullscreen promise now. If it fails we still navigate.
+    let fullscreenRequestedAt: number | undefined;
+    if (fullscreenPromise) {
+      try {
+        await fullscreenPromise;
+        if (typeof document !== "undefined" && document.fullscreenElement) {
+          fullscreenRequestedAt = Date.now();
+        }
+      } catch (error) {
+        console.warn("[exam-ready] fullscreen request was denied, continuing anyway", error);
+      }
+    }
+
+    if (fullscreenRequestedAt) {
+      try { localStorage.setItem("examFullscreenGraceStartedAt", String(fullscreenRequestedAt)); } catch {}
+    } else {
+      try { localStorage.removeItem("examFullscreenGraceStartedAt"); } catch {}
+    }
+
+    router.push(`/student/exam-taking?examId=${encodeURIComponent(examId)}&submissionId=${encodeURIComponent(submission.id)}&proctoring=${proctoringEnabled ? "1" : "0"}`);
   };
 
   const handleProceed = () => {

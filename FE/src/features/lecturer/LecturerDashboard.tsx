@@ -344,8 +344,8 @@ export default function LecturerDashboard() {
                       const start = exam.startTime
                         ? new Date(exam.startTime)
                         : null;
-                      const end = exam.endTime
-                        ? new Date(exam.endTime)
+                      const end = (exam as any).endTime
+                        ? new Date((exam as any).endTime)
                         : start
                           ? new Date(start.getTime() + (exam.duration || 0) * 60000)
                           : null;
