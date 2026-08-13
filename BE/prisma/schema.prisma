@@ -179,6 +179,11 @@ enum ProctoringEvidenceReviewStatus {
   DISMISSED
 }
 
+enum ProctoringEvidenceSource {
+  WEBCAM
+  SCREEN
+}
+
 enum ScoreAdjustmentCategory {
   QUESTION_ERROR
   PARTICIPATION
@@ -186,38 +191,38 @@ enum ScoreAdjustmentCategory {
 }
 
 model User {
-  id         String   @id @default(uuid())
-  email      String   @unique
-  password   String
-  fullName   String
-  role       String   @default("STUDENT") // ADMIN, LECTURER, STUDENT
-  studentId  String? // Only for students
-  department String?
-  avatar             String?
-  status             String   @default("active")
-  passwordChangedAt  DateTime? // set whenever a password is created or changed
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                String    @id @default(uuid())
+  email             String    @unique
+  password          String
+  fullName          String
+  role              String    @default("STUDENT") // ADMIN, LECTURER, STUDENT
+  studentId         String? // Only for students
+  department        String?
+  avatar            String?
+  status            String    @default("active")
+  passwordChangedAt DateTime? // set whenever a password is created or changed
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // relations
   authSessions               AuthSession[]
-  coursesTaught              Course[]                   @relation("CourseLecturer")
-  examsCreated               Exam[]                     @relation("ExamCreator")
+  coursesTaught              Course[]                    @relation("CourseLecturer")
+  examsCreated               Exam[]                      @relation("ExamCreator")
   enrollments                Enrollment[]
-  submissions                ExamSubmission[]           @relation("StudentSubmissions")
+  submissions                ExamSubmission[]            @relation("StudentSubmissions")
   examInstances              ExamInstance[]
-  questions                  Question[]                 @relation("AuthorQuestions")
-  createdExamLinks           ExamLink[]                 @relation("ExamLinkCreator")
-  examLinkUsages             ExamLinkUsage[]            @relation("ExamLinkUsageUser")
-  aiReviewedRecords          AIGenerationRecord[]       @relation("AIReviewUser")
-  examSubmissionRegradeLogs  ExamSubmissionRegradeLog[] @relation("RegradeReviewer")
+  questions                  Question[]                  @relation("AuthorQuestions")
+  createdExamLinks           ExamLink[]                  @relation("ExamLinkCreator")
+  examLinkUsages             ExamLinkUsage[]             @relation("ExamLinkUsageUser")
+  aiReviewedRecords          AIGenerationRecord[]        @relation("AIReviewUser")
+  examSubmissionRegradeLogs  ExamSubmissionRegradeLog[]  @relation("RegradeReviewer")
   reviewedEvidenceCaptures   ProctoringEvidenceCapture[] @relation("ProctoringEvidenceReviewer")
-  qualityReviewItemsReviewed ExamQualityReviewItem[]    @relation("ExamQualityReviewItemReviewer")
-  anomalyFlagsReviewed       AnomalyFlag[]              @relation("AnomalyFlagReviewer")
-  integrityReviews           IntegrityReview[]          @relation("IntegrityReviewReviewer")
-  integrityReviewAudits      IntegrityReviewAudit[]     @relation("IntegrityReviewAuditActor")
-  scoreAdjustmentsCreated    ScoreAdjustment[]          @relation("ScoreAdjustmentCreator")
-  scoreAdjustmentsRevoked    ScoreAdjustment[]          @relation("ScoreAdjustmentRevoker")
+  qualityReviewItemsReviewed ExamQualityReviewItem[]     @relation("ExamQualityReviewItemReviewer")
+  anomalyFlagsReviewed       AnomalyFlag[]               @relation("AnomalyFlagReviewer")
+  integrityReviews           IntegrityReview[]           @relation("IntegrityReviewReviewer")
+  integrityReviewAudits      IntegrityReviewAudit[]      @relation("IntegrityReviewAuditActor")
+  scoreAdjustmentsCreated    ScoreAdjustment[]           @relation("ScoreAdjustmentCreator")
+  scoreAdjustmentsRevoked    ScoreAdjustment[]           @relation("ScoreAdjustmentRevoker")
   questionBankPreference     QuestionBankPreference?
 
   @@map("users")
@@ -671,10 +676,10 @@ model ExamSubmission {
   answers            SubmissionAnswer[]
   regradeLogs        ExamSubmissionRegradeLog[]
   proctoring         ProctoringSession?
-  riskAssessmentJobs AIGenerationRecord[]       @relation("ExamRiskAssessmentJobs")
-  integrityReview     IntegrityReview?
-  scoreAdjustments    ScoreAdjustment[]
-  evidenceCaptures    ProctoringEvidenceCapture[]
+  riskAssessmentJobs AIGenerationRecord[]        @relation("ExamRiskAssessmentJobs")
+  integrityReview    IntegrityReview?
+  scoreAdjustments   ScoreAdjustment[]
+  evidenceCaptures   ProctoringEvidenceCapture[]
 
   @@unique([examId, studentId, attemptNo])
   @@index([examId])
@@ -757,11 +762,11 @@ model ExamInstance {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
-  submissions     ExamSubmission[]
-  interactionLogs InteractionLog[]
-  tabSwitchEvents TabSwitchEvent[]
-  focusEvents     FocusEvent[]
-  anomalyFlags    AnomalyFlag[]
+  submissions      ExamSubmission[]
+  interactionLogs  InteractionLog[]
+  tabSwitchEvents  TabSwitchEvent[]
+  focusEvents      FocusEvent[]
+  anomalyFlags     AnomalyFlag[]
   evidenceCaptures ProctoringEvidenceCapture[]
 
   @@unique([examId, studentId])
@@ -773,39 +778,40 @@ model ExamInstance {
 
 /// Metadata-only ledger for webcam evidence. Image bytes live in external storage.
 model ProctoringEvidenceCapture {
-  id                String                         @id @default(uuid())
-  submissionId      String
-  submission        ExamSubmission                 @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  examInstanceId    String
-  examInstance      ExamInstance                   @relation(fields: [examInstanceId], references: [id], onDelete: Cascade)
-  status            ProctoringEvidenceStatus       @default(REQUESTED)
-  trigger           ProctoringEvidenceTrigger
-  triggerDetails    Json?
-  scheduledSlot     Int?
-  scheduledAt       DateTime?
-  captureNonceHash  String                          @unique @db.VarChar(64)
-  nonceExpiresAt    DateTime
-  storageKey        String?                         @unique @db.VarChar(512)
-  contentHash       String?                         @db.VarChar(64)
-  mimeType          String?                         @db.VarChar(100)
-  sizeBytes         Int?
-  aiTags            Json?
-  aiProvider        String?                         @db.VarChar(100)
-  aiAnalyzedAt      DateTime?
-  aiError           String?                         @db.Text
-  reviewStatus      ProctoringEvidenceReviewStatus @default(PENDING)
-  reviewedById      String?
-  reviewedBy        User?                           @relation("ProctoringEvidenceReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  reviewerNote      String?                         @db.Text
-  reviewedAt        DateTime?
-  capturedAt        DateTime?
-  retentionUntil    DateTime
-  purgedAt          DateTime?
-  createdAt         DateTime                       @default(now())
-  updatedAt         DateTime                       @updatedAt
+  id               String                         @id @default(uuid())
+  submissionId     String
+  submission       ExamSubmission                 @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  examInstanceId   String
+  examInstance     ExamInstance                   @relation(fields: [examInstanceId], references: [id], onDelete: Cascade)
+  status           ProctoringEvidenceStatus       @default(REQUESTED)
+  trigger          ProctoringEvidenceTrigger
+  captureSource    ProctoringEvidenceSource       @default(WEBCAM)
+  triggerDetails   Json?
+  scheduledSlot    Int?
+  scheduledAt      DateTime?
+  captureNonceHash String                         @unique @db.VarChar(64)
+  nonceExpiresAt   DateTime
+  storageKey       String?                        @unique @db.VarChar(512)
+  contentHash      String?                        @db.VarChar(64)
+  mimeType         String?                        @db.VarChar(100)
+  sizeBytes        Int?
+  aiTags           Json?
+  aiProvider       String?                        @db.VarChar(100)
+  aiAnalyzedAt     DateTime?
+  aiError          String?                        @db.Text
+  reviewStatus     ProctoringEvidenceReviewStatus @default(PENDING)
+  reviewedById     String?
+  reviewedBy       User?                          @relation("ProctoringEvidenceReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewerNote     String?                        @db.Text
+  reviewedAt       DateTime?
+  capturedAt       DateTime?
+  retentionUntil   DateTime
+  purgedAt         DateTime?
+  createdAt        DateTime                       @default(now())
+  updatedAt        DateTime                       @updatedAt
 
+  @@unique([submissionId, scheduledSlot, captureSource])
   @@index([submissionId, createdAt])
-  @@unique([submissionId, scheduledSlot])
   @@index([examInstanceId, createdAt])
   @@index([status, retentionUntil])
   @@index([reviewedById])
@@ -969,41 +975,41 @@ model ProctoringSession {
 }
 
 model IntegrityLog {
-  id           String            @id @default(uuid())
-  proctoring   ProctoringSession @relation(fields: [proctoringId], references: [id])
-  proctoringId String
+  id            String            @id @default(uuid())
+  proctoring    ProctoringSession @relation(fields: [proctoringId], references: [id])
+  proctoringId  String
   /// Stable client-side id for retry-safe delivery during page navigation.
   /// Nullable so historical integrity evidence remains untouched.
-  clientEventId String?          @db.VarChar(80)
-  eventType    String
-  details      String?           @db.Text
-  timestamp    DateTime          @default(now())
+  clientEventId String?           @db.VarChar(80)
+  eventType     String
+  details       String?           @db.Text
+  timestamp     DateTime          @default(now())
 
-  @@index([proctoringId])
   @@unique([proctoringId, clientEventId])
+  @@index([proctoringId])
   @@map("integrity_logs")
 }
 
 /// Human review metadata. Raw proctoring logs remain immutable evidence.
 model IntegrityReview {
-  id           String                @id @default(uuid())
-  submission   ExamSubmission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  submissionId String                @unique
-  status       IntegrityReviewStatus @default(PENDING)
-  reviewer     User?                 @relation("IntegrityReviewReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
-  reviewerId   String?
-  reviewerNote String?               @db.Text
-  decidedAt    DateTime?
-  penaltyMode String?                @db.VarChar(16)
-  penaltyPercent Int?
-  penaltyAmount Decimal?             @db.Decimal(5, 2)
-  academicScore  Decimal?            @db.Decimal(5, 2)
-  deductedScore  Decimal?            @db.Decimal(5, 2)
-  finalScore     Decimal?            @db.Decimal(5, 2)
+  id               String                 @id @default(uuid())
+  submission       ExamSubmission         @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId     String                 @unique
+  status           IntegrityReviewStatus  @default(PENDING)
+  reviewer         User?                  @relation("IntegrityReviewReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  reviewerId       String?
+  reviewerNote     String?                @db.Text
+  decidedAt        DateTime?
+  penaltyMode      String?                @db.VarChar(16)
+  penaltyPercent   Int?
+  penaltyAmount    Decimal?               @db.Decimal(5, 2)
+  academicScore    Decimal?               @db.Decimal(5, 2)
+  deductedScore    Decimal?               @db.Decimal(5, 2)
+  finalScore       Decimal?               @db.Decimal(5, 2)
   penaltyAppliedAt DateTime?
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  auditLogs    IntegrityReviewAudit[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  auditLogs        IntegrityReviewAudit[]
 
   @@index([status])
   @@index([reviewerId])
@@ -1012,19 +1018,19 @@ model IntegrityReview {
 
 /// Immutable history of score-penalty decisions made during integrity review.
 model IntegrityReviewAudit {
-  id                String           @id @default(uuid())
-  integrityReview   IntegrityReview  @relation(fields: [integrityReviewId], references: [id], onDelete: Cascade)
+  id                String          @id @default(uuid())
+  integrityReview   IntegrityReview @relation(fields: [integrityReviewId], references: [id], onDelete: Cascade)
   integrityReviewId String
-  action            String           @db.VarChar(32)
+  action            String          @db.VarChar(32)
   previousPercent   Int?
   nextPercent       Int?
-  academicScore     Decimal?         @db.Decimal(5, 2)
-  deductedScore     Decimal?         @db.Decimal(5, 2)
-  finalScore        Decimal?         @db.Decimal(5, 2)
-  note              String?          @db.Text
-  actor             User?            @relation("IntegrityReviewAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  academicScore     Decimal?        @db.Decimal(5, 2)
+  deductedScore     Decimal?        @db.Decimal(5, 2)
+  finalScore        Decimal?        @db.Decimal(5, 2)
+  note              String?         @db.Text
+  actor             User?           @relation("IntegrityReviewAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
   actorId           String?
-  createdAt         DateTime         @default(now())
+  createdAt         DateTime        @default(now())
 
   @@index([integrityReviewId, createdAt])
   @@index([actorId])

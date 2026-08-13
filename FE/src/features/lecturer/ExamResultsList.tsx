@@ -309,15 +309,22 @@ export default function ExamResultsList() {
     };
   }, [examId, page]);
 
-  const filtered = submissions.filter((s) => {
-    if (!search) return true;
-    const name = s.student?.fullName || "";
-    const sid = s.student?.studentId || "";
-    return (
-      name.toLowerCase().includes(search.toLowerCase()) ||
-      sid.toLowerCase().includes(search.toLowerCase())
-    );
-  });
+  const filtered = submissions
+    .filter((s) => {
+      if (!search) return true;
+      const name = s.student?.fullName || "";
+      const sid = s.student?.studentId || "";
+      return (
+        name.toLowerCase().includes(search.toLowerCase()) ||
+        sid.toLowerCase().includes(search.toLowerCase())
+      );
+    })
+    .sort((a, b) => {
+      const sidA = a.student?.studentId || a.studentId || "";
+      const sidB = b.student?.studentId || b.studentId || "";
+      if (sidA !== sidB) return sidA.localeCompare(sidB);
+      return (a.attemptNo ?? 0) - (b.attemptNo ?? 0);
+    });
   const manualBySubmission = new Map(
     (manualStatus?.submissions || []).map((row: any) => [row.submissionId, row]),
   );
@@ -785,6 +792,9 @@ export default function ExamResultsList() {
                       ID
                     </TableHead>
                     <TableHead className="bg-slate-50/80 font-semibold text-slate-600">
+                      Lượt
+                    </TableHead>
+                    <TableHead className="bg-slate-50/80 font-semibold text-slate-600">
                       Điểm
                     </TableHead>
                     <TableHead className="bg-slate-50/80 font-semibold text-slate-600">
@@ -802,7 +812,7 @@ export default function ExamResultsList() {
                   {filtered.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="py-10 text-center text-muted-foreground"
                       >
                         Chưa có lượt nộp bài nào cho kỳ thi này.
@@ -828,6 +838,9 @@ export default function ExamResultsList() {
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground">
                           {s.student?.studentId || s.student?.id}
+                        </TableCell>
+                        <TableCell className="py-4 text-muted-foreground">
+                          {s.attemptNo ?? "-"}
                         </TableCell>
                         <TableCell className="py-4 font-medium text-foreground">
                           <div className="flex items-center gap-2">

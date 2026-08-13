@@ -1,23 +1,41 @@
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Process, Processor } from '@nestjs/bull';
 import { Job } from 'bull';
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../../ai/ai.service';
 import { AISection } from '../../questions-v2/dto/question-draft.dto';
 import { ExamTrustAiContext } from '../../ai/ai-profile';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
 
 type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement' | 'proctoring-evidence';
 
 @Processor('ai-generation')
 export class AIGenerationProcessor {
   private readonly logger = new Logger(AIGenerationProcessor.name);
+  private readonly s3: S3Client;
+  private readonly bucket: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    const accountId = this.config.get<string>('R2_ACCOUNT_ID');
+    const endpoint =
+      this.config.get<string>('R2_ENDPOINT') ||
+      (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined);
+
+    this.bucket = this.config.get<string>('R2_BUCKET_NAME') ?? '';
+    this.s3 = new S3Client({
+      region: 'auto',
+      endpoint,
+      credentials: {
+        accessKeyId: this.config.get<string>('R2_ACCESS_KEY_ID') ?? '',
+        secretAccessKey: this.config.get<string>('R2_SECRET_ACCESS_KEY') ?? '',
+      },
+    });
+  }
 
   private normalizeDifficulty(input: any): number {
     const value = Number(input);
@@ -261,8 +279,10 @@ export class AIGenerationProcessor {
         const capture = await this.prisma.proctoringEvidenceCapture.findUnique({ where: { id: captureId } });
         if (!capture?.storageKey || capture.status === 'PURGED') throw new Error('Không có ảnh bằng chứng');
         await this.prisma.proctoringEvidenceCapture.update({ where: { id: capture.id }, data: { status: 'ANALYZING', aiError: null } });
-        const root = process.env.PROCTORING_EVIDENCE_DIR || join(process.cwd(), 'var', 'proctoring-evidence');
-        const result = await this.aiService.analyzeProctoringImage({ image: await readFile(join(root, capture.storageKey)), mimeType: capture.mimeType || 'image/jpeg' });
+        const object = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: capture.storageKey }));
+        if (!object.Body) throw new Error('Không có ảnh bằng chứng');
+        const image = Buffer.from(await object.Body.transformToByteArray());
+        const result = await this.aiService.analyzeProctoringImage({ image, mimeType: capture.mimeType || 'image/jpeg' });
         const provider = process.env.AI_PROVIDER || 'google';
         const model = result.model ? `${provider}:${result.model}` : provider;
         await this.prisma.proctoringEvidenceCapture.update({ where: { id: capture.id }, data: { status: 'ANALYZED', aiTags: result.tags, aiProvider: model, aiAnalyzedAt: new Date() } });

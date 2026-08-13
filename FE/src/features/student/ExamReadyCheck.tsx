@@ -80,11 +80,13 @@ export default function ExamReadyCheck() {
   const [isLoadingPolicy, setIsLoadingPolicy] = useState(Boolean(examId));
   const [proctoringEnabled, setProctoringEnabled] = useState(false);
   const [deviceBlocked, setDeviceBlocked] = useState(false);
-  const [webcamPolicy, setWebcamPolicy] = useState<{ enabled?: boolean; examProfile?: string; consentVersion?: string } | null>(null);
+  const [webcamPolicy, setWebcamPolicy] = useState<{ enabled?: boolean; examProfile?: string; consentVersion?: string; screenCaptureEnabled?: boolean } | null>(null);
   const [webcamReady, setWebcamReady] = useState(false);
+  const [screenShareReady, setScreenShareReady] = useState(false);
 
   const webcamRequired = Boolean(webcamPolicy?.enabled)
     && String(webcamPolicy?.examProfile || "").toUpperCase() === "THEORY";
+  const screenCaptureRequired = webcamRequired && Boolean(webcamPolicy?.screenCaptureEnabled);
 
   useEffect(() => {
     if (!examId) {
@@ -176,8 +178,34 @@ export default function ExamReadyCheck() {
       setWebcamReady(false);
     }
 
+    // This is only a consent/capability probe, same as the webcam check above
+    // — the stream is stopped right away. ExamTaking.tsx re-acquires (and
+    // keeps) the real screen-share stream once the exam actually starts.
+    if (screenCaptureRequired) {
+      updateCheck("screen", "checking", "Đang yêu cầu chia sẻ toàn bộ màn hình");
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const [track] = stream.getVideoTracks();
+        const isEntireScreen = track?.getSettings().displaySurface === "monitor";
+        stream.getTracks().forEach((t) => t.stop());
+        if (!isEntireScreen) {
+          setScreenShareReady(false);
+          updateCheck("screen", "failed", 'Vui lòng chọn chia sẻ "Toàn bộ màn hình" (Entire screen), không chọn cửa sổ hoặc tab');
+        } else {
+          setScreenShareReady(true);
+          updateCheck("screen", "passed", "Đã chia sẻ toàn bộ màn hình và đã có sự đồng ý");
+        }
+      } catch (error: any) {
+        setScreenShareReady(false);
+        const denied = error?.name === "NotAllowedError";
+        updateCheck("screen", "failed", denied ? "Cần cho phép chia sẻ màn hình để tiếp tục" : "Không thể chia sẻ màn hình. Hãy thử lại.");
+      }
+    } else {
+      setScreenShareReady(false);
+    }
+
     setIsRunningChecks(false);
-  }, [updateCheck, webcamRequired]);
+  }, [screenCaptureRequired, updateCheck, webcamRequired]);
 
   useEffect(() => {
     setChecks((previous) => {
@@ -187,6 +215,15 @@ export default function ExamReadyCheck() {
         : withoutCamera;
     });
   }, [webcamRequired]);
+
+  useEffect(() => {
+    setChecks((previous) => {
+      const withoutScreen = previous.filter((check) => check.id !== "screen");
+      return screenCaptureRequired
+        ? [...withoutScreen, { id: "screen", label: "Chia sẻ toàn bộ màn hình", icon: <Monitor className="h-4 w-4" />, status: "pending" }]
+        : withoutScreen;
+    });
+  }, [screenCaptureRequired]);
 
   useEffect(() => {
     runSystemChecks();
@@ -532,7 +569,7 @@ export default function ExamReadyCheck() {
                 onClick={handleStartExam}
                 className="flex-1 h-12 gap-2 text-base"
                 size="lg"
-                disabled={checkingAttempt || isLoadingPolicy || (webcamRequired && !webcamReady)}
+                disabled={checkingAttempt || isLoadingPolicy || (webcamRequired && !webcamReady) || (screenCaptureRequired && !screenShareReady)}
               >
                 <ArrowRight className="h-5 w-5" />
                 {resumingAttempt ? `Tiếp tục lượt ${resumingAttempt.attemptNo} và vào toàn màn hình` : "Bắt đầu và vào toàn màn hình"}
