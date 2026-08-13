@@ -3261,6 +3261,100 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /**
+   * Produces compact, deterministic evidence about how learners answered a
+   * non-single-choice item. This intentionally describes observed patterns;
+   * it never labels an answer pattern as cheating or as a wrong answer key.
+   */
+  private detectAnswerPatterns(
+    rows: Array<{ answer: unknown }>,
+    questionType: string,
+    questionOptions: unknown,
+  ): {
+    kind: 'FILL_IN_BLANK' | 'ORDERING' | 'MATCHING' | 'TEXT';
+    sampleSize: number;
+    entries: Array<{ label: string; value: string; rate: number; count: number }>;
+  } | null {
+    const answered = rows
+      .map((row) => this.parseJsonValue(row.answer, row.answer))
+      .filter((answer) => answer !== null && typeof answer !== 'undefined');
+    const MIN_SAMPLE_SIZE = 5;
+    if (answered.length < MIN_SAMPLE_SIZE) return null;
+
+    const topEntries = (values: Array<{ label: string; value: string }>) => {
+      const counts = new Map<string, { label: string; value: string; count: number }>();
+      for (const entry of values) {
+        const normalized = entry.value.replace(/\s+/g, ' ').trim();
+        if (!normalized) continue;
+        const key = `${entry.label}\u0000${normalized.toLocaleLowerCase('vi-VN')}`;
+        const current = counts.get(key);
+        if (current) current.count += 1;
+        else counts.set(key, { label: entry.label, value: normalized.slice(0, 180), count: 1 });
+      }
+      return [...counts.values()]
+        .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, 'vi'))
+        .slice(0, 3)
+        .map((entry) => ({
+          ...entry,
+          rate: this.clampPercent((entry.count / answered.length) * 100),
+        }));
+    };
+
+    if (questionType === 'FILL_IN_BLANK') {
+      const maxBlanks = Math.max(0, ...answered.map((answer) => Array.isArray(answer) ? answer.length : 0));
+      // Keep the most frequent term for each blank, then present at most the
+      // first three blanks to keep the review list readable.
+      const flattened = Array.from({ length: maxBlanks }, (_, index) =>
+        topEntries(answered
+          .filter(Array.isArray)
+          .map((answer) => ({ label: `Ô trống ${index + 1}`, value: String(answer[index] ?? '') })))
+          .slice(0, 1)[0],
+      ).filter(Boolean) as Array<{ label: string; value: string; rate: number; count: number }>;
+      return flattened.length
+        ? { kind: 'FILL_IN_BLANK', sampleSize: answered.length, entries: flattened.slice(0, 3) }
+        : null;
+    }
+
+    if (questionType === 'ORDERING') {
+      const entries = topEntries(answered
+        .filter(Array.isArray)
+        .map((answer) => ({ label: 'Thứ tự phổ biến', value: answer.map((item) => String(item ?? '').trim()).filter(Boolean).join(' → ') })));
+      return entries.length ? { kind: 'ORDERING', sampleSize: answered.length, entries } : null;
+    }
+
+    if (questionType === 'MATCHING') {
+      const optionValue = this.parseJsonValue(questionOptions, {});
+      const left = Array.isArray(optionValue?.left) ? optionValue.left : [];
+      const entries = topEntries(answered
+        .filter((answer) => answer && typeof answer === 'object' && !Array.isArray(answer))
+        .map((answer) => {
+          const mapping = Object.entries(answer as Record<string, unknown>)
+            .sort(([a], [b]) => Number(a) - Number(b))
+            .map(([key, value]) => `${String(left[Number(key)] ?? `Mục ${Number(key) + 1}`)} → ${String(value ?? '')}`)
+            .join('; ');
+          return { label: 'Cách ghép phổ biến', value: mapping };
+        }));
+      return entries.length ? { kind: 'MATCHING', sampleSize: answered.length, entries } : null;
+    }
+
+    if (['ESSAY', 'SHORT_ANSWER'].includes(questionType)) {
+      const stopWords = new Set(['và', 'là', 'của', 'các', 'cho', 'trong', 'được', 'với', 'một', 'những', 'the', 'and', 'that', 'this']);
+      const phrases = answered.flatMap((answer) => {
+        const text = typeof answer === 'object' && answer !== null ? String((answer as any).answer ?? '') : String(answer ?? '');
+        const words = text.toLocaleLowerCase('vi-VN').match(/[\p{L}\p{N}]{2,}/gu) || [];
+        const unique = new Set<string>();
+        for (let index = 0; index < words.length - 1; index += 1) {
+          if (!stopWords.has(words[index]) && !stopWords.has(words[index + 1])) unique.add(`${words[index]} ${words[index + 1]}`);
+        }
+        return [...unique].map((value) => ({ label: 'Cụm từ thường gặp', value }));
+      });
+      const entries = topEntries(phrases).filter((entry) => entry.count >= 2);
+      return entries.length ? { kind: 'TEXT', sampleSize: answered.length, entries } : null;
+    }
+
+    return null;
+  }
+
   private normalizeScore(rawScore: number, maxRawScore: number): number {
     if (!Number.isFinite(rawScore) || !Number.isFinite(maxRawScore) || maxRawScore <= 0) {
       return 0;
@@ -3617,6 +3711,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       questionType: item.question?.type || 'UNKNOWN',
       questionContent: item.questionVersion?.stem || item.question?.content || '',
       questionUpdatedAt: item.question?.updatedAt || null,
+      questionOptions: item.question?.options ?? null,
       // Read the key straight from the source of truth, never inferred from
       // student answers — if every single student answered "wrong", inferring
       // the key from (rare/zero) correct rows would silently miss exactly the
@@ -3712,7 +3807,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const statsByVersionId = new Map(statsRows.map((row) => [row.questionVersionId, row]));
 
     const attemptsPerQuestion = Math.max(1, scopedCompletedSubmissions.length);
-    const byQuestion = new Map<string, Array<{ isCorrect: boolean; timeTaken: number | null; selectedLetter: string | null }>>();
+    const byQuestion = new Map<string, Array<{ isCorrect: boolean; timeTaken: number | null; selectedLetter: string | null; answer: unknown }>>();
     for (const row of answers) {
       const key = row.questionVersionId || row.questionId;
       const list = byQuestion.get(key) || [];
@@ -3720,6 +3815,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         isCorrect: Boolean(row.isCorrect),
         timeTaken: row.timeTaken ?? null,
         selectedLetter: this.extractSingleAnswerLetter(row.answer),
+        answer: row.answer,
       });
       byQuestion.set(key, list);
     }
@@ -3804,6 +3900,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       const stats = eq.questionVersionId ? statsByVersionId.get(eq.questionVersionId) : null;
       const aiImprovement = aiImprovementByQuestion.get(eq.questionId) || null;
       const keyErrorSignal = this.detectPossibleKeyError(rows, eq.correctOptionLetter);
+      const answerPattern = this.detectAnswerPatterns(rows, eq.questionType, eq.questionOptions);
       if (
         aiImprovement?.status === 'READY_FOR_REVIEW'
         && aiImprovement.sourceUpdatedAt
@@ -3832,6 +3929,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         difficultyIndex: stats?.difficultyIndex !== undefined && stats?.difficultyIndex !== null ? Number(stats.difficultyIndex) : null,
         discriminationIndex: stats?.discriminationIndex !== undefined && stats?.discriminationIndex !== null ? Number(stats.discriminationIndex) : null,
         possibleKeyError: keyErrorSignal,
+        answerPattern,
         action: {
           path: '/lecturer/question-bank',
           params: {

@@ -106,7 +106,6 @@ export default function QuestionEditor() {
   } = answerState;
   const topics = useQuestionTopics({
     courseId: course,
-    courses,
     selectedTopicId: topic,
     onSelectTopic: setTopic,
   });

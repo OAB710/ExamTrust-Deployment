@@ -1,7 +1,6 @@
 {
   "files": {
     "code": [
-      ".graphify/studio/assets/index-CU5cXRnL.js",
       "BE/eslint.config.mjs",
       "BE/local_ai_server.py",
       "BE/prisma/backfill-enrollments.ts",
@@ -58,6 +57,11 @@
       "BE/prisma/migrations/20260802100000_add_question_bank_preferences/migration.sql",
       "BE/prisma/migrations/20260803081500_add_anomaly_flag_job_link/migration.sql",
       "BE/prisma/migrations/20260809210000_add_integrity_fixed_penalty/migration.sql",
+      "BE/prisma/migrations/20260811113000_add_integrity_log_client_event_id/migration.sql",
+      "BE/prisma/migrations/20260811120000_add_question_media_and_storage_usage/migration.sql",
+      "BE/prisma/migrations/20260811120000_preserve_decimal_submission_scores/migration.sql",
+      "BE/prisma/migrations/20260811160000_add_submission_deadline_overrides/migration.sql",
+      "BE/prisma/migrations/20260811180000_add_media_user_storage_usage/migration.sql",
       "BE/prisma/migrations/manual_migration.sql",
       "BE/prisma/migrations/remove_ip_tracking.sql",
       "BE/prisma/one-off-create-topics.sql",
@@ -146,6 +150,11 @@
       "BE/src/mailer/mailer.module.ts",
       "BE/src/mailer/mailer.service.ts",
       "BE/src/main.ts",
+      "BE/src/media/dto/media.dto.ts",
+      "BE/src/media/media.constants.ts",
+      "BE/src/media/media.controller.ts",
+      "BE/src/media/media.module.ts",
+      "BE/src/media/media.service.ts",
       "BE/src/prisma/prisma.module.ts",
       "BE/src/prisma/prisma.service.ts",
       "BE/src/questions-v2/ai-generation-jobs.controller.ts",
@@ -202,6 +211,7 @@
       "FE/src/app/admin/audit-logs/page.tsx",
       "FE/src/app/admin/course/[id]/page.tsx",
       "FE/src/app/admin/courses/page.tsx",
+      "FE/src/app/admin/devops/page.tsx",
       "FE/src/app/admin/exam/[id]/monitor/page.tsx",
       "FE/src/app/admin/exam/[id]/preview/page.tsx",
       "FE/src/app/admin/exam/[id]/qr/page.tsx",
@@ -378,6 +388,7 @@
       "FE/src/features/admin/AnalyticsReport.tsx",
       "FE/src/features/admin/AuditLogViewer.tsx",
       "FE/src/features/admin/CourseManagement.tsx",
+      "FE/src/features/admin/DevOpsBotStatus.tsx",
       "FE/src/features/admin/ExamManagement.tsx",
       "FE/src/features/admin/IntegrityOverview.tsx",
       "FE/src/features/admin/MetricMethodologyReference.tsx",
@@ -409,6 +420,7 @@
       "FE/src/features/lecturer/attention/AttentionSection.tsx",
       "FE/src/features/lecturer/attention/types.ts",
       "FE/src/features/lecturer/attention/useAttentionItems.ts",
+      "FE/src/features/lecturer/components/EditableStudentImport.tsx",
       "FE/src/features/lecturer/components/QuestionAnswerEditor.tsx",
       "FE/src/features/lecturer/components/QuestionPreviewSections.tsx",
       "FE/src/features/lecturer/components/QuestionTopicDialog.tsx",
@@ -424,6 +436,7 @@
       "FE/src/features/lecturer/manual-grading-formatters.ts",
       "FE/src/features/lecturer/question-bank-filters.ts",
       "FE/src/features/lecturer/question-bank-utils.ts",
+      "FE/src/features/lecturer/question-editor-media.ts",
       "FE/src/features/lecturer/question-editor-persistence.ts",
       "FE/src/features/lecturer/question-editor-types.ts",
       "FE/src/features/lecturer/question-editor-utils.ts",
@@ -478,24 +491,12 @@
       "zalo-webhook-lambda/index.mjs"
     ],
     "document": [
-      ".agents/skills/graphify/SKILL.md",
-      ".github/workflows/code-health.yml",
-      ".github/workflows/deploy-be.yml",
-      ".github/workflows/deploy-fe.yml",
-      ".github/workflows/switch-ai.yml",
-      ".graphify/GRAPH_REPORT.md",
-      ".graphify/studio/index.html",
-      ".graphify/studio/studio-template.html",
-      ".graphify/studio/studio.html",
       "AGENTS.md",
       "BE/API_DOCUMENTATION.md",
       "BE/docker-compose.prod.yml",
       "BE/docs/VI_BE_MESSAGES_PLAN.md",
       "BE/docs/question-v2-implementation-assets.md",
       "EC2_DB_DEPLOY_NOTES.md",
-      "FE/.agents/skills/design-taste-frontend/SKILL.md",
-      "FE/.agents/skills/redesign-existing-projects/SKILL.md",
-      "FE/.github/workflows/ci-cd.yml",
       "FE/DB.TXT",
       "FE/ERD.txt",
       "FE/FILE_MANIFEST.md",
@@ -523,56 +524,50 @@
       "FE/stack.txt",
       "README.md",
       "docs/architecture-audit-2026-08-01.md",
+      "docs/powerpoint-prompt.md",
       "docs/refactor-backlog.md",
       "zalo-webhook-lambda/README.md"
     ],
     "paper": [],
     "image": [
+      "1mb-jpg-example-file.jpg",
       "BE/var/proctoring-evidence/2026-08-03/055d2da4-c963-457b-b0a5-3ef5616e3b93.jpg",
       "BE/var/proctoring-evidence/2026-08-03/92880383-b77c-47b2-a078-2533f7e09696.jpg",
       "BE/var/proctoring-evidence/2026-08-03/f06297da-1338-4294-a8f9-9a840d9d545d.jpg",
       "BE/var/proctoring-evidence/2026-08-09/12b6fc05-bc6d-4aa2-9e98-535b8cd7d183.jpg",
+      "BE/var/proctoring-evidence/2026-08-11/8c2125ec-9cf7-4fa8-ad05-df4067d34348.jpg",
       "FE/public/examtrust-exam-experience.png",
       "FE/public/examtrust-favicon.svg",
       "FE/public/examtrust-hero.png",
       "FE/public/examtrust-og.svg",
       "FE/public/favicon.png",
-      "FE/public/placeholder.svg"
+      "FE/public/placeholder.svg",
+      "FE/public/zalo-bot-qr.jpg"
     ],
-    "video": []
+    "video": [
+      "1mb.mp3"
+    ]
   },
-  "total_files": 532,
-  "total_words": 462039,
+  "total_files": 538,
+  "total_words": 449404,
   "needs_graph": true,
-  "warning": "Large corpus: 532 files · ~462,039 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 538 files · ~449,404 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],
-  "graphifyignore_patterns": 62,
-  "git": {
-    "source_owner": "git",
-    "source_hash": "1098f63d4ecf7837a4a0e3c05dff60696f03ceec",
-    "branches": [
-      "duc",
-      "main"
-    ],
-    "max_commits": 200,
-    "active_within_days": 30
-  },
+  "graphifyignore_patterns": 63,
   "scope": {
     "requested_mode": "auto",
-    "resolved_mode": "committed",
+    "resolved_mode": "all",
     "source": "default-auto",
     "root": ".",
-    "git_root": ".",
-    "head": "1098f63d4ecf7837a4a0e3c05dff60696f03ceec",
-    "candidate_count": 587,
-    "included_count": 532,
-    "excluded_untracked_count": 4,
-    "excluded_ignored_count": 99581,
+    "candidate_count": null,
+    "included_count": 538,
+    "excluded_untracked_count": 0,
+    "excluded_ignored_count": 0,
     "excluded_sensitive_count": 1,
     "missing_committed_count": 0,
     "warnings": [],
-    "recommendation": "Use --scope all or graphify.yaml inputs.corpus for a knowledge-base folder."
+    "recommendation": null
   }
 }

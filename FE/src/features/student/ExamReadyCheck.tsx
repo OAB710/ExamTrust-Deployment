@@ -287,7 +287,9 @@ export default function ExamReadyCheck() {
       if (snapshotPolicy) localStorage.setItem("currentSubmissionWebcamPolicy", JSON.stringify(snapshotPolicy));
     } catch {}
 
-    // Await the fullscreen promise now. If it fails we still navigate.
+    // Await the fullscreen promise now. If it fails we still navigate,
+    // but we always set a grace timestamp so ExamTaking gives the student
+    // a chance to re-enter fullscreen before counting it as a violation.
     let fullscreenRequestedAt: number | undefined;
     if (fullscreenPromise) {
       try {
@@ -300,8 +302,12 @@ export default function ExamReadyCheck() {
       }
     }
 
-    if (fullscreenRequestedAt) {
-      try { localStorage.setItem("examFullscreenGraceStartedAt", String(fullscreenRequestedAt)); } catch {}
+    // Always set a grace timestamp when proctoring is enabled, even if
+    // fullscreen was denied. This gives the student 10 seconds on the
+    // exam page to re-enter fullscreen before any violation is counted.
+    if (proctoringEnabled) {
+      const graceAt = fullscreenRequestedAt || Date.now();
+      try { localStorage.setItem("examFullscreenGraceStartedAt", String(graceAt)); } catch {}
     } else {
       try { localStorage.removeItem("examFullscreenGraceStartedAt"); } catch {}
     }

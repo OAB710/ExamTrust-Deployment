@@ -178,7 +178,6 @@ export default function CreateExam() {
   const manualMediaFileInputRef = useRef<HTMLInputElement | null>(null);
   const manualTopics = useQuestionTopics({
     courseId: form.course,
-    courses,
     selectedTopicId: manualTopicId,
     onSelectTopic: setManualTopicId,
   });

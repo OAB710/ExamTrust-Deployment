@@ -194,11 +194,18 @@ export default function ExamTaking() {
           } catch {}
         })
         .catch((error) => {
-          console.warn("URL submission verification failed, redirecting to ready gate:", error);
-          setSubmissionId(null);
-          setExamSessionStatus("NOT_STARTED");
-          hydratedSubmissionRef.current = false;
-          router.replace(`/student/exam-ready?examId=${encodeURIComponent(examId)}`);
+          console.warn("URL submission verification failed, falling back to localStorage:", error);
+          // Don't redirect on transient errors — the submission was just
+          // created by ExamReadyCheck and is already in localStorage.
+          // Only redirect if we can't find ANY submission evidence.
+          const storedSubmissionId = localStorage.getItem("currentSubmissionId");
+          const storedExamId = localStorage.getItem("currentSubmissionExamId");
+          if (!storedSubmissionId || storedExamId !== examId) {
+            setSubmissionId(null);
+            setExamSessionStatus("NOT_STARTED");
+            hydratedSubmissionRef.current = false;
+            router.replace(`/student/exam-ready?examId=${encodeURIComponent(examId)}`);
+          }
         });
       // Restore webcam policy & grace period from localStorage (cached from ExamReadyCheck)
       try {

@@ -276,7 +276,11 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     }
     const active = Boolean(document.fullscreenElement);
     setIsFullscreen(active);
-    setIsBlocked(!active);
+    // When security is first enabled (e.g. after exam questions load),
+    // respect the fullscreen grace period so the student has time to
+    // re-enter fullscreen after navigating from ExamReadyCheck.
+    const withinGrace = isWithinFullscreenGrace();
+    setIsBlocked(!active && !withinGrace);
     if (active) {
       hasEnteredFullscreenOnceRef.current = true;
       // The fullscreen request has completed. Any later exit, even if it
@@ -284,7 +288,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       // request grace period.
       fullscreenRequestedAtRef.current = null;
     }
-  }, [enabled]);
+  }, [enabled, isWithinFullscreenGrace]);
 
   useEffect(() => {
     if (!enabled) return;

@@ -1,4 +1,4 @@
-import { IsArray, IsNumber, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsNumber, IsObject, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class GenerateQuestionDto {
   @IsString()
@@ -72,22 +72,18 @@ export class GenerateExamQuestionsDto {
 }
 
 export class SuggestSimilarTopicsDto {
+  @IsUUID()
+  courseId: string;
+
   @IsString()
   topicName: string;
 
-  @IsArray()
-  @IsString({ each: true })
-  existingTopics: string[];
+  @IsOptional()
+  @IsString()
+  topicDescription?: string;
 
   @IsOptional()
   @IsString()
   language?: string;
 
-  @IsOptional()
-  @IsString()
-  courseName?: string;
-
-  @IsOptional()
-  @IsObject()
-  context?: Record<string, any>;
 }

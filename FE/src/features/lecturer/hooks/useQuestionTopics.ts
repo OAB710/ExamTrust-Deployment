@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import type { CourseOption, TopicOption } from "../question-editor-types";
+import type { TopicOption } from "../question-editor-types";
 
-export type TopicSuggestion = TopicOption & { score: number; reason?: string };
+export type TopicRelation = "DUPLICATE" | "SAME_CONCEPT" | "PARENT_OF" | "CHILD_OF" | "OVERLAP" | "RELATED" | "DISTINCT";
+export type TopicSuggestion = TopicOption & { score: number; relation: TopicRelation; reason?: string; matchMethod?: "AI" | "LEXICAL" };
 
 type Params = {
   courseId: string;
-  courses: CourseOption[];
   selectedTopicId: string;
   onSelectTopic: (topicId: string) => void;
 };
@@ -20,7 +20,17 @@ const normalize = (value: string) => String(value || "")
   .replace(/\s+/g, " ")
   .trim();
 
-export function useQuestionTopics({ courseId, courses, selectedTopicId, onSelectTopic }: Params) {
+const relationLabel: Record<TopicRelation, string> = {
+  DUPLICATE: "Trùng nội dung",
+  SAME_CONCEPT: "Cùng khái niệm",
+  PARENT_OF: "Topic cha",
+  CHILD_OF: "Topic con",
+  OVERLAP: "Có phần giao nhau",
+  RELATED: "Có liên quan",
+  DISTINCT: "Khác biệt",
+};
+
+export function useQuestionTopics({ courseId, selectedTopicId, onSelectTopic }: Params) {
   const [availableTopics, setAvailableTopics] = useState<TopicOption[]>([]);
   const [showTopicDialog, setShowTopicDialog] = useState(false);
   const [newTopicName, setNewTopicName] = useState("");
@@ -92,12 +102,12 @@ export function useQuestionTopics({ courseId, courses, selectedTopicId, onSelect
       setCheckingTopicSimilarity(true);
       setTopicCheckMessage("");
       const response = await api.suggestSimilarTopics({
+        courseId,
         topicName: query,
-        existingTopics: availableTopics.map((topic) => topic.name),
-        courseName: courses.find((course) => course.id === courseId)?.name,
         language: "vi",
       });
       const ranked = (response?.matches || []).map((item: any): TopicSuggestion => {
+        const relation = String(item.relation || "RELATED").toUpperCase() as TopicRelation;
         const matchingTopic = availableTopics.find((topic) =>
           normalize(topic.name) === normalize(item.name) || normalize(topic.code) === normalize(item.name));
         return {
@@ -105,7 +115,9 @@ export function useQuestionTopics({ courseId, courses, selectedTopicId, onSelect
           code: matchingTopic?.code || String(item.code || item.name || ""),
           name: matchingTopic?.name || String(item.name || item.code || ""),
           score: Number(item.score ?? 0),
-          reason: String(item.reason || ""),
+          relation,
+          reason: `${relationLabel[relation] || relationLabel.RELATED}${item.reason ? ` — ${String(item.reason)}` : ""}`,
+          matchMethod: item.matchMethod === "LEXICAL" ? "LEXICAL" : "AI",
         };
       }).filter((topic: TopicSuggestion) => topic.name).slice(0, 5);
       setTopicSuggestions(ranked);

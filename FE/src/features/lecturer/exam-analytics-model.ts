@@ -436,6 +436,13 @@ export type IntelligencePayload = {
       correctOptionRate: number;
       sampleSize: number;
     } | null;
+    /** Aggregate answer evidence for non-single-choice questions. It is
+     * descriptive only and deliberately does not make a grading judgement. */
+    answerPattern?: {
+      kind: "FILL_IN_BLANK" | "ORDERING" | "MATCHING" | "TEXT";
+      sampleSize: number;
+      entries: Array<{ label: string; value: string; rate: number; count: number }>;
+    } | null;
     action?: { path: string; params?: Record<string, string> };
   }>;
   weakestTopics: Array<{

@@ -24,6 +24,7 @@ export interface ExamTrustAiContext {
   courseId?: string;
   courseCode?: string;
   courseName?: string;
+  courseDescription?: string;
   subjectCode?: string;
   examId?: string;
   examTitle?: string;
@@ -37,6 +38,7 @@ export interface ExamTrustAiContext {
   difficulty?: number;
   attemptNo?: number;
   topicName?: string;
+  topicDescription?: string;
   existingTopics?: string[];
   draftId?: string;
   draftMode?: string;
@@ -100,6 +102,7 @@ const buildContextLines = (context?: ExamTrustAiContext): string[] => {
   push('Course ID', context.courseId);
   push('Course code', context.courseCode);
   push('Course name', context.courseName);
+  push('Course description', context.courseDescription);
   push('Subject code', context.subjectCode);
   push('Exam ID', context.examId);
   push('Exam title', context.examTitle);
@@ -113,6 +116,7 @@ const buildContextLines = (context?: ExamTrustAiContext): string[] => {
   push('Difficulty', context.difficulty);
   push('Attempt no', context.attemptNo);
   push('Topic name', context.topicName);
+  push('Topic description', context.topicDescription);
   push('Draft ID', context.draftId);
   push('Draft mode', context.draftMode);
   push('Draft step', context.draftStep);
