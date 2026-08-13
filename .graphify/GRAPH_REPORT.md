@@ -1,13 +1,13 @@
 # Graph Report - .  (2026-08-13)
 
 ## Corpus Check
-- Large corpus: 538 files · ~449,404 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
+- Large corpus: 538 files · ~450,288 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
 
 ## Summary
-- 2695 nodes · 6950 edges · 147 communities detected
+- 2696 nodes · 6952 edges · 147 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
-- Edge kinds: imports: 1595 · contains: 1448 · MODIFIES: 1277 · imports_from: 970 · method: 671 · calls: 602 · ON_BRANCH: 170 · PARENT_OF: 115 · references: 79 · inherits: 11 · implements: 10 · rationale_for: 2
+- Edge kinds: imports: 1595 · contains: 1448 · MODIFIES: 1277 · imports_from: 970 · method: 672 · calls: 603 · ON_BRANCH: 170 · PARENT_OF: 115 · references: 79 · inherits: 11 · implements: 10 · rationale_for: 2
 
 
 ## Input Scope
@@ -17,7 +17,7 @@
 - Excluded: 0 untracked · 0 ignored · 1 sensitive · 0 missing committed
 ## God Nodes (most connected - your core abstractions)
 1. `ApiClient` - 151 edges
-2. `SubmissionsService` - 79 edges
+2. `SubmissionsService` - 80 edges
 3. `Button` - 67 edges
 4. `cn()` - 62 edges
 5. `Card` - 54 edges
@@ -29,7 +29,7 @@
 
 ## Surprising Connections (you probably didn't know these)
 - `formatDateTimeVi()` --calls--> `formatDateVi()`  [EXTRACTED]
-  FE/src/lib/presentation.ts → FE/src/lib/presentation.ts  _Bridges community 26 → community 30_
+  FE/src/lib/presentation.ts → FE/src/lib/presentation.ts  _Bridges community 25 → community 30_
 - `007a277 Update ZaloBotFeature` --ON_BRANCH--> `duc`  [EXTRACTED]
   git → git  _Bridges community 39 → community 5_
 - `0391dc3 mang project tu repo cu qua` --ON_BRANCH--> `duc`  [EXTRACTED]
@@ -142,20 +142,20 @@ Cohesion: 0.08
 Nodes (26): 1e57c6d Merge pull request #10 from trungducnguyen4/duc, 27f2728 Merge pull request #9 from trungducnguyen4/duc, 34443bf add, 5e60238 add, 67f04b6 add, GenerateExamQuestionsDto, GenerateQuestionDto, SuggestSimilarTopicsDto (+18 more)
 
 ### Community 25 - "Community 25"
-Cohesion: 0.07
-Nodes (3): OnModuleDestroy, OnModuleInit, SubmissionsService
-
-### Community 26 - "Community 26"
 Cohesion: 0.14
 Nodes (18): AdminPageShell(), AdminPageShellProps, EMPTY_FILTERS, Exam, formatDateTimeVi(), getScheduleLabel(), FilterPanelProps, Input (+10 more)
 
-### Community 27 - "Community 27"
+### Community 26 - "Community 26"
 Cohesion: 0.11
 Nodes (20): 2701bbc add, 3ce42b8 add, c7c474f Merge remote-tracking branch 'upstream/main', e3af065 add, ExamSecurityModalProps, violationLabels, emptyCounts, UseExamSecurityOptions (+12 more)
 
-### Community 28 - "Community 28"
+### Community 27 - "Community 27"
 Cohesion: 0.11
 Nodes (1): ExamsService
+
+### Community 28 - "Community 28"
+Cohesion: 0.08
+Nodes (3): OnModuleDestroy, OnModuleInit, SubmissionsService
 
 ### Community 29 - "Community 29"
 Cohesion: 0.17
@@ -577,21 +577,17 @@ Nodes (1): AIGenerationJobsController
 Cohesion: 0.50
 Nodes (1): SubmissionsEventsService
 
-### Community 143 - "Community 143"
+### Community 144 - "Community 144"
 Cohesion: 1.00
 Nodes (2): notifications, users
 
-### Community 144 - "Community 144"
+### Community 145 - "Community 145"
 Cohesion: 1.33
 Nodes (2): auth_sessions, users
 
-### Community 145 - "Community 145"
+### Community 146 - "Community 146"
 Cohesion: 1.00
 Nodes (2): ai_generation_records, anomaly_flags
-
-### Community 146 - "Community 146"
-Cohesion: 0.67
-Nodes (1): prisma
 
 ### Community 147 - "Community 147"
 Cohesion: 0.67
@@ -610,22 +606,26 @@ Cohesion: 0.67
 Nodes (1): prisma
 
 ### Community 151 - "Community 151"
+Cohesion: 0.67
+Nodes (1): prisma
+
+### Community 152 - "Community 152"
 Cohesion: 1.00
 Nodes (2): bootstrap(), parseCsvList()
 
-### Community 152 - "Community 152"
+### Community 153 - "Community 153"
 Cohesion: 0.67
 Nodes (1): JwtStrategy
 
-### Community 154 - "Community 154"
+### Community 155 - "Community 155"
 Cohesion: 1.00
 Nodes (1): media_storage_usage
 
-### Community 155 - "Community 155"
+### Community 156 - "Community 156"
 Cohesion: 1.00
 Nodes (1): media_user_storage_usage
 
-### Community 158 - "Community 158"
+### Community 159 - "Community 159"
 Cohesion: 1.00
 Nodes (1): MediaModule
 
@@ -638,7 +638,7 @@ Nodes (1): MediaModule
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 14`** (1 nodes): `SubmissionsController`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 28`** (1 nodes): `ExamsService`
+- **Thin community `Community 27`** (1 nodes): `ExamsService`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 29`** (2 nodes): `AiService`, `OnModuleInit`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -724,13 +724,11 @@ Nodes (1): MediaModule
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 142`** (1 nodes): `SubmissionsEventsService`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 143`** (2 nodes): `notifications`, `users`
+- **Thin community `Community 144`** (2 nodes): `notifications`, `users`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 144`** (2 nodes): `auth_sessions`, `users`
+- **Thin community `Community 145`** (2 nodes): `auth_sessions`, `users`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 145`** (2 nodes): `ai_generation_records`, `anomaly_flags`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 146`** (1 nodes): `prisma`
+- **Thin community `Community 146`** (2 nodes): `ai_generation_records`, `anomaly_flags`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 147`** (1 nodes): `prisma`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -740,25 +738,27 @@ Nodes (1): MediaModule
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 150`** (1 nodes): `prisma`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 151`** (2 nodes): `bootstrap()`, `parseCsvList()`
+- **Thin community `Community 151`** (1 nodes): `prisma`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 152`** (1 nodes): `JwtStrategy`
+- **Thin community `Community 152`** (2 nodes): `bootstrap()`, `parseCsvList()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 154`** (1 nodes): `media_storage_usage`
+- **Thin community `Community 153`** (1 nodes): `JwtStrategy`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 155`** (1 nodes): `media_user_storage_usage`
+- **Thin community `Community 155`** (1 nodes): `media_storage_usage`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 158`** (1 nodes): `MediaModule`
+- **Thin community `Community 156`** (1 nodes): `media_user_storage_usage`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 159`** (1 nodes): `MediaModule`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `ApiClient` connect `Community 0` to `Community 31`, `Community 119`, `Community 104`, `Community 133`, `Community 134`, `Community 156`, `Community 120`, `Community 157`?**
+- **Why does `ApiClient` connect `Community 0` to `Community 31`, `Community 119`, `Community 104`, `Community 133`, `Community 134`, `Community 157`, `Community 120`, `Community 158`?**
   _High betweenness centrality (0.103) - this node is a cross-community bridge._
-- **Why does `SubmissionsService` connect `Community 25` to `Community 24`, `Community 153`, `Community 108`, `Community 90`, `Community 69`, `Community 57`, `Community 109`?**
-  _High betweenness centrality (0.056) - this node is a cross-community bridge._
-- **Why does `QuestionsService` connect `Community 9` to `Community 27`?**
+- **Why does `SubmissionsService` connect `Community 28` to `Community 24`, `Community 154`, `Community 108`, `Community 90`, `Community 69`, `Community 57`, `Community 143`, `Community 109`?**
+  _High betweenness centrality (0.057) - this node is a cross-community bridge._
+- **Why does `QuestionsService` connect `Community 9` to `Community 26`?**
   _High betweenness centrality (0.036) - this node is a cross-community bridge._
 - **What connects `local_ai_server.py — Minimal local model server for ExamTrust AI feature Uses l`, `Try to pull the first valid JSON object out of model output.`, `prisma` to the rest of the system?**
   _614 weakly-connected nodes found - possible documentation gaps or missing edges._

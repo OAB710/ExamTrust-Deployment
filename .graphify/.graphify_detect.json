@@ -549,9 +549,9 @@
     ]
   },
   "total_files": 538,
-  "total_words": 449404,
+  "total_words": 450288,
   "needs_graph": true,
-  "warning": "Large corpus: 538 files · ~449,404 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 538 files · ~450,288 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],
