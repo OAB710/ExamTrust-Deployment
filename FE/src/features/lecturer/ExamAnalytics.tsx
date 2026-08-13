@@ -903,6 +903,26 @@ export default function ExamAnalytics() {
                               </div>
                             ) : null}
 
+                            {item.answerPattern ? (
+                              <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+                                <p className="font-medium">
+                                  Mẫu trả lời phổ biến ({item.answerPattern.sampleSize} lượt trả lời)
+                                </p>
+                                <div className="mt-2 space-y-1.5">
+                                  {item.answerPattern.entries.map((entry) => (
+                                    <p key={`${entry.label}-${entry.value}`} className="break-words text-sm">
+                                      <span className="font-medium">{entry.label}:</span>{" "}
+                                      <span className="font-semibold">{entry.value}</span>{" "}
+                                      <span className="text-sky-700">— {entry.rate.toFixed(0)}% ({entry.count} lượt)</span>
+                                    </p>
+                                  ))}
+                                </div>
+                                <p className="mt-2 text-xs text-sky-700">
+                                  Đây là xu hướng quan sát được trong câu trả lời, không phải kết luận tự động về đúng/sai hoặc chất lượng bài làm.
+                                </p>
+                              </div>
+                            ) : null}
+
                             {status === "APPROVED" ? (
                               <div className="mt-2 flex flex-wrap items-center gap-2">
                                 <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
