@@ -1,13 +1,13 @@
 # Graph Report - .  (2026-08-13)
 
 ## Corpus Check
-- Large corpus: 537 files · ~448,090 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
+- Large corpus: 537 files · ~448,401 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
 
 ## Summary
-- 2684 nodes · 6924 edges · 147 communities detected
+- 2685 nodes · 6925 edges · 147 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
-- Edge kinds: imports: 1585 · contains: 1438 · MODIFIES: 1277 · imports_from: 964 · method: 671 · calls: 602 · ON_BRANCH: 170 · PARENT_OF: 115 · references: 79 · inherits: 11 · implements: 10 · rationale_for: 2
+- Edge kinds: imports: 1585 · contains: 1439 · MODIFIES: 1277 · imports_from: 964 · method: 671 · calls: 602 · ON_BRANCH: 170 · PARENT_OF: 115 · references: 79 · inherits: 11 · implements: 10 · rationale_for: 2
 
 
 ## Input Scope
@@ -58,8 +58,8 @@ Cohesion: 0.04
 Nodes (39): 13dcbd7 add, 222b35a add, 23cc713 Merge remote-tracking branch 'upstream/main', 97c3ce7 Update schema.prisma, b27133b add, f2db362 Refactor VI + RCM Topic + AI Summarize, BulkStudentImport(), BulkStudentImportProps (+31 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.06
-Nodes (48): b8349a8 refactor code căng, answerTitles, FillBlankGuide(), OptionRowProps, Props, QuestionAnswerEditor(), QuestionTopicDialog(), GeneratedQuestion (+40 more)
+Cohesion: 0.05
+Nodes (49): b8349a8 refactor code căng, answerTitles, FillBlankGuide(), OptionRowProps, Props, QuestionAnswerEditor(), QuestionTopicDialog(), GeneratedQuestion (+41 more)
 
 ### Community 5 - "Community 5"
 Cohesion: 0.08
@@ -630,7 +630,7 @@ Cohesion: 1.00
 Nodes (1): MediaModule
 
 ## Knowledge Gaps
-- **607 isolated node(s):** `local_ai_server.py — Minimal local model server for ExamTrust AI feature Uses l`, `Try to pull the first valid JSON object out of model output.`, `prisma`, `prisma`, `prisma` (+602 more)
+- **608 isolated node(s):** `local_ai_server.py — Minimal local model server for ExamTrust AI feature Uses l`, `Try to pull the first valid JSON object out of model output.`, `prisma`, `prisma`, `prisma` (+603 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **Thin community `Community 0`** (1 nodes): `ApiClient`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -761,7 +761,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `QuestionsService` connect `Community 9` to `Community 27`?**
   _High betweenness centrality (0.036) - this node is a cross-community bridge._
 - **What connects `local_ai_server.py — Minimal local model server for ExamTrust AI feature Uses l`, `Try to pull the first valid JSON object out of model output.`, `prisma` to the rest of the system?**
-  _607 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _608 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.0312258064516129 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**

@@ -1089,15 +1089,20 @@ Rules:
 
   async suggestSimilarTopics(params: {
     topicName: string;
-    existingTopics: string[];
+    existingTopics: Array<string | { id?: string; name: string }>;
+    topicDescription?: string;
     language?: string;
     courseName?: string;
     context?: ExamTrustAiContext;
   }) {
     const topicName = String(params.topicName || '').trim();
-    const existingTopics = Array.from(
-      new Set((params.existingTopics || []).map((topic) => String(topic || '').trim()).filter(Boolean)),
-    ).slice(0, 50);
+    const existingTopics = (params.existingTopics || [])
+      .map((topic) => typeof topic === 'string'
+        ? { name: topic.trim() }
+        : { id: topic?.id, name: String(topic?.name || '').trim() })
+      .filter((topic) => Boolean(topic.name))
+      .filter((topic, index, all) => all.findIndex((item) => item.name.toLocaleLowerCase('vi-VN') === topic.name.toLocaleLowerCase('vi-VN')) === index)
+      .slice(0, 50);
 
     if (!topicName) {
       return { matches: [] };
@@ -1118,20 +1123,23 @@ Rules:
 
     const heuristicMatches = existingTopics
       .map((candidate) => {
-        const normalizedCandidate = normalize(candidate);
+        const normalizedCandidate = normalize(candidate.name);
         const normalizedTopic = normalize(topicName);
         if (!normalizedCandidate || !normalizedTopic) {
-          return { name: candidate, score: 0 };
+          return { id: candidate.id, name: candidate.name, score: 0, relation: 'DISTINCT', matchMethod: 'LEXICAL' as const };
         }
 
         let score = 0;
+        let relation = 'DISTINCT';
         if (normalizedCandidate === normalizedTopic) {
           score = 1;
+          relation = 'DUPLICATE';
         } else if (
           normalizedCandidate.includes(normalizedTopic) ||
           normalizedTopic.includes(normalizedCandidate)
         ) {
           score = 0.92;
+          relation = 'OVERLAP';
         } else {
           const candidateTokens = new Set(normalizedCandidate.split(' '));
           const topicTokens = new Set(normalizedTopic.split(' '));
@@ -1141,16 +1149,20 @@ Rules:
           });
           const union = new Set([...candidateTokens, ...topicTokens]).size || 1;
           score = overlap / union;
+          relation = score >= 0.35 ? 'RELATED' : 'DISTINCT';
         }
 
-        return { name: candidate, score };
+        return { id: candidate.id, name: candidate.name, score, relation, matchMethod: 'LEXICAL' as const };
       })
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
       .slice(0, 5)
       .map((item) => ({
+        id: item.id,
         name: item.name,
         score: Number(item.score.toFixed(2)),
+        relation: item.relation,
+        matchMethod: item.matchMethod,
         reason: 'Độ tương đồng ước lượng dựa trên nội dung tên chủ đề',
       }));
 
@@ -1161,18 +1173,28 @@ Rules:
       questionType: 'TOPIC_MATCHING',
       questionCount: 1,
       context: {
-        courseName: params.courseName,
         topicName,
-        existingTopics,
+        topicDescription: params.topicDescription,
+        existingTopics: existingTopics.map((topic) => topic.name),
         ...(params.context || {}),
       },
     })}
 
-You are helping a lecturer find an existing topic similar to a proposed new topic.
-Proposed topic: "${topicName}"
+COURSE CONTEXT
+Course code: ${params.context?.courseCode || 'not provided'}
+Course name: ${params.context?.courseName || params.courseName || 'not provided'}
+Course overview: ${params.context?.courseDescription || 'not provided'}
 
-Existing topics:
-${existingTopics.map((item, index) => `${index + 1}. ${item}`).join('\n')}
+PROPOSED TOPIC
+Name: ${topicName}
+Description: ${params.topicDescription || 'not provided'}
+
+EXISTING TOPICS
+${existingTopics.map((item, index) => `${index + 1}. ${item.name}`).join('\n')}
+
+Evaluate the proposed topic within the academic scope of the course. Do not decide similarity based only on shared words.
+Distinguish DUPLICATE, SAME_CONCEPT, PARENT_OF, CHILD_OF, OVERLAP, RELATED, and DISTINCT.
+A parent topic and a child topic are not automatically duplicates. Different wording can still be the same academic concept.
 
 Return ONLY JSON in this exact structure:
 {
@@ -1180,15 +1202,17 @@ Return ONLY JSON in this exact structure:
     {
       "name": "closest existing topic name",
       "score": 0.0,
-      "reason": "short reason"
+      "relation": "DUPLICATE|SAME_CONCEPT|PARENT_OF|CHILD_OF|OVERLAP|RELATED|DISTINCT",
+      "reason": "short academic-context reason"
     }
   ]
 }
 
 Rules:
-- Only include topics that are genuinely similar to the proposed topic.
+- Include DISTINCT only when it explains an ambiguous shared-keyword topic; otherwise omit unrelated topics.
 - Sort from most similar to least similar.
 - Score must be a number between 0 and 1.
+- Do not give a parent/child relation a near-duplicate score merely because it shares words.
 - Return at most 5 matches.
 - If nothing is similar, return an empty matches array.`;
 
@@ -1215,7 +1239,7 @@ Rules:
         if (!resp.ok) throw new Error(`Máy chủ mô hình cục bộ trả về mã lỗi ${resp.status}`);
         responseText = await resp.text();
       } else if (this.provider === 'mock') {
-        responseText = JSON.stringify({ matches: heuristicMatches });
+        return { matches: heuristicMatches };
       } else if (this.model) {
         const result = await this.model.generateContent(prompt);
         responseText = result.response.text();
@@ -1233,10 +1257,14 @@ Rules:
       const parsed = JSON.parse(cleaned);
       const matches = Array.isArray(parsed.matches) ? parsed.matches : [];
 
+      const validRelations = new Set(['DUPLICATE', 'SAME_CONCEPT', 'PARENT_OF', 'CHILD_OF', 'OVERLAP', 'RELATED', 'DISTINCT']);
       const normalized = matches
         .map((item: any) => ({
-          name: String(item?.name || '').trim(),
+          id: existingTopics.find((topic) => normalize(topic.name) === normalize(String(item?.name || '')))?.id,
+          name: existingTopics.find((topic) => normalize(topic.name) === normalize(String(item?.name || '')))?.name || '',
           score: Math.max(0, Math.min(1, Number(item?.score ?? 0))),
+          relation: validRelations.has(String(item?.relation || '').toUpperCase()) ? String(item.relation).toUpperCase() : 'RELATED',
+          matchMethod: 'AI' as const,
           reason: String(item?.reason || 'AI xác nhận tương đồng').trim(),
         }))
         .filter((item: any) => item.name)

@@ -856,10 +856,10 @@ class ApiClient {
   }
 
   async suggestSimilarTopics(data: {
+    courseId: string;
     topicName: string;
-    existingTopics: string[];
+    topicDescription?: string;
     language?: string;
-    courseName?: string;
   }) {
     return this.request<any>('/ai/suggest-similar-topics', {
       method: 'POST',

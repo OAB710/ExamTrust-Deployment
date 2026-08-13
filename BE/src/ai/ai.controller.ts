@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, NotFoundException, Post, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -8,6 +8,7 @@ import { AiJobsService } from './ai-jobs.service';
 import { AiService } from './ai.service';
 import { AISection } from '../questions-v2/dto/question-draft.dto';
 import { AccessPolicyService } from '../common/services/access-policy.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('AI')
 @ApiBearerAuth('access-token')
@@ -19,6 +20,7 @@ export class AiController {
     private readonly aiJobsService: AiJobsService,
     private readonly aiService: AiService,
     private readonly accessPolicy: AccessPolicyService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private async assertCourseContext(data: { courseId?: string; context?: Record<string, any> }, user: any) {
@@ -75,14 +77,33 @@ export class AiController {
 
   @Post('suggest-similar-topics')
   async suggestSimilarTopics(@Body() dto: SuggestSimilarTopicsDto, @Request() req) {
-    await this.assertCourseContext(dto, req.user);
+    await this.accessPolicy.assertInstructorCanAccessCourse(dto.courseId, req.user);
+    const course = await this.prisma.course.findUnique({
+      where: { id: dto.courseId },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        description: true,
+        topics: { select: { id: true, name: true }, orderBy: { name: 'asc' } },
+      },
+    });
+
+    // AccessPolicy above already gives the project-standard 404/403 response.
+    // Keep this guard for type safety if a concurrent course deletion occurs.
+    if (!course) throw new NotFoundException('Không tìm thấy khóa học');
 
     return this.aiService.suggestSimilarTopics({
       topicName: dto.topicName,
-      existingTopics: dto.existingTopics,
+      topicDescription: dto.topicDescription,
+      existingTopics: course.topics,
       language: dto.language,
-      courseName: dto.courseName,
-      context: dto.context || {},
+      context: {
+        courseId: course.id,
+        courseCode: course.code,
+        courseName: course.name,
+        courseDescription: course.description || undefined,
+      },
     });
   }
 }
