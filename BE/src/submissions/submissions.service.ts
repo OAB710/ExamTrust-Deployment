@@ -4748,6 +4748,79 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Private, lecturer-authorized print payload. Unlike getExamAnswerMatrix(),
+   * this intentionally exposes the student's stored answer for an audit PDF.
+   * Question position is per student's immutable ExamInstance snapshot, so a
+   * label such as C1 means the first question that particular student saw.
+   */
+  private async getExamDetailedPrintData(examId: string, user?: RequestUser) {
+    if (user) await this.accessPolicy.assertInstructorCanAccessExam(examId, user);
+    const submissions = await this.prisma.examSubmission.findMany({
+      where: { examId, status: { in: ['SUBMITTED', 'GRADED', 'FLAGGED', 'FINALIZED'] } },
+      select: {
+        id: true, attemptNo: true, score: true,
+        student: { select: { fullName: true, studentId: true } },
+        examInstance: { select: { snapshotPayload: true, questionOrder: true } },
+        examSnapshot: { select: { questions: { orderBy: { orderIndex: 'asc' }, select: { questionId: true, questionVersionId: true, questionSnapshotId: true, orderIndex: true, payload: true, questionSnapshot: { select: { payload: true } } } } } },
+        answers: { select: { questionId: true, questionVersionId: true, questionSnapshotId: true, answer: true, isCorrect: true, pointsAwarded: true, manualGradedAt: true } },
+      },
+      orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    const isBlank = (value: any) => {
+      const parsed = this.parseJsonValue(value, value);
+      if (parsed === null || typeof parsed === 'undefined') return true;
+      if (typeof parsed === 'string') return !parsed.trim();
+      if (Array.isArray(parsed)) return parsed.length === 0 || parsed.every((item) => !String(item ?? '').trim());
+      return typeof parsed === 'object' && Object.keys(parsed).length === 0;
+    };
+    const displayAnswer = (raw: any, type: string, isCorrect: boolean | null, manualGradedAt: Date | null, points: number | null) => {
+      if (isBlank(raw)) return '—';
+      const parsed = this.parseJsonValue(raw, raw);
+      let value = '';
+      if (type === 'ESSAY' || type === 'SHORT_ANSWER') value = manualGradedAt ? `TL ${Number(points || 0)}` : 'TL';
+      else if (Array.isArray(parsed)) value = parsed.map((item) => String(item ?? '').trim()).filter(Boolean).join(',');
+      else if (parsed && typeof parsed === 'object') {
+        const candidate = parsed.answer ?? parsed.answers;
+        value = Array.isArray(candidate) ? candidate.join(',') : candidate != null ? String(candidate) : Object.values(parsed).map(String).join(',');
+      } else value = String(parsed);
+      const marker = isCorrect === true || (manualGradedAt && Number(points || 0) > 0) ? '✓' : isCorrect === false ? '✕' : '';
+      return `${value.slice(0, 14)}${marker}`;
+    };
+
+    return submissions.map((submission) => {
+      const payload = this.parseJsonValue(submission.examInstance?.snapshotPayload, {}) as any;
+      const instanceQuestions = Array.isArray(payload?.questions) ? payload.questions : [];
+      const snapshotQuestions = (submission.examSnapshot?.questions || []).map((question: any) => ({
+        ...this.parseJsonValue(question.payload, {}),
+        ...this.parseJsonValue(question.questionSnapshot?.payload, {}),
+        questionId: question.questionId,
+        questionVersionId: question.questionVersionId,
+        questionSnapshotId: question.questionSnapshotId,
+        orderIndex: question.orderIndex,
+      }));
+      // Older ExamInstances can retain questionOrder without duplicating the
+      // questions in snapshotPayload. Their linked ExamSnapshot is immutable
+      // too, and is therefore the safe historical fallback.
+      const questions = instanceQuestions.length ? instanceQuestions : snapshotQuestions;
+      const order = Array.isArray(submission.examInstance?.questionOrder) ? submission.examInstance?.questionOrder : [];
+      const orderedQuestions = order.length
+        ? [...questions].sort((left: any, right: any) => order.indexOf(left.questionSnapshotId ?? left.questionId) - order.indexOf(right.questionSnapshotId ?? right.questionId))
+        : questions;
+      const answers = new Map<string, any>((submission.answers || []).map((answer) => [answer.questionSnapshotId ?? answer.questionVersionId ?? answer.questionId, answer]));
+      return {
+        studentId: submission.student?.studentId || '-', studentName: submission.student?.fullName || '-', attemptNo: submission.attemptNo,
+        score: submission.score != null ? Number(submission.score) : null,
+        answers: orderedQuestions.map((question: any, index: number) => {
+          const key = question.questionSnapshotId ?? question.questionVersionId ?? question.questionId;
+          const answer = answers.get(key);
+          return { position: index + 1, display: displayAnswer(answer?.answer, String(question.type || ''), answer?.isCorrect ?? null, answer?.manualGradedAt ?? null, answer?.pointsAwarded ?? null) };
+        }),
+      };
+    });
+  }
+
+  /**
    * Export exam results as CSV. UTF-8 BOM is prepended so Excel renders
    * Vietnamese names correctly instead of mojibake; scores/dates stay in
    * plain machine-readable form for downstream re-import.
@@ -4798,6 +4871,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
    */
   async exportExamResultsPdf(examId: string, user?: RequestUser): Promise<Buffer> {
     const { exam, rows } = await this.getExamResultsExportData(examId, user);
+    const detailedStudents = await this.getExamDetailedPrintData(examId, user);
 
     return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ margin: 40, size: 'A4' });
@@ -4896,6 +4970,42 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           x += col.width;
         }
         y += rowHeight;
+      }
+
+      // Page two onward: per-student answer audit. A student's C1/C2 labels
+      // deliberately follow their own randomized immutable snapshot; they are
+      // not cross-student question-comparison columns.
+      const maxQuestions = Math.max(0, ...detailedStudents.map((student) => student.answers.length));
+      const questionChunks = Array.from({ length: Math.ceil(maxQuestions / 20) }, (_, index) => ({ start: index * 20, end: Math.min(maxQuestions, (index + 1) * 20) }));
+      for (const chunk of questionChunks) {
+        doc.addPage({ size: 'A4', layout: 'landscape', margin: 28 });
+        const left = doc.page.margins.left;
+        const top = doc.page.margins.top;
+        const right = doc.page.width - doc.page.margins.right;
+        const rowH = 18;
+        const idWidth = 78;
+        const nameWidth = 125;
+        const scoreWidth = 42;
+        const questionWidth = (right - left - idWidth - nameWidth - scoreWidth) / Math.max(1, chunk.end - chunk.start);
+        const matrixHeader = (pageY: number) => {
+          doc.font('VN-Bold').fontSize(12).fillColor('#000').text('Ma trận phương án thí sinh đã chọn', left, pageY);
+          doc.font('VN').fontSize(8).fillColor('#555').text(`C${chunk.start + 1}–C${chunk.end}: thứ tự câu hỏi trong đề riêng của từng thí sinh. ✓ đúng · ✕ sai · — không trả lời · TL tự luận`, left, pageY + 16);
+          let x = left;
+          const headers = ['MSSV', 'Họ và tên', ...Array.from({ length: chunk.end - chunk.start }, (_, index) => `C${chunk.start + index + 1}`), 'Điểm'];
+          const widths = [idWidth, nameWidth, ...Array(chunk.end - chunk.start).fill(questionWidth), scoreWidth];
+          doc.font('VN-Bold').fontSize(7).fillColor('#000');
+          headers.forEach((header, index) => { doc.text(header, x + 2, pageY + 38, { width: widths[index] - 4, align: index >= 2 ? 'center' : 'left', ellipsis: true }); x += widths[index]; });
+          doc.moveTo(left, pageY + 52).lineTo(right, pageY + 52).strokeColor('#888').stroke();
+          return { y: pageY + 52, widths };
+        };
+        let matrix = matrixHeader(top);
+        for (const student of detailedStudents) {
+          if (matrix.y + rowH > doc.page.height - doc.page.margins.bottom) { doc.addPage({ size: 'A4', layout: 'landscape', margin: 28 }); matrix = matrixHeader(doc.page.margins.top); }
+          const values = [student.studentId, student.studentName, ...Array.from({ length: chunk.end - chunk.start }, (_, index) => student.answers[chunk.start + index]?.display || '—'), student.score != null ? student.score.toFixed(2) : '-'];
+          let x = left; doc.font('VN').fontSize(7).fillColor('#000');
+          values.forEach((value, index) => { doc.text(String(value), x + 2, matrix.y + 5, { width: matrix.widths[index] - 4, align: index >= 2 ? 'center' : 'left', ellipsis: true }); x += matrix.widths[index]; });
+          matrix.y += rowH;
+        }
       }
 
       doc.end();
