@@ -436,7 +436,7 @@ export default function QuestionBankManagement() {
 
       const firstPage = await api.listQuestions({ page: 1, limit: 100 });
       const firstPageQuestions = unwrapPaginatedData<Question>(firstPage);
-      const pages = Math.max(1, Number(firstPage?.totalPages ?? 1));
+      const pages = Math.max(1, Number(firstPage?.pagination?.totalPages ?? 1));
       if (pages === 1) {
         setQuestions(firstPageQuestions);
       } else {
@@ -1061,13 +1061,24 @@ export default function QuestionBankManagement() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-2.5 pt-0 text-sm">
-                    <button
-                      type="button"
-                      disabled={missingExplanationCount === 0}
-                      onClick={() => setMissingExplanationOnly((v) => !v)}
-                      className={`flex w-full items-center justify-between rounded-md px-2 py-1 -mx-2 text-left transition-colors ${
+                    <div
+                      role="button"
+                      tabIndex={missingExplanationCount > 0 ? 0 : -1}
+                      aria-disabled={missingExplanationCount === 0}
+                      onClick={() => {
+                        if (missingExplanationCount === 0) return;
+                        setMissingExplanationOnly((v) => !v);
+                      }}
+                      onKeyDown={(e) => {
+                        if (missingExplanationCount === 0) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setMissingExplanationOnly((v) => !v);
+                        }
+                      }}
+                      className={`flex items-center justify-between rounded-md px-2 py-1 -mx-2 transition-colors ${
                         missingExplanationCount > 0
-                          ? "hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                          ? "cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/30"
                           : ""
                       } ${missingExplanationOnly ? "bg-amber-50 dark:bg-amber-950/30 ring-1 ring-amber-300" : ""}`}
                     >
@@ -1084,8 +1095,8 @@ export default function QuestionBankManagement() {
                       >
                         {missingExplanationCount}
                       </span>
-                    </button>
-                    <div className="flex items-center justify-between">
+                    </div>
+                    <div className="flex items-center justify-between rounded-md px-2 py-1 -mx-2">
                       <span className="text-muted-foreground">Có kèm hình ảnh / âm thanh</span>
                       <span className="font-semibold tabular-nums">{withMediaCount}</span>
                     </div>
@@ -1461,6 +1472,8 @@ export default function QuestionBankManagement() {
             hideCloseButton
             className="w-[950px] max-w-[95vw] max-h-[85vh] overflow-hidden p-0 gap-0"
           >
+            <DialogTitle className="sr-only">Xem trước câu hỏi</DialogTitle>
+
             {detailLoading && (
               <div className="flex items-center justify-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -1555,6 +1568,21 @@ export default function QuestionBankManagement() {
                         {q.content}
                       </p>
                     </Section>
+
+                    {/* 1b. Attached media */}
+                    {q.mediaType === "image" && q.mediaUrl ? (
+                      <Section title="Hình ảnh đính kèm">
+                        <img
+                          src={q.mediaUrl}
+                          alt="Hình ảnh minh họa câu hỏi"
+                          className="max-h-80 w-full rounded-md border object-contain"
+                        />
+                      </Section>
+                    ) : q.mediaType === "audio" && q.mediaUrl ? (
+                      <Section title="Âm thanh đính kèm">
+                        <audio src={q.mediaUrl} controls className="w-full" />
+                      </Section>
+                    ) : null}
 
                     {/* 2. Answer Options / Matching Pairs / Ordering Items */}
                     {q.type === "MATCHING" ? (
