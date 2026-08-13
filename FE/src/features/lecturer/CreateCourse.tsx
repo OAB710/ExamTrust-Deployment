@@ -49,6 +49,7 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EditableStudentImport } from "./components/EditableStudentImport";
 import {
   Table,
   TableBody,
@@ -223,6 +224,7 @@ const EMPTY_FILTERS: FilterValues = {
 };
 
 export default function CreateCourse() {
+  const legacyImportEnabled = process.env.NEXT_PUBLIC_ENABLE_LEGACY_IMPORT === "true";
   const router = useRouter();
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -1163,7 +1165,7 @@ export default function CreateCourse() {
               </Button>
             </DialogTrigger>
             <DialogContent
-              className="max-w-3xl max-h-[90vh] overflow-y-auto"
+              className="w-[96vw] max-w-[1600px] max-h-[94vh] overflow-y-auto p-7"
               onInteractOutside={handleDialogInteractOutside}
             >
               {/* Step indicator */}
@@ -1592,6 +1594,16 @@ export default function CreateCourse() {
 
                     {/* CSV / Excel Import */}
                     <TabsContent value="import" className="space-y-4 mt-4">
+                      {createdCourseId ? (
+                        <EditableStudentImport
+                          courseId={createdCourseId}
+                          onSuccess={(count) => {
+                            setCourses((prev) => prev.map((course) => course.id === createdCourseId ? { ...course, students: course.students + count } : course));
+                            setEnrollResults([{ email: "", fullName: `${count} sinh viên`, status: "success" }]);
+                          }}
+                        />
+                      ) : null}
+                      {legacyImportEnabled && <>
                       {/* Convention info */}
                       <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900">
                         <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
@@ -1696,6 +1708,7 @@ export default function CreateCourse() {
                           </div>
                         </div>
                       )}
+                      </>}
                     </TabsContent>
                   </Tabs>
 
@@ -1756,7 +1769,7 @@ export default function CreateCourse() {
                     <Button variant="outline" onClick={handleCloseDialog}>
                       {enrollResults.length > 0 ? "Hoàn tất" : "Bỏ qua — Thêm sau"}
                     </Button>
-                    {enrollResults.length === 0 && (
+                    {enrollResults.length === 0 && enrollTab !== "import" && (
                       <Button
                         variant="outline"
                         onClick={() => setStep(1)}

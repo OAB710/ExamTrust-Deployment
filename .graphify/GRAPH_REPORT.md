@@ -1,24 +1,24 @@
 # Graph Report - .  (2026-08-13)
 
 ## Corpus Check
-- Large corpus: 537 files · ~448,401 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
+- Large corpus: 538 files · ~449,404 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
 
 ## Summary
-- 2685 nodes · 6925 edges · 147 communities detected
+- 2695 nodes · 6950 edges · 147 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
-- Edge kinds: imports: 1585 · contains: 1439 · MODIFIES: 1277 · imports_from: 964 · method: 671 · calls: 602 · ON_BRANCH: 170 · PARENT_OF: 115 · references: 79 · inherits: 11 · implements: 10 · rationale_for: 2
+- Edge kinds: imports: 1595 · contains: 1448 · MODIFIES: 1277 · imports_from: 970 · method: 671 · calls: 602 · ON_BRANCH: 170 · PARENT_OF: 115 · references: 79 · inherits: 11 · implements: 10 · rationale_for: 2
 
 
 ## Input Scope
 - Requested: auto
 - Resolved: all (source: default-auto)
-- Included files: 537 · Candidates: recursive
+- Included files: 538 · Candidates: recursive
 - Excluded: 0 untracked · 0 ignored · 1 sensitive · 0 missing committed
 ## God Nodes (most connected - your core abstractions)
 1. `ApiClient` - 151 edges
 2. `SubmissionsService` - 79 edges
-3. `Button` - 66 edges
+3. `Button` - 67 edges
 4. `cn()` - 62 edges
 5. `Card` - 54 edges
 6. `CardContent` - 54 edges
@@ -29,7 +29,7 @@
 
 ## Surprising Connections (you probably didn't know these)
 - `formatDateTimeVi()` --calls--> `formatDateVi()`  [EXTRACTED]
-  FE/src/lib/presentation.ts → FE/src/lib/presentation.ts  _Bridges community 22 → community 30_
+  FE/src/lib/presentation.ts → FE/src/lib/presentation.ts  _Bridges community 26 → community 30_
 - `007a277 Update ZaloBotFeature` --ON_BRANCH--> `duc`  [EXTRACTED]
   git → git  _Bridges community 39 → community 5_
 - `0391dc3 mang project tu repo cu qua` --ON_BRANCH--> `duc`  [EXTRACTED]
@@ -59,7 +59,7 @@ Nodes (39): 13dcbd7 add, 222b35a add, 23cc713 Merge remote-tracking branch 'upst
 
 ### Community 4 - "Community 4"
 Cohesion: 0.05
-Nodes (49): b8349a8 refactor code căng, answerTitles, FillBlankGuide(), OptionRowProps, Props, QuestionAnswerEditor(), QuestionTopicDialog(), GeneratedQuestion (+41 more)
+Nodes (50): b8349a8 refactor code căng, answerTitles, FillBlankGuide(), OptionRowProps, Props, QuestionAnswerEditor(), QuestionTopicDialog(), GeneratedQuestion (+42 more)
 
 ### Community 5 - "Community 5"
 Cohesion: 0.08
@@ -122,16 +122,16 @@ Cohesion: 0.09
 Nodes (16): exam_submissions, integrity_reviews, iso(), rangeFor(), Exam, Submission, User, copy (+8 more)
 
 ### Community 20 - "Community 20"
+Cohesion: 0.08
+Nodes (34): 1ff59cf add, 3acaef9 fix nhẹ, f40ccdb to vietnamese, { academicYear: defaultAcademicYear, term: defaultTerm }, academicYearOptions, APICourse, buildToken(), Course (+26 more)
+
+### Community 21 - "Community 21"
 Cohesion: 0.05
 Nodes (33): useIsMobile(), SheetContent, SheetContentProps, SheetDescription, SheetOverlay, SheetTitle, sheetVariants, Sidebar (+25 more)
 
-### Community 21 - "Community 21"
-Cohesion: 0.08
-Nodes (26): EMPTY_FILTERS, EMPTY_PATTERNS, EMPTY_STATS, IntegrityCasesResponse, IntegrityPatterns, IntegrityStats, AGGREGATE_ALERT_TYPES, EMPTY_STUDENT_FILTERS (+18 more)
-
 ### Community 22 - "Community 22"
-Cohesion: 0.11
-Nodes (25): AdminPageShell(), AdminPageShellProps, EMPTY_FILTERS, Exam, getMinError(), getNumericInputError(), hasValidNumberFormat(), NumericInputOptions (+17 more)
+Cohesion: 0.08
+Nodes (26): aliases, EditableStudentImport(), Field, fields, ImportRow, labels, AGGREGATE_ALERT_TYPES, EMPTY_STUDENT_FILTERS (+18 more)
 
 ### Community 23 - "Community 23"
 Cohesion: 0.11
@@ -146,8 +146,8 @@ Cohesion: 0.07
 Nodes (3): OnModuleDestroy, OnModuleInit, SubmissionsService
 
 ### Community 26 - "Community 26"
-Cohesion: 0.10
-Nodes (24): 1ff59cf add, 3acaef9 fix nhẹ, f40ccdb to vietnamese, { academicYear: defaultAcademicYear, term: defaultTerm }, academicYearOptions, APICourse, buildToken(), Course (+16 more)
+Cohesion: 0.14
+Nodes (18): AdminPageShell(), AdminPageShellProps, EMPTY_FILTERS, Exam, formatDateTimeVi(), getScheduleLabel(), FilterPanelProps, Input (+10 more)
 
 ### Community 27 - "Community 27"
 Cohesion: 0.11
@@ -174,8 +174,8 @@ Cohesion: 0.12
 Nodes (18): 1098f63 add, ad2ef1d Add accounts-only seed script for resetting production data, e0e0f5b Fix Bug, fd68a4b Merge pull request #16 from OAB710/main, THEME_OPTIONS, THEME_PROVIDER_OPTIONS, prisma, students (+10 more)
 
 ### Community 33 - "Community 33"
-Cohesion: 0.09
-Nodes (17): completedSubmissionStatuses, Course, CourseExam, CourseExamSummary, Enrollment, ExamSubmission, Student, StudentCoursePerformance (+9 more)
+Cohesion: 0.11
+Nodes (15): EMPTY_FILTERS, EMPTY_PATTERNS, EMPTY_STATS, IntegrityCasesResponse, IntegrityPatterns, IntegrityStats, DateRangeValue, FilterChip (+7 more)
 
 ### Community 34 - "Community 34"
 Cohesion: 0.10
@@ -206,40 +206,40 @@ Cohesion: 0.10
 Nodes (1): ExamsController
 
 ### Community 41 - "Community 41"
+Cohesion: 0.10
+Nodes (14): completedSubmissionStatuses, Course, CourseExam, CourseExamSummary, Enrollment, ExamSubmission, Student, StudentCoursePerformance (+6 more)
+
+### Community 42 - "Community 42"
 Cohesion: 0.15
 Nodes (15): AiModule, buildContextLines(), buildExamTrustPromptHeader(), ExamTrustAiAnalyticsSummary, ExamTrustAiContext, ExamTrustAiPromptParams, ExamTrustAiUseCase, formatNumber() (+7 more)
 
-### Community 42 - "Community 42"
+### Community 43 - "Community 43"
 Cohesion: 0.14
 Nodes (18): accessBadgeClass(), ExamDetail, MySubmission, statusBadgeClass(), StudentExamDetail(), formatBadgeText(), getStatusBadgeLabel(), getStatusBadgeTone() (+10 more)
 
-### Community 43 - "Community 43"
+### Community 44 - "Community 44"
 Cohesion: 0.19
 Nodes (1): AuthService
 
-### Community 44 - "Community 44"
+### Community 45 - "Community 45"
 Cohesion: 0.17
 Nodes (1): AuthController
 
-### Community 45 - "Community 45"
+### Community 46 - "Community 46"
 Cohesion: 0.23
 Nodes (8): StrategyRegistry, ListeningTimecodeStrategy, MatchingHeadingStrategy, OrderedReasoningStrategy, SharedOptionPoolStrategy, DefaultFlexible, ShuffleStrategy, StrictNoShuffle
 
-### Community 46 - "Community 46"
+### Community 47 - "Community 47"
 Cohesion: 0.12
 Nodes (16): AddLogsDto, AutosaveAnswerDto, AutosaveExamDto, CreateScoreAdjustmentDto, ExtendSubmissionDeadlineDto, FinalizeEvidenceCaptureDto, GradeAnswerDto, ReopenSubmissionDto (+8 more)
 
-### Community 47 - "Community 47"
+### Community 48 - "Community 48"
 Cohesion: 0.17
 Nodes (12): integrity_review_audits, integrity_reviews, users, 50768bd Merge pull request #11 from trungducnguyen4/duc, 95cd9ce add, ReviewAnomalyFlagDto, ReviewIntegrityCaseDto, RiskFlagDecision (+4 more)
 
-### Community 48 - "Community 48"
+### Community 49 - "Community 49"
 Cohesion: 0.23
 Nodes (1): CoursesService
-
-### Community 49 - "Community 49"
-Cohesion: 0.17
-Nodes (9): DateRangeValue, FilterChip, FilterDefinition, FilterValue, FilterValues, ListFilterOption, NumberRangeValue, TextFilterOperator (+1 more)
 
 ### Community 50 - "Community 50"
 Cohesion: 0.20
@@ -630,7 +630,7 @@ Cohesion: 1.00
 Nodes (1): MediaModule
 
 ## Knowledge Gaps
-- **608 isolated node(s):** `local_ai_server.py — Minimal local model server for ExamTrust AI feature Uses l`, `Try to pull the first valid JSON object out of model output.`, `prisma`, `prisma`, `prisma` (+603 more)
+- **614 isolated node(s):** `local_ai_server.py — Minimal local model server for ExamTrust AI feature Uses l`, `Try to pull the first valid JSON object out of model output.`, `prisma`, `prisma`, `prisma` (+609 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **Thin community `Community 0`** (1 nodes): `ApiClient`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -646,11 +646,11 @@ Nodes (1): MediaModule
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 40`** (1 nodes): `ExamsController`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 43`** (1 nodes): `AuthService`
+- **Thin community `Community 44`** (1 nodes): `AuthService`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 44`** (1 nodes): `AuthController`
+- **Thin community `Community 45`** (1 nodes): `AuthController`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 48`** (1 nodes): `CoursesService`
+- **Thin community `Community 49`** (1 nodes): `CoursesService`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 52`** (1 nodes): `EnrollmentsController`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -755,13 +755,13 @@ Nodes (1): MediaModule
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `ApiClient` connect `Community 0` to `Community 31`, `Community 119`, `Community 104`, `Community 133`, `Community 134`, `Community 156`, `Community 120`, `Community 157`?**
-  _High betweenness centrality (0.104) - this node is a cross-community bridge._
+  _High betweenness centrality (0.103) - this node is a cross-community bridge._
 - **Why does `SubmissionsService` connect `Community 25` to `Community 24`, `Community 153`, `Community 108`, `Community 90`, `Community 69`, `Community 57`, `Community 109`?**
   _High betweenness centrality (0.056) - this node is a cross-community bridge._
 - **Why does `QuestionsService` connect `Community 9` to `Community 27`?**
   _High betweenness centrality (0.036) - this node is a cross-community bridge._
 - **What connects `local_ai_server.py — Minimal local model server for ExamTrust AI feature Uses l`, `Try to pull the first valid JSON object out of model output.`, `prisma` to the rest of the system?**
-  _608 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _614 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.0312258064516129 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**

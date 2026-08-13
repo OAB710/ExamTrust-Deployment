@@ -420,6 +420,7 @@
       "FE/src/features/lecturer/attention/AttentionSection.tsx",
       "FE/src/features/lecturer/attention/types.ts",
       "FE/src/features/lecturer/attention/useAttentionItems.ts",
+      "FE/src/features/lecturer/components/EditableStudentImport.tsx",
       "FE/src/features/lecturer/components/QuestionAnswerEditor.tsx",
       "FE/src/features/lecturer/components/QuestionPreviewSections.tsx",
       "FE/src/features/lecturer/components/QuestionTopicDialog.tsx",
@@ -547,10 +548,10 @@
       "1mb.mp3"
     ]
   },
-  "total_files": 537,
-  "total_words": 448401,
+  "total_files": 538,
+  "total_words": 449404,
   "needs_graph": true,
-  "warning": "Large corpus: 537 files · ~448,401 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 538 files · ~449,404 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],
@@ -561,7 +562,7 @@
     "source": "default-auto",
     "root": ".",
     "candidate_count": null,
-    "included_count": 537,
+    "included_count": 538,
     "excluded_untracked_count": 0,
     "excluded_ignored_count": 0,
     "excluded_sensitive_count": 1,
