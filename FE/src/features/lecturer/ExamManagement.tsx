@@ -181,7 +181,7 @@ export default function ExamManagement() {
           search: appliedSearch || undefined,
           sort: sortField === 'course.code' ? 'title' : sortField,
           page,
-          limit: ITEMS_PER_PAGE,
+          limit: 500, // Fetch all exams for client-side pagination
         }),
         api.getMyCourses(),
       ]);
@@ -545,7 +545,7 @@ export default function ExamManagement() {
     { field: "status", label: "Trạng thái" },
   ];
 
-  const ITEMS_PER_PAGE = 10;
+  const ITEMS_PER_PAGE = 5;
   const totalPages = Math.max(1, Math.ceil(filteredExams.length / ITEMS_PER_PAGE));
   const EXAM_ROW_HEIGHT = 60;
   const EXAM_TABLE_HEADER_HEIGHT = 48;
