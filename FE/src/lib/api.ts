@@ -1287,7 +1287,7 @@ class ApiClient {
   }
 
   async requestEvidenceCapture(submissionId: string, data: { trigger: 'SCHEDULED' | 'SUSPICIOUS_EVENT'; signals?: string[] }) {
-    return this.request<{ captureId: string; nonce: string; expiresAt: string; maxBytes: number }>(`/submissions/${submissionId}/evidence-captures/request`, { method: 'POST', body: data });
+    return this.request<{ captureId: string; nonce: string; expiresAt: string; maxBytes: number; screen?: { captureId: string; nonce: string; expiresAt: string; maxBytes: number } }>(`/submissions/${submissionId}/evidence-captures/request`, { method: 'POST', body: data });
   }
 
   async finalizeEvidenceCapture(submissionId: string, captureId: string, data: { nonce: string; imageDataUrl: string }) {

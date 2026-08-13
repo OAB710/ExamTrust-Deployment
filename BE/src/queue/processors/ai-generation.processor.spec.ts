@@ -59,7 +59,8 @@ describe('AIGenerationProcessor - exam-quality-review task', () => {
       ...aiServiceOverrides,
     };
 
-    const processor = new AIGenerationProcessor(prisma as any, aiService as any);
+    const config = { get: jest.fn().mockReturnValue(undefined) };
+    const processor = new AIGenerationProcessor(prisma as any, aiService as any, config as any);
     return { processor, prisma, aiService };
   };
 

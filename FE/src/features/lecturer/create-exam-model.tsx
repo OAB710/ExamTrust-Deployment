@@ -34,6 +34,12 @@ export interface ExamForm {
   endTime: string;
   requiresProctoring: boolean;
   webcamEvidenceEnabled: boolean;
+  webcamEvidenceLimitTabSwitch: string;
+  webcamEvidenceLimitFullscreenExit: string;
+  webcamEvidenceLimitPasteExternal: string;
+  webcamEvidenceLimitMouseIdle: string;
+  webcamEvidenceCooldownSeconds: string;
+  screenCaptureEnabled: boolean;
   allowLateSubmission: boolean;
   shuffleQuestions: boolean;
   showResultImmediately: boolean;
@@ -155,6 +161,12 @@ export const createDefaultForm = (): ExamForm => {
     endTime: examWindow.endTime,
     requiresProctoring: true,
     webcamEvidenceEnabled: false,
+    webcamEvidenceLimitTabSwitch: "3",
+    webcamEvidenceLimitFullscreenExit: "3",
+    webcamEvidenceLimitPasteExternal: "3",
+    webcamEvidenceLimitMouseIdle: "3",
+    webcamEvidenceCooldownSeconds: "60",
+    screenCaptureEnabled: false,
     allowLateSubmission: false,
     shuffleQuestions: true,
     showResultImmediately: false,

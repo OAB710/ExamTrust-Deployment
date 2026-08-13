@@ -68,6 +68,7 @@ import {
   MousePointerClick,
   Camera,
   ImageOff,
+  Image as ImageIcon,
   Sparkles,
   MoreHorizontal,
 } from "lucide-react";
@@ -115,6 +116,8 @@ interface StudentSession {
   startedAt: string | null;
   submittedAt: string | null;
   flagReason: string | null;
+  evidenceCount: number;
+  evidenceUnreviewedCount: number;
 }
 
 interface IntegrityAlert {
@@ -160,6 +163,7 @@ interface EvidenceCapture {
   id: string;
   status: "REQUESTED" | "UPLOADED" | "ANALYZING" | "ANALYZED" | "FAILED" | "PURGED";
   trigger: "SCHEDULED" | "SUSPICIOUS_EVENT";
+  captureSource?: "WEBCAM" | "SCREEN";
   triggerDetails?: unknown;
   scheduledSlot?: number | null;
   scheduledAt?: string | null;
@@ -172,6 +176,30 @@ interface EvidenceCapture {
   reviewStatus?: "PENDING" | "REVIEWED" | "DISMISSED" | null;
   reviewerNote?: string | null;
   reviewedAt?: string | null;
+}
+
+const EVIDENCE_SIGNAL_LABELS: Record<string, string> = {
+  tab_switch: "Chuyển tab",
+  fullscreen_exit: "Thoát fullscreen",
+  paste_external: "Dán nội dung ngoài",
+  mouse_idle: "Ngồi im",
+};
+
+function getEvidenceEventLabel(capture: EvidenceCapture): string {
+  if (capture.trigger === "SCHEDULED") return "Định kỳ";
+  const details = capture.triggerDetails as { signals?: string[] } | null | undefined;
+  const signal = details?.signals?.find((s) => EVIDENCE_SIGNAL_LABELS[s]);
+  return signal ? EVIDENCE_SIGNAL_LABELS[signal] : "Sự kiện nghi vấn";
+}
+
+// Screen-capture (Part 5) isn't wired up yet, but when it is, the webcam +
+// screen shots for one trigger are created back-to-back — bucketing by
+// scheduledSlot (for SCHEDULED) or a small time window (for SUSPICIOUS_EVENT)
+// pairs them without needing a dedicated group-id column.
+function getEvidenceGroupKey(capture: EvidenceCapture): string {
+  if (capture.scheduledSlot != null) return `scheduled-${capture.scheduledSlot}`;
+  const bucket = Math.floor(new Date(capture.createdAt).getTime() / 5000);
+  return `event-${capture.trigger}-${bucket}`;
 }
 
 type ExamOverview = {
@@ -278,6 +306,7 @@ export default function ExamMonitor() {
   const [evidenceReviewLoading, setEvidenceReviewLoading] = useState(false);
   const [evidenceReviewNote, setEvidenceReviewNote] = useState("");
   const [evidenceError, setEvidenceError] = useState<string | null>(null);
+  const [evidenceFilter, setEvidenceFilter] = useState<"all" | "suspicious" | "webcam" | "screen" | "unreviewed">("all");
 
   const riskFlagsBySubmission = useMemo(() => {
     const map = new Map<string, any>();
@@ -412,6 +441,8 @@ export default function ExamMonitor() {
             ? new Date(submission.submittedAt).toLocaleTimeString()
             : null,
           flagReason: status === "flagged" ? "Lượt nộp bị gắn cờ" : null,
+          evidenceCount: Number(submission?.evidenceCaptureCount || 0),
+          evidenceUnreviewedCount: Number(submission?.evidenceUnreviewedCount || 0),
         };
       });
 
@@ -508,6 +539,7 @@ export default function ExamMonitor() {
     setSelectedEvidenceId(null);
     setEvidenceReviewNote("");
     setEvidenceError(null);
+    setEvidenceFilter("all");
     setEvidenceLoading(true);
     try {
       const captures = (await api.getEvidenceCaptures(submissionId)) as EvidenceCapture[];
@@ -529,24 +561,71 @@ export default function ExamMonitor() {
     setEvidenceImageUrls({});
     setEvidenceReviewNote("");
     setEvidenceError(null);
+    setEvidenceFilter("all");
   };
 
   const selectedEvidence = evidenceCaptures.find((capture) => capture.id === selectedEvidenceId) || null;
 
+  const filteredEvidenceCaptures = useMemo(() => {
+    return evidenceCaptures.filter((capture) => {
+      switch (evidenceFilter) {
+        case "suspicious":
+          return capture.trigger === "SUSPICIOUS_EVENT";
+        case "webcam":
+          return (capture.captureSource || "WEBCAM") === "WEBCAM";
+        case "screen":
+          return capture.captureSource === "SCREEN";
+        case "unreviewed":
+          return !capture.reviewStatus || capture.reviewStatus === "PENDING";
+        default:
+          return true;
+      }
+    });
+  }, [evidenceCaptures, evidenceFilter]);
+
+  const evidenceGroups = useMemo(() => {
+    const map = new Map<string, EvidenceCapture[]>();
+    filteredEvidenceCaptures.forEach((capture) => {
+      const key = getEvidenceGroupKey(capture);
+      const list = map.get(key) || [];
+      list.push(capture);
+      map.set(key, list);
+    });
+    return [...map.values()]
+      .map((items) => [...items].sort((a, b) => (a.captureSource === "SCREEN" ? 1 : -1)))
+      .sort((a, b) => new Date(a[0].createdAt).getTime() - new Date(b[0].createdAt).getTime());
+  }, [filteredEvidenceCaptures]);
+
+  // Thumbnails need the actual image up front (not just on click) — capture
+  // volume is capped low by policy (see plan doc), so loading them all when
+  // the dialog opens is cheap enough to skip a lazy/on-scroll loader.
   useEffect(() => {
-    if (!evidenceDialogSubmission || !selectedEvidence || evidenceImageUrls[selectedEvidence.id]) return;
-    if (selectedEvidence.status === "REQUESTED" || selectedEvidence.status === "PURGED") return;
+    if (!evidenceDialogSubmission) return;
+    const pending = evidenceCaptures.filter(
+      (capture) => capture.status !== "REQUESTED" && capture.status !== "PURGED" && !evidenceImageUrls[capture.id],
+    );
+    if (pending.length === 0) return;
     let active = true;
     setEvidenceImageLoading(true);
-    api.getEvidenceImageUrl(evidenceDialogSubmission.id, selectedEvidence.id)
-      .then((url) => {
-        if (active) setEvidenceImageUrls((current) => ({ ...current, [selectedEvidence.id]: url }));
-        else URL.revokeObjectURL(url);
+    Promise.all(
+      pending.map((capture) =>
+        api
+          .getEvidenceImageUrl(evidenceDialogSubmission.id, capture.id)
+          .then((url) => ({ id: capture.id, url }))
+          .catch(() => null),
+      ),
+    )
+      .then((results) => {
+        if (!active) return;
+        setEvidenceImageUrls((current) => {
+          const next = { ...current };
+          for (const result of results) if (result) next[result.id] = result.url;
+          return next;
+        });
       })
-      .catch((err: any) => active && setEvidenceError(err?.message || "Không thể tải ảnh bằng chứng."))
       .finally(() => active && setEvidenceImageLoading(false));
     return () => { active = false; };
-  }, [evidenceDialogSubmission, evidenceImageUrls, selectedEvidence]);
+  }, [evidenceDialogSubmission, evidenceCaptures]);
 
   const reviewEvidence = async (reviewStatus: "REVIEWED" | "DISMISSED") => {
     if (!evidenceDialogSubmission || !selectedEvidence) return;
@@ -1124,9 +1203,10 @@ export default function ExamMonitor() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[35%]">Sinh viên</TableHead>
-                    <TableHead className="w-[22%]">Tiến độ</TableHead>
-                    <TableHead className="w-[12%] text-center">Đổi tab</TableHead>
+                    <TableHead className="w-[30%]">Sinh viên</TableHead>
+                    <TableHead className="w-[18%]">Tiến độ</TableHead>
+                    <TableHead className="w-[10%] text-center">Đổi tab</TableHead>
+                    <TableHead className="w-[12%] text-center">Bằng chứng</TableHead>
                     <TableHead className="w-[14%]">Trạng thái</TableHead>
                     <TableHead className="w-[8%] text-right">Thao tác</TableHead>
                   </TableRow>
@@ -1135,7 +1215,7 @@ export default function ExamMonitor() {
                   {paginatedStudents.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={5}
+                        colSpan={6}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
                         Không tìm thấy phiên làm bài nào phù hợp với tìm kiếm hoặc bộ lọc hiện tại.
@@ -1172,6 +1252,26 @@ export default function ExamMonitor() {
                           >
                             {s.tabSwitches}
                           </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {s.evidenceCount > 0 ? (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs hover:bg-muted/50"
+                              onClick={() => s.submissionId && openEvidenceDialog(s.submissionId, s.name)}
+                            >
+                              <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>{s.evidenceCount}</span>
+                              {s.evidenceUnreviewedCount > 0 && (
+                                <span className="inline-flex items-center gap-0.5 text-amber-600">
+                                  <AlertTriangle className="h-3.5 w-3.5" />
+                                  {s.evidenceUnreviewedCount}
+                                </span>
+                              )}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <StatusBadge status={s.status} domain="session" className="gap-1">
@@ -1271,28 +1371,79 @@ export default function ExamMonitor() {
                 <p className="mt-1 text-xs text-muted-foreground">Hệ thống chưa nhận được ảnh camera từ lượt làm bài này.</p>
               </div>
             ) : (
-              <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      { key: "all", label: "Tất cả" },
+                      { key: "suspicious", label: "Chỉ nghi vấn" },
+                      { key: "webcam", label: "Webcam" },
+                      { key: "screen", label: "Màn hình" },
+                      { key: "unreviewed", label: "Chưa rà soát" },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setEvidenceFilter(option.key)}
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${evidenceFilter === option.key ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/50"}`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+              <div className="grid gap-5 md:grid-cols-[280px_minmax(0,1fr)]">
                 <div className="space-y-2 md:max-h-[560px] md:overflow-y-auto md:pr-1">
-                  {evidenceCaptures.map((capture, index) => {
-                    const isSelected = selectedEvidenceId === capture.id;
-                    return (
-                      <button
-                        key={capture.id}
-                        type="button"
-                        onClick={() => { setSelectedEvidenceId(capture.id); setEvidenceReviewNote(capture.reviewerNote || ""); setEvidenceError(null); }}
-                        className={`w-full rounded-lg border p-3 text-left transition-colors ${isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium">Lần chụp {index + 1}</span>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${capture.reviewStatus === "REVIEWED" ? "bg-emerald-100 text-emerald-700" : capture.reviewStatus === "DISMISSED" ? "bg-muted text-muted-foreground" : "bg-amber-100 text-amber-700"}`}>
-                            {capture.reviewStatus === "REVIEWED" ? "Đã rà soát" : capture.reviewStatus === "DISMISSED" ? "Đã bỏ qua" : "Chờ rà soát"}
-                          </span>
+                  {evidenceGroups.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                      Không có ảnh phù hợp với bộ lọc.
+                    </div>
+                  ) : (
+                    evidenceGroups.map((group) => (
+                      <div key={getEvidenceGroupKey(group[0])} className="rounded-lg border p-2">
+                        <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+                          <span className="text-xs font-medium">{getEvidenceEventLabel(group[0])}</span>
+                          <span className="text-[10px] text-muted-foreground">{formatEvidenceTime(group[0].capturedAt || group[0].scheduledAt || group[0].createdAt)}</span>
                         </div>
-                        <p className="mt-1 text-xs text-muted-foreground">{formatEvidenceTime(capture.capturedAt || capture.scheduledAt || capture.createdAt)}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{capture.trigger === "SCHEDULED" ? "Chụp theo lịch" : "Chụp khi có tín hiệu"}</p>
-                      </button>
-                    );
-                  })}
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {group.map((capture) => {
+                            const isSelected = selectedEvidenceId === capture.id;
+                            const SourceIcon = capture.captureSource === "SCREEN" ? Monitor : Camera;
+                            const url = evidenceImageUrls[capture.id];
+                            const reviewDotClass = capture.reviewStatus === "REVIEWED" ? "bg-emerald-500" : capture.reviewStatus === "DISMISSED" ? "bg-muted-foreground" : "bg-amber-500";
+                            return (
+                              <button
+                                key={capture.id}
+                                type="button"
+                                onClick={() => { setSelectedEvidenceId(capture.id); setEvidenceReviewNote(capture.reviewerNote || ""); setEvidenceError(null); }}
+                                className={`relative aspect-video overflow-hidden rounded-md border ${isSelected ? "ring-2 ring-primary" : "hover:opacity-90"}`}
+                              >
+                                {url ? (
+                                  <img src={url} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center bg-muted/40">
+                                    {capture.status === "REQUESTED" || capture.status === "PURGED" ? (
+                                      <ImageOff className="h-4 w-4 text-muted-foreground" />
+                                    ) : (
+                                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                    )}
+                                  </div>
+                                )}
+                                <span className="absolute left-1 top-1 rounded bg-black/60 p-0.5"><SourceIcon className="h-3 w-3 text-white" /></span>
+                                <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${reviewDotClass}`} />
+                              </button>
+                            );
+                          })}
+                          {group.length === 1 && (
+                            <div className="flex aspect-video items-center justify-center rounded-md border border-dashed text-[10px] text-muted-foreground">
+                              Chưa có ảnh cặp
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 {selectedEvidence && (
@@ -1309,7 +1460,7 @@ export default function ExamMonitor() {
 
                     <div className="grid gap-3 text-sm sm:grid-cols-2">
                       <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Thời gian chụp</p><p className="mt-1 font-medium">{formatEvidenceTime(selectedEvidence.capturedAt)}</p></div>
-                      <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Nguồn kích hoạt</p><p className="mt-1 font-medium">{selectedEvidence.trigger === "SCHEDULED" ? "Theo lịch" : "Sự kiện đáng chú ý"}</p></div>
+                      <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Nguồn / sự kiện</p><p className="mt-1 flex items-center gap-1.5 font-medium">{selectedEvidence.captureSource === "SCREEN" ? <Monitor className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />} {getEvidenceEventLabel(selectedEvidence)}</p></div>
                     </div>
 
                     <div className="rounded-lg border p-3">
@@ -1328,6 +1479,7 @@ export default function ExamMonitor() {
                     </div>
                   </div>
                 )}
+              </div>
               </div>
             )}
           </DialogContent>

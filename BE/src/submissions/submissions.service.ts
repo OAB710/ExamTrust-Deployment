@@ -2543,6 +2543,15 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             where: { revokedAt: null },
             select: { id: true, amount: true },
           },
+          _count: {
+            select: {
+              evidenceCaptures: { where: { status: { not: 'PURGED' } } },
+            },
+          },
+          evidenceCaptures: {
+            where: { status: { not: 'PURGED' }, reviewStatus: 'PENDING' },
+            select: { id: true },
+          },
         },
         orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * limit,
@@ -2569,6 +2578,10 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         score: adjustedScore,
         totalPoints,
         deadline: this.resolveSubmissionDeadline(submission)?.toISOString() ?? null,
+        evidenceCaptureCount: submission._count.evidenceCaptures,
+        evidenceUnreviewedCount: submission.evidenceCaptures.length,
+        _count: undefined,
+        evidenceCaptures: undefined,
       };
     });
 

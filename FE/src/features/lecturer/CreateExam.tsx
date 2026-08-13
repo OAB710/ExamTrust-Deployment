@@ -64,6 +64,8 @@ import {
   Trash2,
   Image,
   Music,
+  Camera,
+  Monitor,
 } from "lucide-react";
 import { toast } from "sonner";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
@@ -927,8 +929,15 @@ export default function CreateExam() {
           webcamEvidencePolicy: {
             enabled: effectiveProctoring && form.webcamEvidenceEnabled,
             examProfile: "THEORY",
-            eventCooldownMs: 120000,
-            eventCaptureLimit: 5,
+            eventCooldownMs: (parseNumericInput(form.webcamEvidenceCooldownSeconds, { min: 1, integer: true }) || 60) * 1000,
+            eventCaptureLimits: {
+              tab_switch: parseNumericInput(form.webcamEvidenceLimitTabSwitch, { min: 1, integer: true }) || 3,
+              fullscreen_exit: parseNumericInput(form.webcamEvidenceLimitFullscreenExit, { min: 1, integer: true }) || 3,
+              paste_external: parseNumericInput(form.webcamEvidenceLimitPasteExternal, { min: 1, integer: true }) || 3,
+              mouse_idle: parseNumericInput(form.webcamEvidenceLimitMouseIdle, { min: 1, integer: true }) || 3,
+            },
+            screenCaptureEnabled: form.screenCaptureEnabled,
+            requireFullScreenCapture: form.screenCaptureEnabled,
             retentionDays: 30,
             consentVersion: "webcam-evidence-v1",
           },
@@ -1613,11 +1622,79 @@ export default function CreateExam() {
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <Label className="text-sm font-medium">Bằng chứng webcam cho bài lý thuyết</Label>
+                        <Label className="text-sm font-medium">Ghi nhận bằng chứng giám sát trong khi thi</Label>
                         <p className="text-xs text-muted-foreground mt-1">Khi bật, sinh viên phải cấp webcam trước khi vào bài. Hệ thống chỉ ghi nhận ảnh bằng chứng khi không tương tác 1 phút; ảnh tự xóa sau 30 ngày.</p>
                       </div>
                       <Switch checked={form.webcamEvidenceEnabled} onCheckedChange={(v) => set("webcamEvidenceEnabled", v)} aria-label="Bật bằng chứng webcam" />
                     </div>
+
+                    {form.webcamEvidenceEnabled ? (
+                      <div className="space-y-3 border-t border-amber-200 pt-3">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Giới hạn chuyển tab</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={form.webcamEvidenceLimitTabSwitch}
+                              onChange={(e) => set("webcamEvidenceLimitTabSwitch", e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Giới hạn thoát fullscreen</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={form.webcamEvidenceLimitFullscreenExit}
+                              onChange={(e) => set("webcamEvidenceLimitFullscreenExit", e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Giới hạn dán nội dung ngoài</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={form.webcamEvidenceLimitPasteExternal}
+                              onChange={(e) => set("webcamEvidenceLimitPasteExternal", e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Giới hạn ngồi im</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={form.webcamEvidenceLimitMouseIdle}
+                              onChange={(e) => set("webcamEvidenceLimitMouseIdle", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 sm:max-w-xs">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Cooldown giữa 2 lần chụp (giây)</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={form.webcamEvidenceCooldownSeconds}
+                              onChange={(e) => set("webcamEvidenceCooldownSeconds", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-white/60 p-2">
+                          <div className="flex items-center gap-2">
+                            <Camera className="h-4 w-4 text-muted-foreground" />
+                            <Monitor className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <Label className="text-sm font-medium">Bật chụp màn hình song song</Label>
+                              <p className="text-xs text-muted-foreground">Mỗi lần chụp bằng chứng sẽ lấy đồng thời 1 ảnh webcam và 1 ảnh toàn bộ màn hình.</p>
+                            </div>
+                          </div>
+                          <Switch checked={form.screenCaptureEnabled} onCheckedChange={(v) => set("screenCaptureEnabled", v)} aria-label="Bật chụp màn hình song song" />
+                        </div>
+                        <p className="text-xs text-muted-foreground italic">
+                          Đây là phiên bản thử nghiệm nên số lần chụp bằng chứng được giới hạn thấp để tiết kiệm chi phí lưu trữ và phân tích AI.
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 

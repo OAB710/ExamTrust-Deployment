@@ -16,7 +16,6 @@ import {
   UnauthorizedException,
   StreamableFile,
 } from '@nestjs/common';
-import { createReadStream } from 'fs';
 import { Response } from 'express';
 import { SubmissionsService } from './submissions.service';
 import { ExamRiskAssessmentService } from './exam-risk-assessment.service';
@@ -186,10 +185,10 @@ export class SubmissionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('LECTURER', 'ADMIN')
   async getEvidenceImage(@Param('id') id: string, @Param('captureId') captureId: string, @Request() req, @Res({ passthrough: true }) res: Response) {
-    const image = await this.proctoringEvidence.getImagePath(id, captureId, req.user);
+    const image = await this.proctoringEvidence.getImageStream(id, captureId, req.user);
     res.setHeader('Content-Type', image.mimeType);
     res.setHeader('Cache-Control', 'private, no-store');
-    return new StreamableFile(createReadStream(image.path));
+    return new StreamableFile(image.stream);
   }
 
   @Patch(':id/evidence-captures/:captureId/review')

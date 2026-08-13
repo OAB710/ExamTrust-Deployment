@@ -22,6 +22,7 @@ import {
   Shield,
   CheckCircle2,
   Camera,
+  Monitor,
   Info,
 } from "lucide-react";
 
@@ -115,6 +116,11 @@ export default function ExamTaking() {
   const [cameraRecoveryDeadline, setCameraRecoveryDeadline] = useState<number | null>(null);
   const [cameraRecoverySeconds, setCameraRecoverySeconds] = useState(0);
   const [cameraRecoveryExpired, setCameraRecoveryExpired] = useState(false);
+  const [screenShareReady, setScreenShareReady] = useState(false);
+  const [isStartingScreenShare, setIsStartingScreenShare] = useState(false);
+  const [screenShareRecoveryDeadline, setScreenShareRecoveryDeadline] = useState<number | null>(null);
+  const [screenShareRecoverySeconds, setScreenShareRecoverySeconds] = useState(0);
+  const [screenShareRecoveryExpired, setScreenShareRecoveryExpired] = useState(false);
   const [showFullscreenExitConfirm, setShowFullscreenExitConfirm] = useState(false);
   const [showNavigationGuard, setShowNavigationGuard] = useState(false);
   const [securityState, setSecurityState] = useState<ExamSecurityState | null>(null);
@@ -126,8 +132,11 @@ export default function ExamTaking() {
   const logRef = useRef<{ type: string; ts: number; detail?: string }[]>([]);
   const webcamStreamRef = useRef<MediaStream | null>(null);
   const webcamVideoRef = useRef<HTMLVideoElement | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const evidenceCaptureInFlightRef = useRef(false);
   const cameraIssueActiveRef = useRef(false);
+  const screenIssueActiveRef = useRef(false);
   const lastActivityAtRef = useRef(Date.now());
   const idleCaptureArmedRef = useRef(false);
   const copiedTextRef = useRef<Set<string>>(new Set());
@@ -470,6 +479,62 @@ export default function ExamTaking() {
     }
   }, [cameraIssueActiveRef, handleWebcamUnavailable, log, persistIntegrityEvent, webcamPolicy]);
 
+  // Server-side, `screenCaptureEnabled` only takes effect once `enabled` is
+  // also on (see normalizePolicy in proctoring-evidence.service.ts) — mirror
+  // that gating here so the client never asks for a screen share the server
+  // would otherwise ignore.
+  const screenCaptureRequired = Boolean(webcamPolicy?.enabled) && Boolean(webcamPolicy?.screenCaptureEnabled);
+
+  const handleScreenShareUnavailable = useCallback((detail: string) => {
+    if (
+      !screenCaptureRequired ||
+      isPreviewMode ||
+      examSessionStatus !== "IN_PROGRESS" ||
+      screenIssueActiveRef.current
+    ) return;
+    screenIssueActiveRef.current = true;
+    setScreenShareReady(false);
+    setScreenShareRecoveryExpired(false);
+    setScreenShareRecoveryDeadline(Date.now() + 15_000);
+    setScreenShareRecoverySeconds(15);
+    persistIntegrityEvent("screen_share_ended", detail);
+  }, [examSessionStatus, isPreviewMode, persistIntegrityEvent, screenCaptureRequired]);
+
+  const startScreenShare = useCallback(async () => {
+    if (!screenCaptureRequired) return;
+    setIsStartingScreenShare(true);
+    try {
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const [track] = stream.getVideoTracks();
+      if (track?.getSettings().displaySurface !== "monitor") {
+        stream.getTracks().forEach((t) => t.stop());
+        toast.error('Bài thi yêu cầu chia sẻ "Toàn bộ màn hình" — không chọn cửa sổ hoặc tab. Vui lòng chọn lại.');
+        return;
+      }
+      screenStreamRef.current = stream;
+      if (screenVideoRef.current) {
+        screenVideoRef.current.srcObject = stream;
+        await screenVideoRef.current.play();
+      }
+      track.addEventListener("ended", () => handleScreenShareUnavailable("Screen share stream ended during the exam"));
+      stream.addEventListener("inactive", () => handleScreenShareUnavailable("Screen share stream became inactive during the exam"));
+      setScreenShareReady(true);
+      if (screenIssueActiveRef.current) {
+        screenIssueActiveRef.current = false;
+        setScreenShareRecoveryDeadline(null);
+        setScreenShareRecoverySeconds(0);
+        setScreenShareRecoveryExpired(false);
+        persistIntegrityEvent("screen_share_restored", "Sinh viên đã khôi phục chia sẻ toàn bộ màn hình");
+      }
+    } catch {
+      log("screen_share_permission_denied", "Student did not grant a valid full-screen share");
+      toast.error("Bài thi này yêu cầu bạn chia sẻ toàn bộ màn hình trước khi bắt đầu.");
+    } finally {
+      setIsStartingScreenShare(false);
+    }
+  }, [handleScreenShareUnavailable, log, persistIntegrityEvent, screenCaptureRequired]);
+
   const requestWebcamEvidence = useCallback(async (trigger: "SCHEDULED" | "SUSPICIOUS_EVENT", options?: { signals?: string[] }) => {
     const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
     const video = webcamVideoRef.current;
@@ -485,12 +550,33 @@ export default function ExamTaking() {
       if (!context) throw new Error("Unable to prepare webcam frame");
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       await api.finalizeEvidenceCapture(activeSubmissionId, permit.captureId, { nonce: permit.nonce, imageDataUrl: canvas.toDataURL("image/jpeg", 0.72) });
+
+      // Screen frame rides along on the same trigger, using the paired
+      // permit the server hands back when screenCaptureEnabled — skipped
+      // silently if the share isn't (or is no longer) live, same as any
+      // other best-effort evidence capture failure.
+      const screenVideo = screenVideoRef.current;
+      if (permit.screen && screenShareReady && screenVideo && screenVideo.videoWidth >= 1) {
+        try {
+          const screenCanvas = document.createElement("canvas");
+          const screenRatio = Math.min(1, 960 / screenVideo.videoWidth);
+          screenCanvas.width = Math.max(1, Math.floor(screenVideo.videoWidth * screenRatio));
+          screenCanvas.height = Math.max(1, Math.floor(screenVideo.videoHeight * screenRatio));
+          const screenContext = screenCanvas.getContext("2d");
+          if (screenContext) {
+            screenContext.drawImage(screenVideo, 0, 0, screenCanvas.width, screenCanvas.height);
+            await api.finalizeEvidenceCapture(activeSubmissionId, permit.screen.captureId, { nonce: permit.screen.nonce, imageDataUrl: screenCanvas.toDataURL("image/jpeg", 0.6) });
+          }
+        } catch (error) {
+          console.warn("Screen evidence capture was skipped:", error);
+        }
+      }
     } catch (error) {
       console.warn("Webcam evidence capture was skipped:", error);
     } finally {
       evidenceCaptureInFlightRef.current = false;
     }
-  }, [submissionId, webcamPolicy, webcamReady]);
+  }, [screenShareReady, submissionId, webcamPolicy, webcamReady]);
 
   useEffect(() => {
     if (!cameraRecoveryDeadline) return;
@@ -507,6 +593,22 @@ export default function ExamTaking() {
     }, 250);
     return () => window.clearInterval(timer);
   }, [cameraRecoveryDeadline, cameraRecoveryExpired, persistIntegrityEvent]);
+
+  useEffect(() => {
+    if (!screenShareRecoveryDeadline) return;
+    const timer = window.setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((screenShareRecoveryDeadline - Date.now()) / 1000));
+      setScreenShareRecoverySeconds(remaining);
+      if (remaining > 0) return;
+      window.clearInterval(timer);
+      setScreenShareRecoveryDeadline(null);
+      if (!screenShareRecoveryExpired && screenIssueActiveRef.current) {
+        setScreenShareRecoveryExpired(true);
+        persistIntegrityEvent("screen_share_recovery_timeout", "Chia sẻ màn hình không được khôi phục trong 15 giây");
+      }
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [screenShareRecoveryDeadline, screenShareRecoveryExpired, persistIntegrityEvent]);
 
   useEffect(() => {
     if (
@@ -564,6 +666,7 @@ export default function ExamTaking() {
           "paste",
           `Dán nội dung từ ngoài bài thi (không sao chép trong phiên thi): ${trimmed}`,
         );
+        void requestWebcamEvidence("SUSPICIOUS_EVENT", { signals: ["paste_external"] });
       }
       // Bound the set so it cannot grow unboundedly.
       if (copiedTextRef.current.size > 200) {
@@ -577,7 +680,7 @@ export default function ExamTaking() {
       document.removeEventListener("copy", onCopy);
       document.removeEventListener("paste", onPaste);
     };
-  }, [isPreviewMode, examSessionStatus, isSubmitting, proctoringEnabled, persistIntegrityEvent]);
+  }, [isPreviewMode, examSessionStatus, isSubmitting, proctoringEnabled, persistIntegrityEvent, requestWebcamEvidence]);
 
   useEffect(() => {
     log("exam_start");
@@ -710,9 +813,10 @@ export default function ExamTaking() {
   const handleViolation = useCallback(
     (entry: ViolationLog) => {
       if (!proctoringEnabled) return undefined;
+      void requestWebcamEvidence("SUSPICIOUS_EVENT", { signals: [entry.type] });
       return persistIntegrityEvent(entry.type, entry.detail, entry.clientEventId);
     },
-    [persistIntegrityEvent, proctoringEnabled],
+    [persistIntegrityEvent, proctoringEnabled, requestWebcamEvidence],
   );
 
   const handleFirstFullscreenWarning = useCallback(
@@ -841,6 +945,7 @@ export default function ExamTaking() {
 
   useEffect(() => () => {
     webcamStreamRef.current?.getTracks().forEach((track) => track.stop());
+    screenStreamRef.current?.getTracks().forEach((track) => track.stop());
   }, []);
 
   useEffect(() => {
@@ -851,6 +956,14 @@ export default function ExamTaking() {
     }
   }, [webcamReady]);
 
+  useEffect(() => {
+    const video = screenVideoRef.current;
+    if (screenShareReady && video && screenStreamRef.current) {
+      video.srcObject = screenStreamRef.current;
+      void video.play().catch(() => undefined);
+    }
+  }, [screenShareReady]);
+
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60),
       sec = s % 60;
@@ -858,6 +971,7 @@ export default function ExamTaking() {
   };
 
   const isRecoveringWebcam = webcamPolicy?.enabled && examSessionStatus === "IN_PROGRESS";
+  const isRecoveringScreenShare = screenCaptureRequired && examSessionStatus === "IN_PROGRESS";
   const displayedViolationCount = violationCount + (isFullscreenExitPending ? 1 : 0);
 
   const isTimeLow = timeLeft < 300;
@@ -892,6 +1006,31 @@ export default function ExamTaking() {
           <CardContent className="space-y-4">
             <video ref={webcamVideoRef} muted playsInline className="w-full aspect-video rounded-md bg-black object-cover" />
             <Button onClick={() => void startWebcam()} disabled={isStartingWebcam} className="w-full gap-2"><Camera className="h-4 w-4" />{isStartingWebcam ? "Đang mở webcam…" : isRecoveringWebcam ? "Bật lại webcam để tiếp tục" : "Tôi đồng ý và bật webcam"}</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (screenCaptureRequired && !screenShareReady && !isPreviewMode) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 px-6">
+        <Card className="max-w-lg w-full">
+          <CardHeader className="space-y-3">
+            <div className="flex items-center gap-2 text-primary"><Monitor className="h-5 w-5" /><span className="font-semibold">Xác nhận chia sẻ màn hình</span></div>
+            <p className="text-sm text-muted-foreground">
+              {isRecoveringScreenShare
+                ? screenShareRecoveryDeadline
+                  ? `Chia sẻ màn hình đang không khả dụng. Hãy chia sẻ lại toàn bộ màn hình trong ${screenShareRecoverySeconds} giây để tránh ghi nhận cảnh báo.`
+                  : screenShareRecoveryExpired
+                    ? "Chia sẻ màn hình chưa được khôi phục. Bài làm được giữ khóa cho đến khi bạn chia sẻ lại."
+                    : "Bạn cần chia sẻ lại toàn bộ màn hình trước khi tiếp tục làm bài."
+                : 'Bài thi này yêu cầu chia sẻ toàn bộ màn hình trước khi bắt đầu, song song với webcam. Khi được hỏi, hãy chọn đúng mục "Toàn bộ màn hình" ("Entire screen"), không chọn cửa sổ hay tab.'}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <video ref={screenVideoRef} muted playsInline className="w-full aspect-video rounded-md bg-black object-contain" />
+            <Button onClick={() => void startScreenShare()} disabled={isStartingScreenShare} className="w-full gap-2"><Monitor className="h-4 w-4" />{isStartingScreenShare ? "Đang mở chia sẻ màn hình…" : isRecoveringScreenShare ? "Chia sẻ lại để tiếp tục" : "Chia sẻ toàn bộ màn hình"}</Button>
           </CardContent>
         </Card>
       </div>
@@ -1066,6 +1205,7 @@ export default function ExamTaking() {
   return (
     <div className="min-h-screen bg-background">
       {webcamPolicy?.enabled ? <video ref={webcamVideoRef} muted playsInline className="hidden" /> : null}
+      {screenCaptureRequired ? <video ref={screenVideoRef} muted playsInline className="hidden" /> : null}
       {/* ── Top Bar ─────────────────────────────────────────────── */}
       <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b bg-card/95 px-3 shadow-sm backdrop-blur sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
