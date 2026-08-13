@@ -77,6 +77,7 @@ type IntegrityCasesQuery = {
 type IntegrityCase = {
   id: string;
   submissionId: string;
+  attemptNo: number | null;
   studentId: string;
   studentName: string;
   examId: string;
@@ -1878,6 +1879,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         submission: {
           select: {
             id: true,
+            attemptNo: true,
             studentId: true,
             submittedAt: true,
             startedAt: true,
@@ -1991,6 +1993,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       return {
         id: `integrity-${session.submission?.id || session.id}`,
         submissionId: session.submission?.id || '',
+        attemptNo: session.submission?.attemptNo ?? null,
         studentId: studentCode || 'N/A',
         studentName: session.submission?.student?.fullName || session.submission?.student?.email || 'Unknown student',
         examId: session.submission?.exam?.id || '',

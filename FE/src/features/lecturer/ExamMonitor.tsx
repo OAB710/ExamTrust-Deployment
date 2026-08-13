@@ -71,6 +71,7 @@ import {
   Image as ImageIcon,
   Sparkles,
   MoreHorizontal,
+  History,
 } from "lucide-react";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
 import { Textarea } from "@/components/ui/textarea";
@@ -99,6 +100,7 @@ ChartJS.register(
 interface StudentSession {
   id: string; // submission id when available, otherwise enrollment id
   submissionId: string | null;
+  attemptNo: number | null;
   userId: string;
   name: string;
   studentId: string;
@@ -118,6 +120,18 @@ interface StudentSession {
   flagReason: string | null;
   evidenceCount: number;
   evidenceUnreviewedCount: number;
+  previousAttempts: Array<{
+    submissionId: string;
+    attemptNo: number | null;
+    status: StudentSession["status"];
+    score: number | null;
+    submittedAt: string | null;
+    tabSwitches: number;
+    mouseAnomalies: number;
+    integrityEvents: number;
+    evidenceCount: number;
+    evidenceUnreviewedCount: number;
+  }>;
 }
 
 interface IntegrityAlert {
@@ -283,6 +297,7 @@ export default function ExamMonitor() {
   const [page, setPage] = useState(1);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [historyDialogStudent, setHistoryDialogStudent] = useState<StudentSession | null>(null);
   const [lastRefresh, setLastRefresh] = useState(
     new Date().toLocaleTimeString(),
   );
@@ -359,15 +374,16 @@ export default function ExamMonitor() {
       }
 
       // `submissions` comes back newest-first (BE orders by startedAt desc).
-      // A student can have multiple attempts; only keep the first one seen
-      // per student — i.e. their latest attempt — instead of letting later
-      // (older) entries in the array overwrite it, which previously left the
-      // monitor permanently stuck showing each student's very first attempt.
-      const submissionByStudentId = new Map<string, any>();
+      // A student can have multiple attempts — keep ALL of them (one monitor
+      // row per attempt) instead of collapsing to a single submission per
+      // student, which previously made every earlier attempt's data
+      // disappear/get overwritten by whichever one the dedup kept.
+      const submissionsByStudentId = new Map<string, any[]>();
       for (const submission of submissions) {
-        if (submission?.student?.id && !submissionByStudentId.has(submission.student.id)) {
-          submissionByStudentId.set(submission.student.id, submission);
-        }
+        if (!submission?.student?.id) continue;
+        const list = submissionsByStudentId.get(submission.student.id) || [];
+        list.push(submission);
+        submissionsByStudentId.set(submission.student.id, list);
       }
 
       const anomalyBySubmissionId = new Map<
@@ -388,11 +404,12 @@ export default function ExamMonitor() {
         anomalyBySubmissionId.set(anomaly.submissionId, current);
       }
 
-      const joinedRows: StudentSession[] = enrollments.map((enrollment) => {
+      const buildRow = (
+        enrollment: any,
+        submission: any | null,
+        previousAttempts: StudentSession["previousAttempts"] = [],
+      ): StudentSession => {
         const student = enrollment.student;
-        const submission = student?.id
-          ? submissionByStudentId.get(student.id)
-          : null;
         const anomalyCount = submission?.id
           ? anomalyBySubmissionId.get(submission.id)
           : undefined;
@@ -403,6 +420,7 @@ export default function ExamMonitor() {
         return {
           id: submission?.id || enrollment.id,
           submissionId: submission?.id || null,
+          attemptNo: submission?.attemptNo ?? null,
           userId: student?.id || "",
           name: student?.fullName || "Sinh viên không xác định",
           studentId: student?.studentId || "-",
@@ -443,7 +461,44 @@ export default function ExamMonitor() {
           flagReason: status === "flagged" ? "Lượt nộp bị gắn cờ" : null,
           evidenceCount: Number(submission?.evidenceCaptureCount || 0),
           evidenceUnreviewedCount: Number(submission?.evidenceUnreviewedCount || 0),
+          previousAttempts,
         };
+      };
+
+      // One row per student, showing their latest attempt — older attempts
+      // are attached as `previousAttempts` for the history popover instead
+      // of each getting their own row (that made the table grow/shuffle a
+      // lot for students who retried, and buried everyone else further down
+      // the page).
+      const joinedRows: StudentSession[] = enrollments.map((enrollment) => {
+        const studentSubmissions = enrollment.student?.id
+          ? submissionsByStudentId.get(enrollment.student.id)
+          : undefined;
+        if (!studentSubmissions || studentSubmissions.length === 0) {
+          return buildRow(enrollment, null);
+        }
+        const [latest, ...older] = studentSubmissions;
+        // Reuse buildRow for each older attempt too, so the history dialog
+        // shows the exact same tab-switch/evidence detail as the main row
+        // instead of a stripped-down summary.
+        const previousAttempts = older.map((submission) => {
+          const built = buildRow(enrollment, submission);
+          return {
+            submissionId: submission.id as string,
+            attemptNo: built.attemptNo,
+            status: built.status,
+            score: built.score,
+            submittedAt: submission.submittedAt
+              ? new Date(submission.submittedAt).toLocaleString()
+              : null,
+            tabSwitches: built.tabSwitches,
+            mouseAnomalies: built.mouseAnomalies,
+            integrityEvents: built.integrityEvents,
+            evidenceCount: built.evidenceCount,
+            evidenceUnreviewedCount: built.evidenceUnreviewedCount,
+          };
+        });
+        return buildRow(enrollment, latest, previousAttempts);
       });
 
       setStudents(joinedRows);
@@ -690,6 +745,18 @@ export default function ExamMonitor() {
     }, 10000);
     return () => clearInterval(interval);
   }, [autoRefresh, id]);
+
+  // Once nobody is still taking the exam, there's nothing left to poll for —
+  // switch to manual so the page stops silently reloading data underneath a
+  // lecturer who's still reviewing it. The screen itself stays fully usable
+  // (not hidden/blocked) since reviewing after the fact is exactly what this
+  // page is for; a manual "Làm mới" refresh is still one click away.
+  useEffect(() => {
+    if (!autoRefresh || students.length === 0) return;
+    if (students.some((s) => s.status === "in_progress")) return;
+    setAutoRefresh(false);
+    toast.info("Không còn sinh viên nào đang làm bài — đã chuyển sang chế độ làm mới thủ công.");
+  }, [autoRefresh, students]);
 
   useEffect(() => {
     if (!id) return;
@@ -1203,7 +1270,8 @@ export default function ExamMonitor() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[30%]">Sinh viên</TableHead>
+                    <TableHead className="w-[26%]">Sinh viên</TableHead>
+                    <TableHead className="w-[6%] text-center">Lượt</TableHead>
                     <TableHead className="w-[18%]">Tiến độ</TableHead>
                     <TableHead className="w-[10%] text-center">Đổi tab</TableHead>
                     <TableHead className="w-[12%] text-center">Bằng chứng</TableHead>
@@ -1215,7 +1283,7 @@ export default function ExamMonitor() {
                   {paginatedStudents.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="py-10 text-center text-sm text-muted-foreground"
                       >
                         Không tìm thấy phiên làm bài nào phù hợp với tìm kiếm hoặc bộ lọc hiện tại.
@@ -1233,6 +1301,21 @@ export default function ExamMonitor() {
                             <p className="text-xs text-muted-foreground">
                               {s.studentId}
                             </p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center text-sm text-muted-foreground">
+                          <div className="flex items-center justify-center gap-1">
+                            <span>{s.attemptNo ?? "-"}</span>
+                            {s.previousAttempts.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setHistoryDialogStudent(s)}
+                                title={`Xem ${s.previousAttempts.length} lượt trước`}
+                                className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                              >
+                                <History className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -1679,6 +1762,77 @@ export default function ExamMonitor() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!historyDialogStudent} onOpenChange={(open) => !open && setHistoryDialogStudent(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="h-4 w-4 text-primary" />
+                Lịch sử các lượt thi: {historyDialogStudent?.name}
+              </DialogTitle>
+              <DialogDescription>
+                Bảng chính chỉ hiển thị lượt mới nhất — đây là các lượt trước đó của sinh viên này.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
+              {historyDialogStudent?.previousAttempts.map((attempt) => (
+                <div key={attempt.submissionId} className="rounded-lg border bg-card p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                        {attempt.attemptNo ?? "-"}
+                      </span>
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <p className="text-sm font-medium">Lượt {attempt.attemptNo ?? "-"}</p>
+                          {attempt.score !== null && <span className="text-sm font-semibold text-foreground">{attempt.score}đ</span>}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{attempt.submittedAt || "Chưa nộp"}</p>
+                      </div>
+                    </div>
+                    <StatusBadge status={attempt.status} domain="session">
+                      {getStatusBadgeLabel(attempt.status, "session")}
+                    </StatusBadge>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 divide-x rounded-md border bg-muted/30 text-center">
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground"><MousePointerClick className="h-3.5 w-3.5" /><span className="text-xs">Đổi tab</span></div>
+                      <p className="mt-0.5 text-sm font-semibold">{attempt.tabSwitches}</p>
+                    </div>
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground"><Activity className="h-3.5 w-3.5" /><span className="text-xs">Sự kiện</span></div>
+                      <p className="mt-0.5 text-sm font-semibold">{attempt.integrityEvents}</p>
+                    </div>
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground"><Camera className="h-3.5 w-3.5" /><span className="text-xs">Bằng chứng</span></div>
+                      <p className="mt-0.5 text-sm font-semibold">
+                        {attempt.evidenceCount}
+                        {attempt.evidenceUnreviewedCount > 0 && (
+                          <span className="ml-1 text-xs font-normal text-amber-600">({attempt.evidenceUnreviewedCount} chưa rà soát)</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 h-8 w-full gap-1.5"
+                    disabled={attempt.evidenceCount === 0}
+                    onClick={() => {
+                      setHistoryDialogStudent(null);
+                      void openEvidenceDialog(attempt.submissionId, `${historyDialogStudent?.name} — Lượt ${attempt.attemptNo ?? "-"}`);
+                    }}
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                    {attempt.evidenceCount > 0 ? "Xem bằng chứng" : "Không có bằng chứng"}
+                  </Button>
+                </div>
+              ))}
+            </div>
           </DialogContent>
         </Dialog>
       </div>

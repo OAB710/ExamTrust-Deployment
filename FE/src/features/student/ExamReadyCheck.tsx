@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowRight, Camera, CheckCircle2, Clock, FileText, Loader2, Monitor, RefreshCw, Shield, Wifi } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/ui/status-badge";
 import api from "@/lib/api";
+import { setPendingWebcamStream, setPendingScreenStream, clearPendingProctoringStreams } from "@/lib/exam-proctoring-handoff";
 
 type CheckStatus = "pending" | "checking" | "passed" | "failed";
 type ExamStep = "system-check" | "ready";
@@ -83,10 +84,23 @@ export default function ExamReadyCheck() {
   const [webcamPolicy, setWebcamPolicy] = useState<{ enabled?: boolean; examProfile?: string; consentVersion?: string; screenCaptureEnabled?: boolean } | null>(null);
   const [webcamReady, setWebcamReady] = useState(false);
   const [screenShareReady, setScreenShareReady] = useState(false);
+  // Demonstration only — shows the student how many physical monitors were
+  // detected, as a proof-of-concept that multi-monitor setups CAN be
+  // detected. Not wired up to actually block the exam.
+  const [detectedScreenCount, setDetectedScreenCount] = useState<number | null>(null);
+  const [screenDetectionSupported, setScreenDetectionSupported] = useState(true);
 
   const webcamRequired = Boolean(webcamPolicy?.enabled)
     && String(webcamPolicy?.examProfile || "").toUpperCase() === "THEORY";
   const screenCaptureRequired = webcamRequired && Boolean(webcamPolicy?.screenCaptureEnabled);
+
+  // Set right before navigating to ExamTaking in handleStartExam — lets the
+  // cleanup effect below tell "handed off to the exam" apart from "student
+  // abandoned this page", since both unmount this component the same way.
+  const intentionalHandoffRef = useRef(false);
+  useEffect(() => () => {
+    if (!intentionalHandoffRef.current) clearPendingProctoringStreams();
+  }, []);
 
   useEffect(() => {
     if (!examId) {
@@ -162,11 +176,40 @@ export default function ExamReadyCheck() {
       updateCheck("browser", "failed", "Trình duyệt này không hỗ trợ chế độ toàn màn hình");
     }
 
+    // Demonstration only — logs (and now shows in the UI below) how many
+    // physical monitors the student's browser reports, as a proof-of-concept
+    // that multi-monitor setups can be detected. Not wired up to block.
+    try {
+      const getScreenDetails = (window as any).getScreenDetails;
+      if (typeof getScreenDetails === "function") {
+        const details = await getScreenDetails.call(window);
+        setDetectedScreenCount(details.screens.length);
+        setScreenDetectionSupported(true);
+        console.log(
+          `[exam-ready-check] Số màn hình phát hiện được: ${details.screens.length}`,
+          details.screens.map((s: any) => ({ width: s.width, height: s.height, isPrimary: s.isPrimary })),
+        );
+      } else {
+        setDetectedScreenCount(null);
+        setScreenDetectionSupported(false);
+        console.log(
+          `[exam-ready-check] Trình duyệt không hỗ trợ getScreenDetails() — fallback window.screen.isExtended: ${(window.screen as any).isExtended ?? "không rõ"}`,
+        );
+      }
+    } catch (error) {
+      setDetectedScreenCount(null);
+      setScreenDetectionSupported(false);
+      console.log("[exam-ready-check] Không lấy được thông tin màn hình:", error);
+    }
+
     if (webcamRequired) {
       updateCheck("camera", "checking", "Đang yêu cầu quyền truy cập webcam");
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        stream.getTracks().forEach((track) => track.stop());
+        // Kept alive (not stopped) and handed off to ExamTaking via the
+        // shared module singleton — the camera indicator stays on
+        // continuously instead of turning off here and back on there.
+        setPendingWebcamStream(stream);
         setWebcamReady(true);
         updateCheck("camera", "passed", "Webcam đã sẵn sàng và đã có sự đồng ý");
       } catch (error: any) {
@@ -178,20 +221,20 @@ export default function ExamReadyCheck() {
       setWebcamReady(false);
     }
 
-    // This is only a consent/capability probe, same as the webcam check above
-    // — the stream is stopped right away. ExamTaking.tsx re-acquires (and
-    // keeps) the real screen-share stream once the exam actually starts.
+    // Kept alive and handed off the same way as the webcam stream above —
+    // only stopped here if the student picked the wrong share type.
     if (screenCaptureRequired) {
       updateCheck("screen", "checking", "Đang yêu cầu chia sẻ toàn bộ màn hình");
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
         const [track] = stream.getVideoTracks();
         const isEntireScreen = track?.getSettings().displaySurface === "monitor";
-        stream.getTracks().forEach((t) => t.stop());
         if (!isEntireScreen) {
+          stream.getTracks().forEach((t) => t.stop());
           setScreenShareReady(false);
           updateCheck("screen", "failed", 'Vui lòng chọn chia sẻ "Toàn bộ màn hình" (Entire screen), không chọn cửa sổ hoặc tab');
         } else {
+          setPendingScreenStream(stream);
           setScreenShareReady(true);
           updateCheck("screen", "passed", "Đã chia sẻ toàn bộ màn hình và đã có sự đồng ý");
         }
@@ -312,6 +355,7 @@ export default function ExamReadyCheck() {
       try { localStorage.removeItem("examFullscreenGraceStartedAt"); } catch {}
     }
 
+    intentionalHandoffRef.current = true;
     router.push(`/student/exam-taking?examId=${encodeURIComponent(examId)}&submissionId=${encodeURIComponent(submission.id)}&proctoring=${proctoringEnabled ? "1" : "0"}`);
   };
 
@@ -458,6 +502,16 @@ export default function ExamReadyCheck() {
                     </div>
                   ))}
                 </div>
+                {screenDetectionSupported && detectedScreenCount !== null && (
+                  <div className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                    <Monitor className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">
+                      Hệ thống phát hiện bạn đang dùng <span className="font-medium text-foreground">{detectedScreenCount} màn hình</span>
+                      {detectedScreenCount > 1 ? " — hệ thống có khả năng nhận diện thiết bị dùng nhiều màn hình" : ""}.
+                      {" "}Đây chỉ là thông tin tham khảo, chưa dùng để chặn dự thi.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

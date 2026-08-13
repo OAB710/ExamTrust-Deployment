@@ -22,10 +22,15 @@ import {
   ExternalLink,
   MessageSquare,
   Camera,
+  Monitor,
+  ImageOff,
+  Loader2,
+  Sparkles,
 } from 'lucide-react';
 import type { FlaggedSubmission, IntegrityReason } from '@/features/admin/IntegrityOverview';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 
 interface IntegrityCaseDetailProps {
   submission: FlaggedSubmission;
@@ -46,10 +51,42 @@ type IntegrityTimelineEvent = {
 type EvidenceCapture = {
   id: string;
   status?: string;
+  trigger?: 'SCHEDULED' | 'SUSPICIOUS_EVENT';
+  captureSource?: 'WEBCAM' | 'SCREEN';
   triggerDetails?: unknown;
+  scheduledSlot?: number | null;
+  scheduledAt?: string | null;
   capturedAt?: string | null;
   createdAt?: string | null;
+  aiTags?: Array<{ tag?: string; confidence?: number; note?: string }> | null;
+  aiError?: string | null;
+  reviewStatus?: 'PENDING' | 'REVIEWED' | 'DISMISSED' | null;
+  reviewerNote?: string | null;
+  reviewedAt?: string | null;
 };
+
+const EVIDENCE_SIGNAL_LABELS: Record<string, string> = {
+  tab_switch: 'Chuyển tab',
+  fullscreen_exit: 'Thoát fullscreen',
+  paste_external: 'Dán nội dung ngoài',
+  mouse_idle: 'Ngồi im',
+};
+
+function getEvidenceEventLabel(capture: EvidenceCapture): string {
+  if (capture.trigger === 'SCHEDULED') return 'Định kỳ';
+  const details = capture.triggerDetails as { signals?: string[] } | null | undefined;
+  const signal = details?.signals?.find((s) => EVIDENCE_SIGNAL_LABELS[s]);
+  return signal ? EVIDENCE_SIGNAL_LABELS[signal] : 'Sự kiện nghi vấn';
+}
+
+// Webcam + screen shots for one trigger are created back-to-back — bucketing
+// by scheduledSlot (for SCHEDULED) or a small time window (for
+// SUSPICIOUS_EVENT) pairs them without needing a dedicated group-id column.
+function getEvidenceGroupKey(capture: EvidenceCapture): string {
+  if (capture.scheduledSlot != null) return `scheduled-${capture.scheduledSlot}`;
+  const bucket = Math.floor(new Date(capture.createdAt || 0).getTime() / 5000);
+  return `event-${capture.trigger}-${bucket}`;
+}
 
 export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = false }: IntegrityCaseDetailProps) {
   const [reviewNotes, setReviewNotes] = useState('');
@@ -57,10 +94,12 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
   const [evidenceCaptures, setEvidenceCaptures] = useState<EvidenceCapture[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState('');
-  const [evidenceDialog, setEvidenceDialog] = useState<{ captureId: string; event: IntegrityTimelineEvent } | null>(null);
-  const [evidenceImageUrl, setEvidenceImageUrl] = useState<string | null>(null);
+  const [evidenceImageUrls, setEvidenceImageUrls] = useState<Record<string, string>>({});
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
   const [evidenceImageLoading, setEvidenceImageLoading] = useState(false);
-  const [evidenceImageError, setEvidenceImageError] = useState('');
+  const [evidenceReviewNote, setEvidenceReviewNote] = useState('');
+  const [evidenceReviewLoading, setEvidenceReviewLoading] = useState(false);
+  const [evidenceFilter, setEvidenceFilter] = useState<'all' | 'suspicious' | 'webcam' | 'screen' | 'unreviewed'>('all');
   const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
   const [deductionPercent, setDeductionPercent] = useState<10 | 25 | 50 | 100>(10);
   const [applyPenalty, setApplyPenalty] = useState(false);
@@ -182,23 +221,96 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
   }, [submission.submissionId]);
 
   useEffect(() => () => {
-    if (evidenceImageUrl) URL.revokeObjectURL(evidenceImageUrl);
-  }, [evidenceImageUrl]);
+    Object.values(evidenceImageUrls).forEach((url) => URL.revokeObjectURL(url));
+    // Only run on unmount — revoking on every render would invalidate URLs
+    // that are still displayed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const openEvidence = async (captureId: string, event: IntegrityTimelineEvent) => {
-    if (!submission.submissionId) return;
-    setEvidenceDialog({ captureId, event });
-    setEvidenceImageUrl(null);
-    setEvidenceImageError('');
+  const filteredEvidenceCaptures = useMemo(() => {
+    return evidenceCaptures.filter((capture) => {
+      switch (evidenceFilter) {
+        case 'suspicious':
+          return capture.trigger === 'SUSPICIOUS_EVENT';
+        case 'webcam':
+          return (capture.captureSource || 'WEBCAM') === 'WEBCAM';
+        case 'screen':
+          return capture.captureSource === 'SCREEN';
+        case 'unreviewed':
+          return !capture.reviewStatus || capture.reviewStatus === 'PENDING';
+        default:
+          return true;
+      }
+    });
+  }, [evidenceCaptures, evidenceFilter]);
+
+  const evidenceGroups = useMemo(() => {
+    const map = new Map<string, EvidenceCapture[]>();
+    filteredEvidenceCaptures.forEach((capture) => {
+      const key = getEvidenceGroupKey(capture);
+      map.set(key, [...(map.get(key) || []), capture]);
+    });
+    return [...map.values()]
+      .map((items) => [...items].sort((a, b) => (a.captureSource === 'SCREEN' ? 1 : -1)))
+      .sort((a, b) => new Date(a[0].createdAt || 0).getTime() - new Date(b[0].createdAt || 0).getTime());
+  }, [filteredEvidenceCaptures]);
+
+  const selectedEvidence = evidenceCaptures.find((capture) => capture.id === selectedEvidenceId) || null;
+
+  // Thumbnails need the actual image up front (not just on click) — capture
+  // volume is capped low by policy, so loading them all is cheap enough to
+  // skip a lazy/on-scroll loader.
+  useEffect(() => {
+    if (!submission.submissionId || evidenceCaptures.length === 0) return;
+    const pending = evidenceCaptures.filter(
+      (capture) => capture.status !== 'REQUESTED' && capture.status !== 'PURGED' && !evidenceImageUrls[capture.id],
+    );
+    if (pending.length === 0) return;
+    let active = true;
     setEvidenceImageLoading(true);
+    Promise.all(
+      pending.map((capture) =>
+        api
+          .getEvidenceImageUrl(submission.submissionId as string, capture.id)
+          .then((url) => ({ id: capture.id, url }))
+          .catch(() => null),
+      ),
+    )
+      .then((results) => {
+        if (!active) return;
+        setEvidenceImageUrls((current) => {
+          const next = { ...current };
+          for (const result of results) if (result) next[result.id] = result.url;
+          return next;
+        });
+      })
+      .finally(() => active && setEvidenceImageLoading(false));
+    return () => { active = false; };
+  }, [submission.submissionId, evidenceCaptures]);
+
+  useEffect(() => {
+    if (selectedEvidenceId || evidenceCaptures.length === 0) return;
+    setSelectedEvidenceId(evidenceCaptures[0].id);
+  }, [evidenceCaptures, selectedEvidenceId]);
+
+  const reviewEvidence = async (reviewStatus: 'REVIEWED' | 'DISMISSED') => {
+    if (!submission.submissionId || !selectedEvidence) return;
+    setEvidenceReviewLoading(true);
     try {
-      setEvidenceImageUrl(await api.getEvidenceImageUrl(submission.submissionId, captureId));
+      const updated = await api.reviewEvidenceCapture(submission.submissionId, selectedEvidence.id, {
+        reviewStatus,
+        reviewerNote: evidenceReviewNote.trim() || undefined,
+      });
+      setEvidenceCaptures((current) => current.map((capture) => capture.id === updated.id ? { ...capture, ...updated } : capture));
+      toast.success(reviewStatus === 'REVIEWED' ? 'Đã đánh dấu bằng chứng là đã rà soát.' : 'Đã bỏ qua bằng chứng này.');
     } catch (error) {
-      setEvidenceImageError(error instanceof Error ? error.message : 'Không thể tải ảnh bằng chứng.');
+      toast.error(error instanceof Error ? error.message : 'Không thể cập nhật trạng thái rà soát.');
     } finally {
-      setEvidenceImageLoading(false);
+      setEvidenceReviewLoading(false);
     }
   };
+
+  const formatEvidenceTime = (value?: string | null) => value ? new Date(value).toLocaleString('vi-VN') : 'Chưa có';
 
   const getReasonIcon = (type: IntegrityReason['type']) => {
     switch (type) {
@@ -461,9 +573,17 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                           </div>
                           {event.detail ? <p className="mt-1 text-xs text-muted-foreground">{translateEvidence(event.detail)}</p> : null}
                           {evidence ? (
-                            <Button className="mt-2 h-7 gap-1.5" size="sm" variant="outline" onClick={() => openEvidence(evidence.id, event)}>
+                            <Button
+                              className="mt-2 h-7 gap-1.5"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedEvidenceId(evidence.id);
+                                document.getElementById('evidence-gallery')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }}
+                            >
                               <Camera className="h-3.5 w-3.5" />
-                              Xem camera
+                              Xem bằng chứng
                             </Button>
                           ) : null}
                         </div>
@@ -477,11 +597,140 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
               </CardContent>
             </Card>
 
-            <Card>
+            <Card id="evidence-gallery">
               <CardHeader>
-                <CardTitle className="text-lg">Phạm vi bằng chứng</CardTitle>
-                <CardDescription>Chỉ các tín hiệu đã được ghi nhận ở trên mới được dùng để hỗ trợ quyết định. API chưa cung cấp dòng thời gian chi tiết.</CardDescription>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Camera className="h-4 w-4 text-primary" />
+                  Bằng chứng camera / màn hình
+                </CardTitle>
+                <CardDescription>
+                  Ảnh webcam và ảnh chụp màn hình được lưu để hỗ trợ rà soát. Nhãn AI chỉ là tín hiệu tham khảo, không kết luận gian lận. Chỉ các tín hiệu đã được ghi nhận ở trên mới được dùng để hỗ trợ quyết định.
+                </CardDescription>
               </CardHeader>
+              <CardContent>
+                {eventsLoading ? (
+                  <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Đang tải bằng chứng...
+                  </div>
+                ) : evidenceCaptures.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-8 text-center">
+                    <ImageOff className="mx-auto h-7 w-7 text-muted-foreground" />
+                    <p className="mt-2 text-sm font-medium">Chưa có ảnh bằng chứng</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Hệ thống chưa nhận được ảnh camera/màn hình từ lượt làm bài này.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {(
+                        [
+                          { key: 'all', label: 'Tất cả' },
+                          { key: 'suspicious', label: 'Chỉ nghi vấn' },
+                          { key: 'webcam', label: 'Webcam' },
+                          { key: 'screen', label: 'Màn hình' },
+                          { key: 'unreviewed', label: 'Chưa rà soát' },
+                        ] as const
+                      ).map((option) => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => setEvidenceFilter(option.key)}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${evidenceFilter === option.key ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted/50'}`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid gap-5 md:grid-cols-[240px_minmax(0,1fr)]">
+                      <div className="space-y-2 md:max-h-[520px] md:overflow-y-auto md:pr-1">
+                        {evidenceGroups.length === 0 ? (
+                          <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                            Không có ảnh phù hợp với bộ lọc.
+                          </div>
+                        ) : (
+                          evidenceGroups.map((group) => (
+                            <div key={getEvidenceGroupKey(group[0])} className="rounded-lg border p-2">
+                              <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+                                <span className="text-xs font-medium">{getEvidenceEventLabel(group[0])}</span>
+                                <span className="text-[10px] text-muted-foreground">{formatEvidenceTime(group[0].capturedAt || group[0].scheduledAt || group[0].createdAt)}</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {group.map((capture) => {
+                                  const isSelected = selectedEvidenceId === capture.id;
+                                  const SourceIcon = capture.captureSource === 'SCREEN' ? Monitor : Camera;
+                                  const url = evidenceImageUrls[capture.id];
+                                  const reviewDotClass = capture.reviewStatus === 'REVIEWED' ? 'bg-emerald-500' : capture.reviewStatus === 'DISMISSED' ? 'bg-muted-foreground' : 'bg-amber-500';
+                                  return (
+                                    <button
+                                      key={capture.id}
+                                      type="button"
+                                      onClick={() => { setSelectedEvidenceId(capture.id); setEvidenceReviewNote(capture.reviewerNote || ''); }}
+                                      className={`relative aspect-video overflow-hidden rounded-md border ${isSelected ? 'ring-2 ring-primary' : 'hover:opacity-90'}`}
+                                    >
+                                      {url ? (
+                                        <img src={url} alt="" className="h-full w-full object-cover" />
+                                      ) : (
+                                        <div className="flex h-full w-full items-center justify-center bg-muted/40">
+                                          {capture.status === 'REQUESTED' || capture.status === 'PURGED' ? (
+                                            <ImageOff className="h-4 w-4 text-muted-foreground" />
+                                          ) : (
+                                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                          )}
+                                        </div>
+                                      )}
+                                      <span className="absolute left-1 top-1 rounded bg-black/60 p-0.5"><SourceIcon className="h-3 w-3 text-white" /></span>
+                                      <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${reviewDotClass}`} />
+                                    </button>
+                                  );
+                                })}
+                                {group.length === 1 && (
+                                  <div className="flex aspect-video items-center justify-center rounded-md border border-dashed text-[10px] text-muted-foreground">
+                                    Chưa có ảnh cặp
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {selectedEvidence && (
+                        <div className="space-y-4">
+                          <div className="overflow-hidden rounded-lg border bg-muted/20">
+                            {evidenceImageLoading && !evidenceImageUrls[selectedEvidence.id] ? (
+                              <div className="flex aspect-video items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải ảnh...</div>
+                            ) : evidenceImageUrls[selectedEvidence.id] ? (
+                              <img src={evidenceImageUrls[selectedEvidence.id]} alt="Bằng chứng camera/màn hình" className="aspect-video w-full object-contain bg-black" />
+                            ) : (
+                              <div className="flex aspect-video flex-col items-center justify-center gap-2 text-sm text-muted-foreground"><ImageOff className="h-6 w-6" /> Ảnh không còn khả dụng</div>
+                            )}
+                          </div>
+
+                          <div className="grid gap-3 text-sm sm:grid-cols-2">
+                            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Thời gian chụp</p><p className="mt-1 font-medium">{formatEvidenceTime(selectedEvidence.capturedAt)}</p></div>
+                            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Nguồn / sự kiện</p><p className="mt-1 flex items-center gap-1.5 font-medium">{selectedEvidence.captureSource === 'SCREEN' ? <Monitor className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />} {getEvidenceEventLabel(selectedEvidence)}</p></div>
+                          </div>
+
+                          <div className="rounded-lg border p-3">
+                            <p className="flex items-center gap-1.5 text-sm font-medium"><Sparkles className="h-4 w-4 text-primary" /> Nhãn phân tích AI</p>
+                            {selectedEvidence.status === 'ANALYZING' ? <p className="mt-2 text-sm text-muted-foreground">Đang phân tích ảnh...</p> : selectedEvidence.aiError ? <p className="mt-2 text-sm text-red-600">{selectedEvidence.aiError}</p> : Array.isArray(selectedEvidence.aiTags) && selectedEvidence.aiTags.length > 0 ? <div className="mt-2 space-y-2">{selectedEvidence.aiTags.map((tag, index) => <div key={`${tag.tag}-${index}`} className="rounded-md bg-muted/50 p-2 text-sm"><span className="font-medium">{tag.tag || 'Tín hiệu'}</span>{typeof tag.confidence === 'number' && <span className="ml-2 text-xs text-muted-foreground">{Math.round(tag.confidence * 100)}%</span>}{tag.note && <p className="mt-1 text-xs text-muted-foreground">{tag.note}</p>}</div>)}</div> : <p className="mt-2 text-sm text-muted-foreground">Chưa có nhãn AI cho ảnh này.</p>}
+                          </div>
+
+                          <div className="rounded-lg border p-3">
+                            <p className="text-sm font-medium">Trạng thái rà soát</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{selectedEvidence.reviewStatus === 'REVIEWED' ? `Đã rà soát ${formatEvidenceTime(selectedEvidence.reviewedAt)}` : selectedEvidence.reviewStatus === 'DISMISSED' ? 'Đã bỏ qua' : 'Chưa được rà soát'}</p>
+                            <Textarea value={evidenceReviewNote} onChange={(event) => setEvidenceReviewNote(event.target.value)} placeholder="Ghi chú rà soát (không bắt buộc)..." className="mt-3 min-h-[72px] text-sm" />
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Button size="sm" variant="outline" disabled={evidenceReviewLoading} onClick={() => reviewEvidence('REVIEWED')}>Đánh dấu đã rà soát</Button>
+                              <Button size="sm" variant="outline" disabled={evidenceReviewLoading} onClick={() => reviewEvidence('DISMISSED')}>Bỏ qua</Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
             </Card>
           </div>
 
@@ -578,33 +827,6 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
           </div>
         </div>
       </div>
-      <Dialog
-        open={Boolean(evidenceDialog)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEvidenceDialog(null);
-            setEvidenceImageUrl(null);
-            setEvidenceImageError('');
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Ảnh camera tại thời điểm sự kiện</DialogTitle>
-            <DialogDescription>
-              {evidenceDialog ? `${translateEvidence(evidenceDialog.event.description)} · ${formatEventTime(evidenceDialog.event.timestamp)}` : 'Bằng chứng camera'}
-            </DialogDescription>
-          </DialogHeader>
-          {evidenceImageLoading ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Đang tải ảnh bằng chứng...</p>
-          ) : evidenceImageError ? (
-            <p className="py-10 text-center text-sm text-destructive">{evidenceImageError}</p>
-          ) : evidenceImageUrl ? (
-            <img className="max-h-[65vh] w-full rounded-lg border object-contain" src={evidenceImageUrl} alt="Bằng chứng camera" />
-          ) : null}
-          <p className="text-xs text-muted-foreground">Ảnh là tín hiệu tham khảo phục vụ rà soát, không phải kết luận gian lận tự động.</p>
-        </DialogContent>
-      </Dialog>
       <Dialog open={penaltyDialogOpen} onOpenChange={setPenaltyDialogOpen}>
         <DialogContent>
           <DialogHeader>

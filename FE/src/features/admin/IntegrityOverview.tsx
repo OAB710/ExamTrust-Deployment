@@ -57,6 +57,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 export interface FlaggedSubmission {
   id: string;
   submissionId?: string;
+  attemptNo?: number | null;
   studentId: string;
   studentName: string;
   examId: string;
@@ -566,6 +567,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                       <TableHeader>
                         <TableRow>
                           <TableHead>Sinh viên</TableHead>
+                          <TableHead className="text-center">Lượt</TableHead>
                           <TableHead>Bài thi</TableHead>
                           <TableHead>Thời gian nộp</TableHead>
                           <TableHead>Mức tín hiệu</TableHead>
@@ -578,7 +580,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                         {loading ? (
                           <TableRow>
                             <TableCell
-                              colSpan={7}
+                              colSpan={8}
                               className="py-10 text-center text-muted-foreground"
                             >
                               <div className="inline-flex items-center gap-2">
@@ -590,7 +592,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                         ) : error ? (
                           <TableRow>
                             <TableCell
-                              colSpan={7}
+                              colSpan={8}
                               className="py-10 text-center text-destructive"
                             >
                               {error}
@@ -599,7 +601,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                         ) : submissions.length === 0 ? (
                           <TableRow>
                             <TableCell
-                              colSpan={7}
+                              colSpan={8}
                               className="text-center py-8 text-muted-foreground"
                             >
                               Không tìm thấy bài nộp có tín hiệu cần xem xét
@@ -617,6 +619,9 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                                     {submission.studentId}
                                   </p>
                                 </div>
+                              </TableCell>
+                              <TableCell className="text-center text-sm text-muted-foreground">
+                                {submission.attemptNo ?? "-"}
                               </TableCell>
                               <TableCell>
                                 <p className="text-sm text-foreground">
