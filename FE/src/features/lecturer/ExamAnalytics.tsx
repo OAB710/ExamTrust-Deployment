@@ -734,6 +734,69 @@ export default function ExamAnalytics() {
               ))}
             </div>
 
+            <Card className="border-border/70 bg-card shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" /> Tín hiệu toàn vẹn
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      Hoàn thành nhanh bất thường là tín hiệu để giảng viên rà soát, không phải kết luận gian lận.
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                    {(data.integritySignals?.fastCompletions?.length || 0) + (data.integritySignals?.similarAnswerPairs?.length || 0)} cần xem xét
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <section className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">Làm bài nhanh bất thường</h3>
+                  {(data.integritySignals?.fastCompletions || []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Chưa có bài hoàn tất nhanh bất thường đủ điều kiện cảnh báo.</p>
+                  ) : (
+                    <div className="divide-y divide-border/70 rounded-md border border-border/70">
+                      {data.integritySignals!.fastCompletions.map((item) => (
+                        <div key={item.submissionId} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-foreground">{item.studentName}</p>
+                              {item.studentCode ? <span className="text-xs text-muted-foreground">{item.studentCode}</span> : null}
+                              <Badge variant="outline" className={item.severity === "HIGH" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-amber-200 bg-amber-50 text-amber-700"}>{item.severity === "HIGH" ? "Rủi ro cao" : "Cần xem xét"}</Badge>
+                            </div>
+                            <p className="mt-1 text-sm text-muted-foreground">{item.elapsedMinutes} phút / {item.allowedMinutes} phút · {item.scorePct.toFixed(1)} điểm · nhanh hơn {((1 - item.completionRatio) * 100).toFixed(1)}% thời lượng cho phép</p>
+                            {item.cohortMedianMinutes !== null ? <p className="mt-1 text-xs text-muted-foreground">Trung vị lớp: {item.cohortMedianMinutes} phút</p> : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+                <section className="space-y-2 border-t border-border/70 pt-5">
+                  <h3 className="text-sm font-semibold text-foreground">Mẫu trả lời giống nhau bất thường</h3>
+                  {(data.integritySignals?.similarAnswerPairs || []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Chưa có cặp bài làm đủ bằng chứng đáp án sai hiếm trùng nhau.</p>
+                  ) : (
+                    <div className="divide-y divide-border/70 rounded-md border border-border/70">
+                      {data.integritySignals!.similarAnswerPairs.map((pair) => (
+                        <div key={`${pair.studentA.submissionId}-${pair.studentB.submissionId}`} className="p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-foreground">{pair.studentA.studentName} ↔ {pair.studentB.studentName}</p>
+                            <Badge variant="outline" className={pair.severity === "HIGH" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-amber-200 bg-amber-50 text-amber-700"}>{pair.severity === "HIGH" ? "Rủi ro cao" : "Cần xem xét"}</Badge>
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">{pair.rareWrongMatches} đáp án sai hiếm trùng nhau · {pair.comparableQuestions} câu so sánh · tương đồng {pair.similarityScore.toFixed(1)}%</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {pair.evidence.slice(0, 4).map((evidence) => <Badge key={`${evidence.questionIdentity}-${evidence.answer}`} variant="secondary">{evidence.orderIndex !== null ? `Câu ${evidence.orderIndex + 1}` : "Câu snapshot"}: {evidence.answer} · {(evidence.answerFrequency * 100).toFixed(1)}%</Badge>)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </CardContent>
+            </Card>
+
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <Card className="min-h-[240px] border-border/70 bg-card shadow-sm">
                 <CardHeader className="pb-3">

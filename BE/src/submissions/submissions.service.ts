@@ -178,6 +178,204 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     return Math.max(0, Math.min(100, value));
   }
 
+  /**
+   * Keep timing-integrity analysis aligned with the server's existing exam
+   * configuration precedence. A timing signal is advisory evidence only.
+   */
+  private getConfiguredTimeLimitMinutes(exam: {
+    timeLimitMinutes?: number | null;
+    duration?: number | null;
+    settings?: unknown;
+  }): number | null {
+    const settings = exam.settings && typeof exam.settings === 'object' ? exam.settings as any : {};
+    const value = exam.timeLimitMinutes ?? settings.timeLimitMinutes ?? exam.duration;
+    const minutes = Number(value);
+    return Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+  }
+
+  private getFastCompletionSignal(input: {
+    startedAt?: Date | string | null;
+    submittedAt?: Date | string | null;
+    score?: unknown;
+    exam: { timeLimitMinutes?: number | null; duration?: number | null; settings?: unknown };
+  }): {
+    severity: 'REVIEW' | 'HIGH';
+    elapsedMinutes: number;
+    allowedMinutes: number;
+    completionRatio: number;
+    scorePct: number;
+    reasons: string[];
+  } | null {
+    const allowedMinutes = this.getConfiguredTimeLimitMinutes(input.exam);
+    if (!allowedMinutes || !input.startedAt || !input.submittedAt) return null;
+
+    const elapsedMs = new Date(input.submittedAt).getTime() - new Date(input.startedAt).getTime();
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return null;
+
+    const elapsedMinutes = Number((elapsedMs / 60_000).toFixed(1));
+    const completionRatio = Number((elapsedMinutes / allowedMinutes).toFixed(3));
+    const scorePct = Number((this.clampPercent(this.toNumber(input.score) * 10)).toFixed(1));
+    const severity = completionRatio <= 0.15 && scorePct >= 95
+      ? 'HIGH'
+      : completionRatio <= 0.25 && scorePct >= 90
+        ? 'REVIEW'
+        : null;
+    if (!severity) return null;
+
+    return {
+      severity,
+      elapsedMinutes,
+      allowedMinutes,
+      completionRatio,
+      scorePct,
+      reasons: [
+        `Hoàn thành trong ${(completionRatio * 100).toFixed(1)}% thời lượng cho phép`,
+        `Điểm đạt ${scorePct.toFixed(1)}%`,
+      ],
+    };
+  }
+
+  /**
+   * Finds only pairs that share a rare wrong option bucket. This deliberately
+   * avoids comparing every student pair, and never treats matching correct
+   * answers as suspicious evidence.
+   */
+  private buildSimilarAnswerPairs(input: {
+    answers: Array<{
+      submissionId: string;
+      questionId: string;
+      questionVersionId?: string | null;
+      questionSnapshotId?: string | null;
+      answer: unknown;
+      isCorrect?: boolean | null;
+    }>;
+    studentsBySubmissionId: Map<string, { studentId: string; studentName: string; studentCode: string | null }>;
+    orderIndexByQuestionVersionId: Map<string, number>;
+  }): Array<{
+    studentA: { submissionId: string; studentId: string; studentName: string; studentCode: string | null };
+    studentB: { submissionId: string; studentId: string; studentName: string; studentCode: string | null };
+    similarityScore: number;
+    rareWrongMatches: number;
+    comparableQuestions: number;
+    evidence: Array<{
+      questionIdentity: string;
+      questionId: string;
+      orderIndex: number | null;
+      answer: string;
+      answerCount: number;
+      answerFrequency: number;
+      weight: number;
+    }>;
+    severity: 'REVIEW' | 'HIGH';
+  }> {
+    type ComparableAnswer = {
+      submissionId: string;
+      questionId: string;
+      questionVersionId: string | null;
+      questionIdentity: string;
+      selectedLetter: string;
+      isCorrect: boolean;
+    };
+    const answersBySubmission = new Map<string, Map<string, ComparableAnswer>>();
+    const responsesByQuestion = new Map<string, Map<string, ComparableAnswer>>();
+
+    for (const row of input.answers) {
+      const selectedLetter = this.extractSingleAnswerLetter(row.answer);
+      const questionIdentity = row.questionSnapshotId || row.questionVersionId || null;
+      if (!selectedLetter || !questionIdentity) continue;
+      const comparable: ComparableAnswer = {
+        submissionId: row.submissionId,
+        questionId: row.questionId,
+        questionVersionId: row.questionVersionId || null,
+        questionIdentity,
+        selectedLetter,
+        isCorrect: Boolean(row.isCorrect),
+      };
+      const byQuestion = responsesByQuestion.get(questionIdentity) || new Map<string, ComparableAnswer>();
+      byQuestion.set(row.submissionId, comparable);
+      responsesByQuestion.set(questionIdentity, byQuestion);
+      const bySubmission = answersBySubmission.get(row.submissionId) || new Map<string, ComparableAnswer>();
+      bySubmission.set(questionIdentity, comparable);
+      answersBySubmission.set(row.submissionId, bySubmission);
+    }
+
+    type Evidence = {
+      questionIdentity: string;
+      questionId: string;
+      questionVersionId: string | null;
+      answer: string;
+      answerCount: number;
+      answerFrequency: number;
+      weight: number;
+    };
+    const candidates = new Map<string, { submissionA: string; submissionB: string; evidence: Evidence[] }>();
+    for (const [questionIdentity, responses] of responsesByQuestion) {
+      const responseCount = responses.size;
+      const wrongBuckets = new Map<string, ComparableAnswer[]>();
+      for (const response of responses.values()) {
+        if (response.isCorrect) continue;
+        const bucket = wrongBuckets.get(response.selectedLetter) || [];
+        bucket.push(response);
+        wrongBuckets.set(response.selectedLetter, bucket);
+      }
+      for (const [answer, bucket] of wrongBuckets) {
+        const answerFrequency = bucket.length / Math.max(1, responseCount);
+        if (answerFrequency > 0.1) continue;
+        const weight = Number(Math.log((responseCount + 1) / (bucket.length + 1)).toFixed(3));
+        for (let left = 0; left < bucket.length; left += 1) {
+          for (let right = left + 1; right < bucket.length; right += 1) {
+            const submissionA = bucket[left].submissionId;
+            const submissionB = bucket[right].submissionId;
+            const key = submissionA < submissionB ? `${submissionA}|${submissionB}` : `${submissionB}|${submissionA}`;
+            const candidate = candidates.get(key) || {
+              submissionA: submissionA < submissionB ? submissionA : submissionB,
+              submissionB: submissionA < submissionB ? submissionB : submissionA,
+              evidence: [],
+            };
+            candidate.evidence.push({
+              questionIdentity,
+              questionId: bucket[left].questionId,
+              questionVersionId: bucket[left].questionVersionId,
+              answer,
+              answerCount: bucket.length,
+              answerFrequency: Number(answerFrequency.toFixed(3)),
+              weight,
+            });
+            candidates.set(key, candidate);
+          }
+        }
+      }
+    }
+
+    return Array.from(candidates.values())
+      .map((candidate) => {
+        const answersA = answersBySubmission.get(candidate.submissionA) || new Map();
+        const answersB = answersBySubmission.get(candidate.submissionB) || new Map();
+        const common = Array.from(answersA.keys()).filter((key) => answersB.has(key));
+        const sameAnswerCount = common.filter((key) => answersA.get(key)?.selectedLetter === answersB.get(key)?.selectedLetter).length;
+        const studentA = input.studentsBySubmissionId.get(candidate.submissionA);
+        const studentB = input.studentsBySubmissionId.get(candidate.submissionB);
+        if (!studentA || !studentB) return null;
+        if (candidate.evidence.length < 3 || common.length < 10) return null;
+        return {
+          studentA: { submissionId: candidate.submissionA, ...studentA },
+          studentB: { submissionId: candidate.submissionB, ...studentB },
+          similarityScore: Number(((sameAnswerCount / common.length) * 100).toFixed(1)),
+          rareWrongMatches: candidate.evidence.length,
+          comparableQuestions: common.length,
+          evidence: candidate.evidence
+            .map((item) => ({
+              ...item,
+              orderIndex: item.questionVersionId ? input.orderIndexByQuestionVersionId.get(item.questionVersionId) ?? null : null,
+            }))
+            .sort((a, b) => b.weight - a.weight),
+          severity: candidate.evidence.length >= 4 ? 'HIGH' as const : 'REVIEW' as const,
+        };
+      })
+      .filter((value): value is NonNullable<typeof value> => value !== null)
+      .sort((a, b) => b.rareWrongMatches - a.rareWrongMatches || b.similarityScore - a.similarityScore);
+  }
+
   private seededRandom(seed: string): () => number {
     let counter = 0;
 
@@ -2549,6 +2747,9 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
               id: true,
               title: true,
               totalPoints: true,
+              duration: true,
+              timeLimitMinutes: true,
+              settings: true,
             },
           },
           examInstance: {
@@ -2607,6 +2808,12 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       const totalPoints = submission.exam?.totalPoints != null
         ? submission.exam.totalPoints
         : 10;
+      const timingSignal = this.getFastCompletionSignal({
+        startedAt: submission.startedAt,
+        submittedAt: submission.submittedAt,
+        score: adjustedScore,
+        exam: submission.exam,
+      });
       return {
         ...submission,
         scoreAdjustments: undefined,
@@ -2614,6 +2821,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         adjustmentTotal: Number(adjustmentTotal.toFixed(2)),
         score: adjustedScore,
         totalPoints,
+        timingSignal,
         deadline: this.resolveSubmissionDeadline(submission)?.toISOString() ?? null,
         evidenceCaptureCount: submission._count.evidenceCaptures,
         evidenceUnreviewedCount: submission.evidenceCaptures.length,
@@ -3690,6 +3898,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         totalPoints: true,
         maxAttempts: true,
         settings: true,
+        duration: true,
+        timeLimitMinutes: true,
       },
     });
 
@@ -3729,8 +3939,16 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           studentId: true,
           status: true,
           score: true,
+          startedAt: true,
           submittedAt: true,
           createdAt: true,
+          student: {
+            select: {
+              id: true,
+              fullName: true,
+              studentId: true,
+            },
+          },
         },
       }),
       this.prisma.integrityLog.findMany({
@@ -3801,18 +4019,75 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         );
     const completedSubmissionIds = scopedCompletedSubmissions.map((s) => s.id);
 
+    const completionDurations = scopedCompletedSubmissions
+      .map((submission) => {
+        if (!submission.startedAt || !submission.submittedAt) return null;
+        const elapsed = new Date(submission.submittedAt).getTime() - new Date(submission.startedAt).getTime();
+        return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed / 60_000 : null;
+      })
+      .filter((value): value is number => value !== null)
+      .sort((a, b) => a - b);
+    const cohortMedianMinutes = completionDurations.length
+      ? Number((completionDurations[Math.floor(completionDurations.length / 2)]).toFixed(1))
+      : null;
+    const fastCompletions = scopedCompletedSubmissions
+      .map((submission) => {
+        const signal = this.getFastCompletionSignal({
+          startedAt: submission.startedAt,
+          submittedAt: submission.submittedAt,
+          score: submission.score,
+          exam,
+        });
+        if (!signal) return null;
+        return {
+          submissionId: submission.id,
+          studentId: submission.studentId,
+          studentName: submission.student?.fullName || 'Sinh viên không xác định',
+          studentCode: submission.student?.studentId || null,
+          cohortMedianMinutes,
+          ...signal,
+        };
+      })
+      .filter((value): value is NonNullable<typeof value> => value !== null)
+      .sort((a, b) => {
+        if (a.severity !== b.severity) return a.severity === 'HIGH' ? -1 : 1;
+        return a.completionRatio - b.completionRatio;
+      });
+
     const answers = completedSubmissionIds.length
       ? await this.prisma.submissionAnswer.findMany({
           where: { submissionId: { in: completedSubmissionIds } },
           select: {
+            submissionId: true,
             questionId: true,
             questionVersionId: true,
+            questionSnapshotId: true,
             isCorrect: true,
             timeTaken: true,
             answer: true,
           },
         })
       : [];
+    const studentsBySubmissionId = new Map<string, { studentId: string; studentName: string; studentCode: string | null }>(
+      scopedCompletedSubmissions.map((submission) => [
+        submission.id,
+        {
+          studentId: submission.studentId,
+          studentName: submission.student?.fullName || 'Sinh viên không xác định',
+          studentCode: submission.student?.studentId || null,
+        },
+      ]),
+    );
+    const orderIndexByQuestionVersionId = new Map<string, number>(
+      examQuestions
+        .filter((question) => Boolean(question.questionVersionId))
+        .map((question) => [question.questionVersionId as string, question.orderIndex]),
+    );
+    const similarAnswerPairs = this.buildSimilarAnswerPairs({
+      answers,
+      studentsBySubmissionId,
+      orderIndexByQuestionVersionId,
+    });
 
     type QuestionStatsRow = {
       questionVersionId: string;
@@ -4148,6 +4423,10 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         completionRate: this.clampPercent((scopedCompletedSubmissions.length / Math.max(1, submissions.length)) * 100),
         avgScorePct,
         passRate,
+      },
+      integritySignals: {
+        fastCompletions,
+        similarAnswerPairs,
       },
       visualizations: {
         correctVsIncorrect: {

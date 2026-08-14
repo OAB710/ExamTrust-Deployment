@@ -1030,18 +1030,18 @@ export default function QuestionBankManagement() {
 
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold">Điểm số</CardTitle>
+                    <CardTitle className="text-sm font-semibold">Trọng số</CardTitle>
                     <CardDescription className="text-xs">
-                      Tổng quan điểm trong ngân hàng câu hỏi
+                      Tổng quan trọng số trong ngân hàng câu hỏi
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-2.5 pt-0 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Tổng điểm khả dụng</span>
+                      <span className="text-muted-foreground">Tổng trọng số khả dụng</span>
                       <span className="font-semibold tabular-nums">{totalPoints}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Điểm TB / câu</span>
+                      <span className="text-muted-foreground">Trọng số TB / câu</span>
                       <span className="font-semibold tabular-nums">{avgPoints}</span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -1132,7 +1132,7 @@ export default function QuestionBankManagement() {
                 />
                 <FilterPanel
                   title="Bộ lọc câu hỏi"
-                  description="Lọc theo loại, độ khó và điểm."
+                  description="Lọc theo loại, độ khó và trọng số."
                   filters={questionFilterDefinitions}
                   value={draftQuestionFilters}
                   onValueChange={(key, nextValue) =>
@@ -1786,7 +1786,7 @@ export default function QuestionBankManagement() {
                         valueClassName={diff.color}
                       />
                       <InfoCard
-                        label="Điểm"
+                        label="Trọng số"
                         value={String(q.points ?? 1)}
                       />
                       <InfoCard

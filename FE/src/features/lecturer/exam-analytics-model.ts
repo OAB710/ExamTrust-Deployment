@@ -247,7 +247,7 @@ export const COMPARISON_FIELDS: Array<{ key: ComparisonFieldKey; label: string }
   { key: "correctAnswer", label: "Đáp án đúng" },
   { key: "explanation", label: "Giải thích" },
   { key: "difficulty", label: "Độ khó" },
-  { key: "points", label: "Điểm" },
+  { key: "points", label: "Trọng số" },
   { key: "tags", label: "Thẻ" },
   { key: "topics", label: "Chủ đề" },
 ];
@@ -405,6 +405,38 @@ export type IntelligencePayload = {
     completionRate: number;
     avgScorePct: number;
     passRate: number;
+  };
+  integritySignals?: {
+    fastCompletions: Array<{
+      submissionId: string;
+      studentId: string;
+      studentName: string;
+      studentCode?: string | null;
+      elapsedMinutes: number;
+      allowedMinutes: number;
+      completionRatio: number;
+      scorePct: number;
+      cohortMedianMinutes: number | null;
+      severity: "REVIEW" | "HIGH";
+      reasons: string[];
+    }>;
+    similarAnswerPairs: Array<{
+      studentA: { submissionId: string; studentId: string; studentName: string; studentCode: string | null };
+      studentB: { submissionId: string; studentId: string; studentName: string; studentCode: string | null };
+      similarityScore: number;
+      rareWrongMatches: number;
+      comparableQuestions: number;
+      evidence: Array<{
+        questionIdentity: string;
+        questionId: string;
+        orderIndex: number | null;
+        answer: string;
+        answerCount: number;
+        answerFrequency: number;
+        weight: number;
+      }>;
+      severity: "REVIEW" | "HIGH";
+    }>;
   };
   visualizations: {
     correctVsIncorrect: {

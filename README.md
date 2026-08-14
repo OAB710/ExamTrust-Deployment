@@ -98,7 +98,6 @@ ExamTrust-Origin/
 │       ├── queue/                 # Hàng đợi xử lý bất đồng bộ (Bull/Redis)
 │       ├── audit/                 # Nhật ký kiểm toán
 │       ├── events/                # Sự kiện nội bộ hệ thống
-│       ├── mailer/                # Gửi email
 │       ├── redis/ • cache/        # Kết nối và cache Redis
 │       ├── admin-dashboard/ • lecturer-dashboard/  # API tổng hợp thống kê theo vai trò
 │       ├── prisma/                # Prisma service dùng trong ứng dụng

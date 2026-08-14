@@ -259,7 +259,7 @@ export default function QuestionEditor() {
     }
 
     if (!/^[1-5]$/.test(scoreCoefficient)) {
-      errors.push("Hệ số điểm số chỉ nhận số nguyên từ 1 - 5");
+      errors.push("Trọng số chỉ nhận số nguyên từ 1 - 5");
     }
 
     // Option length validation
@@ -714,14 +714,14 @@ export default function QuestionEditor() {
 
                   <Card>
                     <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
-                      <CardTitle className="text-sm sm:text-base">Hệ số điểm số</CardTitle>
+                      <CardTitle className="text-sm sm:text-base">Trọng số</CardTitle>
                       <CardDescription className="text-xs sm:text-sm">
-                        Giá trị gợi ý khi thêm câu vào đề; điểm trong đề có thể chỉnh riêng và kết quả luôn quy về thang 10.
+                        Giá trị gợi ý khi thêm câu vào đề; trọng số trong đề có thể chỉnh riêng và kết quả luôn quy về thang 10.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                       <div className="space-y-2">
-                        <Label htmlFor="score-coefficient" className="text-sm">Hệ số mặc định</Label>
+                        <Label htmlFor="score-coefficient" className="text-sm">Trọng số mặc định</Label>
                         <Input
                           id="score-coefficient"
                           type="number"

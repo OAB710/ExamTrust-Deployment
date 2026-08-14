@@ -62,6 +62,7 @@
       "BE/prisma/migrations/20260811120000_preserve_decimal_submission_scores/migration.sql",
       "BE/prisma/migrations/20260811160000_add_submission_deadline_overrides/migration.sql",
       "BE/prisma/migrations/20260811180000_add_media_user_storage_usage/migration.sql",
+      "BE/prisma/migrations/20260813180000_proctoring_evidence_source_and_limits/migration.sql",
       "BE/prisma/migrations/manual_migration.sql",
       "BE/prisma/migrations/remove_ip_tracking.sql",
       "BE/prisma/one-off-create-topics.sql",
@@ -147,8 +148,6 @@
       "BE/src/lecturer-dashboard/lecturer-dashboard.controller.ts",
       "BE/src/lecturer-dashboard/lecturer-dashboard.module.ts",
       "BE/src/lecturer-dashboard/lecturer-dashboard.service.ts",
-      "BE/src/mailer/mailer.module.ts",
-      "BE/src/mailer/mailer.service.ts",
       "BE/src/main.ts",
       "BE/src/media/dto/media.dto.ts",
       "BE/src/media/media.constants.ts",
@@ -526,6 +525,7 @@
       "docs/architecture-audit-2026-08-01.md",
       "docs/powerpoint-prompt.md",
       "docs/refactor-backlog.md",
+      "docs/webcam-proctoring-upgrade-plan.md",
       "zalo-webhook-lambda/README.md"
     ],
     "paper": [],
@@ -549,9 +549,9 @@
     ]
   },
   "total_files": 538,
-  "total_words": 450288,
+  "total_words": 456384,
   "needs_graph": true,
-  "warning": "Large corpus: 538 files · ~450,288 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 538 files · ~456,384 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],

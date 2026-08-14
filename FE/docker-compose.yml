@@ -39,11 +39,6 @@ services:
       DATABASE_URL: "mysql://examtrust:CHANGE_ME@db:3306/examtrust"
       JWT_SECRET: "CHANGE_ME"
       JWT_EXPIRES_IN: "15m"
-      SMTP_HOST: "smtp.example.com"
-      SMTP_PORT: "587"
-      SMTP_USER: "CHANGE_ME"
-      SMTP_PASS: "CHANGE_ME"
-      EMAIL_FROM: "ExamTrust <no-reply@example.com>"
       <<: *ai-env
     depends_on:
       - db
