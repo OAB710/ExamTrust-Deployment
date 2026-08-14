@@ -115,6 +115,13 @@ interface StudentSession {
   integrityEvents: number;
   startedAt: string | null;
   submittedAt: string | null;
+  timingSignal: {
+    severity: "REVIEW" | "HIGH";
+    elapsedMinutes: number;
+    allowedMinutes: number;
+    completionRatio: number;
+    scorePct: number;
+  } | null;
   flagReason: string | null;
   evidenceCount: number;
   evidenceUnreviewedCount: number;
@@ -241,10 +248,10 @@ const EMPTY_STUDENT_FILTERS: FilterValues = {
 };
 
 const getRiskLevel = (session: StudentSession): "clean" | "watch" | "high" => {
-  if (session.status === "flagged" || session.integrityEvents >= 5) {
+  if (session.status === "flagged" || session.integrityEvents >= 5 || session.timingSignal?.severity === "HIGH") {
     return "high";
   }
-  if (session.integrityEvents >= 2) {
+  if (session.integrityEvents >= 2 || session.timingSignal?.severity === "REVIEW") {
     return "watch";
   }
   return "clean";
@@ -440,6 +447,7 @@ export default function ExamMonitor() {
           submittedAt: submission?.submittedAt
             ? new Date(submission.submittedAt).toLocaleTimeString()
             : null,
+          timingSignal: submission?.timingSignal || null,
           flagReason: status === "flagged" ? "Lượt nộp bị gắn cờ" : null,
           evidenceCount: Number(submission?.evidenceCaptureCount || 0),
           evidenceUnreviewedCount: Number(submission?.evidenceUnreviewedCount || 0),
@@ -468,6 +476,19 @@ export default function ExamMonitor() {
           hasEvidence: Boolean(anomaly.hasEvidence),
         }),
       );
+      for (const session of joinedRows) {
+        if (!session.submissionId || !session.timingSignal) continue;
+        const timing = session.timingSignal;
+        mappedAlerts.push({
+          id: `fast-completion-${session.submissionId}`,
+          submissionId: session.submissionId,
+          studentName: session.name,
+          type: "timing",
+          message: `Hoàn thành ${timing.elapsedMinutes}/${timing.allowedMinutes} phút · ${timing.scorePct.toFixed(1)} điểm · nhanh hơn ${((1 - timing.completionRatio) * 100).toFixed(1)}% thời lượng cho phép. Cần giảng viên rà soát.`,
+          severity: timing.severity === "HIGH" ? "critical" : "warning",
+          time: session.submittedAt || "Đã nộp",
+        });
+      }
       setAlerts((prev) => mergeIntegrityAlerts(prev, mappedAlerts));
       setLastRefresh(new Date().toLocaleTimeString());
       if (process.env.NODE_ENV !== "production") {

@@ -350,4 +350,76 @@ describe('SubmissionsService snapshot and score normalization', () => {
     expect(view.answers[0].gradingMode).toBe('MANUAL');
     expect(view.answers[0].maxPoints).toBe(4);
   });
+
+  it('detects high-scoring submissions completed unusually fast using the exam time-limit precedence', () => {
+    const { service } = buildService();
+
+    const high = (service as any).getFastCompletionSignal({
+      startedAt: new Date('2026-08-14T08:00:00.000Z'),
+      submittedAt: new Date('2026-08-14T08:06:00.000Z'),
+      score: 10,
+      exam: { timeLimitMinutes: null, settings: { timeLimitMinutes: 45 }, duration: 60 },
+    });
+    const review = (service as any).getFastCompletionSignal({
+      startedAt: new Date('2026-08-14T08:00:00.000Z'),
+      submittedAt: new Date('2026-08-14T08:10:00.000Z'),
+      score: 9,
+      exam: { timeLimitMinutes: 45, settings: { timeLimitMinutes: 60 }, duration: 90 },
+    });
+    const ordinary = (service as any).getFastCompletionSignal({
+      startedAt: new Date('2026-08-14T08:00:00.000Z'),
+      submittedAt: new Date('2026-08-14T08:20:00.000Z'),
+      score: 10,
+      exam: { timeLimitMinutes: 45, duration: 45 },
+    });
+
+    expect(high).toMatchObject({ severity: 'HIGH', elapsedMinutes: 6, allowedMinutes: 45, scorePct: 100 });
+    expect(review).toMatchObject({ severity: 'REVIEW', elapsedMinutes: 10, allowedMinutes: 45, scorePct: 90 });
+    expect(ordinary).toBeNull();
+  });
+
+  it('finds pairs through rare wrong snapshot answers without comparing question positions', () => {
+    const { service } = buildService();
+    const answers: any[] = [];
+    const studentIds = ['submission-a', 'submission-b', ...Array.from({ length: 18 }, (_, index) => `submission-${index + 3}`)];
+    for (let question = 0; question < 10; question += 1) {
+      for (const submissionId of studentIds) {
+        const isCandidate = submissionId === 'submission-a' || submissionId === 'submission-b';
+        const rareWrong = isCandidate && question < 3;
+        answers.push({
+          submissionId,
+          questionId: `question-${question}`,
+          questionVersionId: `version-${question}`,
+          questionSnapshotId: `snapshot-${question}`,
+          answer: { answer: rareWrong ? 'D' : 'A' },
+          isCorrect: !rareWrong,
+        });
+      }
+    }
+    // Same option but a different immutable snapshot must not become evidence.
+    answers.push({ submissionId: 'submission-a', questionId: 'legacy-a', questionVersionId: 'legacy-version-a', questionSnapshotId: 'snapshot-a', answer: { answer: 'C' }, isCorrect: false });
+    answers.push({ submissionId: 'submission-b', questionId: 'legacy-b', questionVersionId: 'legacy-version-b', questionSnapshotId: 'snapshot-b', answer: { answer: 'C' }, isCorrect: false });
+
+    const studentsBySubmissionId = new Map(studentIds.map((submissionId) => [
+      submissionId,
+      { studentId: submissionId.replace('submission-', 'student-'), studentName: submissionId, studentCode: null },
+    ]));
+    const pairs = (service as any).buildSimilarAnswerPairs({
+      answers,
+      studentsBySubmissionId,
+      orderIndexByQuestionVersionId: new Map(Array.from({ length: 10 }, (_, index) => [`version-${index}`, index])),
+    });
+
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0]).toMatchObject({ rareWrongMatches: 3, comparableQuestions: 10, severity: 'REVIEW' });
+    expect(pairs[0].evidence).toHaveLength(3);
+    expect(pairs[0].evidence.every((item: any) => item.answer === 'D' && item.answerFrequency === 0.1)).toBe(true);
+
+    const versionFallbackPairs = (service as any).buildSimilarAnswerPairs({
+      answers: answers.slice(0, 200).map((answer) => ({ ...answer, questionSnapshotId: null })),
+      studentsBySubmissionId,
+      orderIndexByQuestionVersionId: new Map(Array.from({ length: 10 }, (_, index) => [`version-${index}`, index])),
+    });
+    expect(versionFallbackPairs).toHaveLength(1);
+  });
 });

@@ -406,6 +406,38 @@ export type IntelligencePayload = {
     avgScorePct: number;
     passRate: number;
   };
+  integritySignals?: {
+    fastCompletions: Array<{
+      submissionId: string;
+      studentId: string;
+      studentName: string;
+      studentCode?: string | null;
+      elapsedMinutes: number;
+      allowedMinutes: number;
+      completionRatio: number;
+      scorePct: number;
+      cohortMedianMinutes: number | null;
+      severity: "REVIEW" | "HIGH";
+      reasons: string[];
+    }>;
+    similarAnswerPairs: Array<{
+      studentA: { submissionId: string; studentId: string; studentName: string; studentCode: string | null };
+      studentB: { submissionId: string; studentId: string; studentName: string; studentCode: string | null };
+      similarityScore: number;
+      rareWrongMatches: number;
+      comparableQuestions: number;
+      evidence: Array<{
+        questionIdentity: string;
+        questionId: string;
+        orderIndex: number | null;
+        answer: string;
+        answerCount: number;
+        answerFrequency: number;
+        weight: number;
+      }>;
+      severity: "REVIEW" | "HIGH";
+    }>;
+  };
   visualizations: {
     correctVsIncorrect: {
       correct: number;
