@@ -247,7 +247,7 @@ export const COMPARISON_FIELDS: Array<{ key: ComparisonFieldKey; label: string }
   { key: "correctAnswer", label: "Đáp án đúng" },
   { key: "explanation", label: "Giải thích" },
   { key: "difficulty", label: "Độ khó" },
-  { key: "points", label: "Điểm" },
+  { key: "points", label: "Trọng số" },
   { key: "tags", label: "Thẻ" },
   { key: "topics", label: "Chủ đề" },
 ];

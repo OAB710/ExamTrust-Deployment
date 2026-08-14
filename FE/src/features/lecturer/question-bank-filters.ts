@@ -18,7 +18,7 @@ export const courseFilterDefinitions: FilterDefinition[] = [
 export const questionFilterDefinitions: FilterDefinition[] = [
   { key: "type", label: "Loại câu hỏi", type: "select", allLabel: "Tất cả loại", options: Object.entries(typeLabels).map(([value, label]) => ({ value, label })) },
   { key: "difficulty", label: "Độ khó", type: "select", allLabel: "Tất cả độ khó", options: difficultyOptions },
-  { key: "points", label: "Điểm", type: "number-range", min: 0, max: 20, step: 1 },
+  { key: "points", label: "Trọng số", type: "number-range", min: 0, max: 20, step: 1 },
 ];
 
 type SortBy = "difficulty" | "points" | "updatedAt";
