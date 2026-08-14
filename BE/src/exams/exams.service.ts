@@ -93,7 +93,7 @@ export class ExamsService {
         await client.$executeRawUnsafe(
           `
           INSERT INTO exam_questions (id, examId, questionId, questionVersionId, orderIndex, points, assignedScore, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, NOW(3))
+          VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))
           `,
           id,
           data.examId,
@@ -107,7 +107,7 @@ export class ExamsService {
         await client.$executeRawUnsafe(
           `
           INSERT INTO exam_questions (id, examId, questionId, questionVersionId, orderIndex, points, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, NOW(3))
+          VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))
           `,
           id,
           data.examId,
@@ -122,7 +122,7 @@ export class ExamsService {
         await client.$executeRawUnsafe(
           `
           INSERT INTO exam_questions (id, examId, questionId, orderIndex, points, assignedScore, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, NOW(3))
+          VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))
           `,
           id,
           data.examId,
@@ -135,7 +135,7 @@ export class ExamsService {
         await client.$executeRawUnsafe(
           `
           INSERT INTO exam_questions (id, examId, questionId, orderIndex, points, updatedAt)
-          VALUES (?, ?, ?, ?, ?, NOW(3))
+          VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(3))
           `,
           id,
           data.examId,

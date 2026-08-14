@@ -93,18 +93,6 @@ export interface FlaggedSubmission {
   patternMatch?: string[];
 }
 
-const translatePrimarySignal = (value?: string) => {
-  const labels: Record<string, string> = {
-    "Fullscreen exit detected": "Phát hiện thoát chế độ toàn màn hình",
-    "Tab switching detected": "Phát hiện chuyển đổi tab",
-    "Tab switch detected": "Phát hiện chuyển đổi tab",
-    "Integrity event recorded": "Đã ghi nhận sự kiện toàn vẹn",
-    "Window focus lost": "Cửa sổ làm bài bị mất tiêu điểm",
-    "Copy event detected": "Phát hiện thao tác sao chép",
-    "Paste event detected": "Phát hiện thao tác dán",
-  };
-  return labels[value || ""] || value || "—";
-};
 
 export interface IntegrityReason {
   type: "similarity" | "timing" | "pattern" | "behavior";
@@ -449,6 +437,9 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
       description: "Tương tác bộ nhớ tạm trong phiên thi",
       value: patterns.copyPaste,
       icon: Copy,
+      // lucide's Copy glyph has more internal padding than the other
+      // pattern icons here at the same size, so it reads visibly smaller.
+      iconClassName: "h-5 w-5",
       className: "bg-info/10 text-info",
     },
     {
@@ -651,7 +642,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                               </TableCell>
                               <TableCell>
                                 <p className="text-sm text-muted-foreground max-w-xs truncate">
-                                  {translatePrimarySignal(submission.reasons[0]?.description)}
+                                  {submission.reasons[0]?.description || "—"}
                                 </p>
                               </TableCell>
                               <TableCell className="text-right">

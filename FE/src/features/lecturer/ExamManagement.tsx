@@ -61,6 +61,10 @@ import {
   Archive,
   RotateCcw,
   MoreHorizontal,
+  Settings,
+  Shield,
+  Repeat,
+  Camera,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -131,6 +135,9 @@ export default function ExamManagement() {
   const [publishingExamId, setPublishingExamId] = useState<string | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [settingsExam, setSettingsExam] = useState<any>(null);
+  const [settingsLoading, setSettingsLoading] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
@@ -138,6 +145,7 @@ export default function ExamManagement() {
     title: "",
     description: "",
     passingScore: "",
+    duration: "",
   });
   const [passingScoreError, setPassingScoreError] = useState("");
   const [rescheduleForm, setRescheduleForm] = useState({
@@ -239,9 +247,26 @@ export default function ExamManagement() {
       title: exam.title,
       description: exam.description || "",
       passingScore: exam.passingScore?.toString() || "",
+      duration: exam.duration?.toString() || "",
     });
     setPassingScoreError("");
     setShowEditDialog(true);
+  };
+
+  const handleViewSettings = async (exam: Exam) => {
+    setSelectedExam(exam);
+    setSettingsExam(null);
+    setShowSettingsDialog(true);
+    setSettingsLoading(true);
+    try {
+      const detail = await api.getExam(exam.id);
+      setSettingsExam(detail);
+    } catch (error) {
+      console.error("Failed to load exam settings:", error);
+      toast.error("Không thể tải cài đặt bài thi");
+    } finally {
+      setSettingsLoading(false);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -252,6 +277,17 @@ export default function ExamManagement() {
         title: editForm.title,
         description: editForm.description,
       };
+      if (editForm.duration) {
+        const durationMessage = getNumericInputError(editForm.duration, { min: 1, integer: true });
+        if (durationMessage) {
+          toast.error(durationMessage);
+          return;
+        }
+        const duration = parseNumericInput(editForm.duration, { min: 1 });
+        if (duration !== undefined) {
+          updateData.duration = duration;
+        }
+      }
       if (editForm.passingScore) {
         const message = getNumericInputError(editForm.passingScore, {
           min: 0,
@@ -707,6 +743,7 @@ export default function ExamManagement() {
                     <TableRow>
                       <TableHead className="min-w-[18rem]">Bài kiểm tra &amp; khóa học</TableHead>
                       <TableHead className="min-w-[15rem]">Thời gian làm bài</TableHead>
+                      <TableHead className="text-center">Lượt làm</TableHead>
                       <TableHead>Trạng thái</TableHead>
                       <TableHead className="text-right">Thao tác</TableHead>
                     </TableRow>
@@ -772,6 +809,19 @@ export default function ExamManagement() {
                               )}
                             </div>
                           </TableCell>
+                          <TableCell className="text-center">
+                            {canViewResults ? (
+                              <button
+                                type="button"
+                                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                onClick={() => router.push(`/lecturer/exam/${exam.id}/results`)}
+                              >
+                                {exam._count?.submissions}
+                              </button>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">0</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <StatusBadge
                               status={exam.status}
@@ -794,6 +844,13 @@ export default function ExamManagement() {
                                   >
                                     <Eye className="h-4 w-4" />
                                     Xem trước
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="gap-2 text-xs"
+                                    onClick={() => void handleViewSettings(exam)}
+                                  >
+                                    <Settings className="h-4 w-4" />
+                                    Xem cài đặt
                                   </DropdownMenuItem>
                                   {(exam.status === "ONGOING" ||
                                     exam.status === "PUBLISHED") &&
@@ -879,6 +936,83 @@ export default function ExamManagement() {
       </AdminPageShell>
 
       {/* Edit Dialog */}
+      <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cài đặt bài thi</DialogTitle>
+            <DialogDescription>{selectedExam?.title}</DialogDescription>
+          </DialogHeader>
+          {settingsLoading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Đang tải cài đặt...
+            </div>
+          ) : settingsExam ? (
+            (() => {
+              const settings = settingsExam.settings || {};
+              const proctoringEnabled = settings.proctoringEnabled === undefined
+                ? Boolean(settings.requiresProctoring)
+                : Boolean(settings.proctoringEnabled);
+              const webcamPolicy = settings.webcamEvidencePolicy || {};
+              const maxAttempts = settingsExam.maxAttempts;
+              return (
+                <div className="space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Thời lượng</p>
+                      <p className="mt-1 flex items-center gap-1.5 font-medium"><Clock className="h-3.5 w-3.5" />{settingsExam.duration ?? settingsExam.timeLimitMinutes ?? "—"} phút</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Số lần làm tối đa</p>
+                      <p className="mt-1 flex items-center gap-1.5 font-medium"><Repeat className="h-3.5 w-3.5" />{maxAttempts == null ? "Không giới hạn" : maxAttempts}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Điểm tối đa</p>
+                      <p className="mt-1 font-medium">{settingsExam.totalPoints ?? "—"}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Điểm đạt</p>
+                      <p className="mt-1 font-medium">{settingsExam.passingScore ?? "—"}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Shield className="h-3.5 w-3.5" /> Giám sát</p>
+                    <p className="mt-1 font-medium">{proctoringEnabled ? "Đã bật" : "Đã tắt"}</p>
+                  </div>
+                  {proctoringEnabled && (
+                    <div className="rounded-lg border p-3">
+                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Camera className="h-3.5 w-3.5" /> Bằng chứng webcam</p>
+                      <p className="mt-1 font-medium">
+                        {webcamPolicy.enabled ? "Đã bật" : "Đã tắt"}
+                        {webcamPolicy.enabled && webcamPolicy.screenCaptureEnabled ? " · Kèm chụp màn hình" : ""}
+                      </p>
+                    </div>
+                  )}
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Mô tả</p>
+                    <p className="mt-1 whitespace-pre-wrap text-foreground">{settingsExam.description || "Chưa có mô tả"}</p>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">Không thể tải cài đặt bài thi</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSettingsDialog(false)}>Đóng</Button>
+            {selectedExam?.status === "DRAFT" && (
+              <Button
+                onClick={() => {
+                  setShowSettingsDialog(false);
+                  if (selectedExam) handleEditExam(selectedExam);
+                }}
+              >
+                Sửa cài đặt
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
           <DialogHeader>
@@ -910,6 +1044,22 @@ export default function ExamManagement() {
                 }
                 placeholder="Mô tả bài thi"
                 rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="duration">Thời lượng (phút)</Label>
+              <Input
+                id="duration"
+                type="number"
+                min="1"
+                value={editForm.duration}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    duration: sanitizeNumericInput(e.target.value, { min: 1 }),
+                  }))
+                }
+                placeholder="Thời lượng làm bài (phút)"
               />
             </div>
             <div className="space-y-2">

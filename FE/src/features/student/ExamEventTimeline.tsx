@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import {
   AlertTriangle,
   Clock,
+  Copy,
   Edit3,
   Eye,
   Loader2,
@@ -50,25 +51,6 @@ type TimelinePayload = {
     timestamp: string;
     detail?: string;
   }>;
-};
-
-const translateEvidence = (value?: string) => {
-  if (!value) return value;
-  const labels: Record<string, string> = {
-    "Integrity event recorded": "Đã ghi nhận sự kiện toàn vẹn",
-    "events recorded": "sự kiện đã được ghi nhận",
-    "Fullscreen exit detected": "Đã thoát chế độ toàn màn hình",
-    "Tab switch detected": "Đã chuyển sang tab khác",
-    "Tab switching detected": "Đã chuyển đổi tab",
-    "Window focus lost": "Cửa sổ làm bài mất tiêu điểm",
-    "Window focus returned": "Cửa sổ làm bài lấy lại tiêu điểm",
-    "Copy event detected": "Đã ghi nhận thao tác sao chép",
-    "Paste event detected": "Đã ghi nhận thao tác dán",
-    "Mouse anomaly recorded": "Đã ghi nhận bất thường chuột",
-    "Mouse idle anomaly recorded": "Đã ghi nhận chuột không hoạt động bất thường",
-    "Face not detected": "Không phát hiện khuôn mặt",
-  };
-  return labels[value] ?? value;
 };
 
 export default function ExamEventTimeline() {
@@ -126,6 +108,9 @@ export default function ExamEventTimeline() {
     if (type.includes("tab")) return <Monitor className="h-4 w-4" />;
     if (type.includes("mouse")) return <MousePointer className="h-4 w-4" />;
     if (type.includes("focus") || type.includes("blur")) return <Eye className="h-4 w-4" />;
+    // lucide's Copy glyph has more internal padding than the other icons
+    // here at the same box size, so it needs a size bump to read the same.
+    if (type.includes("copy") || type.includes("paste")) return <Copy className="h-5 w-5" />;
     if (type.includes("answer")) return <Edit3 className="h-4 w-4" />;
     if (type.includes("submit")) return <Send className="h-4 w-4" />;
     if (type.includes("start")) return <Play className="h-4 w-4" />;
@@ -255,8 +240,8 @@ export default function ExamEventTimeline() {
                                   <StatusBadge status={event.severity} domain="severity" />
                                 )}
                               </div>
-                              <p className="text-sm text-foreground">{translateEvidence(event.description)}</p>
-                              {event.detail && <p className="text-xs text-muted-foreground mt-0.5">{translateEvidence(event.detail)}</p>}
+                              <p className="text-sm text-foreground">{event.description}</p>
+                              {event.detail && <p className="text-xs text-muted-foreground mt-0.5">{event.detail}</p>}
                             </div>
                           </div>
                         ))}
@@ -289,8 +274,8 @@ export default function ExamEventTimeline() {
                             <span className="font-medium text-sm">{event.type.replace(/_/g, " ").toUpperCase()}</span>
                             <span className="text-xs font-mono text-muted-foreground ml-auto">{formatTime(event.timestamp)}</span>
                           </div>
-                          <p className="text-sm">{translateEvidence(event.description)}</p>
-                          {event.detail && <p className="text-xs text-muted-foreground mt-1 bg-secondary/50 rounded px-2 py-1 inline-block">{translateEvidence(event.detail)}</p>}
+                          <p className="text-sm">{event.description}</p>
+                          {event.detail && <p className="text-xs text-muted-foreground mt-1 bg-secondary/50 rounded px-2 py-1 inline-block">{event.detail}</p>}
                         </div>
                       ))
                     )}
@@ -314,8 +299,8 @@ export default function ExamEventTimeline() {
                             <StatusBadge status={note.severity} domain="severity" />
                             <span className="text-xs font-mono text-muted-foreground ml-auto">{formatTime(note.timestamp)}</span>
                           </div>
-                          <p className="text-sm">{translateEvidence(note.note)}</p>
-                          {note.detail && <p className="text-xs text-muted-foreground mt-1">{translateEvidence(note.detail)}</p>}
+                          <p className="text-sm">{note.note}</p>
+                          {note.detail && <p className="text-xs text-muted-foreground mt-1">{note.detail}</p>}
                         </div>
                       ))
                     )}

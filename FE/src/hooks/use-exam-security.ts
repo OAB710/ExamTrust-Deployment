@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 
 export type ViolationType = "fullscreen_exit" | "tab_switch";
+
+export interface FirstViolationNotice {
+  type: ViolationType;
+  detail?: string;
+}
 
 export interface ViolationLog {
   timestamp: number;
@@ -42,6 +46,9 @@ interface UseExamSecurityResult {
   canFullscreen: boolean;
   isFullscreenExitPending: boolean;
   isFirstFullscreenWarning: boolean;
+  firstViolationAvailable: boolean;
+  firstViolationNotice: FirstViolationNotice | null;
+  dismissFirstViolationNotice: () => void;
   returnToExam: () => Promise<void>;
   exitFullscreenAfterConfirmation: () => Promise<void>;
   getViolationLogs: () => ViolationLog[];
@@ -99,6 +106,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   const [lastViolation, setLastViolation] = useState<ViolationLog | null>(null);
   const [isFullscreenExitPending, setIsFullscreenExitPending] = useState(false);
   const [isFirstFullscreenWarning, setIsFirstFullscreenWarning] = useState(false);
+  const [firstViolationNotice, setFirstViolationNotice] = useState<FirstViolationNotice | null>(null);
 
   const logsRef = useRef<ViolationLog[]>([]);
   const escalatedRef = useRef(false);
@@ -114,6 +122,11 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   // onward (any type), everything is recorded normally. This one flag is
   // shared across both violation types, not per-type.
   const firstViolationUsedRef = useRef(false);
+  // Mirrors firstViolationUsedRef into render-visible state — the ref alone
+  // can't drive the caller's UI (e.g. deciding whether to preview a pending
+  // fullscreen-exit as "will count as a violation" before its 15s grace even
+  // resolves one way or the other).
+  const [firstViolationAvailable, setFirstViolationAvailable] = useState(true);
   const persistedFullscreenExitCountRef = useRef(0);
   const persistedTabSwitchCountRef = useRef(0);
   const pageLeavingRef = useRef(false);
@@ -159,6 +172,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     }
     if (state.firstFullscreenWarningUsed) {
       firstViolationUsedRef.current = true;
+      setFirstViolationAvailable(false);
     }
   }, [maxViolations, onEscalate]);
 
@@ -194,7 +208,7 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   }, [initialFirstFullscreenWarningUsed, initialFullscreenExitCount, initialTabSwitchCount, reconcileSecurityState]);
 
   const recordViolation = useCallback(
-    (type: ViolationType, detail?: string, callOptions?: { silent?: boolean }) => {
+    (type: ViolationType, detail?: string, callOptions?: { silent?: boolean; keepUnblocked?: boolean }) => {
       if (!isTrackingActive()) return;
       const now = Date.now();
       const previousAt = lastViolationAtRef.current[type] || 0;
@@ -202,14 +216,17 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       lastViolationAtRef.current[type] = now;
 
       // First violation of the whole attempt (either type) — free pass: not
-      // persisted, not counted, just a heads-up to the student. `silent`
-      // skips the toast here for callers that already show their own UI
-      // feedback for this exact moment (the fullscreen "please return"
-      // modal), so the student isn't shown two overlapping notices at once.
+      // persisted, not counted, just a heads-up to the student. A blocking
+      // modal is used instead of a toast — a toast is too easy to miss while
+      // focused on answering questions. `silent` skips it for callers that
+      // already show their own UI feedback for this exact moment (the
+      // fullscreen "please return" modal), so the student isn't shown two
+      // overlapping notices at once.
       if (!firstViolationUsedRef.current) {
         firstViolationUsedRef.current = true;
+        setFirstViolationAvailable(false);
         if (!callOptions?.silent) {
-          toast.warning(detail ? `Cảnh báo lần đầu: ${detail}` : "Cảnh báo lần đầu — vi phạm tiếp theo sẽ được ghi nhận.");
+          setFirstViolationNotice({ type, detail });
         }
         return;
       }
@@ -234,7 +251,17 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
         }
         return next;
       });
-      setIsBlocked(true);
+      // A violation that happens while the student is ALREADY back in
+      // fullscreen (the "returned within the grace window, but the free
+      // first pass was already used earlier" case) must not re-block them —
+      // the caller just cleared isBlocked because they successfully
+      // recovered; forcing it back to true here reopened the very modal that
+      // was just dismissed, so "Trở lại bài thi" appeared to require two
+      // clicks (1st click restored fullscreen, 2nd click was needed to
+      // actually get past the modal this line re-triggered).
+      if (!callOptions?.keepUnblocked) {
+        setIsBlocked(true);
+      }
       void Promise.resolve(onViolation?.(entry, logsRef.current.length))
         .then((state) => reconcileSecurityState(state))
         .catch(() => undefined);
@@ -261,6 +288,8 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
   const returnToExam = useCallback(async () => {
     if (document.fullscreenElement) {
       setIsBlocked(false);
+      setIsFullscreenExitPending(false);
+      setIsFirstFullscreenWarning(false);
       allowClearRef.current = false;
       return;
     }
@@ -268,9 +297,15 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     // Don't rely solely on the async "fullscreenchange" event to close this
     // dialog — if it resolved successfully, clear the block immediately so
     // one click is enough; otherwise the student has to click a second time
-    // once that event catches up.
+    // once that event catches up. Clears isFullscreenExitPending too, not
+    // just isBlocked — the modal can be open because of either flag (it's
+    // shown whenever either is true), and leaving the other one set meant
+    // entering fullscreen here still left a stale "please return" countdown
+    // on screen until the fullscreenchange handler eventually caught up.
     if (document.fullscreenElement) {
       setIsBlocked(false);
+      setIsFullscreenExitPending(false);
+      setIsFirstFullscreenWarning(false);
       allowClearRef.current = false;
     }
   }, [requestFullscreen]);
@@ -327,15 +362,33 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
         // Clear the grace window as soon as fullscreen is restored. Keeping
         // it would suppress a subsequent Escape/fullscreen exit for 5 seconds.
         fullscreenRequestedAtRef.current = null;
+        allowClearRef.current = false;
+        if (hadPendingExit && !firstViolationUsedRef.current) {
+          // First violation of the whole attempt — show it as the SAME
+          // blocking "cảnh báo lần đầu" modal the 15s-timeout branch below
+          // uses (isFirstFullscreenWarning), instead of closing this pending
+          // modal here and letting recordViolation pop a separate notice
+          // right after for the same incident — that showed as two
+          // back-to-back popups for a single fullscreen exit.
+          setLastViolation({
+            timestamp: Date.now(),
+            type: "fullscreen_exit",
+            detail: "Cảnh báo lần đầu — chưa tính vi phạm",
+            clientEventId: createClientEventId(),
+          });
+          setIsFirstFullscreenWarning(true);
+          setIsBlocked(true);
+          recordViolation("fullscreen_exit", "Sinh viên rời rồi quay lại toàn màn hình nhanh (dùng cảnh báo miễn phí lần đầu)", { silent: true });
+          return;
+        }
         setIsBlocked(false);
         setIsFirstFullscreenWarning(false);
-        allowClearRef.current = false;
         if (hadPendingExit) {
-          // recordViolation itself decides free-warning-toast vs. a real
-          // persisted/counted violation, based on the shared
-          // firstViolationUsedRef — no modal is showing at this point (the
-          // student already returned), so the toast is the only feedback.
-          recordViolation("fullscreen_exit", "Sinh viên rời rồi quay lại toàn màn hình nhanh");
+          // Student already returned to fullscreen on their own — count the
+          // violation but don't re-block them for it (keepUnblocked), and
+          // skip the toast (silent) since there's no separate "you're back"
+          // moment to narrate; the badge count updating is enough.
+          recordViolation("fullscreen_exit", "Sinh viên rời rồi quay lại toàn màn hình nhanh", { silent: true, keepUnblocked: true });
         }
         return;
       }
@@ -364,6 +417,26 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       if (intentionalFullscreenExitRef.current) {
         intentionalFullscreenExitRef.current = false;
         recordViolation("fullscreen_exit", "Sinh viên đã xác nhận thoát chế độ toàn màn hình");
+        return;
+      }
+
+      // The free first-violation pass is unconditional — recordViolation's
+      // own early-return branch forgives it whether the student comes back
+      // instantly or never comes back at all — so there is nothing to race
+      // against here. Skip the "return within 15s or it counts" urgency
+      // framing and show the calm, no-consequence notice immediately instead
+      // of making the student sit through a countdown for an exit that was
+      // never actually going to count.
+      if (!firstViolationUsedRef.current) {
+        setLastViolation({
+          timestamp: Date.now(),
+          type: "fullscreen_exit",
+          detail: "Cảnh báo lần đầu — chưa tính vi phạm",
+          clientEventId: createClientEventId(),
+        });
+        setIsFirstFullscreenWarning(true);
+        setIsBlocked(true);
+        recordViolation("fullscreen_exit", "Sinh viên thoát chế độ toàn màn hình lần đầu (dùng cảnh báo miễn phí lần đầu)", { silent: true });
         return;
       }
 
@@ -473,6 +546,17 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       if (blurTimer) clearTimeout(blurTimer);
       blurTimer = setTimeout(() => {
         blurTimer = null;
+        // Re-check fullscreen state here, not just at blur-time above:
+        // pressing F11 fires `window.blur` and `fullscreenchange` together
+        // for the same physical action, and fullscreen has usually finished
+        // exiting by the time this 800ms debounce elapses. Without this
+        // check, that single F11 press recorded a *second*, separate
+        // "tab_switch" violation on top of the one fullscreenchange's own
+        // grace/warning flow already owns end-to-end — showing the "vi phạm
+        // đã tính" block and then, right after it closed, an unrelated
+        // "cảnh báo lần đầu" popup for whichever of the two happened to
+        // claim the free first-violation pass.
+        if (!document.fullscreenElement) return;
         recordViolation("tab_switch", "Cửa sổ mất focus khi vẫn ở chế độ toàn màn hình (có thể do chuyển sang màn hình/ứng dụng khác)");
       }, 800);
     };
@@ -504,6 +588,10 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
 
   const getViolationLogs = useCallback(() => logsRef.current.slice(), []);
 
+  const dismissFirstViolationNotice = useCallback(() => {
+    setFirstViolationNotice(null);
+  }, []);
+
   return {
     isFullscreen,
     isBlocked,
@@ -515,6 +603,9 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
     canFullscreen,
     isFullscreenExitPending,
     isFirstFullscreenWarning,
+    firstViolationAvailable,
+    firstViolationNotice,
+    dismissFirstViolationNotice,
     returnToExam,
     exitFullscreenAfterConfirmation,
     getViolationLogs,

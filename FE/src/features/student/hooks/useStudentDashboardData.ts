@@ -28,7 +28,15 @@ export function useStudentDashboardData() {
         setRecentCourses(Array.isArray(courses) ? courses as StudentCourse[] : []);
         setLatestCompletedSubmissionByExamId(latestCompleted);
         const now = new Date();
-        setUpcomingExams((Array.isArray(exams) ? exams : []).filter((exam: any) => exam?.status === "PUBLISHED" && exam?.endTime && new Date(exam.endTime) > now).map((exam: any) => ({ ...exam, mySubmissionStatus: latest.get(exam.id)?.status ?? null, mySubmissionAttemptNo: latest.get(exam.id)?.attemptNo ?? null, maxAttempts: typeof exam?.maxAttempts === "number" ? exam.maxAttempts : typeof exam?.settings?.maxAttempts === "number" ? exam.settings.maxAttempts : null })));
+        setUpcomingExams((Array.isArray(exams) ? exams : [])
+          .filter((exam: any) => exam?.status === "PUBLISHED" && exam?.endTime && new Date(exam.endTime) > now)
+          .map((exam: any) => ({ ...exam, mySubmissionStatus: latest.get(exam.id)?.status ?? null, mySubmissionAttemptNo: latest.get(exam.id)?.attemptNo ?? null, maxAttempts: typeof exam?.maxAttempts === "number" ? exam.maxAttempts : typeof exam?.settings?.maxAttempts === "number" ? exam.settings.maxAttempts : null }))
+          // The card shows each exam's own startTime — order by that same
+          // field, most recent/latest start date first (an exam starting
+          // today should outrank one whose window opened days ago but
+          // technically hasn't ended yet), instead of whatever order the API
+          // happens to return.
+          .sort((a: any, b: any) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
         setExamHistory(submissionList.filter((submission: any) => submission.status === "GRADED" || submission.status === "SUBMITTED"));
       } catch (error) { console.error("Error fetching student dashboard data:", error); }
       finally { setLoading(false); }

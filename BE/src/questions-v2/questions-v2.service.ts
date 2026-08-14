@@ -107,8 +107,8 @@ export class QuestionsService {
     const similarityThreshold = Math.max(1, Math.min(100, Math.round(threshold)));
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO question_bank_preferences (id, userId, similarityThreshold, createdAt, updatedAt)
-       VALUES (UUID(), ?, ?, NOW(3), NOW(3))
-       ON DUPLICATE KEY UPDATE similarityThreshold = VALUES(similarityThreshold), updatedAt = NOW(3)`,
+       VALUES (UUID(), ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
+       ON DUPLICATE KEY UPDATE similarityThreshold = VALUES(similarityThreshold), updatedAt = UTC_TIMESTAMP(3)`,
       user.id, similarityThreshold,
     );
     return { similarityThreshold };
@@ -443,7 +443,7 @@ export class QuestionsService {
       await this.prisma.$executeRawUnsafe(
         `
         INSERT INTO question_versions (id, questionId, versionNo, stem, payload, answerKey, explanation, difficulty, points, metadata, aiGenerated, createdBy, createdAt)
-        VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 0, ?, NOW(3))
+        VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 0, ?, UTC_TIMESTAMP(3))
         `,
         versionId,
         created.id,
@@ -1141,7 +1141,7 @@ export class QuestionsService {
     await this.prisma.$executeRawUnsafe(
       `
       INSERT INTO question_drafts (id, questionId, creatorId, mode, currentStep, autosaveVersion, state, validation, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, 'INTENT', 1, ?, NULL, NOW(3), NOW(3))
+      VALUES (?, ?, ?, ?, 'INTENT', 1, ?, NULL, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
       `,
       draftId,
       linkedQuestionId,
@@ -1179,7 +1179,7 @@ export class QuestionsService {
     await this.prisma.$executeRawUnsafe(
       `
       UPDATE question_drafts
-      SET state = ?, autosaveVersion = ?, currentStep = ?, updatedAt = NOW(3)
+      SET state = ?, autosaveVersion = ?, currentStep = ?, updatedAt = UTC_TIMESTAMP(3)
       WHERE id = ?
       `,
       JSON.stringify(nextState),
@@ -1301,7 +1301,7 @@ export class QuestionsService {
 
     const nextVersion = draft.autosaveVersion + 1;
     await this.prisma.$executeRawUnsafe(
-      `UPDATE question_drafts SET state = ?, autosaveVersion = ?, updatedAt = NOW(3) WHERE id = ?`,
+      `UPDATE question_drafts SET state = ?, autosaveVersion = ?, updatedAt = UTC_TIMESTAMP(3) WHERE id = ?`,
       JSON.stringify(nextState),
       nextVersion,
       draftId,
@@ -1383,7 +1383,7 @@ export class QuestionsService {
     };
 
     await this.prisma.$executeRawUnsafe(
-      `UPDATE question_drafts SET validation = ?, updatedAt = NOW(3) WHERE id = ?`,
+      `UPDATE question_drafts SET validation = ?, updatedAt = UTC_TIMESTAMP(3) WHERE id = ?`,
       JSON.stringify(validationResult),
       draftId,
     );
@@ -1675,7 +1675,7 @@ export class QuestionsService {
     }
 
     await this.prisma.$executeRawUnsafe(
-      `INSERT INTO topics (id, code, name, createdAt) VALUES (UUID(), ?, ?, NOW(3)) ON DUPLICATE KEY UPDATE name = VALUES(name)`,
+      `INSERT INTO topics (id, code, name, createdAt) VALUES (UUID(), ?, ?, UTC_TIMESTAMP(3)) ON DUPLICATE KEY UPDATE name = VALUES(name)`,
       code,
       name,
     );
@@ -1985,7 +1985,7 @@ export class QuestionsService {
     await this.prisma.$executeRawUnsafe(
       `
       INSERT INTO question_versions (id, questionId, versionNo, stem, payload, answerKey, explanation, difficulty, points, metadata, aiGenerated, createdBy, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))
       `,
       versionId,
       questionId,
@@ -2024,14 +2024,14 @@ export class QuestionsService {
 
       if (hasStatus && hasReusable) {
         await this.prisma.$executeRawUnsafe(
-          `UPDATE questions SET latestVersionNo = ?, status = ?, isReusable = 1, updatedAt = NOW(3) WHERE id = ?`,
+          `UPDATE questions SET latestVersionNo = ?, status = ?, isReusable = 1, updatedAt = UTC_TIMESTAMP(3) WHERE id = ?`,
           versionNo,
           status,
           questionId,
         );
       } else {
         await this.prisma.$executeRawUnsafe(
-          `UPDATE questions SET latestVersionNo = ?, updatedAt = NOW(3) WHERE id = ?`,
+          `UPDATE questions SET latestVersionNo = ?, updatedAt = UTC_TIMESTAMP(3) WHERE id = ?`,
           versionNo,
           questionId,
         );
@@ -2041,7 +2041,7 @@ export class QuestionsService {
     await this.prisma.$executeRawUnsafe(
       `
       UPDATE question_drafts
-      SET questionId = ?, currentStep = 'REVIEW', autosaveVersion = autosaveVersion + 1, updatedAt = NOW(3)
+      SET questionId = ?, currentStep = 'REVIEW', autosaveVersion = autosaveVersion + 1, updatedAt = UTC_TIMESTAMP(3)
       WHERE id = ?
       `,
       questionId,

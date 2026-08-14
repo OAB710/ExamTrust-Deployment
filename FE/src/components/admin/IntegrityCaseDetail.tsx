@@ -119,20 +119,6 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
     behavior: 'Phát hiện hành vi',
   }[type] ?? 'Tín hiệu cần xem xét');
 
-  const translateEvidence = (value: string) => ({
-    'Integrity event recorded': 'Đã ghi nhận sự kiện toàn vẹn',
-    'events recorded': 'sự kiện đã được ghi nhận',
-    'Fullscreen exit detected': 'Đã thoát chế độ toàn màn hình',
-    'Tab switch detected': 'Đã chuyển sang tab khác',
-    'Window focus lost': 'Cửa sổ làm bài mất tiêu điểm',
-    'Window focus returned': 'Cửa sổ làm bài lấy lại tiêu điểm',
-    'Copy event detected': 'Đã ghi nhận thao tác sao chép',
-    'Paste event detected': 'Đã ghi nhận thao tác dán',
-    'Mouse anomaly recorded': 'Đã ghi nhận bất thường chuột',
-    'Mouse idle anomaly recorded': 'Đã ghi nhận chuột không hoạt động bất thường',
-    'Face not detected': 'Không phát hiện khuôn mặt',
-  }[value] ?? value);
-
   const getSeverityPresentation = (severity: IntegrityTimelineEvent['severity']) => {
     if (severity === 'critical') {
       return {
@@ -293,16 +279,38 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
     setSelectedEvidenceId(evidenceCaptures[0].id);
   }, [evidenceCaptures, selectedEvidenceId]);
 
+  // Single source of truth for the note textarea. Previously this was only
+  // set from the thumbnail's own onClick handler, so the auto-selected first
+  // capture (above) and the "Xem bằng chứng" jump-to-evidence button (further
+  // down) both left it blank — the saved note only appeared after manually
+  // re-clicking the same thumbnail, making it look unsaved on first load.
+  useEffect(() => {
+    setEvidenceReviewNote(selectedEvidence?.reviewerNote || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEvidenceId]);
+
   const reviewEvidence = async (reviewStatus: 'REVIEWED' | 'DISMISSED') => {
     if (!submission.submissionId || !selectedEvidence) return;
+    // A webcam shot and its paired screen shot are two captures for the SAME
+    // triggering event (same evidenceGroups bucket the thumbnail list already
+    // shows them under) — reviewing just the one currently open left its pair
+    // permanently "chưa rà soát", forcing the lecturer to open and re-mark
+    // each half of every pair separately. Apply the same status/note to the
+    // whole group instead.
+    const group = evidenceGroups.find((g) => g.some((capture) => capture.id === selectedEvidence.id)) || [selectedEvidence];
     setEvidenceReviewLoading(true);
     try {
-      const updated = await api.reviewEvidenceCapture(submission.submissionId, selectedEvidence.id, {
-        reviewStatus,
-        reviewerNote: evidenceReviewNote.trim() || undefined,
-      });
-      setEvidenceCaptures((current) => current.map((capture) => capture.id === updated.id ? { ...capture, ...updated } : capture));
-      toast.success(reviewStatus === 'REVIEWED' ? 'Đã đánh dấu bằng chứng là đã rà soát.' : 'Đã bỏ qua bằng chứng này.');
+      const reviewerNote = evidenceReviewNote.trim() || undefined;
+      const updates = await Promise.all(
+        group.map((capture) =>
+          api.reviewEvidenceCapture(submission.submissionId as string, capture.id, { reviewStatus, reviewerNote }),
+        ),
+      );
+      setEvidenceCaptures((current) => current.map((capture) => {
+        const updated = updates.find((item) => item.id === capture.id);
+        return updated ? { ...capture, ...updated } : capture;
+      }));
+      toast.success(reviewStatus === 'REVIEWED' ? 'Đã đánh dấu bằng chứng (webcam + màn hình) là đã rà soát.' : 'Đã bỏ qua bằng chứng này (webcam + màn hình).');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Không thể cập nhật trạng thái rà soát.');
     } finally {
@@ -401,13 +409,13 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-semibold text-foreground">
-                  Rà soát vụ việc toàn vẹn
+                  Rà soát toàn vẹn
                 </h1>
                 <StatusBadge
                   status={submission.confidence}
                   domain="confidence"
                 >
-                  Độ tin cậy {getConfidenceLabel(submission.confidence)}
+                  Mức tín hiệu {getConfidenceLabel(submission.confidence)}
                 </StatusBadge>
               </div>
               <p className="text-muted-foreground mt-1">
@@ -518,7 +526,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                             {getReasonLabel(reason.type)}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {translateEvidence(reason.description)}
+                            {reason.description}
                           </p>
                         </div>
                       </div>
@@ -536,7 +544,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                           <p className="text-xs text-muted-foreground uppercase font-medium mb-1">
                             Bằng chứng
                           </p>
-                          <p className="text-sm text-foreground">{translateEvidence(reason.evidence)}</p>
+                          <p className="text-sm text-foreground">{reason.evidence}</p>
                         </div>
                       </>
                     )}
@@ -565,13 +573,13 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                         return (
                         <div key={event.id} className={`rounded-md px-3 py-2 ${severity.rowClassName}`}>
                           <div className="flex items-start justify-between gap-3">
-                            <p className="text-sm font-medium text-foreground">{translateEvidence(event.description)}</p>
+                            <p className="text-sm font-medium text-foreground">{event.description}</p>
                             <div className="flex shrink-0 items-center gap-2">
                               <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${severity.badgeClassName}`}>{severity.label}</span>
                               <time className="text-xs text-muted-foreground">{formatEventTime(event.timestamp)}</time>
                             </div>
                           </div>
-                          {event.detail ? <p className="mt-1 text-xs text-muted-foreground">{translateEvidence(event.detail)}</p> : null}
+                          {event.detail ? <p className="mt-1 text-xs text-muted-foreground">{event.detail}</p> : null}
                           {evidence ? (
                             <Button
                               className="mt-2 h-7 gap-1.5"
@@ -664,7 +672,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                                     <button
                                       key={capture.id}
                                       type="button"
-                                      onClick={() => { setSelectedEvidenceId(capture.id); setEvidenceReviewNote(capture.reviewerNote || ''); }}
+                                      onClick={() => setSelectedEvidenceId(capture.id)}
                                       className={`relative aspect-video overflow-hidden rounded-md border ${isSelected ? 'ring-2 ring-primary' : 'hover:opacity-90'}`}
                                     >
                                       {url ? (

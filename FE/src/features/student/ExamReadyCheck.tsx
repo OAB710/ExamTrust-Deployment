@@ -42,6 +42,8 @@ export default function ExamReadyCheck() {
   const searchParams = useSearchParams();
   const examId = searchParams.get("examId") || undefined;
 
+  const [totalQuestions, setTotalQuestions] = useState<number | null>(null);
+
   const examInfo = {
     title: searchParams.get("title")
       ? decodeURIComponent(searchParams.get("title")!)
@@ -52,7 +54,11 @@ export default function ExamReadyCheck() {
     duration: searchParams.get("duration")
       ? Number(searchParams.get("duration"))
       : defaultExamInfo.duration,
-    totalQuestions: defaultExamInfo.totalQuestions,
+    // Was hard-coded to the demo default (45) for every exam regardless of
+    // its real question count — now filled in from the actual exam once
+    // loaded below (examId is always present for a real exam attempt; the
+    // demo fallback only applies to the no-examId practice route).
+    totalQuestions: examId ? (totalQuestions ?? "…") : defaultExamInfo.totalQuestions,
     sessionId: searchParams.get("examId")
       ? `EXM-2026-${searchParams.get("examId")}`
       : defaultExamInfo.sessionId,
@@ -115,6 +121,7 @@ export default function ExamReadyCheck() {
       const enabled = settings.proctoringEnabled === undefined ? Boolean(settings.requiresProctoring) : Boolean(settings.proctoringEnabled);
       setProctoringEnabled(enabled);
       setWebcamPolicy(settings.webcamEvidencePolicy || null);
+      setTotalQuestions(Array.isArray(exam?.examQuestions) ? exam.examQuestions.length : 0);
       setWebcamReady(false);
       setDeviceBlocked(enabled && /android|iphone|ipad|ipod|mobile|tablet|silk|kindle/i.test(navigator.userAgent || ""));
     }).catch(() => {

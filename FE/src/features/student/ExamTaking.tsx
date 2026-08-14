@@ -29,6 +29,7 @@ import {
 import { api } from "@/lib/api";
 import { takePendingWebcamStream, takePendingScreenStream, hasPendingScreenStream } from "@/lib/exam-proctoring-handoff";
 import { ExamSecurityModal } from "../../components/common/ExamSecurityModal";
+import { LiveClock } from "../../components/common/LiveClock";
 import {
   useExamSecurity,
   type ExamSecurityState,
@@ -365,9 +366,20 @@ export default function ExamTaking() {
       ts: Date.now(),
       clientEventId,
     };
-    log(type, detail);
     const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
-    if (!activeSubmissionId) return undefined;
+    if (!activeSubmissionId) {
+      // No submission to send to yet — fall back to the local log queue so
+      // the event isn't silently dropped; it still goes out with the final
+      // submit payload. Once a submission exists, log() is NOT also called
+      // below: doing so used to double-persist every violation, since
+      // logRef entries carry no clientEventId and submitExam's own log
+      // insert has no dedup — every tab_switch/fullscreen_exit ended up as
+      // two identical rows (one from this live send, one replayed at
+      // submit), inflating tabSwitchCount/mouseAnomalies and the integrity
+      // "Mức tín hiệu" bucket derived from them.
+      log(type, detail);
+      return undefined;
+    }
     pendingIntegrityEventsRef.current.set(event.clientEventId, event);
     try {
       const response = await api.sendExamLogs(activeSubmissionId, [event]);
@@ -930,6 +942,9 @@ export default function ExamTaking() {
     canFullscreen,
     isFullscreenExitPending,
     isFirstFullscreenWarning,
+    firstViolationAvailable,
+    firstViolationNotice,
+    dismissFirstViolationNotice,
     exitFullscreenAfterConfirmation,
   } = useExamSecurity({
     // Preview still enforces fullscreen when explicitly requested, but it is a
@@ -990,12 +1005,15 @@ export default function ExamTaking() {
       setFullscreenCountdown(remaining);
       if (remaining === 0) {
         window.clearInterval(id);
-        if (isSecurityBlocked) doSubmitRef.current();
+        // The free first-violation notice (isFirstFullscreenWarning) is
+        // "chưa tính vi phạm" by definition — it must never risk auto-submit
+        // just because the student took >15s to read it and click through.
+        if (isSecurityBlocked && !isFirstFullscreenWarning) doSubmitRef.current();
       }
     }, 200);
 
     return () => window.clearInterval(id);
-  }, [isPreviewMode, isSecurityBlocked, isFullscreenExitPending, isSubmitting]);
+  }, [isPreviewMode, isSecurityBlocked, isFullscreenExitPending, isFirstFullscreenWarning, isSubmitting]);
 
   useEffect(() => {
     if (isPreviewMode) return;
@@ -1065,7 +1083,12 @@ export default function ExamTaking() {
 
   const isRecoveringWebcam = webcamPolicy?.enabled && examSessionStatus === "IN_PROGRESS";
   const isRecoveringScreenShare = screenCaptureRequired && examSessionStatus === "IN_PROGRESS";
-  const displayedViolationCount = violationCount + (isFullscreenExitPending ? 1 : 0);
+  // Only forecast +1 while a fullscreen-exit grace window is pending if the
+  // free first-violation pass is already spent — otherwise this pending exit
+  // may still resolve as the forgiven first one, and showing "1 tín hiệu"
+  // before that's decided falsely told students their very first F11 had
+  // already been counted.
+  const displayedViolationCount = violationCount + (isFullscreenExitPending && !firstViolationAvailable ? 1 : 0);
 
   const isTimeLow = timeLeft < 300;
   const answeredCount = questions.filter((q) => isAnswered(q, answers)).length;
@@ -1319,6 +1342,9 @@ export default function ExamTaking() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <span className="hidden items-center gap-1 text-sm text-muted-foreground sm:inline-flex" title="Giờ hiện tại">
+            Giờ: <LiveClock />
+          </span>
           <div
             aria-label="Thời gian còn lại"
             className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-mono text-sm font-semibold ${
@@ -1361,6 +1387,10 @@ export default function ExamTaking() {
         lastViolation={lastViolation}
         canFullscreen={canFullscreen}
         onReturnToExam={returnToExam}
+        firstViolationNotice={firstViolationNotice}
+        onDismissFirstViolationNotice={dismissFirstViolationNotice}
+        examTimeLabel={formatTime(timeLeft)}
+        examTimeLow={isTimeLow}
       />
 
       <Dialog

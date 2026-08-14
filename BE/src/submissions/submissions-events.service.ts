@@ -16,9 +16,11 @@ export class SubmissionsEventsService {
     id: string;
     submissionId: string;
     eventType: string;
+    label: string;
     details?: string;
     timestamp: string;
     severity: 'low' | 'medium' | 'high';
+    attemptNo?: number | null;
     student: {
       id?: string;
       fullName?: string;

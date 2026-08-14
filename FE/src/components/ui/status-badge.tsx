@@ -177,6 +177,14 @@ function renderBadgeContent(content: React.ReactNode): React.ReactNode {
   }
 
   if (Array.isArray(content)) {
+    // JSX like `Độ tin cậy {label}` compiles to two sibling string children:
+    // ["Độ tin cậy ", "Cao"]. Formatting each independently trims the
+    // trailing space off the first and glues them together with no
+    // separator ("Độ tin cậyCao"). When every child is a plain string, join
+    // them back into one string first so only the outer ends get trimmed.
+    if (content.every((item) => typeof item === "string")) {
+      return formatBadgeText((content as string[]).join(""));
+    }
     return content.map((item, index) => (
       <React.Fragment key={index}>{renderBadgeContent(item)}</React.Fragment>
     ));
