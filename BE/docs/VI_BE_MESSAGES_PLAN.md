@@ -352,5 +352,4 @@ Tests:       53 passed, 53 total
 
 ## Ghi chú phạm vi
 
-- Mailer (`BE/src/mailer`) không có template cố định trong code — subject/nội dung email được truyền vào từ nơi gọi (do FE/service khác quyết định nội dung), nên không nằm trong phạm vi Part nào ở trên. Nếu sau này phát hiện nơi gọi có nội dung email tiếng Anh cố định, khảo sát bổ sung riêng.
 - `audit`, `cache`, `events`, `queue`, `redis`, `lecturer-dashboard` gần như không có message hướng người dùng — không tạo Part riêng, chỉ rà soát nhanh trong Part 9.

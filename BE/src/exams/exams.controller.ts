@@ -13,10 +13,7 @@ import {
 import { ExamsService } from './exams.service';
 import { ExamQualityReviewService } from './exam-quality-review.service';
 import { AccessPolicyService } from '../common/services/access-policy.service';
-import { MailerService } from '../mailer/mailer.service';
-import { EnrollmentsService } from '../enrollments/enrollments.service';
-import { IsArray, IsEmail, IsOptional } from 'class-validator';
-import { CreateExamDto, UpdateExamDto, AddQuestionsToExamDto, UpdateExamQuestionDto, ShareExamDto, RescheduleExamDto } from './dto/exam.dto';
+import { CreateExamDto, UpdateExamDto, AddQuestionsToExamDto, UpdateExamQuestionDto, RescheduleExamDto } from './dto/exam.dto';
 import { ReviewQualitySuggestionDto } from './dto/exam-quality-review.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -32,46 +29,8 @@ export class ExamsController {
   constructor(
     private readonly examsService: ExamsService,
     private readonly qualityReviewService: ExamQualityReviewService,
-    private readonly mailerService: MailerService,
-    private readonly enrollmentsService: EnrollmentsService,
     private readonly accessPolicy: AccessPolicyService,
   ) {}
-
-  @Post(':id/share')
-  @UseGuards(RolesGuard)
-  @Roles('LECTURER', 'ADMIN')
-  async shareExam(@Param('id') id: string, @Body() body: ShareExamDto | any, @Request() req) {
-    await this.accessPolicy.assertInstructorCanAccessExam(id, req.user);
-    let emails: string[] = (body?.emails && Array.isArray(body.emails)) ? body.emails : (body?.email ? [body.email] : []);
-    const sendToCourse = !!body?.sendToCourse;
-
-    // Resolve exam to include title and course
-    const exam = await this.examsService.findOne(id);
-    const frontend = process.env.FRONTEND_URL || process.env.APP_BASE_URL || 'http://localhost:3000';
-    const link = `${frontend}/student/exam-ready?examId=${id}`;
-    const subject = `Thư mời tham gia bài thi: ${exam?.title || 'Bài thi'}`;
-    const html = `<p>Bạn được mời tham gia bài thi <strong>${exam?.title || 'Bài thi'}</strong>.</p>
-      <p>Nhấn để tham gia: <a href="${link}">${link}</a></p>`;
-
-    // If sendToCourse, fetch enrolled students for the exam's course
-    if (sendToCourse) {
-      const courseId = exam?.course?.id || (exam as any)?.courseId;
-      if (courseId) {
-        const enrollments = await this.enrollmentsService.findByCourse(courseId, req.user);
-        const studentEmails = (enrollments || [])
-          .map((enr: any) => enr?.student?.email)
-          .filter((e: any) => !!e);
-        emails = Array.from(new Set([...(emails || []), ...studentEmails]));
-      }
-    }
-
-    if (!emails || emails.length === 0) {
-      return { success: false, message: 'Chưa có người nhận nào được cung cấp' };
-    }
-
-    await this.mailerService.sendExamLink(emails, subject, html);
-    return { success: true };
-  }
 
   @Post()
   @UseGuards(RolesGuard)

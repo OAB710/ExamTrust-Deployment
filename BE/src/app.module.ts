@@ -9,7 +9,6 @@ import { ExamsModule } from './exams/exams.module';
 import { SubmissionsModule } from './submissions/submissions.module';
 import { AiModule } from './ai/ai.module';
 import { ExamLinksModule } from './exam-links/exam-links.module';
-import { MailerModule } from './mailer/mailer.module';
 import { QuestionsContractsModule } from './questions-v2/questions-v2-contracts.module';
 import { SharedRedisModule } from './redis/redis.module';
 import { QueueModule } from './queue/queue.module';
@@ -37,7 +36,6 @@ import { MediaModule } from './media/media.module';
     CoursesModule,
     EnrollmentsModule,
     ExamsModule,
-    MailerModule,
     SubmissionsModule,
     AiModule,
     ExamLinksModule,

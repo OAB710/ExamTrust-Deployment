@@ -12,11 +12,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { Share2, QrCode } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   Card,
@@ -36,6 +31,7 @@ import {
   ArrowLeft,
   BarChart3,
   CheckCircle2,
+  QrCode,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -183,10 +179,6 @@ export default function ExamPreview() {
     : "/lecturer";
   const [exam, setExam] = useState<ExamData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showShareDialog, setShowShareDialog] = useState(false);
-  const [shareEmails, setShareEmails] = useState("");
-  const [isSharing, setIsSharing] = useState(false);
-  const [sendToCourse, setSendToCourse] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
 
   useEffect(() => {
@@ -230,35 +222,6 @@ export default function ExamPreview() {
       isEnded: now > end.getTime(),
     };
   }, [exam]);
-
-  const handleShare = async () => {
-    if (!exam) return;
-    const raw = (shareEmails || "").trim();
-    if (!raw) {
-      toast.error("Vui lòng nhập email người nhận");
-      return;
-    }
-    const emails = raw
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!emails.length) {
-      toast.error("Vui lòng nhập địa chỉ email hợp lệ");
-      return;
-    }
-    try {
-      setIsSharing(true);
-      await api.shareExam(exam.id, emails, sendToCourse);
-      toast.success("Đã gửi liên kết bài thi");
-      setShowShareDialog(false);
-      setShareEmails("");
-      setSendToCourse(false);
-    } catch (err: any) {
-      toast.error(err?.message || "Không thể gửi liên kết bài thi");
-    } finally {
-      setIsSharing(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -309,14 +272,6 @@ export default function ExamPreview() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setShowShareDialog(true)}
-            >
-              <Share2 className="h-4 w-4 mr-1" />
-              Chia sẻ
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
               onClick={() => setShowQRDialog(true)}
             >
               <QrCode className="h-4 w-4 mr-1" />
@@ -336,58 +291,6 @@ export default function ExamPreview() {
             )}
           </div>
         </div>
-
-        {/* Share dialog */}
-        <Dialog
-          open={showShareDialog}
-          onOpenChange={(open) => setShowShareDialog(open)}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Chia sẻ liên kết bài thi</DialogTitle>
-              <DialogDescription>
-                Nhập địa chỉ email người nhận (phân tách bằng dấu phẩy)
-              </DialogDescription>
-            </DialogHeader>
-            <div className="mt-4">
-              <Label htmlFor="share-emails">Email</Label>
-              <Input
-                id="share-emails"
-                placeholder="giaovien@example.com, phuhuynh@example.com"
-                value={shareEmails}
-                onChange={(e) => setShareEmails(e.target.value)}
-              />
-            </div>
-            <div className="mt-3 flex items-start gap-2">
-              <Checkbox
-                checked={sendToCourse}
-                onCheckedChange={(v: any) => setSendToCourse(!!v)}
-              />
-              <div>
-                <p className="text-sm font-medium">
-                  Gửi cho tất cả sinh viên đã đăng ký khóa học này
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Thêm tất cả sinh viên đã đăng ký làm người nhận, ngoài các
-                  địa chỉ ở trên.
-                </p>
-              </div>
-            </div>
-            <DialogFooter className="mt-4">
-              <div className="flex gap-2 justify-end w-full">
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowShareDialog(false)}
-                >
-                  Hủy
-                </Button>
-                <Button onClick={handleShare} disabled={isSharing}>
-                  {isSharing ? "Đang gửi..." : "Gửi"}
-                </Button>
-              </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* QR dialog */}
         <Dialog
