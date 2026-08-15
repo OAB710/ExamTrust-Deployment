@@ -171,8 +171,8 @@ export default function ExamManagement() {
   };
 
   useEffect(() => {
-    fetchExams();
-  }, [appliedFilters, appliedSearch, sortField, sortOrder, page]);
+    void fetchExams();
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 30_000);
@@ -184,11 +184,10 @@ export default function ExamManagement() {
       setLoading(true);
       const [examData, courseData] = await Promise.all([
         api.getExams({
-          status: typeof appliedFilters.status === 'string' && appliedFilters.status !== 'all' ? appliedFilters.status : undefined,
-          courseId: typeof appliedFilters.courseId === 'string' && appliedFilters.courseId !== 'all' ? appliedFilters.courseId : undefined,
-          search: appliedSearch || undefined,
-          sort: sortField === 'course.code' ? 'title' : sortField,
-          page,
+          // This screen filters, sorts, and paginates the complete lecturer
+          // dataset locally. Always fetch the first backend page so changing
+          // the UI page never skips another 500-record backend page.
+          page: 1,
           limit: 500, // Fetch all exams for client-side pagination
         }),
         api.getMyCourses(),

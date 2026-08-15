@@ -1138,8 +1138,10 @@ Rules:
           normalizedCandidate.includes(normalizedTopic) ||
           normalizedTopic.includes(normalizedCandidate)
         ) {
-          score = 0.92;
-          relation = 'OVERLAP';
+          // Lexical matching cannot safely infer academic containment. Keep
+          // the signal conservative and explicitly identify it as lexical.
+          score = 0.75;
+          relation = 'RELATED';
         } else {
           const candidateTokens = new Set(normalizedCandidate.split(' '));
           const topicTokens = new Set(normalizedTopic.split(' '));
@@ -1154,7 +1156,7 @@ Rules:
 
         return { id: candidate.id, name: candidate.name, score, relation, matchMethod: 'LEXICAL' as const };
       })
-      .filter((item) => item.score > 0)
+      .filter((item) => item.score > 0 && item.relation !== 'DISTINCT')
       .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
       .slice(0, 5)
       .map((item) => ({
@@ -1163,7 +1165,7 @@ Rules:
         score: Number(item.score.toFixed(2)),
         relation: item.relation,
         matchMethod: item.matchMethod,
-        reason: 'Độ tương đồng ước lượng dựa trên nội dung tên chủ đề',
+        reason: 'So khớp từ khóa theo tên chủ đề; cần giảng viên rà soát phạm vi học thuật.',
       }));
 
     const prompt = `${buildExamTrustPromptHeader({
@@ -1192,9 +1194,23 @@ Description: ${params.topicDescription || 'not provided'}
 EXISTING TOPICS
 ${existingTopics.map((item, index) => `${index + 1}. ${item.name}`).join('\n')}
 
-Evaluate the proposed topic within the academic scope of the course. Do not decide similarity based only on shared words.
-Distinguish DUPLICATE, SAME_CONCEPT, PARENT_OF, CHILD_OF, OVERLAP, RELATED, and DISTINCT.
-A parent topic and a child topic are not automatically duplicates. Different wording can still be the same academic concept.
+You are classifying the relationship of EACH EXISTING TOPIC relative to the PROPOSED TOPIC. The relation direction is fixed: EXISTING → PROPOSED. Never reverse it and never infer a relation merely from matching words.
+
+Use this rubric in order for every candidate:
+1. Interpret the course context and use it as the semantic boundary. The same term can mean different things in another course.
+2. Identify each topic's core academic concept.
+3. Identify each topic's scope: concepts, methods, entities, and learning coverage.
+4. Test whether either scope contains the other.
+5. Then assign exactly one relation:
+   - DUPLICATE: same topic name or the same scope and concept.
+   - SAME_CONCEPT: different names but the same core academic concept and substantially the same scope.
+   - PARENT_OF: the EXISTING topic is broader and contains the PROPOSED topic.
+   - CHILD_OF: the EXISTING topic is narrower and is contained by the PROPOSED topic.
+   - OVERLAP: scopes share a meaningful part but neither contains the other.
+   - RELATED: academically related but scopes are separate.
+   - DISTINCT: no meaningful relation in this course context.
+
+Parent/child topics are not duplicates. Different wording can still be SAME_CONCEPT. Score is confidence in this classification, NOT keyword-overlap percentage.
 
 Return ONLY JSON in this exact structure:
 {
@@ -1209,9 +1225,10 @@ Return ONLY JSON in this exact structure:
 }
 
 Rules:
-- Include DISTINCT only when it explains an ambiguous shared-keyword topic; otherwise omit unrelated topics.
+- When language is "vi", write every reason in Vietnamese.
+- Do not return ordinary DISTINCT topics to fill the list. Zero matches is valid.
 - Sort from most similar to least similar.
-- Score must be a number between 0 and 1.
+- Score must be classification confidence between 0 and 1, not lexical similarity.
 - Do not give a parent/child relation a near-duplicate score merely because it shares words.
 - Return at most 5 matches.
 - If nothing is similar, return an empty matches array.`;
@@ -1267,7 +1284,9 @@ Rules:
           matchMethod: 'AI' as const,
           reason: String(item?.reason || 'AI xác nhận tương đồng').trim(),
         }))
-        .filter((item: any) => item.name)
+        // Only return candidates supplied by the course query; hallucinated
+        // topics and ordinary DISTINCT results must never reach the UI.
+        .filter((item: any) => item.name && item.relation !== 'DISTINCT')
         .sort((a: any, b: any) => b.score - a.score || a.name.localeCompare(b.name))
         .slice(0, 5);
 

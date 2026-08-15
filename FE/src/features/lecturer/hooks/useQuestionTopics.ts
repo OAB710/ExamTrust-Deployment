@@ -20,12 +20,12 @@ const normalize = (value: string) => String(value || "")
   .replace(/\s+/g, " ")
   .trim();
 
-const relationLabel: Record<TopicRelation, string> = {
-  DUPLICATE: "Trùng nội dung",
+export const topicRelationLabel: Record<TopicRelation, string> = {
+  DUPLICATE: "Trùng chủ đề",
   SAME_CONCEPT: "Cùng khái niệm",
-  PARENT_OF: "Topic cha",
-  CHILD_OF: "Topic con",
-  OVERLAP: "Có phần giao nhau",
+  PARENT_OF: "Rộng hơn chủ đề mới",
+  CHILD_OF: "Hẹp hơn chủ đề mới",
+  OVERLAP: "Giao nhau một phần",
   RELATED: "Có liên quan",
   DISTINCT: "Khác biệt",
 };
@@ -34,6 +34,7 @@ export function useQuestionTopics({ courseId, selectedTopicId, onSelectTopic }: 
   const [availableTopics, setAvailableTopics] = useState<TopicOption[]>([]);
   const [showTopicDialog, setShowTopicDialog] = useState(false);
   const [newTopicName, setNewTopicName] = useState("");
+  const [topicDescription, setTopicDescription] = useState("");
   const [topicSearch, setTopicSearch] = useState("");
   const [topicSuggestions, setTopicSuggestions] = useState<TopicSuggestion[]>([]);
   const [checkingTopicSimilarity, setCheckingTopicSimilarity] = useState(false);
@@ -60,11 +61,12 @@ export function useQuestionTopics({ courseId, selectedTopicId, onSelectTopic }: 
   useEffect(() => {
     setTopicSuggestions([]);
     setTopicCheckMessage("");
-  }, [newTopicName]);
+  }, [newTopicName, topicDescription]);
 
   const closeTopicDialog = () => {
     setShowTopicDialog(false);
     setNewTopicName("");
+    setTopicDescription("");
     setTopicSearch("");
     setTopicSuggestions([]);
     setTopicCheckMessage("");
@@ -104,22 +106,24 @@ export function useQuestionTopics({ courseId, selectedTopicId, onSelectTopic }: 
       const response = await api.suggestSimilarTopics({
         courseId,
         topicName: query,
+        topicDescription: topicDescription.trim() || undefined,
         language: "vi",
       });
-      const ranked = (response?.matches || []).map((item: any): TopicSuggestion => {
+      const ranked = (response?.matches || []).map((item: any): TopicSuggestion | null => {
         const relation = String(item.relation || "RELATED").toUpperCase() as TopicRelation;
         const matchingTopic = availableTopics.find((topic) =>
           normalize(topic.name) === normalize(item.name) || normalize(topic.code) === normalize(item.name));
+        if (!matchingTopic || relation === "DISTINCT") return null;
         return {
-          id: matchingTopic?.id || String(item.name || item.code || crypto.randomUUID()),
-          code: matchingTopic?.code || String(item.code || item.name || ""),
-          name: matchingTopic?.name || String(item.name || item.code || ""),
+          id: matchingTopic.id,
+          code: matchingTopic.code,
+          name: matchingTopic.name,
           score: Number(item.score ?? 0),
           relation,
-          reason: `${relationLabel[relation] || relationLabel.RELATED}${item.reason ? ` — ${String(item.reason)}` : ""}`,
+          reason: `${topicRelationLabel[relation] || topicRelationLabel.RELATED}${item.reason ? ` — ${String(item.reason)}` : ""}`,
           matchMethod: item.matchMethod === "LEXICAL" ? "LEXICAL" : "AI",
         };
-      }).filter((topic: TopicSuggestion) => topic.name).slice(0, 5);
+      }).filter((topic: TopicSuggestion | null): topic is TopicSuggestion => Boolean(topic)).slice(0, 5);
       setTopicSuggestions(ranked);
       const message = ranked.length
         ? `Tìm thấy ${ranked.length} chủ đề tương tự.`
@@ -150,7 +154,7 @@ export function useQuestionTopics({ courseId, selectedTopicId, onSelectTopic }: 
   }, [availableTopics, topicSearch]);
 
   return {
-    availableTopics, showTopicDialog, setShowTopicDialog, newTopicName, setNewTopicName,
+    availableTopics, showTopicDialog, setShowTopicDialog, newTopicName, setNewTopicName, topicDescription, setTopicDescription,
     topicSearch, setTopicSearch, topicSuggestions, checkingTopicSimilarity, topicCheckMessage,
     creatingTopic, filteredTopics, closeTopicDialog, selectTopic, createTopic, checkSimilarTopics,
     selectedTopicId,

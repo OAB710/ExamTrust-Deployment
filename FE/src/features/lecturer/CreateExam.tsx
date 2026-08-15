@@ -3021,6 +3021,7 @@ export default function CreateExam() {
         open={manualTopics.showTopicDialog}
         selectedTopicId={manualTopicId}
         newTopicName={manualTopics.newTopicName}
+        topicDescription={manualTopics.topicDescription}
         topicSearch={manualTopics.topicSearch}
         topics={manualTopics.filteredTopics}
         suggestions={manualTopics.topicSuggestions}
@@ -3028,6 +3029,7 @@ export default function CreateExam() {
         creatingTopic={manualTopics.creatingTopic}
         checkMessage={manualTopics.topicCheckMessage}
         onNewTopicNameChange={manualTopics.setNewTopicName}
+        onTopicDescriptionChange={manualTopics.setTopicDescription}
         onTopicSearchChange={manualTopics.setTopicSearch}
         onClose={manualTopics.closeTopicDialog}
         onSelect={manualTopics.selectTopic}

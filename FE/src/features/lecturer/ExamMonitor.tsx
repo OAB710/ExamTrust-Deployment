@@ -153,6 +153,7 @@ interface IntegrityAlert {
     | "camera"
     | "copy_paste"
     | "mouse"
+    | "timing"
     | "other";
   label: string;
   message: string;
@@ -558,9 +559,11 @@ export default function ExamMonitor() {
           submissionId: session.submissionId,
           studentName: session.name,
           type: "timing",
+          label: "Hoàn thành nhanh bất thường",
           message: `Hoàn thành ${timing.elapsedMinutes}/${timing.allowedMinutes} phút · ${timing.scorePct.toFixed(1)} điểm · nhanh hơn ${((1 - timing.completionRatio) * 100).toFixed(1)}% thời lượng cho phép. Cần giảng viên rà soát.`,
           severity: timing.severity === "HIGH" ? "critical" : "warning",
           time: session.submittedAt || "Đã nộp",
+          timestampMs: session.submittedAt ? new Date(session.submittedAt).getTime() : Date.now(),
         });
       }
       setAlerts((prev) => mergeIntegrityAlerts(prev, mappedAlerts));

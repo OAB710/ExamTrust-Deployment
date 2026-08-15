@@ -140,6 +140,13 @@ const buildContextLines = (context?: ExamTrustAiContext): string[] => {
 
 export function buildExamTrustPromptHeader(params: ExamTrustAiPromptParams): string {
   const { appName, useCase, language, questionType, questionCount, context } = params;
+  const topicMatchingRules = useCase === 'topic_matching'
+    ? [
+      '- For topic matching, evaluate every existing topic relative to the proposed topic; preserve that direction.',
+      '- Use the course context as the semantic boundary, not keyword overlap alone.',
+      '- Treat every relation and score as lecturer-review evidence, never as an automatic taxonomy change.',
+    ]
+    : [];
   const useCaseLabel: Record<ExamTrustAiUseCase, string> = {
     question_generation: 'question generation',
     exam_generation: 'exam generation',
@@ -164,6 +171,7 @@ export function buildExamTrustPromptHeader(params: ExamTrustAiPromptParams): str
     '- Do not change source data or claim to verify cheating.',
     '- If information is missing, keep the suggestion conservative.',
     '- Return only the requested JSON object when the task asks for structured output.',
+    ...topicMatchingRules,
   ].filter(Boolean);
 
   const contextLines = buildContextLines(context);
