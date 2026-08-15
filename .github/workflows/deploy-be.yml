@@ -30,7 +30,7 @@ jobs:
 
       - name: Sync BE code to EC2 (code only, env handled separately)
         run: |
-          rsync -avz \
+          rsync -avz --delete \
             --exclude 'node_modules' \
             --exclude '.git' \
             --exclude 'dist' \

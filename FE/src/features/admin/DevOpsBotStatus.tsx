@@ -104,7 +104,6 @@ export default function DevOpsBotStatus() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/zalo-bot-qr.jpg"
                     alt="Mã QR quan tâm bot Zalo ExamTrust Assistant"
