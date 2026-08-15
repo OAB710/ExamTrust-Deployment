@@ -85,8 +85,20 @@ type EvidenceCapture = {
   scheduledAt?: string | null;
   createdAt?: string | null;
   trigger?: string | null;
+  scheduledSlot?: number | null;
   reviewStatus?: string | null;
 };
+
+// Slot 0 is always the exam-start checkpoint, the highest slot seen is
+// always the guaranteed end-of-exam checkpoint, anything else is numbered
+// by its own slot index (1, 2, 3...).
+function getScheduledCaptureLabel(capture: EvidenceCapture, maxScheduledSlot: number | null): string {
+  if (capture.trigger !== "SCHEDULED") return "Chụp theo tín hiệu";
+  const slot = capture.scheduledSlot;
+  if (slot === 0) return "Ảnh bắt đầu";
+  if (slot != null && maxScheduledSlot != null && slot === maxScheduledSlot) return "Ảnh kết thúc";
+  return slot != null ? `Định kỳ ${slot}` : "Chụp theo lịch";
+}
 
 type RiskFlag = {
   submissionId?: string | null;
@@ -235,6 +247,12 @@ export default function ExamResultsList() {
   const [reviewSubmission, setReviewSubmission] = useState<{ id: string; name: string } | null>(null);
   const [reviewTimeline, setReviewTimeline] = useState<SubmissionTimeline | null>(null);
   const [reviewCaptures, setReviewCaptures] = useState<EvidenceCapture[]>([]);
+  const reviewMaxScheduledSlot = (() => {
+    const slots = reviewCaptures
+      .filter((c) => c.trigger === "SCHEDULED" && c.scheduledSlot != null)
+      .map((c) => c.scheduledSlot as number);
+    return slots.length ? Math.max(...slots) : null;
+  })();
   const [reviewImages, setReviewImages] = useState<Record<string, string>>({});
   const [reviewRiskFlag, setReviewRiskFlag] = useState<RiskFlag | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -974,7 +992,7 @@ export default function ExamResultsList() {
               </section>
               <section>
                 <h3 className="mb-2 flex items-center gap-2 font-medium"><Camera className="h-4 w-4" />Bằng chứng camera</h3>
-                {reviewCaptures.length === 0 ? <p className="text-sm text-muted-foreground">Không có ảnh bằng chứng cho lượt làm bài này.</p> : <div className="grid gap-3 sm:grid-cols-2">{reviewCaptures.map((capture) => <div key={capture.id} className="overflow-hidden rounded-lg border"><div className="aspect-video bg-muted">{reviewImages[capture.id] ? <img src={reviewImages[capture.id]} alt={`Bằng chứng camera của ${reviewSubmission?.name}`} className="h-full w-full object-contain" /> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Ảnh không còn khả dụng</div>}</div><div className="p-3 text-xs text-muted-foreground">{capture.trigger === "SCHEDULED" ? "Chụp theo lịch" : "Chụp theo tín hiệu"} · {new Date(capture.capturedAt || capture.scheduledAt || capture.createdAt || Date.now()).toLocaleString("vi-VN")} · {capture.reviewStatus || "Chờ rà soát"}</div></div>)}</div>}
+                {reviewCaptures.length === 0 ? <p className="text-sm text-muted-foreground">Không có ảnh bằng chứng cho lượt làm bài này.</p> : <div className="grid gap-3 sm:grid-cols-2">{reviewCaptures.map((capture) => <div key={capture.id} className="overflow-hidden rounded-lg border"><div className="aspect-video bg-muted">{reviewImages[capture.id] ? <img src={reviewImages[capture.id]} alt={`Bằng chứng camera của ${reviewSubmission?.name}`} className="h-full w-full object-contain" /> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Ảnh không còn khả dụng</div>}</div><div className="p-3 text-xs text-muted-foreground">{getScheduledCaptureLabel(capture, reviewMaxScheduledSlot)} · {new Date(capture.capturedAt || capture.scheduledAt || capture.createdAt || Date.now()).toLocaleString("vi-VN")} · {capture.reviewStatus || "Chờ rà soát"}</div></div>)}</div>}
               </section>
             </div>
           )}

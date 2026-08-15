@@ -102,6 +102,24 @@ interface CourseOption {
   name: string;
 }
 
+const GRADING_STRATEGY_LABELS: Record<string, string> = {
+  HIGHEST: "Lấy điểm cao nhất",
+  AVERAGE: "Lấy điểm trung bình",
+  FIRST_ATTEMPT: "Lượt làm đầu tiên",
+  LAST_ATTEMPT: "Lượt làm cuối cùng",
+};
+
+function formatSecondsLabel(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts: string[] = [];
+  if (hours) parts.push(`${hours} giờ`);
+  if (minutes) parts.push(`${minutes} phút`);
+  if (seconds || parts.length === 0) parts.push(`${seconds} giây`);
+  return parts.join(" ");
+}
+
 export default function ExamManagement() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -936,7 +954,7 @@ export default function ExamManagement() {
 
       {/* Edit Dialog */}
       <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Cài đặt bài thi</DialogTitle>
             <DialogDescription>{selectedExam?.title}</DialogDescription>
@@ -952,9 +970,29 @@ export default function ExamManagement() {
                 ? Boolean(settings.requiresProctoring)
                 : Boolean(settings.proctoringEnabled);
               const webcamPolicy = settings.webcamEvidencePolicy || {};
+              const eventLimits = webcamPolicy.eventCaptureLimits || {};
               const maxAttempts = settingsExam.maxAttempts;
+              const questionCount = Array.isArray(settingsExam.examQuestions) ? settingsExam.examQuestions.length : null;
               return (
                 <div className="space-y-3 text-sm">
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Khóa học</p>
+                    <p className="mt-1 font-medium">
+                      {settingsExam.course ? `${settingsExam.course.code} · ${settingsExam.course.name}` : "—"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Bắt đầu</p>
+                      <p className="mt-1 font-medium">{formatDateTimeVi(settingsExam.startTime)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Kết thúc</p>
+                      <p className="mt-1 font-medium">{formatDateTimeVi(settingsExam.endTime)}</p>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-lg border p-3">
                       <p className="text-xs text-muted-foreground">Thời lượng</p>
@@ -965,6 +1003,14 @@ export default function ExamManagement() {
                       <p className="mt-1 flex items-center gap-1.5 font-medium"><Repeat className="h-3.5 w-3.5" />{maxAttempts == null ? "Không giới hạn" : maxAttempts}</p>
                     </div>
                     <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Số câu hỏi</p>
+                      <p className="mt-1 font-medium">{questionCount ?? "—"}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Cách tính điểm</p>
+                      <p className="mt-1 font-medium">{GRADING_STRATEGY_LABELS[settingsExam.gradingStrategy] || "Lấy điểm cao nhất"}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
                       <p className="text-xs text-muted-foreground">Điểm tối đa</p>
                       <p className="mt-1 font-medium">{settingsExam.totalPoints ?? "—"}</p>
                     </div>
@@ -973,19 +1019,56 @@ export default function ExamManagement() {
                       <p className="mt-1 font-medium">{settingsExam.passingScore ?? "—"}</p>
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Trộn câu hỏi</p>
+                      <p className="mt-1 font-medium">{settings.shuffleQuestions ? "Có" : "Không"}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Cho nộp bài trễ</p>
+                      <p className="mt-1 font-medium">{settingsExam.allowLateSubmission ? "Có" : "Không"}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Hiện kết quả ngay khi nộp</p>
+                      <p className="mt-1 font-medium">{settings.showResultImmediately ? "Có" : "Không"}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Trạng thái</p>
+                      <p className="mt-1 font-medium">{settingsExam.status ?? "—"}</p>
+                    </div>
+                  </div>
+
                   <div className="rounded-lg border p-3">
                     <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Shield className="h-3.5 w-3.5" /> Giám sát</p>
                     <p className="mt-1 font-medium">{proctoringEnabled ? "Đã bật" : "Đã tắt"}</p>
                   </div>
+
                   {proctoringEnabled && (
-                    <div className="rounded-lg border p-3">
+                    <div className="rounded-lg border p-3 space-y-2">
                       <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Camera className="h-3.5 w-3.5" /> Bằng chứng webcam</p>
-                      <p className="mt-1 font-medium">
+                      <p className="font-medium">
                         {webcamPolicy.enabled ? "Đã bật" : "Đã tắt"}
                         {webcamPolicy.enabled && webcamPolicy.screenCaptureEnabled ? " · Kèm chụp màn hình" : ""}
                       </p>
+                      {webcamPolicy.enabled && (
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+                          <p>Giới hạn chuyển tab: <span className="text-foreground">{eventLimits.tab_switch ?? "—"}</span></p>
+                          <p>Giới hạn thoát fullscreen: <span className="text-foreground">{eventLimits.fullscreen_exit ?? "—"}</span></p>
+                          <p>Giới hạn dán nội dung ngoài: <span className="text-foreground">{eventLimits.paste_external ?? "—"}</span></p>
+                          <p>Giới hạn ngồi im: <span className="text-foreground">{eventLimits.mouse_idle ?? "—"}</span></p>
+                          <p>Ngưỡng không thao tác: <span className="text-foreground">{webcamPolicy.mouseIdleThresholdMs ? formatSecondsLabel(Math.round(webcamPolicy.mouseIdleThresholdMs / 1000)) : "—"}</span></p>
+                          <p>Cooldown chụp sự kiện: <span className="text-foreground">{webcamPolicy.eventCooldownMs ? formatSecondsLabel(Math.round(webcamPolicy.eventCooldownMs / 1000)) : "—"}</span></p>
+                          <p className="col-span-2">
+                            Chụp định kỳ: <span className="text-foreground">{webcamPolicy.scheduledCaptureIntervalSeconds
+                              ? `mỗi ${formatSecondsLabel(webcamPolicy.scheduledCaptureIntervalSeconds)} (kèm ảnh đầu/cuối)`
+                              : "5 mốc theo % thời gian (mặc định)"}</span>
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
+
                   <div className="rounded-lg border p-3">
                     <p className="text-xs text-muted-foreground">Mô tả</p>
                     <p className="mt-1 whitespace-pre-wrap text-foreground">{settingsExam.description || "Chưa có mô tả"}</p>

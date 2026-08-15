@@ -26,6 +26,15 @@ export class RequestEvidenceCaptureDto {
   @IsOptional()
   @IsArray()
   signals?: string[];
+
+  // Only meaningful with trigger: 'SCHEDULED' — requests the guaranteed
+  // end-of-exam capture at actual submission time, bypassing the normal
+  // offset-window check (elapsed time rarely lines up with the last
+  // computed offset when the student submits early instead of running out
+  // the clock). See ProctoringEvidenceService.requestCapture.
+  @IsOptional()
+  @IsBoolean()
+  final?: boolean;
 }
 
 export class FinalizeEvidenceCaptureDto {

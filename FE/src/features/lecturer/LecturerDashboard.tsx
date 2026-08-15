@@ -93,17 +93,6 @@ const formatDifficulty = (value: number) => {
   return "Khó";
 };
 
-const formatRecentDate = (value: string | null) => {
-  if (!value) return "Chưa cập nhật";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Chưa cập nhật";
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
-};
-
 const buildQuestionBankSummaries = (
   questions: QuestionItem[],
   courses: CourseSummary[],
@@ -496,14 +485,10 @@ export default function LecturerDashboard() {
                           {bank.questionCount}
                         </span>
                       </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1.5">
                           <BarChart3 className="h-3.5 w-3.5" />
                           {formatDifficulty(bank.avgDifficulty)}
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="h-3.5 w-3.5" />
-                          {formatRecentDate(bank.lastUpdatedAt)}
                         </span>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1.5">

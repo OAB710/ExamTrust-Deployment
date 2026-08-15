@@ -1,0 +1,44 @@
+name: Clear R2 Storage
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'What to delete from R2 (files only — no DB rows touched)'
+        required: true
+        type: choice
+        options:
+          - questions
+          - evidence
+          - all
+
+env:
+  EC2_HOST: 32.236.182.208
+  EC2_USER: ubuntu
+  EC2_DIR: ~/examtrust-be
+
+jobs:
+  clear:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+
+      - name: Add EC2 host to known_hosts
+        run: ssh-keyscan -H ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      # WARNING: permanently deletes every object under the chosen R2
+      # prefix(es) — see BE/scripts/clear-r2-prefix.ts. Runs inside the
+      # already-built app image so it reuses the container's R2 credentials
+      # from .env.production; --confirm is required or it's a dry run only.
+      - name: Delete R2 objects on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+            cd ${{ env.EC2_DIR }} &&
+            docker compose --env-file .env.production -f docker-compose.prod.yml \
+              run --rm app npx ts-node --transpile-only \
+              --compiler-options '{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' \
+              scripts/clear-r2-prefix.ts --target=${{ inputs.target }} --confirm
+          "

@@ -104,7 +104,6 @@ export default function DevOpsBotStatus() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/zalo-bot-qr.jpg"
                     alt="Mã QR quan tâm bot Zalo ExamTrust Assistant"
@@ -127,21 +126,36 @@ export default function DevOpsBotStatus() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="divide-y rounded-lg border">
-                    {status.botCommands.map((item) => (
-                      <div key={item.command} className="flex flex-col gap-1 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                        <code className="w-fit rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
-                          {item.command}
-                        </code>
-                        <span className="text-xs text-muted-foreground">{item.description}</span>
+                  {Object.entries(
+                    status.botCommands.reduce<Record<string, typeof status.botCommands>>((groups, item) => {
+                      const category = item.category ?? "Khác";
+                      (groups[category] ??= []).push(item);
+                      return groups;
+                    }, {}),
+                  ).map(([category, items]) => (
+                    <div key={category} className="space-y-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{category}</p>
+                      <div className="divide-y rounded-lg border">
+                        {items.map((item) => (
+                          <div key={item.command} className="flex flex-col gap-1 px-3 py-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <code className="w-fit rounded bg-muted px-1.5 py-0.5 text-xs font-mono">
+                                {item.command}
+                              </code>
+                              {item.public && <StatusBadge tone="success">Công khai</StatusBadge>}
+                            </div>
+                            <span className="text-xs text-muted-foreground">{item.description}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
 
                   <div className="flex items-center gap-2 rounded-lg border border-warning/25 bg-warning/10 p-3">
                     <ShieldAlert className="h-4 w-4 shrink-0 text-warning" />
                     <p className="text-xs text-muted-foreground">
-                      Các lệnh này gây hiệu ứng thật (build, deploy...) và chỉ phản hồi tài khoản Zalo được cấp quyền.
+                      Các lệnh DevOps gây hiệu ứng thật (build, deploy...) và chỉ phản hồi tài khoản Zalo được cấp quyền.
+                      Lệnh đánh dấu "Công khai" thì ai nhắn bot cũng xem được.
                     </p>
                   </div>
                 </CardContent>

@@ -101,6 +101,36 @@ Liệt kê ngắn gọn để bạn biết bối cảnh, không cần thao tác 
 9. Nút "Chọn tất cả / Bỏ chọn tất cả" khi chọn câu hỏi từ ngân hàng lúc tạo đề thi.
 10. `GET /courses` bị giới hạn 20 kết quả cho tài khoản Admin (Lecturer đã tự động không giới hạn từ trước) — FE giờ gọi `getCourses({ limit: 200 })`.
 
-## 4. Lưu ý về việc fork sang repo khác
+## 4. Cập nhật 2026-08-15 — thiếu R2 credentials trên EC2 + lỗi Dockerfile
+
+### 4.1. `.env.production` từng bị mất sạch biến R2 — kiểm tra định kỳ
+
+Phát hiện khi build lệnh Zalo bot "Clear Evidence Media": `docker exec examtrust-be-app-1 printenv | grep R2_` trả về **rỗng**, kể cả trên container `app` đang chạy live — nghĩa là upload ảnh câu hỏi + bằng chứng webcam đã âm thầm lỗi một thời gian trên production (code bắt lỗi kiểu best-effort, không ai để ý). Nghi ngờ nguyên nhân: một lần chạy workflow "Build BE" đã ghi đè `.env.production` bằng nội dung secret GitHub `BE_ENV_PRODUCTION`, và secret đó đang thiếu các biến R2.
+
+Đã fix tạm bằng cách copy 6 biến sau từ `BE/.env` local (khớp bucket `examtrust-media` / account `01d1ca8a9cdddbd927df55d1dbd62924`) vào `.env.production` trên EC2 rồi force-recreate `app` + `ai-worker`:
+```
+R2_ACCOUNT_ID
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
+R2_BUCKET_NAME
+R2_ENDPOINT
+R2_PUBLIC_BASE_URL
+```
+
+**Việc cần tự làm để không lặp lại**: cập nhật secret GitHub `BE_ENV_PRODUCTION` (Settings → Secrets and variables → Actions) bằng nội dung `.env.production` đầy đủ hiện tại trên EC2 — xem chi tiết ở `CLOUDFLARE_DEPLOY_NOTES.txt` mục 9.9(c). Nên định kỳ chạy lệnh kiểm tra nhanh này sau mỗi lần "Build BE":
+```bash
+ssh -i "C:\Users\oabph\Downloads\examtrust-be-key.pem" ubuntu@32.236.182.208 "docker exec examtrust-be-app-1 printenv | grep '^R2_'"
+```
+Nếu rỗng là đang lỗi.
+
+### 4.2. `BE/Dockerfile` từng thiếu `COPY scripts` ở stage runtime
+
+Stage `builder` có copy `scripts/` để build, nhưng stage `runtime` (image thật sự chạy production) trước đây không copy — nên mọi file trong `BE/scripts/` (không riêng gì file mới) chưa từng tồn tại trong container production, dù nằm sẵn trong git. Đã thêm dòng `COPY --from=builder /app/scripts ./scripts` vào stage runtime. Nếu sau này thêm script mới cần chạy qua `docker compose run --rm app npx ts-node scripts/...`, nhớ rebuild image (`docker compose -f docker-compose.prod.yml build app`) trước khi dùng — không tự có nếu chỉ scp file lên host.
+
+### 4.3. Lệnh dự phòng (fallback) khi Zalo bot lỗi
+
+File `ZALO_BOT_FALLBACK_COMMANDS.md` ở gốc repo (gitignore, không commit — chứa IP EC2 + đường dẫn SSH key) liệt kê lệnh SSH/docker copy-paste tương ứng 1-1 với từng lệnh bot Zalo (Reset DB, Clear Question/Evidence/All Media, Build BE, On/Off FE, AI Deepseek/Openrouter), dùng khi bot lỗi hoặc chưa deploy code mới.
+
+## 5. Lưu ý về việc fork sang repo khác
 
 File này được tạo **sau khi bạn đã fork** sang repo mới, nên **sẽ không tự có mặt bên repo fork**. Bạn cần copy thủ công file `EC2_DB_DEPLOY_NOTES.md` này sang repo mới (hoặc merge/pull lại từ repo gốc) nếu muốn giữ lại làm tài liệu tham khảo khi deploy.

@@ -19,6 +19,8 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { DurationInput } from "@/components/common/DurationInput";
+import { TimePickerVi } from "@/components/common/TimePickerVi";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -928,6 +930,9 @@ export default function CreateExam() {
           webcamEvidencePolicy: {
             enabled: effectiveProctoring && form.webcamEvidenceEnabled,
             examProfile: "THEORY",
+            scheduledCaptureIntervalSeconds: form.webcamEvidenceScheduledIntervalSeconds
+              ? parseNumericInput(form.webcamEvidenceScheduledIntervalSeconds, { min: 1, integer: true })
+              : null,
             eventCooldownMs: (parseNumericInput(form.webcamEvidenceCooldownSeconds, { min: 1, integer: true }) || 60) * 1000,
             eventCaptureLimits: {
               tab_switch: parseNumericInput(form.webcamEvidenceLimitTabSwitch, { min: 1, integer: true }) || 3,
@@ -935,6 +940,7 @@ export default function CreateExam() {
               paste_external: parseNumericInput(form.webcamEvidenceLimitPasteExternal, { min: 1, integer: true }) || 3,
               mouse_idle: parseNumericInput(form.webcamEvidenceLimitMouseIdle, { min: 1, integer: true }) || 3,
             },
+            mouseIdleThresholdMs: (parseNumericInput(form.webcamEvidenceMouseIdleThresholdSeconds, { min: 10, integer: true }) || 60) * 1000,
             screenCaptureEnabled: form.screenCaptureEnabled,
             requireFullScreenCapture: form.screenCaptureEnabled,
             retentionDays: 30,
@@ -1529,12 +1535,7 @@ export default function CreateExam() {
                   </div>
                   <div>
                     <Label>Giờ bắt đầu</Label>
-                    <Input
-                      type="time"
-                      value={form.startTime}
-                      onChange={(e) => set("startTime", e.target.value)}
-                      className="mt-1"
-                    />
+                    <TimePickerVi value={form.startTime} onChange={(v) => set("startTime", v)} className="mt-1" />
                   </div>
                   <div>
                     <Label>
@@ -1549,12 +1550,7 @@ export default function CreateExam() {
                   </div>
                   <div>
                     <Label>Giờ kết thúc</Label>
-                    <Input
-                      type="time"
-                      value={form.endTime}
-                      onChange={(e) => set("endTime", e.target.value)}
-                      className="mt-1"
-                    />
+                    <TimePickerVi value={form.endTime} onChange={(v) => set("endTime", v)} className="mt-1" />
                   </div>
                 </div>
 
@@ -1622,7 +1618,7 @@ export default function CreateExam() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <Label className="text-sm font-medium">Ghi nhận bằng chứng giám sát trong khi thi</Label>
-                        <p className="text-xs text-muted-foreground mt-1">Khi bật, sinh viên phải cấp webcam trước khi vào bài. Hệ thống chỉ ghi nhận ảnh bằng chứng khi không tương tác 1 phút; ảnh tự xóa sau 30 ngày.</p>
+                        <p className="text-xs text-muted-foreground mt-1">Khi bật, sinh viên phải cấp webcam trước khi vào bài. Ảnh tự xóa sau 30 ngày.</p>
                       </div>
                       <Switch checked={form.webcamEvidenceEnabled} onCheckedChange={(v) => set("webcamEvidenceEnabled", v)} aria-label="Bật bằng chứng webcam" />
                     </div>
@@ -1667,16 +1663,41 @@ export default function CreateExam() {
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 sm:max-w-xs">
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <div className="space-y-1">
-                            <Label className="text-xs">Cooldown giữa 2 lần chụp (giây)</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={form.webcamEvidenceCooldownSeconds}
-                              onChange={(e) => set("webcamEvidenceCooldownSeconds", e.target.value)}
+                            <Label className="text-xs">Ngưỡng không thao tác</Label>
+                            <DurationInput
+                              defaultUnit="s"
+                              minSeconds={1}
+                              valueSeconds={Number(form.webcamEvidenceMouseIdleThresholdSeconds) || 0}
+                              onChangeSeconds={(seconds) => set("webcamEvidenceMouseIdleThresholdSeconds", String(seconds))}
+                            />
+                            <p className="text-xs text-muted-foreground">Không di chuột/gõ phím quá thời gian sẽ ghi nhận.</p>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Cooldown giữa 2 lần chụp theo sự kiện</Label>
+                            <DurationInput
+                              defaultUnit="s"
+                              minSeconds={1}
+                              valueSeconds={Number(form.webcamEvidenceCooldownSeconds) || 0}
+                              onChangeSeconds={(seconds) => set("webcamEvidenceCooldownSeconds", String(seconds))}
                             />
                           </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs">Chụp định kỳ mỗi</Label>
+                          <DurationInput
+                            defaultUnit="m"
+                            minSeconds={1}
+                            placeholder="Mặc định"
+                            valueSeconds={Number(form.webcamEvidenceScheduledIntervalSeconds) || 0}
+                            onChangeSeconds={(seconds) => set("webcamEvidenceScheduledIntervalSeconds", String(seconds))}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Để trống: hệ thống tự chụp 5 mốc theo % thời gian làm bài (0%, 25%, 50%, 75%, 100%). Nhập giá trị để chụp đều đặn theo chu kỳ cố định — ảnh cuối luôn được thêm đúng lúc kết thúc bài thi kể cả khi không tròn chu kỳ.
+                          </p>
                         </div>
                         <div className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-white/60 p-2">
                           <div className="flex items-center gap-2">
