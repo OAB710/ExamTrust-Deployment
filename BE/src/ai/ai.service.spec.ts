@@ -133,4 +133,74 @@ describe('AiService.generateExamQualityReview', () => {
       ).rejects.toThrow('Tạo nội dung bằng AI thất bại');
     });
   });
+
+  describe('topic similarity classification', () => {
+    const existingTopics = [
+      { id: 'database', name: 'Cơ sở dữ liệu' },
+      { id: 'normalization', name: 'Chuẩn hóa dữ liệu' },
+      { id: 'sql', name: 'Ngôn ngữ SQL' },
+      { id: 'indexing', name: 'Lập chỉ mục cơ sở dữ liệu' },
+      { id: 'transactions', name: 'Giao dịch cơ sở dữ liệu' },
+    ];
+    const createLocalService = (matches: unknown) => {
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any);
+      (service as any).localUrl = 'http://fake-local-model';
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ matches }) }) as any;
+      return service;
+    };
+    const request = (service: AiService, topicName: string, topicDescription?: string) => service.suggestSimilarTopics({
+      topicName,
+      topicDescription,
+      existingTopics,
+      language: 'vi',
+      context: {
+        courseCode: 'CS301',
+        courseName: 'Cơ sở dữ liệu',
+        courseDescription: 'Mô hình dữ liệu, SQL, giao dịch và tối ưu truy vấn.',
+      },
+    });
+
+    it('classifies the same name as DUPLICATE', async () => {
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any);
+      const result = await request(service, 'Cơ sở dữ liệu');
+      expect(result.matches).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Cơ sở dữ liệu', relation: 'DUPLICATE', matchMethod: 'LEXICAL' })]));
+    });
+
+    it.each([
+      ['different wording for the same concept', 'Thiết kế lược đồ quan hệ', 'Chuẩn hóa dữ liệu', 'SAME_CONCEPT'],
+      ['an existing broader topic', 'Chuẩn hóa dữ liệu', 'Cơ sở dữ liệu', 'PARENT_OF'],
+      ['an existing narrower topic', 'Cơ sở dữ liệu', 'Lập chỉ mục cơ sở dữ liệu', 'CHILD_OF'],
+      ['partially overlapping topics', 'Tối ưu truy vấn SQL', 'Ngôn ngữ SQL', 'OVERLAP'],
+      ['only related topics', 'Giao dịch cơ sở dữ liệu', 'Ngôn ngữ SQL', 'RELATED'],
+    ])('classifies %s with the fixed existing-to-proposed direction', async (_label, proposed, existingName, relation) => {
+      const service = createLocalService([{ name: existingName, score: 0.88, relation, reason: 'Lý do học thuật bằng tiếng Việt.' }]);
+      const result = await request(service, proposed);
+      expect(result.matches).toEqual([expect.objectContaining({ name: existingName, relation, matchMethod: 'AI', reason: 'Lý do học thuật bằng tiếng Việt.' })]);
+    });
+
+    it('does not return DISTINCT topics in the usual suggestion list', async () => {
+      const service = createLocalService([{ name: 'Giao dịch cơ sở dữ liệu', score: 0.9, relation: 'DISTINCT', reason: 'Khác phạm vi.' }]);
+      const result = await request(service, 'Đồ thị có trọng số');
+      expect(result.matches).toEqual([]);
+    });
+
+    it('marks the fallback as LEXICAL when the AI provider fails', async () => {
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any);
+      (service as any).localUrl = 'http://fake-local-model';
+      global.fetch = jest.fn().mockRejectedValue(new Error('offline')) as any;
+      const result = await request(service, 'Chuẩn hóa dữ liệu');
+      expect(result.matches).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Chuẩn hóa dữ liệu', matchMethod: 'LEXICAL', relation: 'DUPLICATE' })]));
+    });
+
+    it('asks for Vietnamese reasons and drops topics not supplied by the course', async () => {
+      const service = createLocalService([
+        { name: 'Chủ đề không tồn tại', score: 0.99, relation: 'DUPLICATE', reason: 'Không được trả về.' },
+        { name: 'Chuẩn hóa dữ liệu', score: 0.91, relation: 'SAME_CONCEPT', reason: 'Hai tên gọi cùng mô tả việc tổ chức lược đồ quan hệ.' },
+      ]);
+      const result = await request(service, 'Thiết kế lược đồ quan hệ', 'Các dạng chuẩn và phụ thuộc hàm.');
+      expect(result.matches).toEqual([expect.objectContaining({ name: 'Chuẩn hóa dữ liệu', reason: 'Hai tên gọi cùng mô tả việc tổ chức lược đồ quan hệ.' })]);
+      const prompt = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body).prompt;
+      expect(prompt).toContain('write every reason in Vietnamese');
+    });
+  });
 });

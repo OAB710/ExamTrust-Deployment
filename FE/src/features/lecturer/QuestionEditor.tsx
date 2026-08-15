@@ -1105,6 +1105,7 @@ export default function QuestionEditor() {
           open={topics.showTopicDialog}
           selectedTopicId={topic}
           newTopicName={topics.newTopicName}
+          topicDescription={topics.topicDescription}
           topicSearch={topics.topicSearch}
           topics={topics.filteredTopics}
           suggestions={topics.topicSuggestions}
@@ -1112,6 +1113,7 @@ export default function QuestionEditor() {
           creatingTopic={topics.creatingTopic}
           checkMessage={topics.topicCheckMessage}
           onNewTopicNameChange={topics.setNewTopicName}
+          onTopicDescriptionChange={topics.setTopicDescription}
           onTopicSearchChange={topics.setTopicSearch}
           onClose={topics.closeTopicDialog}
           onSelect={topics.selectTopic}

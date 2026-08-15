@@ -6,8 +6,6 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Progress } from "@/components/ui/progress";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SearchBar } from "@/components/common/list/SearchBar";
 import { FilterPanel } from "@/components/common/list/FilterPanel";
@@ -78,9 +76,12 @@ const historyFilterDefinitions: FilterDefinition[] = [
 type QuestionMetric = {
   versionId: string;
   versionNo: number;
+  examId?: string | null;
   exam: string;
   date: string;
   attempts: number;
+  students?: number | null;
+  usageCount?: number;
   correctRate: number | null;
   difficulty: number | null;
   discrimination: number | null;
@@ -94,6 +95,8 @@ type QuestionHistoryRow = {
   type: string;
   status: string;
   metrics: QuestionMetric[];
+  versionMetrics?: QuestionMetric[];
+  examUsageMetrics?: QuestionMetric[];
   versions: Array<{ id: string; versionNo: number; stem: string; aiGenerated: boolean; createdAt: string }>;
   trend: "stable" | "improving" | "degrading";
   recommendation: string | null;
@@ -115,6 +118,7 @@ export default function QuestionHistoryAnalysis() {
   const [appliedSearch, setAppliedSearch] = useState("");
   const [draftFilters, setDraftFilters] = useState<FilterValues>(EMPTY_HISTORY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<FilterValues>(EMPTY_HISTORY_FILTERS);
+  const [analysisView, setAnalysisView] = useState<"versions" | "usages" | "history">("versions");
 
   useEffect(() => {
     let active = true;
@@ -191,14 +195,19 @@ export default function QuestionHistoryAnalysis() {
   const activeFilterCount = getActiveFilterCount(appliedFilters, historyFilterDefinitions);
   const activeFilterChips = getFilterChips(appliedFilters, historyFilterDefinitions);
 
-  const chartMetrics = useMemo(
-    () => (selectedQuestion?.metrics.length ? selectedQuestion.metrics : []),
+  const versionMetrics = useMemo(
+    () => selectedQuestion?.versionMetrics || selectedQuestion?.metrics || [],
     [selectedQuestion],
   );
+  const usageMetrics = useMemo(
+    () => selectedQuestion?.examUsageMetrics || [],
+    [selectedQuestion],
+  );
+  const chartMetrics = analysisView === "usages" ? usageMetrics : versionMetrics;
 
   const lineData = useMemo(
     () => ({
-      labels: chartMetrics.map((metric) => metric.exam),
+      labels: chartMetrics.map((metric) => analysisView === "usages" ? metric.exam : `V${metric.versionNo}`),
       datasets: [
         {
           label: "Chỉ số độ khó",
@@ -226,12 +235,12 @@ export default function QuestionHistoryAnalysis() {
         },
       ],
     }),
-    [chartMetrics],
+    [analysisView, chartMetrics],
   );
 
   const barData = useMemo(
     () => ({
-      labels: chartMetrics.map((metric) => metric.exam),
+      labels: chartMetrics.map((metric) => analysisView === "usages" ? metric.exam : `V${metric.versionNo}`),
       datasets: [
         {
           label: "Tỷ lệ trả lời đúng",
@@ -244,8 +253,30 @@ export default function QuestionHistoryAnalysis() {
         },
       ],
     }),
-    [chartMetrics],
+    [analysisView, chartMetrics],
   );
+
+  const metricTooltipOptions = useMemo(() => ({
+    plugins: {
+      tooltip: {
+        callbacks: {
+          afterBody: (items: Array<{ dataIndex: number }>) => {
+            const metric = chartMetrics[items[0]?.dataIndex];
+            if (!metric) return [];
+            return [
+              `Tỷ lệ đúng: ${metric.correctRate === null ? "Chưa có" : `${(metric.correctRate * 100).toFixed(1)}%`}`,
+              `Chỉ số phân biệt: ${metric.discrimination === null ? "Chưa đủ dữ liệu" : metric.discrimination.toFixed(2)}`,
+              `Số lượt trả lời: ${metric.attempts}`,
+              analysisView === "versions"
+                ? `Được sử dụng trong: ${metric.usageCount ?? 0} bài thi`
+                : `Số sinh viên: ${metric.students ?? "Chưa có"}`,
+            ];
+          },
+        },
+      },
+      legend: { position: "bottom" as const },
+    },
+  }), [analysisView, chartMetrics]);
 
   const trendIcon = (trend: string) => {
     switch (trend) {
@@ -263,9 +294,7 @@ export default function QuestionHistoryAnalysis() {
     stable: "Ổn định",
   }[trend] || "Chưa xác định");
 
-  const latestMetric = (row: QuestionHistoryRow) => row.metrics[row.metrics.length - 1];
-  const firstMetric = (row: QuestionHistoryRow) => row.metrics.find((metric) => metric.attempts > 0) || row.metrics[0];
-  const currentMetric = selectedQuestion ? latestMetric(selectedQuestion) : undefined;
+  const currentMetric = chartMetrics[chartMetrics.length - 1];
 
   return (
     <DashboardLayout>
@@ -379,14 +408,14 @@ export default function QuestionHistoryAnalysis() {
 
         {!loading && !error && rows.length > 0 && filteredRows.length > 0 && selectedQuestion && (
           <>
-            <Tabs defaultValue="trends">
+            <Tabs value={analysisView} onValueChange={(value) => setAnalysisView(value as "versions" | "usages" | "history")}>
               <TabsList className="mb-4">
-                <TabsTrigger value="trends">Xu hướng chỉ số</TabsTrigger>
-                <TabsTrigger value="drift">Biến động độ khó</TabsTrigger>
-                <TabsTrigger value="history">Lịch sử phiên bản</TabsTrigger>
+                <TabsTrigger value="versions">Theo phiên bản</TabsTrigger>
+                <TabsTrigger value="usages">Theo lần thi</TabsTrigger>
+                <TabsTrigger value="history">Lịch sử chỉnh sửa</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="trends" className="space-y-6">
+              <TabsContent value="versions" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <Card>
                     <CardHeader className="pb-2">
@@ -422,12 +451,12 @@ export default function QuestionHistoryAnalysis() {
                   <div className="col-span-2 space-y-4">
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Xu hướng chỉ số</CardTitle>
+                        <CardTitle className="text-base">Chất lượng qua phiên bản</CardTitle>
                         <CardDescription className="line-clamp-1">{selectedQuestion.content}</CardDescription>
                       </CardHeader>
                       <CardContent>
                         {chartMetrics.some((metric) => metric.attempts > 0) ? (
-                          <Line data={lineData} options={{ responsive: true, scales: { y: { min: 0, max: 1 } }, plugins: { legend: { position: "bottom" } } }} />
+                          <Line data={lineData} options={{ responsive: true, scales: { y: { min: 0, max: 1 } }, ...metricTooltipOptions }} />
                         ) : (
                           <div className="py-12 text-center text-muted-foreground">Câu hỏi này chưa có lượt làm hoàn tất.</div>
                         )}
@@ -436,11 +465,11 @@ export default function QuestionHistoryAnalysis() {
 
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Tỷ lệ trả lời đúng (%)</CardTitle>
+                        <CardTitle className="text-base">Tỷ lệ trả lời đúng qua phiên bản (%)</CardTitle>
                       </CardHeader>
                       <CardContent>
                         {chartMetrics.some((metric) => metric.attempts > 0) ? (
-                          <Bar data={barData} options={{ responsive: true, scales: { y: { min: 0, max: 100 } }, plugins: { legend: { display: false } } }} />
+                          <Bar data={barData} options={{ responsive: true, scales: { y: { min: 0, max: 100 } }, ...metricTooltipOptions }} />
                         ) : (
                           <div className="py-8 text-center text-muted-foreground">Đang chờ dữ liệu bài nộp.</div>
                         )}
@@ -449,8 +478,8 @@ export default function QuestionHistoryAnalysis() {
 
                     <Card className="border-primary/15 bg-muted/20">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Cách đọc các chỉ số</CardTitle>
-                        <CardDescription>Các giá trị đều nằm trong khoảng từ 0 đến 1.</CardDescription>
+                        <CardTitle className="text-base">Cách đọc dữ liệu theo phiên bản</CardTitle>
+                        <CardDescription>Mỗi điểm gộp toàn bộ response thực tế của một version, có trọng số theo số lượt trả lời.</CardDescription>
                       </CardHeader>
                       <CardContent className="grid gap-3 text-sm md:grid-cols-3">
                         <div>
@@ -496,62 +525,114 @@ export default function QuestionHistoryAnalysis() {
                 </div>
               </TabsContent>
 
-              <TabsContent value="drift">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Tổng quan biến động độ khó</CardTitle>
-                    <CardDescription>Thay đổi độ khó và độ phân biệt dựa trên thống kê bài nộp thực tế.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-24">ID</TableHead>
-                          <TableHead>Câu hỏi</TableHead>
-                          <TableHead className="w-20">Khóa học</TableHead>
-                          <TableHead className="w-28">Độ khó ban đầu</TableHead>
-                          <TableHead className="w-28">Độ khó hiện tại</TableHead>
-                          <TableHead className="w-20">Lượt làm</TableHead>
-                          <TableHead className="w-24">Xu hướng</TableHead>
-                          <TableHead className="w-28">Độ phân biệt</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredRows.map((row) => {
-                          const initial = firstMetric(row);
-                          const current = latestMetric(row);
-                          const initialDiff = initial?.difficulty ?? 0;
-                          const currentDiff = current?.difficulty ?? 0;
-                          return (
-                            <TableRow key={row.id}>
-                              <TableCell className="font-mono text-xs">{row.id.slice(0, 8)}</TableCell>
-                              <TableCell><p className="text-sm line-clamp-1">{row.content}</p></TableCell>
-                              <TableCell className="font-mono text-xs">{row.course}</TableCell>
-                              <TableCell>
-                                <span className="text-sm">{initial?.attempts ? initialDiff.toFixed(2) : "Chưa có dữ liệu"}</span>
-                                <Progress value={initialDiff * 100} className="h-1 mt-1" />
-                              </TableCell>
-                              <TableCell>
-                                <span className="text-sm">{current?.attempts ? currentDiff.toFixed(2) : "Chưa có dữ liệu"}</span>
-                                <Progress value={currentDiff * 100} className="h-1 mt-1" />
-                              </TableCell>
-                              <TableCell>{row.metrics.reduce((sum, metric) => sum + metric.attempts, 0)}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  {trendIcon(row.trend)}
-                                  <StatusBadge variant={row.trend === "improving" ? "success" : row.trend === "degrading" ? "destructive" : "default"}>
-                                  {trendLabel(row.trend)}
-                                  </StatusBadge>
-                                </div>
-                              </TableCell>
-                              <TableCell>{current?.discrimination !== null && current?.discrimination !== undefined ? current.discrimination.toFixed(2) : "Chưa có dữ liệu"}</TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
+              <TabsContent value="usages" className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Câu hỏi</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 max-h-[620px] overflow-y-auto">
+                      {filteredRows.map((row) => (
+                        <button
+                          key={row.id}
+                          onClick={() => setSelectedQuestion(row)}
+                          className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                            selectedQuestion.id === row.id ? "border-primary bg-primary/5" : "border-muted hover:border-primary/30"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-mono text-xs text-muted-foreground">{row.id.slice(0, 8)}</span>
+                            <div className="flex items-center gap-1">
+                              {trendIcon(row.trend)}
+                              <StatusBadge variant={row.trend === "improving" ? "success" : row.trend === "degrading" ? "destructive" : "default"}>
+                                {trendLabel(row.trend)}
+                              </StatusBadge>
+                            </div>
+                          </div>
+                          <p className="text-xs line-clamp-2">{row.content}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            {row.course} · {row.versions.length} phiên bản
+                          </p>
+                        </button>
+                      ))}
+                    </CardContent>
+                  </Card>
+
+                  <div className="col-span-2 space-y-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Chất lượng qua các lần thi</CardTitle>
+                        <CardDescription className="line-clamp-1">{selectedQuestion.content}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {chartMetrics.some((metric) => metric.attempts > 0) ? (
+                          <Line data={lineData} options={{ responsive: true, scales: { y: { min: 0, max: 1 } }, ...metricTooltipOptions }} />
+                        ) : (
+                          <div className="py-12 text-center text-muted-foreground">Chưa có response gắn với lần sử dụng cụ thể của câu hỏi này.</div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Tỷ lệ trả lời đúng theo lần thi (%)</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {chartMetrics.some((metric) => metric.attempts > 0) ? (
+                          <Bar data={barData} options={{ responsive: true, scales: { y: { min: 0, max: 100 } }, ...metricTooltipOptions }} />
+                        ) : (
+                          <div className="py-8 text-center text-muted-foreground">Đang chờ dữ liệu bài nộp.</div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-primary/15 bg-muted/20">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Cách đọc dữ liệu theo lần thi</CardTitle>
+                        <CardDescription>Mỗi điểm là một bài thi/cohort riêng; không dùng để suy luận thay đổi của nội dung câu hỏi.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="grid gap-3 text-sm md:grid-cols-3">
+                        <div>
+                          <p className="font-medium">Chỉ số độ khó (p)</p>
+                          <p className="mt-1 text-muted-foreground">p = số lượt đúng / tổng lượt làm trong lần thi. So sánh các điểm để nhận biết cohort hoặc điều kiện làm bài khác nhau.</p>
+                          <p className="mt-1 font-medium">Hiện tại: {currentMetric?.difficulty !== null && currentMetric?.difficulty !== undefined ? currentMetric.difficulty.toFixed(2) : "Chưa đủ dữ liệu"}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium">Chỉ số phân biệt (D)</p>
+                          <p className="mt-1 text-muted-foreground">D được tính riêng theo mỗi lần thi. Cần có đủ response trước khi dùng làm bằng chứng rà soát chất lượng.</p>
+                          <p className="mt-1 font-medium">Hiện tại: {currentMetric?.discrimination !== null && currentMetric?.discrimination !== undefined ? currentMetric.discrimination.toFixed(2) : "Chưa đủ dữ liệu"}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium">Cỡ mẫu</p>
+                          <p className="mt-1 text-muted-foreground">Tooltip cho biết số lượt trả lời và số sinh viên của từng bài thi để đặt biến động vào đúng ngữ cảnh.</p>
+                          <p className="mt-1 font-medium">Hiện tại: {currentMetric ? `${currentMetric.attempts} lượt trả lời · ${currentMetric.students ?? 0} sinh viên` : "Chưa đủ dữ liệu"}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {selectedQuestion.recommendation && (
+                      <Card className="border-yellow-200 bg-yellow-50/50">
+                        <CardContent className="py-4">
+                          <div className="flex items-start gap-3">
+                            <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-medium text-yellow-800">Khuyến nghị</p>
+                              <p className="text-sm text-yellow-700">{selectedQuestion.recommendation}</p>
+                              <div className="flex gap-2 mt-2">
+                                <Button size="sm" variant="outline" className="gap-1 text-xs">
+                                  <RefreshCw className="h-3 w-3" /> Tạo phiên bản mới
+                                </Button>
+                                <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => router.push(`${questionEditorPath}?id=${selectedQuestion.id}`)}>
+                                  Sửa câu hỏi <ArrowRight className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                </div>
               </TabsContent>
 
               <TabsContent value="history">

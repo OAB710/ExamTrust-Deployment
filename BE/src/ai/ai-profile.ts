@@ -3,6 +3,7 @@ export type ExamTrustAiUseCase =
   | 'exam_generation'
   | 'draft_section'
   | 'topic_matching'
+  | 'question_duplicate_detection'
   | 'grading_support'
   | 'exam_quality_review'
   | 'question_quality_improvement'
@@ -140,11 +141,19 @@ const buildContextLines = (context?: ExamTrustAiContext): string[] => {
 
 export function buildExamTrustPromptHeader(params: ExamTrustAiPromptParams): string {
   const { appName, useCase, language, questionType, questionCount, context } = params;
+  const topicMatchingRules = useCase === 'topic_matching'
+    ? [
+      '- For topic matching, evaluate every existing topic relative to the proposed topic; preserve that direction.',
+      '- Use the course context as the semantic boundary, not keyword overlap alone.',
+      '- Treat every relation and score as lecturer-review evidence, never as an automatic taxonomy change.',
+    ]
+    : [];
   const useCaseLabel: Record<ExamTrustAiUseCase, string> = {
     question_generation: 'question generation',
     exam_generation: 'exam generation',
     draft_section: 'question draft editing',
     topic_matching: 'topic matching',
+    question_duplicate_detection: 'question duplicate detection',
     grading_support: 'grading support',
     exam_quality_review: 'exam quality review',
     question_quality_improvement: 'question quality improvement',
@@ -164,6 +173,7 @@ export function buildExamTrustPromptHeader(params: ExamTrustAiPromptParams): str
     '- Do not change source data or claim to verify cheating.',
     '- If information is missing, keep the suggestion conservative.',
     '- Return only the requested JSON object when the task asks for structured output.',
+    ...topicMatchingRules,
   ].filter(Boolean);
 
   const contextLines = buildContextLines(context);
@@ -183,6 +193,15 @@ export function getOllamaGenerationOptions(useCase: ExamTrustAiUseCase): OllamaG
       top_p: 0.8,
       repeat_penalty: 1.08,
       num_ctx: 4096,
+    };
+  }
+
+  if (useCase === 'question_duplicate_detection') {
+    return {
+      temperature: 0.1,
+      top_p: 0.8,
+      repeat_penalty: 1.08,
+      num_ctx: 8192,
     };
   }
 

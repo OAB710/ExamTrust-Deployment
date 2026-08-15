@@ -116,65 +116,121 @@ export class QuestionsService {
 
   async checkDuplicateQuestions(courseId: string, user: AuthUser) {
     await this.assertCourseAccessible(courseId, user);
-    const questions = await this.prisma.question.findMany({
+    const [course, questions] = await Promise.all([
+      this.prisma.course.findUnique({
+        where: { id: courseId },
+        select: { code: true, name: true, description: true },
+      }),
+      this.prisma.question.findMany({
       where: { courseId, status: 'PUBLISHED' },
-      select: { id: true, type: true, content: true, updatedAt: true },
+      select: {
+        id: true, type: true, content: true, options: true, correctAnswer: true,
+        explanation: true, difficulty: true, updatedAt: true,
+        topicLinks: { select: { topic: { select: { name: true } } } },
+      },
       orderBy: { updatedAt: 'desc' },
-    });
-    const candidates: Array<{ left: any; right: any; lexical: number }> = [];
+      }),
+    ]);
+    const candidates: Array<{ left: any; right: any; retrievalScore: number; exact: boolean }> = [];
     for (let index = 0; index < questions.length; index += 1) {
       for (let otherIndex = index + 1; otherIndex < questions.length; otherIndex += 1) {
         const left = questions[index];
         const right = questions[otherIndex];
         if (left.type !== right.type) continue;
         const lexical = this.lexicalSimilarity(left.content, right.content);
-        if (lexical >= 0.35) candidates.push({ left, right, lexical });
+        const leftTopicLinks = left.topicLinks || [];
+        const rightTopicLinks = right.topicLinks || [];
+        const leftTopics = new Set(leftTopicLinks.map((link: any) => String(link.topic?.name || '').toLocaleLowerCase('vi-VN')));
+        const sharesTopic = rightTopicLinks.some((link: any) => leftTopics.has(String(link.topic?.name || '').toLocaleLowerCase('vi-VN')));
+        // Lexical/topic signals only retrieve candidates. They never become the
+        // duplicate verdict because similar wording may express an opposite task.
+        if (lexical >= 0.25 || sharesTopic) {
+          candidates.push({ left, right, retrievalScore: Math.min(1, lexical + (sharesTopic ? 0.2 : 0)), exact: lexical === 1 });
+        }
       }
     }
 
-    // Ollama commonly allows one inference at a time; serialize a bounded set
-    // of close candidates instead of flooding its request queue.
-    const aiCandidates = candidates.slice(0, 12);
+    const exactCandidates = candidates.filter((candidate) => candidate.exact);
+    // Ollama commonly allows one inference at a time; serialize a bounded
+    // ranked candidate set. Pairs outside the set are intentionally not shown
+    // as duplicates because retrieval is not a semantic conclusion.
+    const aiCandidates = candidates
+      .filter((candidate) => !candidate.exact)
+      .sort((a, b) => b.retrievalScore - a.retrievalScore)
+      .slice(0, 40);
     const matches: any[] = [];
-    for (const { left, right, lexical } of aiCandidates) {
-      if (lexical === 1) {
-        matches.push({ left, right, score: 1, matchMethod: 'EXACT', reason: 'Nội dung trùng khớp sau khi chuẩn hoá.' });
-        continue;
-      }
-      try {
-        const response = await this.aiService.suggestSimilarTopics({
-          topicName: left.content,
-          existingTopics: [right.content],
-          language: 'vi',
-        });
-        const aiMatch = response.matches?.[0];
-        const aiScore = Number(aiMatch?.score || 0);
-        const isAiResult = !String(aiMatch?.reason || '').toLowerCase().includes('heuristic');
-        const score = Math.max(lexical, aiScore);
-        matches.push({
-          left, right, score,
-          matchMethod: isAiResult ? 'AI' : 'TEXT',
-          reason: isAiResult ? String(aiMatch?.reason || 'AI xác nhận hai câu có nội dung tương tự.') : 'Tương đồng theo nội dung văn bản; AI chưa khả dụng.',
-        });
-      } catch {
-        matches.push({ left, right, score: lexical, matchMethod: 'TEXT', reason: 'Tương đồng theo nội dung văn bản; AI chưa khả dụng.' });
+    for (const { left, right } of exactCandidates) {
+      matches.push({
+        left, right, relation: 'EXACT_DUPLICATE', confidence: 1, matchMethod: 'EXACT',
+        reason: 'Nội dung câu hỏi trùng khớp sau khi chuẩn hoá.',
+        diagnostics: { sameKnowledgePoint: true, sameCognitiveOperation: true, sameExpectedAnswer: true, differentWording: false },
+      });
+    }
+    for (const { left, right } of aiCandidates) {
+      const assessment = await this.aiService.assessQuestionDuplicatePair({
+        course: course || {},
+        questionA: {
+          ...left,
+          topics: (left.topicLinks || []).map((link: any) => link.topic?.name).filter(Boolean),
+        },
+        questionB: {
+          ...right,
+          topics: (right.topicLinks || []).map((link: any) => link.topic?.name).filter(Boolean),
+        },
+        language: 'vi',
+      });
+      // RELATED_ONLY and DISTINCT are ordinary candidate-retrieval outcomes;
+      // omit them from the duplicate-review list rather than padding it.
+      if (assessment && assessment.relation !== 'RELATED_ONLY' && assessment.relation !== 'DISTINCT') {
+        matches.push({ left, right, ...assessment, matchMethod: 'AI' });
       }
     }
 
-    const unreviewed = candidates.slice(12).map(({ left, right, lexical }) => ({
-      left, right, score: lexical, matchMethod: 'TEXT', reason: 'Tương đồng theo nội dung văn bản.',
-    }));
-    const pairs = [...matches, ...unreviewed]
-      .filter((item) => item.score >= 0.35)
-      .sort((a, b) => b.score - a.score)
+    const pairs = matches
+      .sort((a, b) => b.confidence - a.confidence)
       .map((item) => ({
         questionA: { id: item.left.id, type: item.left.type, content: item.left.content },
         questionB: { id: item.right.id, type: item.right.type, content: item.right.content },
-        similarityPercent: Number((item.score * 100).toFixed(0)),
+        // Retained for compatible clients. It is classification confidence,
+        // not a percentage of matching words.
+        similarityPercent: Number((item.confidence * 100).toFixed(0)),
+        relation: item.relation,
         matchMethod: item.matchMethod,
         reason: item.reason,
+        diagnostics: item.diagnostics,
       }));
     return { courseId, scannedQuestionCount: questions.length, pairs, aiReviewedPairs: aiCandidates.length };
+  }
+
+  async createDuplicateAnalysisJob(courseId: string, questionIds: string[], user: AuthUser) {
+    await this.assertCourseAccessible(courseId, user);
+    const uniqueQuestionIds = [...new Set(questionIds.map((id) => String(id).trim()).filter(Boolean))];
+    if (uniqueQuestionIds.length < 2) throw new BadRequestException('Cần chọn ít nhất 2 câu hỏi để phân tích.');
+
+    const ownedQuestions = await this.prisma.question.count({
+      where: { id: { in: uniqueQuestionIds }, courseId, status: 'PUBLISHED' },
+    });
+    if (ownedQuestions !== uniqueQuestionIds.length) {
+      throw new BadRequestException('Danh sách câu hỏi có phần tử không thuộc học phần hoặc chưa được xuất bản.');
+    }
+
+    const courseQuestionCount = await this.prisma.question.count({
+      where: { courseId, status: 'PUBLISHED' },
+    });
+    const targetQuestionCount = Math.max(0, courseQuestionCount - uniqueQuestionIds.length);
+    const totalPairs = uniqueQuestionIds.length * targetQuestionCount;
+    const job = await this.aiJobsService.createJob({
+      task: 'question-duplicate-analysis',
+      requestedBy: user.id,
+      payload: {
+        courseId,
+        questionIds: uniqueQuestionIds,
+        targetQuestionCount,
+        totalPairs,
+        language: 'vi',
+      },
+    });
+    return { jobId: job.id, status: 'QUEUED', totalPairs, selectedQuestionCount: uniqueQuestionIds.length, targetQuestionCount };
   }
 
   private parseJson(value: any, fallback: any = null) {
@@ -1468,24 +1524,44 @@ export class QuestionsService {
     });
 
     const versionIds = questions.flatMap((question) => question.versions.map((version) => version.id));
+    // Keep version-level and exam-usage-level analytics separate. A question
+    // version is an immutable content revision; an exam is a cohort/context in
+    // which that revision was used. Joining them as one time series makes a
+    // cohort change look like a content revision.
     const usageRows = versionIds.length
       ? await this.prisma.$queryRawUnsafe(
           `
-          SELECT eq.questionVersionId, e.id AS examId, e.title AS examTitle, e.createdAt AS examCreatedAt, COUNT(DISTINCT es.id) AS submissions
-          FROM exam_questions eq
-          INNER JOIN exams e ON e.id = eq.examId
-          LEFT JOIN exam_submissions es ON es.examId = e.id AND es.status IN ('SUBMITTED', 'GRADED', 'FLAGGED')
-          WHERE eq.questionVersionId IN (${versionIds.map(() => '?').join(',')})
-          GROUP BY eq.questionVersionId, e.id, e.title, e.createdAt
-          ORDER BY e.createdAt ASC
+          SELECT
+            sa.questionVersionId,
+            es.examId,
+            e.title AS examTitle,
+            e.startTime AS examStartTime,
+            e.createdAt AS examCreatedAt,
+            COUNT(sa.id) AS attempts,
+            COUNT(DISTINCT es.studentId) AS students,
+            SUM(CASE WHEN sa.isCorrect = 1 THEN 1 ELSE 0 END) AS correctAttempts,
+            SUM(CASE WHEN sa.isCorrect = 0 THEN 1 ELSE 0 END) AS incorrectAttempts,
+            SUM(CASE WHEN sa.isCorrect IS NULL THEN 1 ELSE 0 END) AS skippedAttempts
+          FROM submission_answers sa
+          INNER JOIN exam_submissions es
+            ON es.id = sa.submissionId AND es.status IN ('SUBMITTED', 'GRADED', 'FLAGGED', 'FINALIZED')
+          INNER JOIN exams e ON e.id = es.examId
+          WHERE sa.questionVersionId IN (${versionIds.map(() => '?').join(',')})
+          GROUP BY sa.questionVersionId, es.examId, e.title, e.startTime, e.createdAt
+          ORDER BY COALESCE(e.startTime, e.createdAt) ASC, e.title ASC
           `,
           ...versionIds,
         ) as Array<{
           questionVersionId: string;
           examId: string;
           examTitle: string;
+          examStartTime: Date | null;
           examCreatedAt: Date;
-          submissions: bigint | number;
+          attempts: bigint | number;
+          students: bigint | number;
+          correctAttempts: bigint | number;
+          incorrectAttempts: bigint | number;
+          skippedAttempts: bigint | number;
         }>
       : [];
 
@@ -1504,35 +1580,92 @@ export class QuestionsService {
     };
 
     const rows = questions.map((question) => {
-      const metrics = question.versions.map((version) => {
+      const toMetric = (input: {
+        versionId: string;
+        versionNo: number;
+        attempts: number;
+        correctAttempts: number;
+        incorrectAttempts: number;
+        skippedAttempts: number;
+        usageCount: number;
+        examId?: string | null;
+        exam?: string | null;
+        date?: Date | string | null;
+        students?: number | null;
+      }) => {
+        const correctRate = input.attempts > 0 ? input.correctAttempts / input.attempts : null;
+        const discrimination = input.attempts > 0
+          ? Math.max(-1, Math.min(1, (input.correctAttempts - input.incorrectAttempts) / input.attempts))
+          : null;
+        return {
+          ...input,
+          examId: input.examId || null,
+          exam: input.exam || `Version ${input.versionNo}`,
+          date: new Date(input.date || 0).toISOString().slice(0, 10),
+          students: input.students ?? null,
+          correctRate,
+          // In ExamTrust, p is the proportion correct: higher means easier.
+          difficulty: correctRate,
+          discrimination,
+          reliability: input.attempts >= 10 && discrimination !== null
+            ? Math.max(0, Math.min(1, 1 - Math.abs(discrimination - 0.45)))
+            : null,
+        };
+      };
+
+      const versionMetrics = question.versions.map((version) => {
         const stats = version.statistics;
         const usages = usageByVersion.get(version.id) || [];
-        const attempts = Number(stats?.totalAttempts || 0);
-        const correctRate = attempts > 0 ? toNumber(stats?.pValue, 0) : null;
-        const difficultyIndex = attempts > 0 ? toNumber(stats?.difficultyIndex, 0) : null;
-        const discriminationIndex = attempts > 0 ? toNumber(stats?.discriminationIndex, 0) : null;
-        return {
+        const aggregate = usages.reduce(
+          (sum, usage) => ({
+            attempts: sum.attempts + toNumber(usage.attempts),
+            correctAttempts: sum.correctAttempts + toNumber(usage.correctAttempts),
+            incorrectAttempts: sum.incorrectAttempts + toNumber(usage.incorrectAttempts),
+            skippedAttempts: sum.skippedAttempts + toNumber(usage.skippedAttempts),
+          }),
+          { attempts: 0, correctAttempts: 0, incorrectAttempts: 0, skippedAttempts: 0 },
+        );
+        // Old submissions can predate questionVersionId on SubmissionAnswer.
+        // Retain their existing version statistic as a compatible fallback,
+        // but never attach it to a particular exam/cohort.
+        const fallbackAttempts = Number(stats?.totalAttempts || 0);
+        const source = aggregate.attempts > 0
+          ? aggregate
+          : {
+              attempts: fallbackAttempts,
+              correctAttempts: Number(stats?.correctAttempts || 0),
+              incorrectAttempts: Number(stats?.incorrectAttempts || 0),
+              skippedAttempts: Number(stats?.skippedAttempts || 0),
+            };
+        return toMetric({
           versionId: version.id,
           versionNo: version.versionNo,
-          examId: usages[0]?.examId || null,
-          exam: usages[0]?.examTitle || `Version ${version.versionNo}`,
-          date: new Date(usages[0]?.examCreatedAt || version.createdAt).toISOString().slice(0, 10),
-          attempts,
-          correctAttempts: Number(stats?.correctAttempts || 0),
-          incorrectAttempts: Number(stats?.incorrectAttempts || 0),
-          skippedAttempts: Number(stats?.skippedAttempts || 0),
-          correctRate,
-          difficulty: difficultyIndex,
-          discrimination: discriminationIndex,
-          reliability: attempts >= 10 && discriminationIndex !== null
-            ? Math.max(0, Math.min(1, 1 - Math.abs(discriminationIndex - 0.45)))
-            : null,
-          aiGenerated: version.aiGenerated,
+          ...source,
           usageCount: usages.length,
-        };
+          date: version.createdAt,
+        });
       });
 
-      const usableMetrics = metrics.filter((metric) => metric.attempts > 0);
+      const examUsageMetrics = usageRows
+        .filter((usage) => question.versions.some((version) => version.id === usage.questionVersionId))
+        .map((usage) => {
+          const version = question.versions.find((item) => item.id === usage.questionVersionId)!;
+          return toMetric({
+            versionId: version.id,
+            versionNo: version.versionNo,
+            examId: usage.examId,
+            exam: usage.examTitle,
+            date: usage.examStartTime || usage.examCreatedAt,
+            attempts: toNumber(usage.attempts),
+            students: toNumber(usage.students),
+            correctAttempts: toNumber(usage.correctAttempts),
+            incorrectAttempts: toNumber(usage.incorrectAttempts),
+            skippedAttempts: toNumber(usage.skippedAttempts),
+            usageCount: 1,
+          });
+        });
+
+      const usableMetrics = versionMetrics.filter((metric) => metric.attempts > 0);
       const first = usableMetrics[0];
       const last = usableMetrics[usableMetrics.length - 1];
       const difficultyDelta = first && last && first.difficulty !== null && last.difficulty !== null
@@ -1567,7 +1700,11 @@ export class QuestionsService {
         status: question.status,
         createdAt: question.createdAt,
         updatedAt: question.updatedAt,
-        metrics,
+        // `metrics` remains as a backward-compatible alias for consumers that
+        // previously expected one value per question version.
+        metrics: versionMetrics,
+        versionMetrics,
+        examUsageMetrics,
         versions: question.versions.map((version) => ({
           id: version.id,
           versionNo: version.versionNo,
@@ -2136,6 +2273,7 @@ export class QuestionsService {
       difficulty: q.difficulty,
       points: q.points,
       course: q.course,
+      courseId: q.courseId,
       creatorId: q.creatorId,
       createdAt: q.createdAt,
       updatedAt: q.updatedAt,

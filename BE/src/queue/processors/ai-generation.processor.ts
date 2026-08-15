@@ -8,7 +8,7 @@ import { AiService } from '../../ai/ai.service';
 import { AISection } from '../../questions-v2/dto/question-draft.dto';
 import { ExamTrustAiContext } from '../../ai/ai-profile';
 
-type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement' | 'proctoring-evidence';
+type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement' | 'proctoring-evidence' | 'question-duplicate-analysis';
 
 @Processor('ai-generation')
 export class AIGenerationProcessor {
@@ -274,6 +274,66 @@ export class AIGenerationProcessor {
     });
 
     try {
+      if (task === 'question-duplicate-analysis') {
+        const questionIds = Array.isArray(payload.questionIds) ? payload.questionIds.map(String) : [];
+        const questions = await this.prisma.question.findMany({
+          where: { courseId: String(payload.courseId || ''), status: 'PUBLISHED' },
+          select: {
+            id: true, type: true, content: true, options: true, correctAnswer: true, explanation: true, difficulty: true,
+            course: { select: { code: true, name: true, description: true } },
+            topicLinks: { select: { topic: { select: { name: true } } } },
+          },
+        });
+        const references = questionIds.map((id) => questions.find((question) => question.id === id)).filter(Boolean) as any[];
+        const referenceIds = new Set(references.map((question) => question.id));
+        const targets = questions.filter((question) => !referenceIds.has(question.id));
+        const totalPairs = references.length * targets.length;
+        const normalize = (value: string) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        const lexical = (left: string, right: string) => {
+          const a = normalize(left); const b = normalize(right);
+          if (!a || !b) return 0;
+          if (a === b) return 1;
+          const aTokens = new Set(a.split(' ')); const bTokens = new Set(b.split(' '));
+          let overlap = 0; aTokens.forEach((token) => { if (bTokens.has(token)) overlap += 1; });
+          return overlap / Math.max(1, new Set([...aTokens, ...bTokens]).size);
+        };
+        const pairs: any[] = [];
+        let processedPairs = 0;
+        const update = async (currentPair?: string) => this.prisma.aIGenerationRecord.update({
+          where: { id: jobId },
+          data: { output: { totalPairs, processedPairs, progress: totalPairs ? Math.round((processedPairs / totalPairs) * 100) : 100, currentPair: currentPair || null, duplicateCandidates: pairs.length, pairs } },
+        });
+        await update();
+        for (const left of references) {
+          for (const right of targets) {
+            const currentPair = `${left.id} ↔ ${right.id}`;
+            if (left.type === right.type) {
+              const score = lexical(left.content, right.content);
+              const leftTopics = new Set((left.topicLinks || []).map((link: any) => String(link.topic?.name || '').toLowerCase()));
+              const sharesTopic = (right.topicLinks || []).some((link: any) => leftTopics.has(String(link.topic?.name || '').toLowerCase()));
+              if (score === 1) {
+                pairs.push({ questionA: { id: left.id, type: left.type, content: left.content }, questionB: { id: right.id, type: right.type, content: right.content }, relation: 'EXACT_DUPLICATE', confidence: 1, matchMethod: 'EXACT', reason: 'Nội dung câu hỏi trùng khớp sau khi chuẩn hoá.', diagnostics: { sameKnowledgePoint: true, sameCognitiveOperation: true, sameExpectedAnswer: true, differentWording: false } });
+              } else if (score >= 0.25 || sharesTopic) {
+                const assessment = await this.aiService.assessQuestionDuplicatePair({
+                  course: left.course || {},
+                  questionA: { ...left, topics: (left.topicLinks || []).map((link: any) => link.topic?.name).filter(Boolean) },
+                  questionB: { ...right, topics: (right.topicLinks || []).map((link: any) => link.topic?.name).filter(Boolean) },
+                  language: payload.language || 'vi',
+                });
+                if (assessment && assessment.relation !== 'RELATED_ONLY' && assessment.relation !== 'DISTINCT') {
+                  pairs.push({ questionA: { id: left.id, type: left.type, content: left.content }, questionB: { id: right.id, type: right.type, content: right.content }, ...assessment, matchMethod: 'AI' });
+                }
+              }
+            }
+            processedPairs += 1;
+            await job.progress(totalPairs ? Math.round((processedPairs / totalPairs) * 100) : 100);
+            await update(currentPair);
+          }
+        }
+        await this.prisma.aIGenerationRecord.update({ where: { id: jobId }, data: { status: 'SUCCEEDED', output: { totalPairs, processedPairs, progress: 100, duplicateCandidates: pairs.length, pairs }, completedAt: new Date() } });
+        return;
+      }
+
       if (task === 'proctoring-evidence') {
         const captureId = String(payload.captureId || '');
         const capture = await this.prisma.proctoringEvidenceCapture.findUnique({ where: { id: captureId } });
