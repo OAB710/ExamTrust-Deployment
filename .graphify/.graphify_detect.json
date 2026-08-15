@@ -172,6 +172,7 @@
       "BE/src/questions-v2/questions-v2-contracts.module.ts",
       "BE/src/questions-v2/questions-v2.ai-improvement.spec.ts",
       "BE/src/questions-v2/questions-v2.duplicates.spec.ts",
+      "BE/src/questions-v2/questions-v2.history.spec.ts",
       "BE/src/questions-v2/questions-v2.service.ts",
       "BE/src/queue/processors/ai-generation.processor.spec.ts",
       "BE/src/queue/processors/ai-generation.processor.ts",
@@ -576,17 +577,17 @@
       "1mb.mp3"
     ]
   },
-  "total_files": 566,
-  "total_words": 517336,
+  "total_files": 567,
+  "total_words": 520475,
   "needs_graph": true,
-  "warning": "Large corpus: 566 files · ~517,336 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 567 files · ~520,475 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],
   "graphifyignore_patterns": 65,
   "git": {
     "source_owner": "git",
-    "source_hash": "1c721c69f5f3da041da3b48b749977077d7abe3b",
+    "source_hash": "985bd8fddf9aae18605316a6afe6dd1fb02b222f",
     "branches": [
       "duc",
       "main"
@@ -600,11 +601,11 @@
     "source": "default-auto",
     "root": ".",
     "git_root": ".",
-    "head": "1c721c69f5f3da041da3b48b749977077d7abe3b",
-    "candidate_count": 625,
-    "included_count": 566,
-    "excluded_untracked_count": 1,
-    "excluded_ignored_count": 105110,
+    "head": "985bd8fddf9aae18605316a6afe6dd1fb02b222f",
+    "candidate_count": 626,
+    "included_count": 567,
+    "excluded_untracked_count": 0,
+    "excluded_ignored_count": 105214,
     "excluded_sensitive_count": 1,
     "missing_committed_count": 0,
     "warnings": [],

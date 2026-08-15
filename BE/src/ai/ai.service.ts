@@ -1087,6 +1087,124 @@ Rules:
     }
   }
 
+  async assessQuestionDuplicatePair(params: {
+    course: { code?: string; name?: string; description?: string | null };
+    questionA: {
+      id: string; type: string; content: string; options?: unknown; correctAnswer?: unknown;
+      explanation?: string | null; difficulty?: number | null; topics?: string[];
+    };
+    questionB: {
+      id: string; type: string; content: string; options?: unknown; correctAnswer?: unknown;
+      explanation?: string | null; difficulty?: number | null; topics?: string[];
+    };
+    language?: string;
+  }): Promise<null | {
+    relation: 'EXACT_DUPLICATE' | 'SEMANTIC_DUPLICATE' | 'SAME_SKILL_DIFFERENT_QUESTION' | 'PARTIAL_OVERLAP' | 'RELATED_ONLY' | 'DISTINCT';
+    confidence: number;
+    reason: string;
+    diagnostics: { sameKnowledgePoint: boolean; sameCognitiveOperation: boolean; sameExpectedAnswer: boolean; differentWording: boolean };
+  }> {
+    const language = params.language || this.defaultLanguage;
+    const questionSummary = (label: string, question: typeof params.questionA) => `${label}
+ID: ${question.id}
+Type: ${question.type}
+Stem: ${question.content}
+Topics: ${(question.topics || []).join(', ') || 'not provided'}
+Options: ${JSON.stringify(question.options ?? null)}
+Correct answer: ${JSON.stringify(question.correctAnswer ?? null)}
+Explanation: ${question.explanation || 'not provided'}
+Difficulty: ${question.difficulty ?? 'not provided'}`;
+
+    const prompt = `${buildExamTrustPromptHeader({
+      appName: this.appName,
+      useCase: 'question_duplicate_detection',
+      language,
+      questionType: params.questionA.type,
+      questionCount: 2,
+      context: {
+        courseCode: params.course.code,
+        courseName: params.course.name,
+        courseDescription: params.course.description || undefined,
+      },
+    })}
+
+You are assessing whether TWO ASSESSMENT QUESTIONS are redundant if kept in the same question bank or exam. This is NOT topic taxonomy matching and you must not use parent/child topic relations.
+
+COURSE CONTEXT is the semantic boundary. Assess the whole question package, not stem wording alone.
+
+${questionSummary('QUESTION A', params.questionA)}
+
+${questionSummary('QUESTION B', params.questionB)}
+
+Apply this rubric in order:
+1. Identify the core knowledge point each question assesses.
+2. Identify the cognitive operation required (recall, explanation, application, analysis, etc.).
+3. Compare expected answer or solution path, considering options and answer keys when present.
+4. Ask whether a student who can answer A would almost automatically answer B.
+5. Ask whether including both questions creates assessment redundancy.
+6. Assign exactly one relation:
+   - EXACT_DUPLICATE: same or nearly identical wording, task, and expected answer.
+   - SEMANTIC_DUPLICATE: different wording but substantially the same knowledge point, cognitive demand, and expected answer/solution path; keep one.
+   - SAME_SKILL_DIFFERENT_QUESTION: same skill/topic but meaningfully different task or cognitive demand; both may be kept.
+   - PARTIAL_OVERLAP: a meaningful shared requirement but each question also assesses something distinct; lecturer should review scope.
+   - RELATED_ONLY: related subject area but separate knowledge point; not a duplicate.
+   - DISTINCT: no meaningful assessment overlap.
+
+Confidence is confidence in the CLASSIFICATION, not a percentage of matching words. Do not classify opposite prompts such as "when to use" versus "when not to use" as duplicates solely due to lexical overlap.
+
+Return ONLY JSON:
+{
+  "relation": "EXACT_DUPLICATE|SEMANTIC_DUPLICATE|SAME_SKILL_DIFFERENT_QUESTION|PARTIAL_OVERLAP|RELATED_ONLY|DISTINCT",
+  "confidence": 0.0,
+  "reason": "short reason",
+  "diagnostics": {
+    "sameKnowledgePoint": true,
+    "sameCognitiveOperation": true,
+    "sameExpectedAnswer": true,
+    "differentWording": false
+  }
+}
+
+When language is "vi", reason must be Vietnamese.`;
+
+    try {
+      let responseText: string | null = null;
+      if (this.provider === 'ollama') responseText = await this._callOllama(prompt, this.buildOllamaOptions('question_duplicate_detection'));
+      else if (this.provider === 'nvidia') responseText = await this._callNvidia(prompt);
+      else if (this.provider === 'openrouter') responseText = await this._callOpenRouter(prompt);
+      else if (this.provider === 'deepseek') responseText = await this._callDeepSeek(prompt);
+      else if (this.provider === 'local' && this.localUrl) {
+        const response = await fetch(this.localUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
+        if (!response.ok) throw new Error(`Máy chủ mô hình cục bộ trả về mã lỗi ${response.status}`);
+        responseText = await response.text();
+      } else if (this.model) {
+        const result = await this.model.generateContent(prompt);
+        responseText = result.response.text();
+      }
+      if (!responseText) return null;
+
+      const parsed = JSON.parse(responseText.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim());
+      const validRelations = new Set(['EXACT_DUPLICATE', 'SEMANTIC_DUPLICATE', 'SAME_SKILL_DIFFERENT_QUESTION', 'PARTIAL_OVERLAP', 'RELATED_ONLY', 'DISTINCT']);
+      const relation = String(parsed?.relation || '').toUpperCase();
+      if (!validRelations.has(relation)) return null;
+      const diagnostics = parsed?.diagnostics || {};
+      return {
+        relation: relation as any,
+        confidence: Math.max(0, Math.min(1, Number(parsed?.confidence) || 0)),
+        reason: String(parsed?.reason || '').trim() || (language === 'vi' ? 'AI chưa cung cấp diễn giải chi tiết.' : 'The AI did not provide a detailed explanation.'),
+        diagnostics: {
+          sameKnowledgePoint: Boolean(diagnostics.sameKnowledgePoint),
+          sameCognitiveOperation: Boolean(diagnostics.sameCognitiveOperation),
+          sameExpectedAnswer: Boolean(diagnostics.sameExpectedAnswer),
+          differentWording: Boolean(diagnostics.differentWording),
+        },
+      };
+    } catch (error: any) {
+      this.logger.warn(`Question duplicate assessment unavailable: ${error.message}`);
+      return null;
+    }
+  }
+
   async suggestSimilarTopics(params: {
     topicName: string;
     existingTopics: Array<string | { id?: string; name: string }>;
@@ -1540,7 +1658,7 @@ Rules:
     return text;
   }
 
-  private buildOllamaOptions(useCase: 'question_generation' | 'exam_generation' | 'topic_matching' | 'grading_support') {
+  private buildOllamaOptions(useCase: 'question_generation' | 'exam_generation' | 'topic_matching' | 'question_duplicate_detection' | 'grading_support') {
     return getOllamaGenerationOptions(useCase);
   }
 

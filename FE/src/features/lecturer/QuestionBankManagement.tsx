@@ -118,6 +118,48 @@ import { useQuestionBankRouteState } from "./hooks/useQuestionBankRouteState";
 
 const QUESTION_DRAFT_STORAGE_KEY = "question-draft";
 
+type QuestionDuplicateRelation =
+  | "EXACT_DUPLICATE"
+  | "SEMANTIC_DUPLICATE"
+  | "SAME_SKILL_DIFFERENT_QUESTION"
+  | "PARTIAL_OVERLAP"
+  | "RELATED_ONLY"
+  | "DISTINCT";
+
+type DuplicatePair = {
+  questionA: { id: string; type: string; content: string };
+  questionB: { id: string; type: string; content: string };
+  /** Confidence in the classification; the field name is kept for API compatibility. */
+  similarityPercent: number;
+  relation: QuestionDuplicateRelation;
+  matchMethod: "EXACT" | "TEXT" | "AI";
+  reason: string;
+  diagnostics?: {
+    sameKnowledgePoint: boolean;
+    sameCognitiveOperation: boolean;
+    sameExpectedAnswer: boolean;
+    differentWording: boolean;
+  };
+};
+
+const duplicateRelationLabel: Record<QuestionDuplicateRelation, string> = {
+  EXACT_DUPLICATE: "Trùng chính xác",
+  SEMANTIC_DUPLICATE: "Trùng về ý nghĩa",
+  SAME_SKILL_DIFFERENT_QUESTION: "Cùng kỹ năng, câu khác",
+  PARTIAL_OVERLAP: "Giao nhau một phần",
+  RELATED_ONLY: "Chỉ liên quan",
+  DISTINCT: "Khác biệt",
+};
+
+const duplicateRelationGuidance: Record<QuestionDuplicateRelation, string> = {
+  EXACT_DUPLICATE: "Nên giữ một câu để tránh lặp lại trong ngân hàng hoặc đề thi.",
+  SEMANTIC_DUPLICATE: "Ưu tiên giữ một câu; hai câu gần như kiểm tra cùng năng lực.",
+  SAME_SKILL_DIFFERENT_QUESTION: "Có thể giữ cả hai vì yêu cầu đánh giá khác nhau.",
+  PARTIAL_OVERLAP: "Có thể giữ cả hai, nhưng nên rà lại phần phạm vi bị giao nhau.",
+  RELATED_ONLY: "Không phải câu trùng.",
+  DISTINCT: "Không phải câu trùng.",
+};
+
 // --- Utility helpers for preview modal ---
 
 function safeParseJson(value: unknown): unknown {
@@ -300,13 +342,18 @@ export default function QuestionBankManagement() {
   const [copyLoading, setCopyLoading] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateLoading, setDuplicateLoading] = useState(false);
+  const [duplicateStep, setDuplicateStep] = useState<1 | 2 | 3>(1);
+  const [duplicateMode, setDuplicateMode] = useState<"AI" | "KEYWORD">("AI");
+  const [duplicateSelectedIds, setDuplicateSelectedIds] = useState<string[]>([]);
+  const [duplicateSearch, setDuplicateSearch] = useState("");
+  const [duplicateKeywordReferenceId, setDuplicateKeywordReferenceId] = useState("");
+  const [duplicateKeywordQuery, setDuplicateKeywordQuery] = useState("");
+  const [duplicateKeywordPhrase, setDuplicateKeywordPhrase] = useState(true);
+  const [duplicateJobId, setDuplicateJobId] = useState<string | null>(null);
+  const [duplicateProgress, setDuplicateProgress] = useState<{ totalPairs: number; processedPairs: number; progress: number; currentPair?: string; duplicateCandidates: number }>({ totalPairs: 0, processedPairs: 0, progress: 0, duplicateCandidates: 0 });
   const [duplicateThresholdMin, setDuplicateThresholdMin] = useState(50);
   const [duplicateThresholdMax, setDuplicateThresholdMax] = useState(100);
-  const [duplicatePairs, setDuplicatePairs] = useState<Array<{
-    questionA: { id: string; type: string; content: string };
-    questionB: { id: string; type: string; content: string };
-    similarityPercent: number; matchMethod: 'EXACT' | 'TEXT' | 'AI'; reason: string;
-  }>>([]);
+  const [duplicatePairs, setDuplicatePairs] = useState<DuplicatePair[]>([]);
   const [duplicateScanCount, setDuplicateScanCount] = useState(0);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -467,20 +514,77 @@ export default function QuestionBankManagement() {
       return;
     }
     setDuplicateDialogOpen(true);
+    setDuplicateStep(1);
+    setDuplicateMode("AI");
+    setDuplicateSelectedIds([]);
+    setDuplicateSearch("");
+    setDuplicateKeywordReferenceId("");
+    setDuplicateKeywordQuery("");
+    setDuplicateJobId(null);
+    setDuplicatePairs([]);
+    setDuplicateScanCount(questions.filter((question) => question.courseId === courseId).length);
+  };
+
+  useEffect(() => {
+    if (!duplicateJobId || !duplicateLoading) return;
+    const poll = async () => {
+      try {
+        const job = await api.request<{ status: string; output?: { totalPairs?: number; processedPairs?: number; progress?: number; currentPair?: string; duplicateCandidates?: number; pairs?: DuplicatePair[] }; errorMessage?: string }>(`/questions/ai-jobs/${duplicateJobId}`);
+        const output = job.output || {};
+        setDuplicateProgress({ totalPairs: output.totalPairs || 0, processedPairs: output.processedPairs || 0, progress: output.progress || 0, currentPair: output.currentPair, duplicateCandidates: output.duplicateCandidates || 0 });
+        if (job.status === "SUCCEEDED") { setDuplicatePairs(output.pairs || []); setDuplicateLoading(false); }
+        if (job.status === "FAILED") { setDuplicateLoading(false); toast.error(job.errorMessage || "Phân tích AI thất bại."); }
+      } catch { setDuplicateLoading(false); toast.error("Không thể lấy tiến độ phân tích."); }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 1200);
+    return () => window.clearInterval(timer);
+  }, [duplicateJobId, duplicateLoading]);
+
+  const duplicateCourseQuestions = useMemo(() => {
+    const courseId = courses.find((course) => course.code === selectedCourse)?.id;
+    return questions.filter((question) => question.courseId === courseId);
+  }, [courses, questions, selectedCourse]);
+
+  const startDuplicateAiAnalysis = async () => {
+    const courseId = courses.find((course) => course.code === selectedCourse)?.id;
+    if (!courseId || duplicateSelectedIds.length < 2) return;
     setDuplicateLoading(true);
+    setDuplicateProgress({ totalPairs: duplicateSelectedIds.length * Math.max(0, duplicateCourseQuestions.length - duplicateSelectedIds.length), processedPairs: 0, progress: 0, duplicateCandidates: 0 });
     try {
-      const result = await api.request<{
-        scannedQuestionCount: number;
-        pairs: typeof duplicatePairs;
-      }>('/questions/duplicate-check', { method: 'POST', body: { courseId } });
-      setDuplicatePairs(result.pairs);
-      setDuplicateScanCount(result.scannedQuestionCount);
-    } catch (error) {
-      console.warn("Failed to check duplicate questions", error);
-      toast.error("Không thể quét câu hỏi trùng lặp. Vui lòng thử lại.");
-    } finally {
+      const result = await api.request<{ jobId: string }>('/questions/duplicate-analysis/jobs', { method: 'POST', body: { courseId, questionIds: duplicateSelectedIds } });
+      setDuplicateJobId(result.jobId);
+      setDuplicateStep(3);
+    } catch {
       setDuplicateLoading(false);
+      toast.error("Không thể tạo tác vụ phân tích AI.");
     }
+  };
+
+  const startKeywordSearch = () => {
+    const reference = duplicateCourseQuestions.find((question) => question.id === duplicateKeywordReferenceId);
+    const normalize = (value: string) => value.toLocaleLowerCase("vi-VN").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+    const query = normalize(duplicateKeywordQuery);
+    if (!reference || !query) return;
+    const terms = duplicateKeywordPhrase ? [query] : [...new Set(query.split(" ").filter((term) => term.length > 1))];
+    const matches = duplicateCourseQuestions
+      .filter((question) => !duplicateSelectedIds.includes(question.id))
+      .map((question) => {
+        const content = normalize(question.content);
+        const matched = terms.filter((term) => content.includes(term));
+        return { question, matched, percent: Math.round((matched.length / Math.max(1, terms.length)) * 100) };
+      })
+      .filter((item) => item.matched.length > 0)
+      .sort((a, b) => b.percent - a.percent)
+      .map((item) => ({
+        questionA: { id: reference.id, type: reference.type, content: reference.content },
+        questionB: { id: item.question.id, type: item.question.type, content: item.question.content },
+        similarityPercent: item.percent, relation: "PARTIAL_OVERLAP" as const, matchMethod: "TEXT" as const,
+        reason: `Trùng ${item.matched.length}/${terms.length} ${duplicateKeywordPhrase ? "cụm từ" : "từ"}: ${item.matched.join(", ")}.`,
+      }));
+    setDuplicatePairs(matches);
+    setDuplicateLoading(false);
+    setDuplicateStep(3);
   };
 
   const saveDuplicateThreshold = async (min: number, max: number) => {
@@ -1377,48 +1481,69 @@ export default function QuestionBankManagement() {
             <DialogHeader>
               <DialogTitle>Lọc các câu trùng lặp</DialogTitle>
               <DialogDescription>
-                Đối chiếu {duplicateScanCount} câu hỏi cùng học phần. Kết quả chỉ là gợi ý để giảng viên xem xét.
+                Bước {duplicateStep}/3 · {duplicateScanCount} câu hỏi trong học phần. Mở công cụ không gọi AI.
               </DialogDescription>
             </DialogHeader>
+            <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+              {[[1, "Chọn câu"], [2, "Phân tích"], [3, "Kết quả"]].map(([step, label]) => <div key={String(step)} className={`rounded-md px-3 py-2 text-center ${duplicateStep === step ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{step}. {label}</div>)}
+            </div>
+            {duplicateStep === 1 && (() => {
+              const visible = duplicateCourseQuestions.filter((question) => `${question.id} ${question.content} ${question.type}`.toLowerCase().includes(duplicateSearch.toLowerCase()));
+              const selected = new Set(duplicateSelectedIds);
+              return <div className="space-y-4">
+                <Input value={duplicateSearch} onChange={(event) => setDuplicateSearch(event.target.value)} placeholder="Tìm theo nội dung, ID, loại câu hỏi..." />
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={visible.length > 0 && visible.every((question) => selected.has(question.id))} onChange={(event) => setDuplicateSelectedIds(event.target.checked ? [...new Set([...duplicateSelectedIds, ...visible.map((question) => question.id)])].slice(0, 30) : duplicateSelectedIds.filter((id) => !visible.some((question) => question.id === id)))} /> Chọn tất cả kết quả đang hiển thị</label>
+                <div className="max-h-[48vh] space-y-2 overflow-y-auto rounded-lg border p-2">{visible.map((question) => <label key={question.id} className="flex cursor-pointer gap-3 rounded-md p-3 hover:bg-muted"><input type="checkbox" checked={selected.has(question.id)} onChange={(event) => setDuplicateSelectedIds(event.target.checked ? [...duplicateSelectedIds, question.id].slice(0, 30) : duplicateSelectedIds.filter((id) => id !== question.id))} /><span><span className="block text-sm">{question.content}</span><span className="text-xs text-muted-foreground">{question.id.slice(0, 8)} · {questionTypeLabels[question.type] || question.type}</span></span></label>)}</div>
+                <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Đã chọn: {duplicateSelectedIds.length} / {duplicateCourseQuestions.length} câu (tối đa 30)</span><Button disabled={duplicateSelectedIds.length < 2} onClick={() => setDuplicateStep(2)}>Tiếp tục →</Button></div>
+              </div>;
+            })()}
+            {duplicateStep === 2 && <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2"><button onClick={() => setDuplicateMode("AI")} className={`rounded-lg border p-4 text-left ${duplicateMode === "AI" ? "border-primary bg-primary/5" : ""}`}><p className="font-medium">✨ Phân tích bằng AI</p><p className="mt-1 text-sm text-muted-foreground">Hiểu ý nghĩa, kỹ năng và đáp án; chậm hơn.</p></button><button onClick={() => setDuplicateMode("KEYWORD")} className={`rounded-lg border p-4 text-left ${duplicateMode === "KEYWORD" ? "border-primary bg-primary/5" : ""}`}><p className="font-medium">🔎 Dò theo từ khóa</p><p className="mt-1 text-sm text-muted-foreground">Giống Ctrl+F, tức thời và không gọi AI.</p></button></div>
+              {duplicateMode === "AI" ? <div className="rounded-lg bg-muted p-4 text-sm"><p><strong>{duplicateSelectedIds.length} câu tham chiếu</strong> sẽ được dò trong <strong>{Math.max(0, duplicateCourseQuestions.length - duplicateSelectedIds.length)} câu còn lại</strong> của ngân hàng.</p><p className="mt-1"><strong>{duplicateSelectedIds.length * Math.max(0, duplicateCourseQuestions.length - duplicateSelectedIds.length)} lượt đối chiếu</strong> tối đa; các câu tham chiếu không tự đối chiếu với nhau.</p><div className="mt-3 flex justify-between"><Button variant="outline" onClick={() => setDuplicateStep(1)}>← Quay lại</Button><Button onClick={startDuplicateAiAnalysis}>Bắt đầu phân tích</Button></div></div> : <div className="space-y-3 rounded-lg bg-muted p-4"><p className="text-sm text-muted-foreground">Dò trong {Math.max(0, duplicateCourseQuestions.length - duplicateSelectedIds.length)} câu còn lại; các câu tham chiếu sẽ không xuất hiện trong kết quả.</p><select className="h-10 w-full rounded-md border bg-background px-3" value={duplicateKeywordReferenceId} onChange={(event) => { setDuplicateKeywordReferenceId(event.target.value); const question = duplicateCourseQuestions.find((item) => item.id === event.target.value); if (question) setDuplicateKeywordQuery(question.content); }}><option value="">Chọn câu làm tham chiếu</option>{duplicateSelectedIds.map((id) => duplicateCourseQuestions.find((question) => question.id === id)).filter(Boolean).map((question) => <option key={question!.id} value={question!.id}>{question!.content.slice(0, 80)}</option>)}</select><Input value={duplicateKeywordQuery} onChange={(event) => setDuplicateKeywordQuery(event.target.value)} placeholder="Từ khóa hoặc cụm từ cần tìm" /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={duplicateKeywordPhrase} onChange={(event) => setDuplicateKeywordPhrase(event.target.checked)} /> Theo cụm từ (bỏ chọn để dò từng từ)</label><div className="flex justify-between"><Button variant="outline" onClick={() => setDuplicateStep(1)}>← Quay lại</Button><Button disabled={!duplicateKeywordReferenceId || !duplicateKeywordQuery.trim()} onClick={startKeywordSearch}>Bắt đầu dò</Button></div></div>}
+            </div>}
+            {duplicateStep === 3 && <>
             <div className="flex items-end gap-4 rounded-lg border bg-muted/30 p-4 flex-wrap">
               <div className="space-y-1">
-                <label className="text-sm font-medium">Ngưỡng dưới (%)</label>
+                <label className="text-sm font-medium">Độ tin cậy tối thiểu (%)</label>
                 <Input type="number" min={0} max={100} value={duplicateThresholdMin} onChange={(event) => {
                   const v = Number(event.target.value.replace(/[^0-9]/g, "")) || 0;
                   setDuplicateThresholdMin(Math.min(v, duplicateThresholdMax));
                 }} onBlur={() => saveDuplicateThreshold(duplicateThresholdMin, duplicateThresholdMax)} className="w-24" />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium">Ngưỡng trên (%)</label>
+                <label className="text-sm font-medium">Độ tin cậy tối đa (%)</label>
                 <Input type="number" min={0} max={100} value={duplicateThresholdMax} onChange={(event) => {
                   const v = Number(event.target.value.replace(/[^0-9]/g, "")) || 0;
                   setDuplicateThresholdMax(Math.max(v, duplicateThresholdMin));
                 }} onBlur={() => saveDuplicateThreshold(duplicateThresholdMin, duplicateThresholdMax)} className="w-24" />
               </div>
-              <p className="pb-1 text-xs text-muted-foreground">Cài đặt được lưu theo tài khoản.</p>
+              <p className="pb-1 text-xs text-muted-foreground">Đây là độ tin cậy của phân loại, không phải tỷ lệ giống từ khóa. Cài đặt được lưu theo tài khoản.</p>
             </div>
             {duplicateLoading ? (
-              <div className="flex min-h-44 items-center justify-center gap-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Đang phân tích câu hỏi...</div>
+              <div className="min-h-44 space-y-3 rounded-lg border p-6 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /><p>Đang phân tích độ trùng lặp: {duplicateProgress.progress}%</p><Progress value={duplicateProgress.progress} /><p className="text-xs">Đã xử lý {duplicateProgress.processedPairs} / {duplicateProgress.totalPairs} cặp · phát hiện {duplicateProgress.duplicateCandidates} cặp cần xem xét</p>{duplicateProgress.currentPair && <p className="text-xs">Đang đối chiếu: {duplicateProgress.currentPair}</p>}</div>
             ) : (() => {
               const filteredPairs = duplicatePairs.filter((pair) =>
                 pair.similarityPercent >= duplicateThresholdMin && pair.similarityPercent <= duplicateThresholdMax
               );
               return filteredPairs.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  Không tìm thấy cặp câu hỏi nào trong khoảng {duplicateThresholdMin}%–{duplicateThresholdMax}%.
+                  Không tìm thấy cặp cần rà soát có độ tin cậy trong khoảng {duplicateThresholdMin}%–{duplicateThresholdMax}%.
                 </div>
               ) : (
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Hiển thị {filteredPairs.length} cặp trùng lặp ({duplicateThresholdMin}%–{duplicateThresholdMax}%)
+                    Hiển thị {filteredPairs.length} cặp cần rà soát (độ tin cậy {duplicateThresholdMin}%–{duplicateThresholdMax}%)
                   </p>
                   {filteredPairs.map((pair) => (
                     <div key={`${pair.questionA.id}-${pair.questionB.id}`} className="rounded-lg border p-4">
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-semibold">Tương đồng {pair.similarityPercent}%</span>
-                        <StatusBadge status={pair.matchMethod === 'AI' ? 'success' : pair.matchMethod === 'EXACT' ? 'info' : 'warning'}>
-                          {pair.matchMethod === 'AI' ? 'AI xác nhận' : pair.matchMethod === 'EXACT' ? 'Trùng chính xác' : 'So khớp văn bản'}
-                        </StatusBadge>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold">{duplicateRelationLabel[pair.relation]}</span>
+                          <StatusBadge status={pair.relation === 'EXACT_DUPLICATE' || pair.relation === 'SEMANTIC_DUPLICATE' ? 'destructive' : pair.relation === 'PARTIAL_OVERLAP' ? 'warning' : 'info'}>
+                            {pair.matchMethod === 'AI' ? 'Đánh giá bởi AI' : pair.matchMethod === 'EXACT' ? 'Trùng sau chuẩn hoá' : 'So khớp từ khóa'}
+                          </StatusBadge>
+                        </div>
+                        <span className="text-sm text-muted-foreground">{duplicateMode === 'AI' ? `Độ tin cậy: ${pair.similarityPercent}%` : `Trùng từ: ${pair.similarityPercent}%`}</span>
                       </div>
                       <div className="grid gap-3 md:grid-cols-2">
                         <div className="rounded-md bg-muted/50 p-3 text-sm relative group">
@@ -1448,12 +1573,24 @@ export default function QuestionBankManagement() {
                           </Button>
                         </div>
                       </div>
-                      <p className="mt-3 text-xs text-muted-foreground">{pair.reason}</p>
+                      <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                        <p>{pair.reason}</p>
+                        <p className="font-medium text-foreground">{duplicateRelationGuidance[pair.relation]}</p>
+                        {pair.diagnostics && (
+                          <p>
+                            Knowledge point: {pair.diagnostics.sameKnowledgePoint ? 'cùng' : 'khác'} ·
+                            Yêu cầu nhận thức: {pair.diagnostics.sameCognitiveOperation ? 'cùng' : 'khác'} ·
+                            Đáp án/kỳ vọng: {pair.diagnostics.sameExpectedAnswer ? 'cùng' : 'khác'} ·
+                            Cách diễn đạt: {pair.diagnostics.differentWording ? 'khác' : 'gần giống'}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               );
             })()}
+            </>}
           </DialogContent>
         </Dialog>
 

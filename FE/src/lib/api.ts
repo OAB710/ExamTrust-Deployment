@@ -543,9 +543,17 @@ class ApiClient {
       pairs: Array<{
         questionA: { id: string; type: string; content: string };
         questionB: { id: string; type: string; content: string };
+        /** Classification confidence (legacy name retained for compatibility). */
         similarityPercent: number;
+        relation: 'EXACT_DUPLICATE' | 'SEMANTIC_DUPLICATE' | 'SAME_SKILL_DIFFERENT_QUESTION' | 'PARTIAL_OVERLAP' | 'RELATED_ONLY' | 'DISTINCT';
         matchMethod: 'EXACT' | 'TEXT' | 'AI';
         reason: string;
+        diagnostics?: {
+          sameKnowledgePoint: boolean;
+          sameCognitiveOperation: boolean;
+          sameExpectedAnswer: boolean;
+          differentWording: boolean;
+        };
       }>;
     }>('/questions/duplicate-check', { method: 'POST', body: { courseId } });
   }

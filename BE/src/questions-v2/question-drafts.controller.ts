@@ -29,7 +29,7 @@ import {
   UpdateQuestionAiImprovementDraftDto,
 } from './dto/question-ai-improvement.dto';
 import { CopyQuestionBankDto, CreateQuestionCrudDto, UpdateQuestionCrudDto } from './dto/question-crud.dto';
-import { DuplicateQuestionCheckDto, UpdateDuplicatePreferenceDto } from './dto/question-duplicate.dto';
+import { CreateDuplicateAnalysisJobDto, DuplicateQuestionCheckDto, UpdateDuplicatePreferenceDto } from './dto/question-duplicate.dto';
 import { ListQuestionsQueryDto } from './dto/question-v2-query.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { QuestionsService } from './questions-v2.service';
@@ -60,6 +60,11 @@ export class QuestionDraftsController {
   @Post('duplicate-check')
   checkDuplicates(@Body() dto: DuplicateQuestionCheckDto, @Request() req) {
     return this.questionsService.checkDuplicateQuestions(dto.courseId, req.user);
+  }
+
+  @Post('duplicate-analysis/jobs')
+  createDuplicateAnalysisJob(@Body() dto: CreateDuplicateAnalysisJobDto, @Request() req) {
+    return this.questionsService.createDuplicateAnalysisJob(dto.courseId, dto.questionIds, req.user);
   }
 
   @Get('duplicate-preference')

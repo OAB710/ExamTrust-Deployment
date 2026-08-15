@@ -3,6 +3,7 @@ export type ExamTrustAiUseCase =
   | 'exam_generation'
   | 'draft_section'
   | 'topic_matching'
+  | 'question_duplicate_detection'
   | 'grading_support'
   | 'exam_quality_review'
   | 'question_quality_improvement'
@@ -152,6 +153,7 @@ export function buildExamTrustPromptHeader(params: ExamTrustAiPromptParams): str
     exam_generation: 'exam generation',
     draft_section: 'question draft editing',
     topic_matching: 'topic matching',
+    question_duplicate_detection: 'question duplicate detection',
     grading_support: 'grading support',
     exam_quality_review: 'exam quality review',
     question_quality_improvement: 'question quality improvement',
@@ -191,6 +193,15 @@ export function getOllamaGenerationOptions(useCase: ExamTrustAiUseCase): OllamaG
       top_p: 0.8,
       repeat_penalty: 1.08,
       num_ctx: 4096,
+    };
+  }
+
+  if (useCase === 'question_duplicate_detection') {
+    return {
+      temperature: 0.1,
+      top_p: 0.8,
+      repeat_penalty: 1.08,
+      num_ctx: 8192,
     };
   }
 

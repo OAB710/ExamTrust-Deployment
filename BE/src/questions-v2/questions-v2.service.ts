@@ -116,65 +116,121 @@ export class QuestionsService {
 
   async checkDuplicateQuestions(courseId: string, user: AuthUser) {
     await this.assertCourseAccessible(courseId, user);
-    const questions = await this.prisma.question.findMany({
+    const [course, questions] = await Promise.all([
+      this.prisma.course.findUnique({
+        where: { id: courseId },
+        select: { code: true, name: true, description: true },
+      }),
+      this.prisma.question.findMany({
       where: { courseId, status: 'PUBLISHED' },
-      select: { id: true, type: true, content: true, updatedAt: true },
+      select: {
+        id: true, type: true, content: true, options: true, correctAnswer: true,
+        explanation: true, difficulty: true, updatedAt: true,
+        topicLinks: { select: { topic: { select: { name: true } } } },
+      },
       orderBy: { updatedAt: 'desc' },
-    });
-    const candidates: Array<{ left: any; right: any; lexical: number }> = [];
+      }),
+    ]);
+    const candidates: Array<{ left: any; right: any; retrievalScore: number; exact: boolean }> = [];
     for (let index = 0; index < questions.length; index += 1) {
       for (let otherIndex = index + 1; otherIndex < questions.length; otherIndex += 1) {
         const left = questions[index];
         const right = questions[otherIndex];
         if (left.type !== right.type) continue;
         const lexical = this.lexicalSimilarity(left.content, right.content);
-        if (lexical >= 0.35) candidates.push({ left, right, lexical });
+        const leftTopicLinks = left.topicLinks || [];
+        const rightTopicLinks = right.topicLinks || [];
+        const leftTopics = new Set(leftTopicLinks.map((link: any) => String(link.topic?.name || '').toLocaleLowerCase('vi-VN')));
+        const sharesTopic = rightTopicLinks.some((link: any) => leftTopics.has(String(link.topic?.name || '').toLocaleLowerCase('vi-VN')));
+        // Lexical/topic signals only retrieve candidates. They never become the
+        // duplicate verdict because similar wording may express an opposite task.
+        if (lexical >= 0.25 || sharesTopic) {
+          candidates.push({ left, right, retrievalScore: Math.min(1, lexical + (sharesTopic ? 0.2 : 0)), exact: lexical === 1 });
+        }
       }
     }
 
-    // Ollama commonly allows one inference at a time; serialize a bounded set
-    // of close candidates instead of flooding its request queue.
-    const aiCandidates = candidates.slice(0, 12);
+    const exactCandidates = candidates.filter((candidate) => candidate.exact);
+    // Ollama commonly allows one inference at a time; serialize a bounded
+    // ranked candidate set. Pairs outside the set are intentionally not shown
+    // as duplicates because retrieval is not a semantic conclusion.
+    const aiCandidates = candidates
+      .filter((candidate) => !candidate.exact)
+      .sort((a, b) => b.retrievalScore - a.retrievalScore)
+      .slice(0, 40);
     const matches: any[] = [];
-    for (const { left, right, lexical } of aiCandidates) {
-      if (lexical === 1) {
-        matches.push({ left, right, score: 1, matchMethod: 'EXACT', reason: 'Nội dung trùng khớp sau khi chuẩn hoá.' });
-        continue;
-      }
-      try {
-        const response = await this.aiService.suggestSimilarTopics({
-          topicName: left.content,
-          existingTopics: [right.content],
-          language: 'vi',
-        });
-        const aiMatch = response.matches?.[0];
-        const aiScore = Number(aiMatch?.score || 0);
-        const isAiResult = !String(aiMatch?.reason || '').toLowerCase().includes('heuristic');
-        const score = Math.max(lexical, aiScore);
-        matches.push({
-          left, right, score,
-          matchMethod: isAiResult ? 'AI' : 'TEXT',
-          reason: isAiResult ? String(aiMatch?.reason || 'AI xác nhận hai câu có nội dung tương tự.') : 'Tương đồng theo nội dung văn bản; AI chưa khả dụng.',
-        });
-      } catch {
-        matches.push({ left, right, score: lexical, matchMethod: 'TEXT', reason: 'Tương đồng theo nội dung văn bản; AI chưa khả dụng.' });
+    for (const { left, right } of exactCandidates) {
+      matches.push({
+        left, right, relation: 'EXACT_DUPLICATE', confidence: 1, matchMethod: 'EXACT',
+        reason: 'Nội dung câu hỏi trùng khớp sau khi chuẩn hoá.',
+        diagnostics: { sameKnowledgePoint: true, sameCognitiveOperation: true, sameExpectedAnswer: true, differentWording: false },
+      });
+    }
+    for (const { left, right } of aiCandidates) {
+      const assessment = await this.aiService.assessQuestionDuplicatePair({
+        course: course || {},
+        questionA: {
+          ...left,
+          topics: (left.topicLinks || []).map((link: any) => link.topic?.name).filter(Boolean),
+        },
+        questionB: {
+          ...right,
+          topics: (right.topicLinks || []).map((link: any) => link.topic?.name).filter(Boolean),
+        },
+        language: 'vi',
+      });
+      // RELATED_ONLY and DISTINCT are ordinary candidate-retrieval outcomes;
+      // omit them from the duplicate-review list rather than padding it.
+      if (assessment && assessment.relation !== 'RELATED_ONLY' && assessment.relation !== 'DISTINCT') {
+        matches.push({ left, right, ...assessment, matchMethod: 'AI' });
       }
     }
 
-    const unreviewed = candidates.slice(12).map(({ left, right, lexical }) => ({
-      left, right, score: lexical, matchMethod: 'TEXT', reason: 'Tương đồng theo nội dung văn bản.',
-    }));
-    const pairs = [...matches, ...unreviewed]
-      .filter((item) => item.score >= 0.35)
-      .sort((a, b) => b.score - a.score)
+    const pairs = matches
+      .sort((a, b) => b.confidence - a.confidence)
       .map((item) => ({
         questionA: { id: item.left.id, type: item.left.type, content: item.left.content },
         questionB: { id: item.right.id, type: item.right.type, content: item.right.content },
-        similarityPercent: Number((item.score * 100).toFixed(0)),
+        // Retained for compatible clients. It is classification confidence,
+        // not a percentage of matching words.
+        similarityPercent: Number((item.confidence * 100).toFixed(0)),
+        relation: item.relation,
         matchMethod: item.matchMethod,
         reason: item.reason,
+        diagnostics: item.diagnostics,
       }));
     return { courseId, scannedQuestionCount: questions.length, pairs, aiReviewedPairs: aiCandidates.length };
+  }
+
+  async createDuplicateAnalysisJob(courseId: string, questionIds: string[], user: AuthUser) {
+    await this.assertCourseAccessible(courseId, user);
+    const uniqueQuestionIds = [...new Set(questionIds.map((id) => String(id).trim()).filter(Boolean))];
+    if (uniqueQuestionIds.length < 2) throw new BadRequestException('Cần chọn ít nhất 2 câu hỏi để phân tích.');
+
+    const ownedQuestions = await this.prisma.question.count({
+      where: { id: { in: uniqueQuestionIds }, courseId, status: 'PUBLISHED' },
+    });
+    if (ownedQuestions !== uniqueQuestionIds.length) {
+      throw new BadRequestException('Danh sách câu hỏi có phần tử không thuộc học phần hoặc chưa được xuất bản.');
+    }
+
+    const courseQuestionCount = await this.prisma.question.count({
+      where: { courseId, status: 'PUBLISHED' },
+    });
+    const targetQuestionCount = Math.max(0, courseQuestionCount - uniqueQuestionIds.length);
+    const totalPairs = uniqueQuestionIds.length * targetQuestionCount;
+    const job = await this.aiJobsService.createJob({
+      task: 'question-duplicate-analysis',
+      requestedBy: user.id,
+      payload: {
+        courseId,
+        questionIds: uniqueQuestionIds,
+        targetQuestionCount,
+        totalPairs,
+        language: 'vi',
+      },
+    });
+    return { jobId: job.id, status: 'QUEUED', totalPairs, selectedQuestionCount: uniqueQuestionIds.length, targetQuestionCount };
   }
 
   private parseJson(value: any, fallback: any = null) {
@@ -2217,6 +2273,7 @@ export class QuestionsService {
       difficulty: q.difficulty,
       points: q.points,
       course: q.course,
+      courseId: q.courseId,
       creatorId: q.creatorId,
       createdAt: q.createdAt,
       updatedAt: q.updatedAt,

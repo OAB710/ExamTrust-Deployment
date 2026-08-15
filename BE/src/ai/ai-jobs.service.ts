@@ -13,7 +13,7 @@ const AI_SECTIONS = [
 
 type AISectionValue = (typeof AI_SECTIONS)[number];
 
-type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement' | 'proctoring-evidence';
+type AiTaskType = 'single-question' | 'exam-questions' | 'draft-section' | 'exam-quality-review' | 'exam-risk-assessment' | 'question-improvement' | 'proctoring-evidence' | 'question-duplicate-analysis';
 
 interface CreateAiJobParams {
   task: AiTaskType;
