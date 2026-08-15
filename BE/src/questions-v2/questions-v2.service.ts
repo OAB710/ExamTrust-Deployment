@@ -1468,24 +1468,44 @@ export class QuestionsService {
     });
 
     const versionIds = questions.flatMap((question) => question.versions.map((version) => version.id));
+    // Keep version-level and exam-usage-level analytics separate. A question
+    // version is an immutable content revision; an exam is a cohort/context in
+    // which that revision was used. Joining them as one time series makes a
+    // cohort change look like a content revision.
     const usageRows = versionIds.length
       ? await this.prisma.$queryRawUnsafe(
           `
-          SELECT eq.questionVersionId, e.id AS examId, e.title AS examTitle, e.createdAt AS examCreatedAt, COUNT(DISTINCT es.id) AS submissions
-          FROM exam_questions eq
-          INNER JOIN exams e ON e.id = eq.examId
-          LEFT JOIN exam_submissions es ON es.examId = e.id AND es.status IN ('SUBMITTED', 'GRADED', 'FLAGGED')
-          WHERE eq.questionVersionId IN (${versionIds.map(() => '?').join(',')})
-          GROUP BY eq.questionVersionId, e.id, e.title, e.createdAt
-          ORDER BY e.createdAt ASC
+          SELECT
+            sa.questionVersionId,
+            es.examId,
+            e.title AS examTitle,
+            e.startTime AS examStartTime,
+            e.createdAt AS examCreatedAt,
+            COUNT(sa.id) AS attempts,
+            COUNT(DISTINCT es.studentId) AS students,
+            SUM(CASE WHEN sa.isCorrect = 1 THEN 1 ELSE 0 END) AS correctAttempts,
+            SUM(CASE WHEN sa.isCorrect = 0 THEN 1 ELSE 0 END) AS incorrectAttempts,
+            SUM(CASE WHEN sa.isCorrect IS NULL THEN 1 ELSE 0 END) AS skippedAttempts
+          FROM submission_answers sa
+          INNER JOIN exam_submissions es
+            ON es.id = sa.submissionId AND es.status IN ('SUBMITTED', 'GRADED', 'FLAGGED', 'FINALIZED')
+          INNER JOIN exams e ON e.id = es.examId
+          WHERE sa.questionVersionId IN (${versionIds.map(() => '?').join(',')})
+          GROUP BY sa.questionVersionId, es.examId, e.title, e.startTime, e.createdAt
+          ORDER BY COALESCE(e.startTime, e.createdAt) ASC, e.title ASC
           `,
           ...versionIds,
         ) as Array<{
           questionVersionId: string;
           examId: string;
           examTitle: string;
+          examStartTime: Date | null;
           examCreatedAt: Date;
-          submissions: bigint | number;
+          attempts: bigint | number;
+          students: bigint | number;
+          correctAttempts: bigint | number;
+          incorrectAttempts: bigint | number;
+          skippedAttempts: bigint | number;
         }>
       : [];
 
@@ -1504,35 +1524,92 @@ export class QuestionsService {
     };
 
     const rows = questions.map((question) => {
-      const metrics = question.versions.map((version) => {
+      const toMetric = (input: {
+        versionId: string;
+        versionNo: number;
+        attempts: number;
+        correctAttempts: number;
+        incorrectAttempts: number;
+        skippedAttempts: number;
+        usageCount: number;
+        examId?: string | null;
+        exam?: string | null;
+        date?: Date | string | null;
+        students?: number | null;
+      }) => {
+        const correctRate = input.attempts > 0 ? input.correctAttempts / input.attempts : null;
+        const discrimination = input.attempts > 0
+          ? Math.max(-1, Math.min(1, (input.correctAttempts - input.incorrectAttempts) / input.attempts))
+          : null;
+        return {
+          ...input,
+          examId: input.examId || null,
+          exam: input.exam || `Version ${input.versionNo}`,
+          date: new Date(input.date || 0).toISOString().slice(0, 10),
+          students: input.students ?? null,
+          correctRate,
+          // In ExamTrust, p is the proportion correct: higher means easier.
+          difficulty: correctRate,
+          discrimination,
+          reliability: input.attempts >= 10 && discrimination !== null
+            ? Math.max(0, Math.min(1, 1 - Math.abs(discrimination - 0.45)))
+            : null,
+        };
+      };
+
+      const versionMetrics = question.versions.map((version) => {
         const stats = version.statistics;
         const usages = usageByVersion.get(version.id) || [];
-        const attempts = Number(stats?.totalAttempts || 0);
-        const correctRate = attempts > 0 ? toNumber(stats?.pValue, 0) : null;
-        const difficultyIndex = attempts > 0 ? toNumber(stats?.difficultyIndex, 0) : null;
-        const discriminationIndex = attempts > 0 ? toNumber(stats?.discriminationIndex, 0) : null;
-        return {
+        const aggregate = usages.reduce(
+          (sum, usage) => ({
+            attempts: sum.attempts + toNumber(usage.attempts),
+            correctAttempts: sum.correctAttempts + toNumber(usage.correctAttempts),
+            incorrectAttempts: sum.incorrectAttempts + toNumber(usage.incorrectAttempts),
+            skippedAttempts: sum.skippedAttempts + toNumber(usage.skippedAttempts),
+          }),
+          { attempts: 0, correctAttempts: 0, incorrectAttempts: 0, skippedAttempts: 0 },
+        );
+        // Old submissions can predate questionVersionId on SubmissionAnswer.
+        // Retain their existing version statistic as a compatible fallback,
+        // but never attach it to a particular exam/cohort.
+        const fallbackAttempts = Number(stats?.totalAttempts || 0);
+        const source = aggregate.attempts > 0
+          ? aggregate
+          : {
+              attempts: fallbackAttempts,
+              correctAttempts: Number(stats?.correctAttempts || 0),
+              incorrectAttempts: Number(stats?.incorrectAttempts || 0),
+              skippedAttempts: Number(stats?.skippedAttempts || 0),
+            };
+        return toMetric({
           versionId: version.id,
           versionNo: version.versionNo,
-          examId: usages[0]?.examId || null,
-          exam: usages[0]?.examTitle || `Version ${version.versionNo}`,
-          date: new Date(usages[0]?.examCreatedAt || version.createdAt).toISOString().slice(0, 10),
-          attempts,
-          correctAttempts: Number(stats?.correctAttempts || 0),
-          incorrectAttempts: Number(stats?.incorrectAttempts || 0),
-          skippedAttempts: Number(stats?.skippedAttempts || 0),
-          correctRate,
-          difficulty: difficultyIndex,
-          discrimination: discriminationIndex,
-          reliability: attempts >= 10 && discriminationIndex !== null
-            ? Math.max(0, Math.min(1, 1 - Math.abs(discriminationIndex - 0.45)))
-            : null,
-          aiGenerated: version.aiGenerated,
+          ...source,
           usageCount: usages.length,
-        };
+          date: version.createdAt,
+        });
       });
 
-      const usableMetrics = metrics.filter((metric) => metric.attempts > 0);
+      const examUsageMetrics = usageRows
+        .filter((usage) => question.versions.some((version) => version.id === usage.questionVersionId))
+        .map((usage) => {
+          const version = question.versions.find((item) => item.id === usage.questionVersionId)!;
+          return toMetric({
+            versionId: version.id,
+            versionNo: version.versionNo,
+            examId: usage.examId,
+            exam: usage.examTitle,
+            date: usage.examStartTime || usage.examCreatedAt,
+            attempts: toNumber(usage.attempts),
+            students: toNumber(usage.students),
+            correctAttempts: toNumber(usage.correctAttempts),
+            incorrectAttempts: toNumber(usage.incorrectAttempts),
+            skippedAttempts: toNumber(usage.skippedAttempts),
+            usageCount: 1,
+          });
+        });
+
+      const usableMetrics = versionMetrics.filter((metric) => metric.attempts > 0);
       const first = usableMetrics[0];
       const last = usableMetrics[usableMetrics.length - 1];
       const difficultyDelta = first && last && first.difficulty !== null && last.difficulty !== null
@@ -1567,7 +1644,11 @@ export class QuestionsService {
         status: question.status,
         createdAt: question.createdAt,
         updatedAt: question.updatedAt,
-        metrics,
+        // `metrics` remains as a backward-compatible alias for consumers that
+        // previously expected one value per question version.
+        metrics: versionMetrics,
+        versionMetrics,
+        examUsageMetrics,
         versions: question.versions.map((version) => ({
           id: version.id,
           versionNo: version.versionNo,

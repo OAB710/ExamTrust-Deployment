@@ -22,6 +22,7 @@
       "BE/prisma/migration-proposals/20260602_backfill_exam_instances.sql",
       "BE/prisma/migration-proposals/20260602_backfill_exam_questions.sql",
       "BE/prisma/migration-proposals/20260602_precheck_orphans_duplicates.sql",
+      "BE/prisma/migration-proposals/local-backups/20260519170000_create_topic_tables/migration.sql",
       "BE/prisma/migration-proposals/phase-01-expand-schema/migration.sql",
       "BE/prisma/migration-proposals/phase-02-enforce-v2-read/migration.sql",
       "BE/prisma/migration-proposals/phase-03-contract-cleanup/migration.sql",
@@ -410,6 +411,7 @@
       "FE/src/features/lecturer/CreateExam.test.tsx",
       "FE/src/features/lecturer/CreateExam.tsx",
       "FE/src/features/lecturer/ExamAnalytics.tsx",
+      "FE/src/features/lecturer/ExamManagement.test.tsx",
       "FE/src/features/lecturer/ExamManagement.tsx",
       "FE/src/features/lecturer/ExamMonitor.tsx",
       "FE/src/features/lecturer/ExamPreview.tsx",
@@ -429,6 +431,7 @@
       "FE/src/features/lecturer/components/EditableStudentImport.tsx",
       "FE/src/features/lecturer/components/QuestionAnswerEditor.tsx",
       "FE/src/features/lecturer/components/QuestionPreviewSections.tsx",
+      "FE/src/features/lecturer/components/QuestionTopicDialog.test.tsx",
       "FE/src/features/lecturer/components/QuestionTopicDialog.tsx",
       "FE/src/features/lecturer/create-exam-model.tsx",
       "FE/src/features/lecturer/exam-analytics-model.ts",
@@ -573,17 +576,17 @@
       "1mb.mp3"
     ]
   },
-  "total_files": 563,
-  "total_words": 515046,
+  "total_files": 566,
+  "total_words": 517336,
   "needs_graph": true,
-  "warning": "Large corpus: 563 files · ~515,046 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 566 files · ~517,336 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],
   "graphifyignore_patterns": 65,
   "git": {
     "source_owner": "git",
-    "source_hash": "ff263a0611d1c0f1fa014e3f82e6c93b7c54153a",
+    "source_hash": "1c721c69f5f3da041da3b48b749977077d7abe3b",
     "branches": [
       "duc",
       "main"
@@ -597,11 +600,11 @@
     "source": "default-auto",
     "root": ".",
     "git_root": ".",
-    "head": "ff263a0611d1c0f1fa014e3f82e6c93b7c54153a",
-    "candidate_count": 620,
-    "included_count": 563,
-    "excluded_untracked_count": 4,
-    "excluded_ignored_count": 104972,
+    "head": "1c721c69f5f3da041da3b48b749977077d7abe3b",
+    "candidate_count": 625,
+    "included_count": 566,
+    "excluded_untracked_count": 1,
+    "excluded_ignored_count": 105110,
     "excluded_sensitive_count": 1,
     "missing_committed_count": 0,
     "warnings": [],

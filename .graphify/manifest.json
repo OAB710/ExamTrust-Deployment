@@ -620,8 +620,8 @@
     "hash": "e10d8d83410a4553692d773ce89b9283"
   },
   "D:/KLTN2/ExamTrust/BE/src/questions-v2/questions-v2.service.ts": {
-    "mtime": 1786770114416.8965,
-    "hash": "9ba6f3f371f31e36793862d4f9dc49c2"
+    "mtime": 1786785601253.5276,
+    "hash": "c9e246e1bc343da5f57962bce2f70d34"
   },
   "D:/KLTN2/ExamTrust/BE/src/queue/processors/ai-generation.processor.spec.ts": {
     "mtime": 1786635195441.84,
@@ -736,7 +736,7 @@
     "hash": "0257ef15fff36a14ed0004570c97bc2b"
   },
   "D:/KLTN2/ExamTrust/FE/next-env.d.ts": {
-    "mtime": 1786782347684.3518,
+    "mtime": 1786786430440.2112,
     "hash": "90426577ad8f38459f3e566411c85589"
   },
   "D:/KLTN2/ExamTrust/FE/next.config.ts": {
@@ -1592,8 +1592,8 @@
     "hash": "ecb68eb7028a975c32c87fc3ddd4982e"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/QuestionHistoryAnalysis.tsx": {
-    "mtime": 1786770114443.7573,
-    "hash": "35a44770d337af4c9545e8bd8f992222"
+    "mtime": 1786786398243.3982,
+    "hash": "430792ef4647b3839029c3817a9751bb"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/UploadDocAIGen.tsx": {
     "mtime": 1786179998059.0603,
@@ -2088,8 +2088,8 @@
     "hash": "a3fbec2ddba8d0a35825c242671b3655"
   },
   "D:/KLTN2/ExamTrust/.graphify/GRAPH_REPORT.md": {
-    "mtime": 1786782405141.1792,
-    "hash": "3203f499c9a9373afc9e87517ac71f5d"
+    "mtime": 1786785997788.5693,
+    "hash": "ef2ddf3430d8661edc54ad2f58b274bb"
   },
   "D:/KLTN2/ExamTrust/.graphify/studio/index.html": {
     "mtime": 1786182231736.4763,
@@ -2250,5 +2250,17 @@
   "D:/KLTN2/ExamTrust/examtrust-3a-crest-flat.svg": {
     "mtime": 1786770114451.8616,
     "hash": "7d34b1695c868bf8e21cd0f289d21677"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/migration-proposals/local-backups/20260519170000_create_topic_tables/migration.sql": {
+    "mtime": 1786776855691.378,
+    "hash": "0f4745c3e76387ad3402c9598ad75c06"
+  },
+  "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ExamManagement.test.tsx": {
+    "mtime": 1786782299582.688,
+    "hash": "ec02cbd6266a2408d993b3118adb554f"
+  },
+  "D:/KLTN2/ExamTrust/FE/src/features/lecturer/components/QuestionTopicDialog.test.tsx": {
+    "mtime": 1786777717901.8442,
+    "hash": "54337d8ee4c16670e6d1ddb0f5e6d71c"
   }
 }
