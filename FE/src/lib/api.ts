@@ -1040,7 +1040,7 @@ class ApiClient {
   async getAdminDevopsStatus() {
     return this.request<{
       ai: { provider: string; model: string };
-      botCommands: Array<{ command: string; description: string }>;
+      botCommands: Array<{ command: string; description: string; category?: string; public?: boolean }>;
     }>('/admin/dashboard/devops-status');
   }
 

@@ -11,15 +11,15 @@ const COMPLETED = ['SUBMITTED', 'GRADED', 'FLAGGED'];
 // which is a separate deployable with no shared source of truth to import
 // this from.
 const ZALO_BOT_COMMANDS = [
-  { command: 'System Overview', description: 'Tổng quan số liệu hệ thống (người dùng, khóa học, bài thi, câu hỏi, tín hiệu giám sát...)' },
-  { command: 'Build FE', description: 'Build + deploy FE lên Cloudflare Workers' },
-  { command: 'Build BE', description: 'Build + deploy BE lên EC2' },
-  { command: 'On FE / Off FE', description: 'Bật / tắt FE (Cloudflare Worker)' },
-  { command: 'FE Info / BE Info / R2 Info', description: 'Xem mức dùng tài nguyên FE, BE, và Cloudflare R2' },
-  { command: 'AI Deepseek / AI Openrouter', description: 'Chuyển provider AI đang dùng' },
-  { command: 'Reset DB', description: '⚠️ Xóa sạch database production và seed lại data demo' },
-  { command: 'Clear Question Media / Clear Evidence Media / Clear All Media', description: '⚠️ Xóa vĩnh viễn tệp trên R2 (ảnh câu hỏi / bằng chứng giám sát / cả hai) — không đụng dữ liệu trong database' },
-  { command: 'Info', description: 'Xem chi tiết tất cả status về hệ thống' },
+  { command: 'System Overview', category: 'Hệ Thống', public: true, description: 'Tổng quan số liệu hệ thống (người dùng, khóa học, bài thi, câu hỏi, tín hiệu giám sát...)' },
+  { command: 'Info', category: 'Hệ Thống', public: true, description: 'Xem chi tiết tất cả status về hệ thống' },
+  { command: 'Build FE', category: 'DevOps', public: false, description: 'Build + deploy FE lên Cloudflare Workers' },
+  { command: 'Build BE', category: 'DevOps', public: false, description: 'Build + deploy BE lên EC2' },
+  { command: 'On FE / Off FE', category: 'DevOps', public: false, description: 'Bật / tắt FE (Cloudflare Worker)' },
+  { command: 'FE Info / BE Info / R2 Info', category: 'DevOps', public: false, description: 'Xem mức dùng tài nguyên FE, BE, và Cloudflare R2' },
+  { command: 'AI Deepseek / AI Openrouter', category: 'DevOps', public: false, description: 'Chuyển provider AI đang dùng' },
+  { command: 'Reset DB', category: 'DevOps', public: false, description: '⚠️ Xóa sạch database production và seed lại data demo' },
+  { command: 'Clear Question Media / Clear Evidence Media / Clear All Media', category: 'DevOps', public: false, description: '⚠️ Xóa vĩnh viễn tệp trên R2 (ảnh câu hỏi / bằng chứng giám sát / cả hai) — không đụng dữ liệu trong database' },
 ];
 
 @Injectable()
