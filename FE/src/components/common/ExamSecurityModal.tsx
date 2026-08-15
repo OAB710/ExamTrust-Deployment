@@ -1,9 +1,10 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Timer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { ViolationLog, ViolationType } from "../../hooks/use-exam-security";
+import { LiveClock } from "./LiveClock";
+import type { FirstViolationNotice, ViolationLog, ViolationType } from "../../hooks/use-exam-security";
 
 const violationLabels: Record<ViolationType, string> = {
   fullscreen_exit: "Đã thoát toàn màn hình",
@@ -21,6 +22,10 @@ interface ExamSecurityModalProps {
   lastViolation: ViolationLog | null;
   canFullscreen: boolean;
   onReturnToExam: () => void;
+  firstViolationNotice?: FirstViolationNotice | null;
+  onDismissFirstViolationNotice?: () => void;
+  examTimeLabel?: string;
+  examTimeLow?: boolean;
 }
 
 export function ExamSecurityModal({
@@ -34,7 +39,55 @@ export function ExamSecurityModal({
   lastViolation,
   canFullscreen,
   onReturnToExam,
+  firstViolationNotice = null,
+  onDismissFirstViolationNotice,
+  examTimeLabel,
+  examTimeLow = false,
 }: ExamSecurityModalProps) {
+  // Fullscreen hides the OS clock, so any popup stacked over the exam still
+  // needs to show both the real time and the exam countdown — otherwise a
+  // student stuck on a security popup has no idea how much time is left.
+  const clockRow = (
+    <div className="mb-4 flex items-center justify-center gap-3 text-xs text-muted-foreground">
+      <span className="inline-flex items-center gap-1">
+        Giờ hiện tại: <LiveClock />
+      </span>
+      {examTimeLabel && (
+        <span className={`inline-flex items-center gap-1.5 font-mono font-semibold ${examTimeLow ? "text-red-600" : ""}`}>
+          <Timer className="h-3.5 w-3.5" /> {examTimeLabel}
+        </span>
+      )}
+    </div>
+  );
+  // The free first-violation notice (any signal type) is a full blocking
+  // dialog rather than a toast — a toast is too easy to miss while focused on
+  // answering questions. It's independent of `open`/the countdown flow below
+  // (which only ever runs for a real, counted violation).
+  if (!open && firstViolationNotice) {
+    const noticeReason = violationLabels[firstViolationNotice.type];
+    return (
+      <div
+        className="fixed inset-0 z-[120] bg-black flex items-center justify-center"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="exam-security-first-violation-title"
+      >
+        <div className="bg-card rounded-xl p-8 max-w-sm text-center border shadow-xl">
+          {clockRow}
+          <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-amber-500" />
+          <h2 id="exam-security-first-violation-title" className="text-xl font-semibold mb-2">
+            Cảnh báo lần đầu
+          </h2>
+          <p className="text-muted-foreground mb-1">Hệ thống vừa ghi nhận 1 tín hiệu đáng chú ý trong bài thi.</p>
+          <p className="text-sm mb-2">
+            Tín hiệu ghi nhận: <strong>{noticeReason}</strong>. Đây là <strong>lần đầu tiên</strong> nên hệ thống <strong>chưa tính là vi phạm</strong>. Từ lần tiếp theo, mỗi tín hiệu sẽ được tính (tối đa {maxViolations} lần trước khi bài thi bị nộp tự động).
+          </p>
+          <Button onClick={onDismissFirstViolationNotice}>Đã hiểu, tiếp tục làm bài</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!open) return null;
 
   const reason = lastViolation ? violationLabels[lastViolation.type] : null;
@@ -47,6 +100,7 @@ export function ExamSecurityModal({
       aria-labelledby="exam-security-title"
     >
       <div className="bg-card rounded-xl p-8 max-w-sm text-center border shadow-xl">
+        {clockRow}
         <AlertTriangle className={`h-12 w-12 mx-auto mb-4 ${isFirstFullscreenWarning ? "text-amber-500" : "text-red-500"}`} />
         <h2 id="exam-security-title" className="text-xl font-semibold mb-2">
           {isFirstFullscreenWarning ? "Cảnh báo lần đầu" : "Cần trở lại toàn màn hình"}

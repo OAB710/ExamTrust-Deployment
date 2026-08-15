@@ -15,7 +15,7 @@ const ZALO_BOT_COMMANDS = [
   { command: 'On FE / Off FE', description: 'Bật / tắt FE (Cloudflare Worker)' },
   { command: 'FE Info / BE Info / R2 Info', description: 'Xem mức dùng tài nguyên FE, BE, và Cloudflare R2' },
   { command: 'AI Deepseek / AI Openrouter', description: 'Chuyển provider AI đang dùng' },
-  { command: 'Info', description: 'Xem danh sách lệnh (bot tự trả lời hướng dẫn này)' },
+  { command: 'Info', description: 'Xem chi tiết tất cả status về hệ thống' },
 ];
 
 @Injectable()

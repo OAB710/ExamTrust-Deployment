@@ -27,7 +27,9 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { takePendingWebcamStream, takePendingScreenStream, hasPendingScreenStream } from "@/lib/exam-proctoring-handoff";
 import { ExamSecurityModal } from "../../components/common/ExamSecurityModal";
+import { LiveClock } from "../../components/common/LiveClock";
 import {
   useExamSecurity,
   type ExamSecurityState,
@@ -107,6 +109,14 @@ export default function ExamTaking() {
   const [examSessionStatus, setExamSessionStatus] = useState<
     "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED"
   >("NOT_STARTED");
+  // Mirrors examSessionStatus for handlers registered once via
+  // addEventListener (webcam/screen "ended"/"mute"/"inactive") — those
+  // listeners close over whatever examSessionStatus was AT REGISTRATION time
+  // and never see later state updates, so reading the ref instead of the
+  // state variable keeps the guard checks accurate after submit stops the
+  // stream intentionally (see camera_stream_ended false positive on submit).
+  const examSessionStatusRef = useRef(examSessionStatus);
+  examSessionStatusRef.current = examSessionStatus;
   const [fullscreenRequestedAt, setFullscreenRequestedAt] = useState<number | null>(null);
   const [webcamPolicy, setWebcamPolicy] = useState<any>(null);
   const [webcamPolicyResolved, setWebcamPolicyResolved] = useState(false);
@@ -337,19 +347,12 @@ export default function ExamTaking() {
       init[q.id] = shuffleArray(q.items);
     });
     setOrderState(init);
-    // Ordering answers are only ever recorded via drag/reorder interactions
-    // (see OrderingRenderer's setAnswer calls). Seed the shown shuffled order
-    // as the initial answer too, so a student who never touches an ordering
-    // question still submits the arrangement they were actually shown.
-    if (orderingQuestions.length > 0) {
-      setAnswers((prev) => {
-        const next = { ...prev };
-        orderingQuestions.forEach((q) => {
-          if (next[q.id] === undefined) next[q.id] = init[q.id];
-        });
-        return next;
-      });
-    }
+    // Deliberately NOT seeded into `answers` here (it used to be) — doing so
+    // made isAnswered()/the question-nav dot show an ordering question as
+    // already answered the instant the exam loaded, before the student ever
+    // touched it. The shown shuffled order is still submitted as a fallback
+    // for untouched ordering questions — see the payloadAnswers fallback in
+    // doSubmit, which reads orderState directly instead.
   }, [questions]);
 
   const log = useCallback((type: string, detail?: string) => {
@@ -363,9 +366,20 @@ export default function ExamTaking() {
       ts: Date.now(),
       clientEventId,
     };
-    log(type, detail);
     const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
-    if (!activeSubmissionId) return undefined;
+    if (!activeSubmissionId) {
+      // No submission to send to yet — fall back to the local log queue so
+      // the event isn't silently dropped; it still goes out with the final
+      // submit payload. Once a submission exists, log() is NOT also called
+      // below: doing so used to double-persist every violation, since
+      // logRef entries carry no clientEventId and submitExam's own log
+      // insert has no dedup — every tab_switch/fullscreen_exit ended up as
+      // two identical rows (one from this live send, one replayed at
+      // submit), inflating tabSwitchCount/mouseAnomalies and the integrity
+      // "Mức tín hiệu" bucket derived from them.
+      log(type, detail);
+      return undefined;
+    }
     pendingIntegrityEventsRef.current.set(event.clientEventId, event);
     try {
       const response = await api.sendExamLogs(activeSubmissionId, [event]);
@@ -439,11 +453,19 @@ export default function ExamTaking() {
     idleCaptureArmedRef.current = false;
   }, []);
 
+  // Holds the latest startWebcam so handleWebcamUnavailable can trigger a
+  // retry without depending on it directly — startWebcam itself depends on
+  // handleWebcamUnavailable (to re-arm the "ended"/"mute" listeners), so a
+  // direct two-way useCallback dependency would need startWebcam declared
+  // before its own use, which isn't possible. Same ref-indirection pattern
+  // as doSubmitRef elsewhere in this file.
+  const startWebcamRef = useRef<((options?: { silent?: boolean }) => Promise<void>) | null>(null);
+
   const handleWebcamUnavailable = useCallback((detail: string) => {
     if (
       !webcamPolicy?.enabled ||
       isPreviewMode ||
-      examSessionStatus !== "IN_PROGRESS" ||
+      examSessionStatusRef.current !== "IN_PROGRESS" ||
       cameraIssueActiveRef.current
     ) return;
     cameraIssueActiveRef.current = true;
@@ -452,14 +474,24 @@ export default function ExamTaking() {
     setCameraRecoveryDeadline(Date.now() + 15_000);
     setCameraRecoverySeconds(15);
     persistIntegrityEvent("camera_stream_ended", detail);
-  }, [examSessionStatus, isPreviewMode, persistIntegrityEvent, webcamPolicy]);
+    // Camera permission (unlike screen-share) doesn't need a fresh user
+    // gesture to reacquire once granted — try to self-heal immediately
+    // instead of always making the student click "Bật lại webcam". If this
+    // silent retry fails, the manual recovery gate below stays as fallback.
+    void startWebcamRef.current?.({ silent: true });
+  }, [isPreviewMode, persistIntegrityEvent, webcamPolicy]);
 
-  const startWebcam = useCallback(async () => {
+  const startWebcam = useCallback(async (options?: { silent?: boolean }) => {
     if (!webcamPolicy?.enabled) return;
     setIsStartingWebcam(true);
     try {
       webcamStreamRef.current?.getTracks().forEach((track) => track.stop());
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: false });
+      // Reuse the still-live stream handed off from ExamReadyCheck when
+      // available — the camera indicator never turns off between the two
+      // pages. Falls back to a fresh request otherwise (direct page refresh
+      // on ExamTaking, mid-exam recovery after a camera drop, etc.).
+      const stream = takePendingWebcamStream()
+        || await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }, audio: false });
       webcamStreamRef.current = stream;
       if (webcamVideoRef.current) {
         webcamVideoRef.current.srcObject = stream;
@@ -480,11 +512,29 @@ export default function ExamTaking() {
       }
     } catch {
       log("webcam_permission_denied", "Student did not grant usable webcam permission");
-      toast.error("Bài thi này yêu cầu bạn cấp quyền webcam trước khi bắt đầu.");
+      // Silent (auto) attempts fall through to the manual gate screen below
+      // without an error toast — the student hasn't clicked anything yet, so
+      // an error here would be premature; the gate screen already explains
+      // what's needed.
+      if (!options?.silent) toast.error("Bài thi này yêu cầu bạn cấp quyền webcam trước khi bắt đầu.");
     } finally {
       setIsStartingWebcam(false);
     }
   }, [cameraIssueActiveRef, handleWebcamUnavailable, log, persistIntegrityEvent, webcamPolicy]);
+  startWebcamRef.current = startWebcam;
+
+  // Permission was already granted once during ExamReadyCheck, so this
+  // silently reacquires the stream without prompting — the student
+  // shouldn't have to click "Tôi đồng ý" a second time for the common case.
+  // Runs once; the manual button below stays as the recovery path if this
+  // fails (permission revoked, device changed, etc.) or for reconnecting
+  // after a mid-exam camera drop.
+  const autoWebcamAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (isPreviewMode || !webcamPolicy?.enabled || webcamReady || autoWebcamAttemptedRef.current) return;
+    autoWebcamAttemptedRef.current = true;
+    void startWebcam({ silent: true });
+  }, [isPreviewMode, webcamPolicy, webcamReady, startWebcam]);
 
   // Server-side, `screenCaptureEnabled` only takes effect once `enabled` is
   // also on (see normalizePolicy in proctoring-evidence.service.ts) — mirror
@@ -496,7 +546,7 @@ export default function ExamTaking() {
     if (
       !screenCaptureRequired ||
       isPreviewMode ||
-      examSessionStatus !== "IN_PROGRESS" ||
+      examSessionStatusRef.current !== "IN_PROGRESS" ||
       screenIssueActiveRef.current
     ) return;
     screenIssueActiveRef.current = true;
@@ -505,18 +555,22 @@ export default function ExamTaking() {
     setScreenShareRecoveryDeadline(Date.now() + 15_000);
     setScreenShareRecoverySeconds(15);
     persistIntegrityEvent("screen_share_ended", detail);
-  }, [examSessionStatus, isPreviewMode, persistIntegrityEvent, screenCaptureRequired]);
+  }, [isPreviewMode, persistIntegrityEvent, screenCaptureRequired]);
 
-  const startScreenShare = useCallback(async () => {
+  const startScreenShare = useCallback(async (options?: { silent?: boolean }) => {
     if (!screenCaptureRequired) return;
     setIsStartingScreenShare(true);
     try {
       screenStreamRef.current?.getTracks().forEach((track) => track.stop());
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      // Reuse the stream handed off from ExamReadyCheck when available — a
+      // brand-new getDisplayMedia() call always needs a fresh user gesture,
+      // but continuing to use an already-granted stream does not.
+      const stream = takePendingScreenStream()
+        || await navigator.mediaDevices.getDisplayMedia({ video: true });
       const [track] = stream.getVideoTracks();
       if (track?.getSettings().displaySurface !== "monitor") {
         stream.getTracks().forEach((t) => t.stop());
-        toast.error('Bài thi yêu cầu chia sẻ "Toàn bộ màn hình" — không chọn cửa sổ hoặc tab. Vui lòng chọn lại.');
+        if (!options?.silent) toast.error('Bài thi yêu cầu chia sẻ "Toàn bộ màn hình" — không chọn cửa sổ hoặc tab. Vui lòng chọn lại.');
         return;
       }
       screenStreamRef.current = stream;
@@ -536,16 +590,40 @@ export default function ExamTaking() {
       }
     } catch {
       log("screen_share_permission_denied", "Student did not grant a valid full-screen share");
-      toast.error("Bài thi này yêu cầu bạn chia sẻ toàn bộ màn hình trước khi bắt đầu.");
+      if (!options?.silent) toast.error("Bài thi này yêu cầu bạn chia sẻ toàn bộ màn hình trước khi bắt đầu.");
     } finally {
       setIsStartingScreenShare(false);
     }
   }, [handleScreenShareUnavailable, log, persistIntegrityEvent, screenCaptureRequired]);
 
+  // Only auto-attempts when a handed-off stream is actually waiting to be
+  // reused — a brand-new getDisplayMedia() call requires a fresh user
+  // gesture, so silently calling startScreenShare() with nothing handed off
+  // would just throw and show a premature error before the student acts.
+  const autoScreenShareAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (isPreviewMode || !screenCaptureRequired || screenShareReady || autoScreenShareAttemptedRef.current) return;
+    if (!hasPendingScreenStream()) return;
+    autoScreenShareAttemptedRef.current = true;
+    void startScreenShare({ silent: true });
+  }, [isPreviewMode, screenCaptureRequired, screenShareReady, startScreenShare]);
+
   const requestWebcamEvidence = useCallback(async (trigger: "SCHEDULED" | "SUSPICIOUS_EVENT", options?: { signals?: string[] }) => {
     const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
     const video = webcamVideoRef.current;
-    if (!webcamPolicy?.enabled || !webcamReady || !activeSubmissionId || !video || evidenceCaptureInFlightRef.current || video.videoWidth < 1) return;
+    if (!webcamPolicy?.enabled || !webcamReady || !activeSubmissionId || !video || evidenceCaptureInFlightRef.current || video.videoWidth < 1) {
+      console.warn("Webcam evidence capture skipped before request:", {
+        trigger,
+        signals: options?.signals,
+        policyEnabled: Boolean(webcamPolicy?.enabled),
+        webcamReady,
+        hasSubmissionId: Boolean(activeSubmissionId),
+        hasVideoElement: Boolean(video),
+        videoWidth: video?.videoWidth ?? null,
+        captureInFlight: evidenceCaptureInFlightRef.current,
+      });
+      return;
+    }
     evidenceCaptureInFlightRef.current = true;
     try {
       const permit = await api.requestEvidenceCapture(activeSubmissionId, { trigger, ...options });
@@ -577,9 +655,18 @@ export default function ExamTaking() {
         } catch (error) {
           console.warn("Screen evidence capture was skipped:", error);
         }
+      } else if (permit.screen) {
+        // Same silent-skip visibility gap the webcam path used to have —
+        // log why so a missing screen capture isn't a mystery.
+        console.warn("Screen evidence capture skipped before request:", {
+          hasScreenPermit: Boolean(permit.screen),
+          screenShareReady,
+          hasScreenVideoElement: Boolean(screenVideo),
+          screenVideoWidth: screenVideo?.videoWidth ?? null,
+        });
       }
     } catch (error) {
-      console.warn("Webcam evidence capture was skipped:", error);
+      console.warn("Webcam evidence capture was skipped:", { trigger, signals: options?.signals, error });
     } finally {
       evidenceCaptureInFlightRef.current = false;
     }
@@ -734,8 +821,17 @@ export default function ExamTaking() {
         throw new Error("No active submission found for this exam.");
       }
 
-      // build answers payload from current answers map
-      const payloadAnswers = Object.entries(answers)
+      // build answers payload from current answers map. Ordering questions
+      // the student never touched have no entry in `answers` (see the
+      // effect above) — fall back to the shuffled order they were shown via
+      // orderState, so they still submit *some* arrangement.
+      const answerEntries: Array<[string, unknown]> = [...Object.entries(answers)];
+      questions.forEach((q: any) => {
+        if (q.type === "ordering" && answers[q.id] === undefined && orderState[q.id]) {
+          answerEntries.push([String(q.id), orderState[q.id]]);
+        }
+      });
+      const payloadAnswers = answerEntries
         .map(([uiQId, ans]) => {
           const question = questions.find(
             (q: any) => q.id === Number(uiQId),
@@ -790,7 +886,7 @@ export default function ExamTaking() {
     if (examId)
       router.push(`/student/grading?examId=${encodeURIComponent(examId)}`);
     else router.push("/student/grading");
-  }, [log, router, examId, answers, questions, submissionId]);
+  }, [log, router, examId, answers, questions, submissionId, orderState]);
   doSubmitRef.current = doSubmit;
 
   useEffect(() => {
@@ -826,14 +922,6 @@ export default function ExamTaking() {
     [persistIntegrityEvent, proctoringEnabled, requestWebcamEvidence],
   );
 
-  const handleFirstFullscreenWarning = useCallback(
-    (entry: ViolationLog) => {
-      if (!proctoringEnabled) return undefined;
-      return persistIntegrityEvent("fullscreen_exit_warning", entry.detail, entry.clientEventId);
-    },
-    [persistIntegrityEvent, proctoringEnabled],
-  );
-
   // Must be a stable reference: an inline arrow here would give
   // useExamSecurity's onEscalate a new identity every render, which (via its
   // reconcileSecurityState dependency) re-fires an effect that re-derives
@@ -854,6 +942,9 @@ export default function ExamTaking() {
     canFullscreen,
     isFullscreenExitPending,
     isFirstFullscreenWarning,
+    firstViolationAvailable,
+    firstViolationNotice,
+    dismissFirstViolationNotice,
     exitFullscreenAfterConfirmation,
   } = useExamSecurity({
     // Preview still enforces fullscreen when explicitly requested, but it is a
@@ -865,7 +956,6 @@ export default function ExamTaking() {
     initialFullscreenRequestedAt: fullscreenRequestedAt,
     initialSecurityState: securityState,
     onViolation: isPreviewMode ? undefined : handleViolation,
-    onFullscreenWarning: isPreviewMode ? undefined : handleFirstFullscreenWarning,
     onEscalate: isPreviewMode ? undefined : handleEscalate,
   });
 
@@ -915,12 +1005,15 @@ export default function ExamTaking() {
       setFullscreenCountdown(remaining);
       if (remaining === 0) {
         window.clearInterval(id);
-        if (isSecurityBlocked) doSubmitRef.current();
+        // The free first-violation notice (isFirstFullscreenWarning) is
+        // "chưa tính vi phạm" by definition — it must never risk auto-submit
+        // just because the student took >15s to read it and click through.
+        if (isSecurityBlocked && !isFirstFullscreenWarning) doSubmitRef.current();
       }
     }, 200);
 
     return () => window.clearInterval(id);
-  }, [isPreviewMode, isSecurityBlocked, isFullscreenExitPending, isSubmitting]);
+  }, [isPreviewMode, isSecurityBlocked, isFullscreenExitPending, isFirstFullscreenWarning, isSubmitting]);
 
   useEffect(() => {
     if (isPreviewMode) return;
@@ -955,21 +1048,32 @@ export default function ExamTaking() {
     screenStreamRef.current?.getTracks().forEach((track) => track.stop());
   }, []);
 
-  useEffect(() => {
-    const video = webcamVideoRef.current;
-    if (webcamReady && video && webcamStreamRef.current) {
-      video.srcObject = webcamStreamRef.current;
-      void video.play().catch(() => undefined);
+  // Callback refs instead of a useEffect keyed on webcamReady/screenShareReady:
+  // there are TWO separate <video> elements for each stream (one on the
+  // consent-gate screen, one hidden during the actual exam), and between
+  // them there can be an intermediate gate (e.g. the screen-share gate while
+  // webcam is already ready) where NEITHER is mounted. An effect keyed on
+  // webcamReady only reruns when that value changes, so if it fires while
+  // the ref is momentarily null (mid-transition) it never gets another
+  // chance to attach the stream once the real target element finally
+  // mounts — leaving videoWidth stuck at 0 and silently blocking every
+  // evidence capture. A callback ref re-attaches on every single mount,
+  // regardless of which gate stage caused it.
+  const attachWebcamVideo = useCallback((node: HTMLVideoElement | null) => {
+    webcamVideoRef.current = node;
+    if (node && webcamStreamRef.current) {
+      node.srcObject = webcamStreamRef.current;
+      void node.play().catch(() => undefined);
     }
-  }, [webcamReady]);
+  }, []);
 
-  useEffect(() => {
-    const video = screenVideoRef.current;
-    if (screenShareReady && video && screenStreamRef.current) {
-      video.srcObject = screenStreamRef.current;
-      void video.play().catch(() => undefined);
+  const attachScreenVideo = useCallback((node: HTMLVideoElement | null) => {
+    screenVideoRef.current = node;
+    if (node && screenStreamRef.current) {
+      node.srcObject = screenStreamRef.current;
+      void node.play().catch(() => undefined);
     }
-  }, [screenShareReady]);
+  }, []);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60),
@@ -979,7 +1083,12 @@ export default function ExamTaking() {
 
   const isRecoveringWebcam = webcamPolicy?.enabled && examSessionStatus === "IN_PROGRESS";
   const isRecoveringScreenShare = screenCaptureRequired && examSessionStatus === "IN_PROGRESS";
-  const displayedViolationCount = violationCount + (isFullscreenExitPending ? 1 : 0);
+  // Only forecast +1 while a fullscreen-exit grace window is pending if the
+  // free first-violation pass is already spent — otherwise this pending exit
+  // may still resolve as the forgiven first one, and showing "1 tín hiệu"
+  // before that's decided falsely told students their very first F11 had
+  // already been counted.
+  const displayedViolationCount = violationCount + (isFullscreenExitPending && !firstViolationAvailable ? 1 : 0);
 
   const isTimeLow = timeLeft < 300;
   const answeredCount = questions.filter((q) => isAnswered(q, answers)).length;
@@ -1011,7 +1120,7 @@ export default function ExamTaking() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <video ref={webcamVideoRef} muted playsInline className="w-full aspect-video rounded-md bg-black object-cover" />
+            <video ref={attachWebcamVideo} muted playsInline className="w-full aspect-video rounded-md bg-black object-cover" />
             <Button onClick={() => void startWebcam()} disabled={isStartingWebcam} className="w-full gap-2"><Camera className="h-4 w-4" />{isStartingWebcam ? "Đang mở webcam…" : isRecoveringWebcam ? "Bật lại webcam để tiếp tục" : "Tôi đồng ý và bật webcam"}</Button>
           </CardContent>
         </Card>
@@ -1036,7 +1145,7 @@ export default function ExamTaking() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <video ref={screenVideoRef} muted playsInline className="w-full aspect-video rounded-md bg-black object-contain" />
+            <video ref={attachScreenVideo} muted playsInline className="w-full aspect-video rounded-md bg-black object-contain" />
             <Button onClick={() => void startScreenShare()} disabled={isStartingScreenShare} className="w-full gap-2"><Monitor className="h-4 w-4" />{isStartingScreenShare ? "Đang mở chia sẻ màn hình…" : isRecoveringScreenShare ? "Chia sẻ lại để tiếp tục" : "Chia sẻ toàn bộ màn hình"}</Button>
           </CardContent>
         </Card>
@@ -1211,8 +1320,16 @@ export default function ExamTaking() {
 
   return (
     <div className="min-h-screen bg-background">
-      {webcamPolicy?.enabled ? <video ref={webcamVideoRef} muted playsInline className="hidden" /> : null}
-      {screenCaptureRequired ? <video ref={screenVideoRef} muted playsInline className="hidden" /> : null}
+      {/*
+        Not `display:none` (Tailwind `hidden`) — some browsers never decode
+        frames for a video element with display:none, which leaves
+        videoWidth/videoHeight stuck at 0 forever and silently blocks every
+        evidence-capture attempt (the canvas draw guard checks videoWidth).
+        Kept in the layout but visually invisible instead, so decoding
+        proceeds normally while nothing is shown to the student.
+      */}
+      {webcamPolicy?.enabled ? <video ref={attachWebcamVideo} muted playsInline className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0" /> : null}
+      {screenCaptureRequired ? <video ref={attachScreenVideo} muted playsInline className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0" /> : null}
       {/* ── Top Bar ─────────────────────────────────────────────── */}
       <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b bg-card/95 px-3 shadow-sm backdrop-blur sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -1225,6 +1342,9 @@ export default function ExamTaking() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <span className="hidden items-center gap-1 text-sm text-muted-foreground sm:inline-flex" title="Giờ hiện tại">
+            Giờ: <LiveClock />
+          </span>
           <div
             aria-label="Thời gian còn lại"
             className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-mono text-sm font-semibold ${
@@ -1267,6 +1387,10 @@ export default function ExamTaking() {
         lastViolation={lastViolation}
         canFullscreen={canFullscreen}
         onReturnToExam={returnToExam}
+        firstViolationNotice={firstViolationNotice}
+        onDismissFirstViolationNotice={dismissFirstViolationNotice}
+        examTimeLabel={formatTime(timeLeft)}
+        examTimeLow={isTimeLow}
       />
 
       <Dialog

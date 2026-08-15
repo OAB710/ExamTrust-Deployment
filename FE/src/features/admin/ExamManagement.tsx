@@ -36,6 +36,10 @@ import {
   CheckCircle2,
   Loader2,
   MoreHorizontal,
+  Settings,
+  Shield,
+  Repeat,
+  Camera,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -131,6 +135,25 @@ export default function AdminExamManagement() {
     endTime: "",
   });
   const [courses, setCourses] = useState<any[]>([]);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [settingsExam, setSettingsExam] = useState<any>(null);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+
+  const handleViewSettings = async (exam: Exam) => {
+    setSelectedExam(exam);
+    setSettingsExam(null);
+    setShowSettingsDialog(true);
+    setSettingsLoading(true);
+    try {
+      const detail = await api.getExam(exam.id);
+      setSettingsExam(detail);
+    } catch (error) {
+      console.error("Failed to load exam settings:", error);
+      toast.error("Không thể tải cài đặt bài thi");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
 
   const toDatetimeLocalValue = (isoDate?: string) => {
     if (!isoDate) return "";
@@ -600,6 +623,7 @@ export default function AdminExamManagement() {
                       <TableHead>Khóa học</TableHead>
                       <TableHead>Giảng viên</TableHead>
                       <TableHead>Lịch thi</TableHead>
+                      <TableHead className="text-center">Lượt làm</TableHead>
                       <TableHead>Trạng thái</TableHead>
                       <TableHead className="text-right">Thao tác</TableHead>
                     </TableRow>
@@ -649,6 +673,19 @@ export default function AdminExamManagement() {
                               )}
                             </div>
                           </TableCell>
+                          <TableCell className="text-center">
+                            {(exam._count?.submissions ?? 0) > 0 ? (
+                              <button
+                                type="button"
+                                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                onClick={() => router.push(`/admin/exam/${exam.id}/results`)}
+                              >
+                                {exam._count?.submissions}
+                              </button>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">0</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <StatusBadge
                               status={exam.status}
@@ -672,6 +709,13 @@ export default function AdminExamManagement() {
                                 >
                                   <Eye className="h-4 w-4" />
                                   Xem trước
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => void handleViewSettings(exam)}
+                                  className="gap-2 text-xs"
+                                >
+                                  <Settings className="h-4 w-4" />
+                                  Xem cài đặt
                                 </DropdownMenuItem>
                                 {(exam.status === "ONGOING" ||
                                   exam.status === "PUBLISHED") &&
@@ -738,6 +782,73 @@ export default function AdminExamManagement() {
           </CardContent>
         </Card>
       </AdminPageShell>
+
+      <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cài đặt bài thi</DialogTitle>
+            <DialogDescription>{selectedExam?.title}</DialogDescription>
+          </DialogHeader>
+          {settingsLoading ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Đang tải cài đặt...
+            </div>
+          ) : settingsExam ? (
+            (() => {
+              const settings = settingsExam.settings || {};
+              const proctoringEnabled = settings.proctoringEnabled === undefined
+                ? Boolean(settings.requiresProctoring)
+                : Boolean(settings.proctoringEnabled);
+              const webcamPolicy = settings.webcamEvidencePolicy || {};
+              const maxAttempts = settingsExam.maxAttempts;
+              return (
+                <div className="space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Thời lượng</p>
+                      <p className="mt-1 flex items-center gap-1.5 font-medium"><Clock className="h-3.5 w-3.5" />{settingsExam.duration ?? settingsExam.timeLimitMinutes ?? "—"} phút</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Số lần làm tối đa</p>
+                      <p className="mt-1 flex items-center gap-1.5 font-medium"><Repeat className="h-3.5 w-3.5" />{maxAttempts == null ? "Không giới hạn" : maxAttempts}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Điểm tối đa</p>
+                      <p className="mt-1 font-medium">{settingsExam.totalPoints ?? "—"}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Điểm đạt</p>
+                      <p className="mt-1 font-medium">{settingsExam.passingScore ?? "—"}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Shield className="h-3.5 w-3.5" /> Giám sát</p>
+                    <p className="mt-1 font-medium">{proctoringEnabled ? "Đã bật" : "Đã tắt"}</p>
+                  </div>
+                  {proctoringEnabled && (
+                    <div className="rounded-lg border p-3">
+                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Camera className="h-3.5 w-3.5" /> Bằng chứng webcam</p>
+                      <p className="mt-1 font-medium">
+                        {webcamPolicy.enabled ? "Đã bật" : "Đã tắt"}
+                        {webcamPolicy.enabled && webcamPolicy.screenCaptureEnabled ? " · Kèm chụp màn hình" : ""}
+                      </p>
+                    </div>
+                  )}
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Mô tả</p>
+                    <p className="mt-1 whitespace-pre-wrap text-foreground">{settingsExam.description || "Chưa có mô tả"}</p>
+                  </div>
+                </div>
+              );
+            })()
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">Không thể tải cài đặt bài thi</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSettingsDialog(false)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
         <DialogContent>

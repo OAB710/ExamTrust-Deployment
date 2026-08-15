@@ -204,11 +204,24 @@ export class ProctoringEvidenceService implements OnModuleInit {
       // Counted per triggering event, not per image — a paired webcam+screen
       // capture from the same event must only consume one slot of the limit,
       // so only the WEBCAM row (always created first, see below) is counted.
-      const recentEvents = await this.prisma.proctoringEvidenceCapture.findMany({
-        where: { submissionId, trigger: 'SUSPICIOUS_EVENT', captureSource: 'WEBCAM', status: { not: 'PURGED' }, ...(signalType ? { triggerDetails: { path: ['signals'], array_contains: signalType } } : {}) },
+      //
+      // Filtering by triggerDetails.signals is done in application code, not
+      // via Prisma's JSON `path`/`array_contains` filter: that filter compiles
+      // to MySQL-only JSON functions and throws at the DB layer on MariaDB
+      // (this project's local/EC2 database), which stores JSON as TEXT.
+      const recentEventsForSubmission = await this.prisma.proctoringEvidenceCapture.findMany({
+        where: { submissionId, trigger: 'SUSPICIOUS_EVENT', captureSource: 'WEBCAM', status: { not: 'PURGED' } },
         orderBy: { createdAt: 'desc' },
-        take: limit,
+        take: 50,
       });
+      const recentEvents = (
+        signalType
+          ? recentEventsForSubmission.filter((event) => {
+              const signals = (event.triggerDetails as { signals?: unknown[] } | null)?.signals;
+              return Array.isArray(signals) && signals.includes(signalType);
+            })
+          : recentEventsForSubmission
+      ).slice(0, limit);
       if (recentEvents.length >= limit) throw new BadRequestException('Đã đạt giới hạn số lần ghi bằng chứng cho loại sự kiện này');
       if (recentEvents[0] && now.getTime() - recentEvents[0].createdAt.getTime() < policy.eventCooldownMs) {
         throw new BadRequestException('Đang trong thời gian chờ giữa các lần ghi bằng chứng sự kiện nghi vấn');

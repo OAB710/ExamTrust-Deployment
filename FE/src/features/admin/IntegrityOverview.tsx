@@ -57,6 +57,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 export interface FlaggedSubmission {
   id: string;
   submissionId?: string;
+  attemptNo?: number | null;
   studentId: string;
   studentName: string;
   examId: string;
@@ -92,18 +93,6 @@ export interface FlaggedSubmission {
   patternMatch?: string[];
 }
 
-const translatePrimarySignal = (value?: string) => {
-  const labels: Record<string, string> = {
-    "Fullscreen exit detected": "Phát hiện thoát chế độ toàn màn hình",
-    "Tab switching detected": "Phát hiện chuyển đổi tab",
-    "Tab switch detected": "Phát hiện chuyển đổi tab",
-    "Integrity event recorded": "Đã ghi nhận sự kiện toàn vẹn",
-    "Window focus lost": "Cửa sổ làm bài bị mất tiêu điểm",
-    "Copy event detected": "Phát hiện thao tác sao chép",
-    "Paste event detected": "Phát hiện thao tác dán",
-  };
-  return labels[value || ""] || value || "—";
-};
 
 export interface IntegrityReason {
   type: "similarity" | "timing" | "pattern" | "behavior";
@@ -448,6 +437,9 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
       description: "Tương tác bộ nhớ tạm trong phiên thi",
       value: patterns.copyPaste,
       icon: Copy,
+      // lucide's Copy glyph has more internal padding than the other
+      // pattern icons here at the same size, so it reads visibly smaller.
+      iconClassName: "h-5 w-5",
       className: "bg-info/10 text-info",
     },
     {
@@ -566,6 +558,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                       <TableHeader>
                         <TableRow>
                           <TableHead>Sinh viên</TableHead>
+                          <TableHead className="text-center">Lượt</TableHead>
                           <TableHead>Bài thi</TableHead>
                           <TableHead>Thời gian nộp</TableHead>
                           <TableHead>Mức tín hiệu</TableHead>
@@ -578,7 +571,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                         {loading ? (
                           <TableRow>
                             <TableCell
-                              colSpan={7}
+                              colSpan={8}
                               className="py-10 text-center text-muted-foreground"
                             >
                               <div className="inline-flex items-center gap-2">
@@ -590,7 +583,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                         ) : error ? (
                           <TableRow>
                             <TableCell
-                              colSpan={7}
+                              colSpan={8}
                               className="py-10 text-center text-destructive"
                             >
                               {error}
@@ -599,7 +592,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                         ) : submissions.length === 0 ? (
                           <TableRow>
                             <TableCell
-                              colSpan={7}
+                              colSpan={8}
                               className="text-center py-8 text-muted-foreground"
                             >
                               Không tìm thấy bài nộp có tín hiệu cần xem xét
@@ -617,6 +610,9 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                                     {submission.studentId}
                                   </p>
                                 </div>
+                              </TableCell>
+                              <TableCell className="text-center text-sm text-muted-foreground">
+                                {submission.attemptNo ?? "-"}
                               </TableCell>
                               <TableCell>
                                 <p className="text-sm text-foreground">
@@ -646,7 +642,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
                               </TableCell>
                               <TableCell>
                                 <p className="text-sm text-muted-foreground max-w-xs truncate">
-                                  {translatePrimarySignal(submission.reasons[0]?.description)}
+                                  {submission.reasons[0]?.description || "—"}
                                 </p>
                               </TableCell>
                               <TableCell className="text-right">

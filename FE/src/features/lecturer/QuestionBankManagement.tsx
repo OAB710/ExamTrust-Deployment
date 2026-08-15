@@ -1722,25 +1722,38 @@ export default function QuestionBankManagement() {
                         )
                       ) : correctAnswers.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
-                          {correctAnswers.map((ans, i) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700"
-                            >
-                              <svg
-                                className="h-3.5 w-3.5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
+                          {correctAnswers.map((ans, i) => {
+                            // For option-based types (incl. TRUE_FALSE, which
+                            // is persisted the same way as MCQ — options
+                            // {A: "True", B: "False"} + correctAnswer {answer:
+                            // "A"|"B"}) the stored value is the option's id
+                            // letter, not display text. Resolve it back to
+                            // the option's text so this matches what the
+                            // option list above already shows (e.g. "Sai"
+                            // instead of the raw "B").
+                            const matchedOption = options.find(
+                              (opt) => opt.id.toUpperCase() === ans.toUpperCase(),
+                            );
+                            return (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700"
                               >
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                              {ans}
-                            </span>
-                          ))}
+                                <svg
+                                  className="h-3.5 w-3.5"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                                {matchedOption?.text || ans}
+                              </span>
+                            );
+                          })}
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground italic">

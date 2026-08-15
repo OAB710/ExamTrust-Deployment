@@ -18,6 +18,7 @@ import { SubmissionsEventsService } from './submissions-events.service';
 import { QueueService } from '../queue/queue.service';
 import { ProctoringEvidenceService } from './proctoring-evidence.service';
 import { AiService } from '../ai/ai.service';
+import { getIntegrityEventCategory, getIntegrityEventLabel, getIntegrityEventSeverity } from './integrity-event-catalog';
 
 type AutosaveAnswerMeta = {
   questionId: string;
@@ -77,6 +78,7 @@ type IntegrityCasesQuery = {
 type IntegrityCase = {
   id: string;
   submissionId: string;
+  attemptNo: number | null;
   studentId: string;
   studentName: string;
   examId: string;
@@ -161,11 +163,14 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  // 'low' | 'medium' | 'high' here, not the canonical 'low' | 'warning' |
+  // 'critical' scale — this is the wire shape the SSE payload and
+  // ExamMonitor.tsx's realtime handler already expect (see
+  // SubmissionsEventsService.emitIntegrityEvent), so map at the boundary
+  // instead of changing that contract.
   private getRealtimeSeverity(eventType: string): 'low' | 'medium' | 'high' {
-    const e = String(eventType || '').toLowerCase();
-    if (e.includes('fullscreen') || e.includes('face')) return 'high';
-    if (e.includes('tab') || e.includes('paste')) return 'medium';
-    return 'low';
+    const severity = getIntegrityEventSeverity(eventType);
+    return severity === 'critical' ? 'high' : severity === 'warning' ? 'medium' : 'low';
   }
 
   private clampPercent(value: number): number {
@@ -610,19 +615,23 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
   private buildIntegrityLogReason(eventType: string, count: number): IntegrityCase['reasons'][number] | null {
     const event = String(eventType || '').toLowerCase();
-    const labels: Record<string, string> = {
-      paste: 'Phát hiện hành vi dán nội dung (paste)',
-      copy: 'Phát hiện hành vi sao chép nội dung (copy)',
-      fullscreen_exit: 'Phát hiện thoát khỏi chế độ toàn màn hình',
-      window_blur: 'Phát hiện mất tiêu điểm cửa sổ (chuyển sang ứng dụng khác)',
-      face_not_detected: 'Ghi nhận sự kiện không phát hiện được khuôn mặt',
-    };
-
-    if (!labels[event]) return null;
+    // tab_switch/mouse_idle/mouse_anomaly already get their own aggregate
+    // reason (one row summarizing the whole session's count) from the
+    // caller above — skip them here to avoid a duplicate row per type.
+    if (['tab_switch', 'mouse_idle', 'mouse_anomaly'].includes(event)) return null;
+    // Anything the shared catalog considers informational-only (exam_start,
+    // submit, focus regained, camera/screen restored, ...) isn't worth
+    // surfacing as an integrity "reason".
+    if (getIntegrityEventSeverity(event) === 'low') return null;
 
     return {
       type: this.isTimingAnomalyLog(event) ? 'timing' : 'behavior',
-      description: labels[event],
+      // Same wording the case-detail timeline uses for this eventType
+      // (getSubmissionTimeline) — previously this method had its own
+      // 5-entry label table with different phrasing, and silently dropped
+      // the other ~9 suspicious eventTypes entirely (they still counted
+      // toward the risk score but never appeared as a "reason").
+      description: getIntegrityEventLabel(event),
       weight: Math.min(1, this.getIntegrityLogWeight(event) / 100),
       evidence: `Đã ghi nhận ${count} sự kiện`,
     };
@@ -633,6 +642,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     submissionId: string,
     student: { id?: string; fullName?: string; studentId?: string },
     logs: Array<{ type: string; details?: any; ts?: number }>,
+    attemptNo?: number | null,
   ) {
     const suspiciousTypes = new Set([
       'tab_switch',
@@ -656,9 +666,11 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         id,
         submissionId,
         eventType,
+        label: getIntegrityEventLabel(eventType),
         details: entry?.details ? String(entry.details) : eventType,
         timestamp: new Date(entry?.ts || Date.now()).toISOString(),
         severity: this.getRealtimeSeverity(eventType),
+        attemptNo,
         student,
       });
     }
@@ -1487,6 +1499,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           studentId: submission.student?.studentId,
         },
         logs,
+        submission.attemptNo,
       );
     }
     return {
@@ -2076,6 +2089,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         submission: {
           select: {
             id: true,
+            attemptNo: true,
             studentId: true,
             submittedAt: true,
             startedAt: true,
@@ -2189,6 +2203,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       return {
         id: `integrity-${session.submission?.id || session.id}`,
         submissionId: session.submission?.id || '',
+        attemptNo: session.submission?.attemptNo ?? null,
         studentId: studentCode || 'N/A',
         studentName: session.submission?.student?.fullName || session.submission?.student?.email || 'Unknown student',
         examId: session.submission?.exam?.id || '',
@@ -2222,7 +2237,19 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
               evidence: `Đã ghi nhận ${logs.length} sự kiện`,
             }],
         timeAnomaly: hasTimingAnomaly,
-        patternMatch: [],
+        // Real eventType-derived categories (not the previous always-empty
+        // placeholder) — used below to compute the `patterns` stat
+        // breakdown without re-parsing already-translated Vietnamese text.
+        patternMatch: (() => {
+          const categories = new Set<string>();
+          if (tabSwitchCount > 0) categories.add('tab_switch');
+          if (mouseAnomalies > 0) categories.add('mouse');
+          for (const event of reasonMap.keys()) {
+            if (['tab_switch', 'mouse_idle', 'mouse_anomaly'].includes(event)) continue;
+            categories.add(getIntegrityEventCategory(event));
+          }
+          return [...categories];
+        })(),
       };
     });
 
@@ -2253,6 +2280,12 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       return true;
     });
 
+    // Sort by the same `submittedAt` timestamp the list displays — sessions
+    // were fetched ordered by ProctoringSession.createdAt, which can diverge
+    // from submittedAt (e.g. a session created early but submitted late),
+    // making the on-screen order look unrelated to the visible time column.
+    filteredCases.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+
     const patterns = {
       tabSwitch: 0,
       mouseAnomaly: 0,
@@ -2260,12 +2293,16 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       otherBehavior: 0,
     };
 
+    // Categorized from the real eventType (via patternMatch, computed
+    // above) rather than substring-matching the Vietnamese description
+    // text — the old approach silently miscounted every mouse-related
+    // reason as "otherBehavior" once its label stopped containing the
+    // English word "mouse".
     for (const item of filteredCases) {
-      for (const reason of item.reasons) {
-        const text = `${reason.description} ${reason.evidence || ''}`.toLowerCase();
-        if (text.includes('tab')) patterns.tabSwitch += 1;
-        else if (text.includes('mouse')) patterns.mouseAnomaly += 1;
-        else if (text.includes('copy') || text.includes('paste')) patterns.copyPaste += 1;
+      for (const category of item.patternMatch || []) {
+        if (category === 'tab_switch') patterns.tabSwitch += 1;
+        else if (category === 'mouse') patterns.mouseAnomaly += 1;
+        else if (category === 'copy_paste') patterns.copyPaste += 1;
         else patterns.otherBehavior += 1;
       }
     }
@@ -3658,6 +3695,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           submission: {
             select: {
               id: true,
+              attemptNo: true,
               student: {
                 select: {
                   id: true,
@@ -3689,6 +3727,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
               submission: {
                 select: {
                   id: true,
+                  attemptNo: true,
                   student: {
                     select: {
                       id: true,
@@ -3765,18 +3804,19 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       .filter((log) => suspiciousTypes.has((log.eventType || '').toLowerCase()))
       .map((log) => {
         const event = (log.eventType || 'unknown').toLowerCase();
-        const severity = event.includes('fullscreen') || event.includes('face') || event === 'camera_recovery_timeout'
-          ? 'high'
-          : event.includes('tab') || event.includes('paste')
-            ? 'medium'
-            : 'low';
+        const severity = this.getRealtimeSeverity(event);
 
         return {
           id: log.id,
           eventType: log.eventType,
+          // Same short label used by ExamMonitor.tsx's alert feed and the
+          // case-detail timeline — `details` stays as the raw, event-
+          // specific description text for secondary/supporting context.
+          label: getIntegrityEventLabel(event),
           details: log.details || '',
           timestamp: log.timestamp,
           severity,
+          attemptNo: log.proctoring?.submission?.attemptNo ?? null,
           student: log.proctoring?.submission?.student || null,
           submissionId: log.proctoring?.submission?.id || null,
           hasEvidence: hasEvidenceForEvent(log.proctoring?.submission?.id, event),
@@ -3792,9 +3832,11 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         records.push({
           id: `tab-${p.id}`,
           eventType: 'tab_switch',
-          details: `Detected ${tabSwitchCount} tab switches`,
+          label: getIntegrityEventLabel('tab_switch'),
+          details: `Đã ghi nhận ${tabSwitchCount} lần chuyển tab`,
           timestamp: new Date(),
           severity: tabSwitchCount >= 5 ? 'high' : 'medium',
+          attemptNo: p.submission.attemptNo ?? null,
           student: p.submission.student,
           submissionId: p.submission.id,
           hasEvidence: hasEvidenceForEvent(p.submission.id, 'tab_switch'),
@@ -3805,9 +3847,11 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         records.push({
           id: `mouse-${p.id}`,
           eventType: 'mouse_anomaly',
-          details: `Detected ${mouseAnomalies} mouse anomalies`,
+          label: getIntegrityEventLabel('mouse_anomaly'),
+          details: `Đã ghi nhận ${mouseAnomalies} lần chuyển động chuột bất thường`,
           timestamp: new Date(),
           severity: mouseAnomalies >= 8 ? 'high' : 'medium',
+          attemptNo: p.submission.attemptNo ?? null,
           student: p.submission.student,
           submissionId: p.submission.id,
           hasEvidence: hasEvidenceForEvent(p.submission.id, 'mouse_anomaly'),
@@ -4475,31 +4519,13 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('Bạn không có quyền xem dòng thời gian này');
     }
 
-    const eventTypeLabels: Record<string, string> = {
-      exam_start: 'Bắt đầu phiên làm bài',
-      submit: 'Đã nộp bài thi',
-      answer: 'Ghi nhận tương tác trả lời',
-      tab_switch: 'Phát hiện chuyển tab',
-      fullscreen_exit: 'Phát hiện thoát khỏi chế độ toàn màn hình',
-      window_blur: 'Mất tiêu điểm cửa sổ',
-      blur: 'Mất tiêu điểm cửa sổ',
-      focus: 'Đã quay lại cửa sổ làm bài',
-      mouse_idle: 'Ghi nhận bất thường chuột không hoạt động',
-      mouse_anomaly: 'Ghi nhận chuyển động chuột bất thường',
-      copy: 'Phát hiện hành vi sao chép nội dung',
-      paste: 'Phát hiện hành vi dán nội dung',
-      violation_escalation: 'Leo thang vi phạm toàn vẹn học thuật',
-      face_not_detected: 'Không phát hiện được khuôn mặt',
-      camera_stream_ended: 'Webcam giám sát không còn khả dụng',
-      camera_recovery_timeout: 'Webcam không được khôi phục trong thời gian cho phép',
-      camera_restored: 'Webcam giám sát đã được khôi phục',
-    };
-
+    // Label/severity come from the shared catalog — the same source
+    // ExamMonitor.tsx's live alert feed and getIntegrityCases's reasons now
+    // use, so this timeline, the monitor screen, and the integrity case
+    // list describe the same event the same way.
     const severityFor = (eventType: string): 'normal' | 'warning' | 'critical' => {
-      const event = String(eventType || '').toLowerCase();
-      if (event.includes('fullscreen') || event.includes('face') || event.includes('escalation') || event === 'camera_recovery_timeout') return 'critical';
-      if (['tab_switch', 'window_blur', 'blur', 'copy', 'paste', 'mouse_idle', 'mouse_anomaly', 'camera_stream_ended'].includes(event)) return 'warning';
-      return 'normal';
+      const severity = getIntegrityEventSeverity(eventType);
+      return severity === 'low' ? 'normal' : severity;
     };
 
     const formatDetails = (details?: string | null) => {
@@ -4540,7 +4566,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         id: log.id,
         timestamp: new Date(log.timestamp).toISOString(),
         type: eventType,
-        description: eventTypeLabels[eventType] || `Sự kiện toàn vẹn học thuật: ${eventType.replace(/_/g, ' ')}`,
+        description: getIntegrityEventLabel(eventType),
         severity: severityFor(eventType),
         detail: formatDetails(log.details),
       });

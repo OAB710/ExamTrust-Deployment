@@ -19,6 +19,8 @@
     "prisma:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "prisma:migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema prisma/schema.prisma",
+    "db:rebuild": "prisma db push --force-reset --accept-data-loss --schema prisma/schema.prisma && npm run seed",
+    "db:clear-content": "ts-node prisma/clear-academic-data.ts",
     "backfill:question-v2": "ts-node scripts/backfill-question-v2.ts",
     "seed": "ts-node prisma/seed.ts",
     "seed:question-banks": "ts-node --transpile-only prisma/seed-course-question-banks.ts",

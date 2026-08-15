@@ -58,6 +58,12 @@ exports/
 # Local working notes
 CLOUDFLARE_DEPLOY_NOTES.txt
 
+# CodeGraph — local daemon PID changes every restart, shouldn't be tracked
+.codegraph/daemon.pid
+
+# Claude Code agent worktrees — transient, created/removed per session
+.claude/worktrees/
+
 # Graphify — shared knowledge graph (Codex + Cline/DeepSeek)
 # These are auto-generated / non-portable and should NOT be committed:
 .graphify/cache/

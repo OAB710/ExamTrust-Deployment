@@ -376,8 +376,8 @@ export default function LecturerDashboard() {
                           className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-xl border border-border/50 p-4 hover:bg-secondary/50 hover:border-primary/10 transition-all duration-200 animate-fade-in opacity-0 stagger-${i + 1}`}
                         >
                           <div className="min-w-0 space-y-2">
-                            <div className="flex min-w-0 items-start gap-2.5">
-                              <h4 className="line-clamp-2 font-semibold leading-5 text-foreground">
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <h4 className="min-w-0 truncate font-semibold leading-5 text-foreground">
                                 {exam.title}
                               </h4>
                               {isExpired ? (
@@ -403,28 +403,33 @@ export default function LecturerDashboard() {
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-3">
-                            {exam.status === "COMPLETED" && (
-                              <div className="text-right">
-                                <p className="text-lg font-bold text-foreground">
-                                  {exam._count?.submissions || 0}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Lượt nộp
-                                </p>
-                              </div>
-                            )}
-                            {isScheduled &&
-                              exam.status === "PUBLISHED" &&
-                              exam.startTime && (
-                                <div className="text-right">
+                            {/* Fixed-width slot (shown or not) so the action
+                                button lines up at the same x-position across
+                                every row, regardless of which exam has extra
+                                info to show — previously an inconsistent
+                                mix of widths per row made the whole list look
+                                misaligned/messy. */}
+                            <div className="w-20 shrink-0 text-right">
+                              {exam.status === "COMPLETED" ? (
+                                <>
+                                  <p className="text-lg font-bold text-foreground">
+                                    {exam._count?.submissions || 0}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Lượt nộp
+                                  </p>
+                                </>
+                              ) : isScheduled && exam.status === "PUBLISHED" && exam.startTime ? (
+                                <>
                                   <p className="text-sm font-semibold text-foreground">
                                     {format(new Date(exam.startTime), "MMM d")}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
                                     Đã lên lịch
                                   </p>
-                                </div>
-                              )}
+                                </>
+                              ) : null}
+                            </div>
                             <Button size="sm" className="min-w-28 rounded-xl" asChild>
                               <Link href={actionHref}>{actionLabel}</Link>
                             </Button>

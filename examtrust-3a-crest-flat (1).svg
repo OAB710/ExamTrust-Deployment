@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ExamTrust">
+  <rect width="512" height="512" rx="112" fill="#176f8c"></rect>
+  <rect x="14" y="14" width="484" height="484" rx="100" fill="none" stroke="#3a90ab" stroke-width="4"></rect>
+  <path d="M256 84 L412 132 V272 C412 356 340 414 256 440 C172 414 100 356 100 272 V132 Z" fill="#D9BE7A"></path>
+  <path d="M256 110 L390 151 V270 C390 341 327 392 256 415 C185 392 122 341 122 270 V151 Z" fill="#146B82"></path>
+  <g transform="translate(14.5,19.2) scale(0.92)" stroke-linejoin="round">
+    <path d="M196 246 L316 246 C320 282 322 300 320 310 L256 334 L192 310 C190 300 192 282 196 246 Z" fill="#D9C289" stroke="#D9C289" stroke-width="10"></path>
+    <g transform="translate(0,12)"><path d="M256 154 L386 210 L256 266 L126 210 Z" fill="#C7A85F" stroke="#C7A85F" stroke-width="10"></path></g>
+    <path d="M256 154 L386 210 L256 266 L126 210 Z" fill="#F0DEA8" stroke="#F0DEA8" stroke-width="10"></path>
+    <path d="M256 206 C312 200 358 214 372 242" fill="none" stroke="#B4903F" stroke-width="9" stroke-linecap="round"></path>
+    <path d="M360 242 h24 a7 7 0 0 1 7 7 v11 a7 7 0 0 1 -7 7 h-24 a7 7 0 0 1 -7 -7 v-11 a7 7 0 0 1 7 -7 Z" fill="#D9C289"></path>
+    <path d="M360 267 h24 l7 36 a10 10 0 0 1 -10 10 h-18 a10 10 0 0 1 -10 -10 Z" fill="#EBD79B"></path>
+    <circle cx="256" cy="210" r="13" fill="#D9C289"></circle>
+  </g>
+</svg>

@@ -9,6 +9,12 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SearchBar } from "@/components/common/list/SearchBar";
+import { FilterPanel } from "@/components/common/list/FilterPanel";
+import { ActiveFilterChips } from "@/components/common/list/ActiveFilterChips";
+import { FilterDefinition, FilterValues } from "@/components/common/list/filter-types";
+import { getActiveFilterCount, getFilterChips } from "@/components/common/list/filter-utils";
+import { typeLabels as questionTypeLabels } from "./question-bank-utils";
 import { api } from "@/lib/api";
 import { AlertTriangle, ArrowLeft, ArrowRight, BarChart3, CheckCircle2, Loader2, Minus, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 import { Bar, Line } from "react-chartjs-2";
@@ -26,6 +32,48 @@ import {
 } from "chart.js";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler);
+
+const EMPTY_HISTORY_FILTERS: FilterValues = {
+  type: "all",
+  trend: "all",
+  withAttempts: undefined,
+  aiGenerated: undefined,
+};
+
+const historyFilterDefinitions: FilterDefinition[] = [
+  {
+    key: "type",
+    label: "Loại câu hỏi",
+    type: "select",
+    allLabel: "Tất cả loại",
+    options: Object.entries(questionTypeLabels).map(([value, label]) => ({ value, label })),
+  },
+  {
+    key: "trend",
+    label: "Xu hướng",
+    type: "select",
+    allLabel: "Tất cả xu hướng",
+    options: [
+      { value: "improving", label: "Cải thiện" },
+      { value: "stable", label: "Ổn định" },
+      { value: "degrading", label: "Cần xem xét" },
+    ],
+  },
+  {
+    key: "withAttempts",
+    label: "Lượt làm",
+    type: "boolean",
+    trueLabel: "Đã có lượt làm",
+    falseLabel: "Chưa có lượt làm",
+  },
+  {
+    key: "aiGenerated",
+    label: "Hỗ trợ AI",
+    type: "boolean",
+    trueLabel: "Có hỗ trợ AI",
+    falseLabel: "Không có hỗ trợ AI",
+  },
+];
 
 type QuestionMetric = {
   versionId: string;
@@ -63,6 +111,10 @@ export default function QuestionHistoryAnalysis() {
   const [selectedQuestion, setSelectedQuestion] = useState<QuestionHistoryRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [draftFilters, setDraftFilters] = useState<FilterValues>(EMPTY_HISTORY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<FilterValues>(EMPTY_HISTORY_FILTERS);
 
   useEffect(() => {
     let active = true;
@@ -89,6 +141,55 @@ export default function QuestionHistoryAnalysis() {
       active = false;
     };
   }, [searchParams]);
+
+  const filteredRows = useMemo(() => {
+    const search = appliedSearch.trim().toLowerCase();
+    const type = appliedFilters.type as string | undefined;
+    const trend = appliedFilters.trend as string | undefined;
+    const withAttempts = appliedFilters.withAttempts as boolean | undefined;
+    const aiGenerated = appliedFilters.aiGenerated as boolean | undefined;
+
+    return rows.filter((row) => {
+      const matchesSearch =
+        !search || row.content.toLowerCase().includes(search) || row.id.toLowerCase().includes(search);
+      const matchesType = !type || type === "all" || row.type === type;
+      const matchesTrend = !trend || trend === "all" || row.trend === trend;
+      const rowHasAttempts = row.metrics.some((metric) => metric.attempts > 0);
+      const matchesAttempts = withAttempts === undefined || rowHasAttempts === withAttempts;
+      const rowHasAi = row.versions.some((version) => version.aiGenerated);
+      const matchesAi = aiGenerated === undefined || rowHasAi === aiGenerated;
+      return matchesSearch && matchesType && matchesTrend && matchesAttempts && matchesAi;
+    });
+  }, [rows, appliedSearch, appliedFilters]);
+
+  useEffect(() => {
+    if (filteredRows.length === 0) {
+      setSelectedQuestion(null);
+      return;
+    }
+    if (!selectedQuestion || !filteredRows.some((row) => row.id === selectedQuestion.id)) {
+      setSelectedQuestion(filteredRows[0]);
+    }
+  }, [filteredRows, selectedQuestion]);
+
+  const runSearch = () => setAppliedSearch(searchInput.trim());
+  const applyFilters = () => setAppliedFilters(draftFilters);
+  const clearFilters = () => {
+    setDraftFilters(EMPTY_HISTORY_FILTERS);
+    setAppliedFilters(EMPTY_HISTORY_FILTERS);
+    setSearchInput("");
+    setAppliedSearch("");
+  };
+  const removeFilter = (key: string) => {
+    const nextFilters = {
+      ...appliedFilters,
+      [key]: EMPTY_HISTORY_FILTERS[key as keyof typeof EMPTY_HISTORY_FILTERS],
+    };
+    setAppliedFilters(nextFilters);
+    setDraftFilters(nextFilters);
+  };
+  const activeFilterCount = getActiveFilterCount(appliedFilters, historyFilterDefinitions);
+  const activeFilterChips = getFilterChips(appliedFilters, historyFilterDefinitions);
 
   const chartMetrics = useMemo(
     () => (selectedQuestion?.metrics.length ? selectedQuestion.metrics : []),
@@ -206,35 +307,78 @@ export default function QuestionHistoryAnalysis() {
           </Card>
         )}
 
-        {!loading && !error && rows.length > 0 && selectedQuestion && (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <Card>
-                <CardContent className="pt-4 pb-4 text-center">
-                  <p className="text-2xl font-semibold">{stats?.totalQuestions ?? rows.length}</p>
-                  <p className="text-xs text-muted-foreground">Câu hỏi</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4 pb-4 text-center">
-                  <p className="text-2xl font-semibold">{stats?.withAttempts ?? 0}</p>
-                  <p className="text-xs text-muted-foreground">Đã có lượt làm</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4 pb-4 text-center">
-                  <p className="text-2xl font-semibold text-red-600">{stats?.degrading ?? 0}</p>
-                  <p className="text-xs text-muted-foreground">Cần xem xét</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4 pb-4 text-center">
-                  <p className="text-2xl font-semibold text-blue-600">{stats?.aiGenerated ?? 0}</p>
-                  <p className="text-xs text-muted-foreground">Có hỗ trợ AI</p>
-                </CardContent>
-              </Card>
-            </div>
+        {!loading && !error && rows.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <Card>
+              <CardContent className="pt-4 pb-4 text-center">
+                <p className="text-2xl font-semibold">{stats?.totalQuestions ?? rows.length}</p>
+                <p className="text-xs text-muted-foreground">Câu hỏi</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4 text-center">
+                <p className="text-2xl font-semibold">{stats?.withAttempts ?? 0}</p>
+                <p className="text-xs text-muted-foreground">Đã có lượt làm</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4 text-center">
+                <p className="text-2xl font-semibold text-red-600">{stats?.degrading ?? 0}</p>
+                <p className="text-xs text-muted-foreground">Cần xem xét</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4 text-center">
+                <p className="text-2xl font-semibold text-blue-600">{stats?.aiGenerated ?? 0}</p>
+                <p className="text-xs text-muted-foreground">Có hỗ trợ AI</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
+        {!loading && !error && rows.length > 0 && (
+          <div className="mb-6 space-y-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+              <SearchBar
+                value={searchInput}
+                onChange={setSearchInput}
+                onSearch={runSearch}
+                placeholder="Tìm câu hỏi hoặc ID..."
+                className="min-w-0 flex-1"
+              />
+              <FilterPanel
+                title="Bộ lọc câu hỏi"
+                description="Lọc theo loại, xu hướng, lượt làm và hỗ trợ AI."
+                filters={historyFilterDefinitions}
+                value={draftFilters}
+                onValueChange={(key, nextValue) =>
+                  setDraftFilters((prev) => ({ ...prev, [key]: nextValue }))
+                }
+                onApply={applyFilters}
+                onClear={clearFilters}
+                activeCount={activeFilterCount}
+                className="shrink-0"
+              />
+            </div>
+            <ActiveFilterChips
+              chips={activeFilterChips}
+              onRemove={removeFilter}
+              onClearAll={clearFilters}
+            />
+          </div>
+        )}
+
+        {!loading && !error && rows.length > 0 && (filteredRows.length === 0 || !selectedQuestion) && (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              Không có câu hỏi phù hợp với bộ lọc hiện tại.
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && !error && rows.length > 0 && filteredRows.length > 0 && selectedQuestion && (
+          <>
             <Tabs defaultValue="trends">
               <TabsList className="mb-4">
                 <TabsTrigger value="trends">Xu hướng chỉ số</TabsTrigger>
@@ -249,7 +393,7 @@ export default function QuestionHistoryAnalysis() {
                       <CardTitle className="text-base">Câu hỏi</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 max-h-[620px] overflow-y-auto">
-                      {rows.map((row) => (
+                      {filteredRows.map((row) => (
                         <button
                           key={row.id}
                           onClick={() => setSelectedQuestion(row)}
@@ -373,7 +517,7 @@ export default function QuestionHistoryAnalysis() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {rows.map((row) => {
+                        {filteredRows.map((row) => {
                           const initial = firstMetric(row);
                           const current = latestMetric(row);
                           const initialDiff = initial?.difficulty ?? 0;

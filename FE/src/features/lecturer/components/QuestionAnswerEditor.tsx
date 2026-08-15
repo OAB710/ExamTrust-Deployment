@@ -112,9 +112,31 @@ export function QuestionAnswerEditor({
         )) : null}
 
         {questionType === "true_false" ? (
-          <div className="flex gap-2 sm:gap-4">
-            <Button variant={tfAnswer === "true" ? "default" : "outline"} onClick={() => onTfAnswerChange("true")} size="sm" className="flex-1 text-sm">Đúng</Button>
-            <Button variant={tfAnswer === "false" ? "default" : "outline"} onClick={() => onTfAnswerChange("false")} size="sm" className="flex-1 text-sm">Sai</Button>
+          <div className="flex gap-2 sm:gap-4" role="radiogroup" aria-label="Đáp án đúng">
+            {(["true", "false"] as const).map((value) => (
+              <Button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={tfAnswer === value}
+                variant={tfAnswer === value ? "default" : "outline"}
+                onClick={() => onTfAnswerChange(value)}
+                onKeyDown={(event) => {
+                  // Native <button> already activates on Space/Enter, but this
+                  // is made explicit so the toggle keeps working even if some
+                  // ancestor element's own key handling swallows the event
+                  // before it reaches native activation.
+                  if (event.key === " " || event.key === "Enter") {
+                    event.preventDefault();
+                    onTfAnswerChange(value);
+                  }
+                }}
+                size="sm"
+                className="flex-1 text-sm"
+              >
+                {value === "true" ? "Đúng" : "Sai"}
+              </Button>
+            ))}
           </div>
         ) : null}
 
