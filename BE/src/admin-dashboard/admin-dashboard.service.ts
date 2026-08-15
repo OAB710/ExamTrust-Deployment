@@ -15,6 +15,8 @@ const ZALO_BOT_COMMANDS = [
   { command: 'On FE / Off FE', description: 'Bật / tắt FE (Cloudflare Worker)' },
   { command: 'FE Info / BE Info / R2 Info', description: 'Xem mức dùng tài nguyên FE, BE, và Cloudflare R2' },
   { command: 'AI Deepseek / AI Openrouter', description: 'Chuyển provider AI đang dùng' },
+  { command: 'Reset DB', description: '⚠️ Xóa sạch database production và seed lại data demo' },
+  { command: 'Clear Question Media / Clear Evidence Media / Clear All Media', description: '⚠️ Xóa vĩnh viễn tệp trên R2 (ảnh câu hỏi / bằng chứng giám sát / cả hai) — không đụng dữ liệu trong database' },
   { command: 'Info', description: 'Xem chi tiết tất cả status về hệ thống' },
 ];
 

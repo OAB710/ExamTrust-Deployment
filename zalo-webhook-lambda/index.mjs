@@ -13,6 +13,10 @@ const {
   ZALO_BUILD_BE_COMMAND = "Build BE",
   ZALO_AI_DEEPSEEK_COMMAND = "AI Deepseek",
   ZALO_AI_OPENROUTER_COMMAND = "AI Openrouter",
+  ZALO_RESET_DB_COMMAND = "Reset DB",
+  ZALO_CLEAR_QUESTIONS_COMMAND = "Clear Question Media",
+  ZALO_CLEAR_EVIDENCE_COMMAND = "Clear Evidence Media",
+  ZALO_CLEAR_ALL_STORAGE_COMMAND = "Clear All Media",
   ZALO_FE_URL = "https://examtrust-deployment-final-thesis.examtrust.workers.dev",
   ZALO_BE_API_URL = "https://32-236-182-208.sslip.io/api",
   ZALO_AWS_CONSOLE_URL = "https://ap-southeast-2.console.aws.amazon.com/",
@@ -22,6 +26,8 @@ const {
   GITHUB_WORKFLOW_FILE = "deploy-fe.yml",
   GITHUB_WORKFLOW_FILE_BE = "deploy-be.yml",
   GITHUB_WORKFLOW_FILE_SWITCH_AI = "switch-ai.yml",
+  GITHUB_WORKFLOW_FILE_RESET_DB = "reset-db.yml",
+  GITHUB_WORKFLOW_FILE_CLEAR_STORAGE = "clear-storage.yml",
   CLOUDFLARE_API_TOKEN,
   CLOUDFLARE_ACCOUNT_ID,
   CLOUDFLARE_WORKER_NAME = "examtrust-deployment-final-thesis",
@@ -539,6 +545,44 @@ export const handler = async (event) => {
       await replyToZalo(chatId, await buildBeInfoText());
     } else if (text === normalizeCommand(ZALO_USAGE_R2_COMMAND)) {
       await replyToZalo(chatId, await buildR2InfoText());
+    } else if (text === normalizeCommand(ZALO_RESET_DB_COMMAND)) {
+      const lastRunAgeMs = await getLastRunAgeMs(GITHUB_WORKFLOW_FILE_RESET_DB);
+      if (lastRunAgeMs !== null && lastRunAgeMs < COOLDOWN_MS) {
+        const waitSec = Math.ceil((COOLDOWN_MS - lastRunAgeMs) / 1000);
+        await replyToZalo(chatId, `⏳ Vừa reset xong, đợi ${waitSec}s rồi thử lại nhé`);
+      } else {
+        const dispatched = await triggerDeploy(GITHUB_WORKFLOW_FILE_RESET_DB);
+        await replyToZalo(
+          chatId,
+          dispatched
+            ? "⚠️ Đang XÓA SẠCH database production và seed lại data demo..."
+            : "❌ Trigger lỗi rồi",
+        );
+      }
+    } else if (
+      text === normalizeCommand(ZALO_CLEAR_QUESTIONS_COMMAND) ||
+      text === normalizeCommand(ZALO_CLEAR_EVIDENCE_COMMAND) ||
+      text === normalizeCommand(ZALO_CLEAR_ALL_STORAGE_COMMAND)
+    ) {
+      const target =
+        text === normalizeCommand(ZALO_CLEAR_QUESTIONS_COMMAND)
+          ? "questions"
+          : text === normalizeCommand(ZALO_CLEAR_EVIDENCE_COMMAND)
+            ? "evidence"
+            : "all";
+      const lastRunAgeMs = await getLastRunAgeMs(GITHUB_WORKFLOW_FILE_CLEAR_STORAGE);
+      if (lastRunAgeMs !== null && lastRunAgeMs < COOLDOWN_MS) {
+        const waitSec = Math.ceil((COOLDOWN_MS - lastRunAgeMs) / 1000);
+        await replyToZalo(chatId, `⏳ Vừa xóa xong, đợi ${waitSec}s rồi thử lại nhé`);
+      } else {
+        const dispatched = await triggerDeploy(GITHUB_WORKFLOW_FILE_CLEAR_STORAGE, { target });
+        await replyToZalo(
+          chatId,
+          dispatched
+            ? `⚠️ Đang XÓA VĨNH VIỄN toàn bộ tệp trong "${target}" trên R2 (chỉ tệp, không đụng dữ liệu trong database)...`
+            : "❌ Trigger lỗi rồi",
+        );
+      }
     } else if (
       text === normalizeCommand(ZALO_AI_DEEPSEEK_COMMAND) ||
       text === normalizeCommand(ZALO_AI_OPENROUTER_COMMAND)
@@ -566,6 +610,8 @@ export const handler = async (event) => {
         `• On / Off FE\n` +
         `• ${ZALO_USAGE_FE_COMMAND} / ${ZALO_USAGE_BE_COMMAND} / ${ZALO_USAGE_R2_COMMAND}\n` +
         `• ${ZALO_AI_DEEPSEEK_COMMAND} / ${ZALO_AI_OPENROUTER_COMMAND}\n` +
+        `• ${ZALO_RESET_DB_COMMAND} (⚠️ xóa sạch DB + seed lại)\n` +
+        `• ${ZALO_CLEAR_QUESTIONS_COMMAND} / ${ZALO_CLEAR_EVIDENCE_COMMAND} / ${ZALO_CLEAR_ALL_STORAGE_COMMAND} (⚠️ xóa vĩnh viễn tệp trên R2)\n` +
         `• ${ZALO_PUBLIC_INFO_COMMAND}`,
       );
     }

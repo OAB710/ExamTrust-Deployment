@@ -1928,7 +1928,10 @@ export default function ExamMonitor() {
                     className="mt-3 h-8 w-full gap-1.5"
                     disabled={attempt.evidenceCount === 0}
                     onClick={() => {
-                      setHistoryDialogStudent(null);
+                      // Deliberately don't close the history dialog here — it
+                      // stays open underneath so closing the evidence dialog
+                      // returns the lecturer to the attempt list instead of
+                      // dropping them all the way back to the submissions table.
                       void openEvidenceDialog(attempt.submissionId, `${historyDialogStudent?.name} — Lượt ${attempt.attemptNo ?? "-"}`);
                     }}
                   >

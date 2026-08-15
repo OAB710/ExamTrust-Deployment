@@ -1,0 +1,29 @@
+name: Reset Database
+
+on:
+  workflow_dispatch:
+
+env:
+  EC2_HOST: 32.236.182.208
+  EC2_USER: ubuntu
+  EC2_DIR: ~/examtrust-be
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+
+      - name: Add EC2 host to known_hosts
+        run: ssh-keyscan -H ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      # WARNING: wipes the production database and reseeds demo data —
+      # see BE/scripts/db-rebuild.sh for exactly what this runs.
+      - name: Run db-rebuild.sh on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+            cd ${{ env.EC2_DIR }} && bash scripts/db-rebuild.sh
+          "
