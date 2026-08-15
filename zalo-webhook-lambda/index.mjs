@@ -10,6 +10,7 @@ const {
   ZALO_USAGE_BE_COMMAND = "BE Info",
   ZALO_USAGE_R2_COMMAND = "R2 Info",
   ZALO_PUBLIC_INFO_COMMAND = "Info",
+  ZALO_SYSTEM_OVERVIEW_COMMAND = "System Overview",
   ZALO_BUILD_BE_COMMAND = "Build BE",
   ZALO_AI_DEEPSEEK_COMMAND = "AI Deepseek",
   ZALO_AI_OPENROUTER_COMMAND = "AI Openrouter",
@@ -401,6 +402,78 @@ async function getAiStatus() {
   }
 }
 
+async function getSystemOverview() {
+  try {
+    const resp = await fetch(`${ZALO_BE_API_URL}/system-overview`);
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch (err) {
+    console.error("System overview fetch failed", err);
+    return null;
+  }
+}
+
+// Every number here is the same one an admin sees on-screen already (see
+// CourseManagement/ExamManagement/QuestionBankManagement/UserRoleManagement/
+// IntegrityOverview KPI cards) — this only reformats them for Zalo. The
+// conclusion lines are plain arithmetic/threshold derivations of those same
+// numbers (ratios, averages), never a fabricated metric.
+function buildSystemOverviewConclusions(overview) {
+  const { totalExams, publishedExams, totalSubmissions, integrity } = overview;
+  const lines = [];
+
+  if (integrity.totalFlagged > 0) {
+    const pendingRatio = integrity.pendingReview / integrity.totalFlagged;
+    if (pendingRatio >= 0.3) {
+      const pendingPct = Math.round(pendingRatio * 100);
+      lines.push(`⚠️ Còn ${integrity.pendingReview}/${integrity.totalFlagged} tín hiệu chờ xem xét (${pendingPct}%) — cần xem lại sớm.`);
+    } else {
+      const handled = integrity.totalFlagged - integrity.pendingReview;
+      const handledPct = Math.round((handled / integrity.totalFlagged) * 100);
+      lines.push(`✅ Đã xử lý ${handledPct}% tín hiệu nghi vấn ghi nhận được (${handled}/${integrity.totalFlagged}).`);
+    }
+  } else {
+    lines.push("✅ Chưa ghi nhận tín hiệu nghi vấn nào.");
+  }
+
+  if (totalExams > 0) {
+    const draftCount = totalExams - publishedExams;
+    const draftRatio = draftCount / totalExams;
+    if (draftRatio >= 0.5) {
+      const draftPct = Math.round(draftRatio * 100);
+      lines.push(`📝 Còn ${draftCount}/${totalExams} bài thi (${draftPct}%) chưa công bố — cần xem lại.`);
+    }
+
+    const avgSubmissions = Math.round((totalSubmissions / totalExams) * 10) / 10;
+    lines.push(`📈 Trung bình ${avgSubmissions} lượt nộp mỗi bài thi.`);
+  }
+
+  return lines.join("\n");
+}
+
+async function buildSystemOverviewText() {
+  const overview = await getSystemOverview();
+  if (!overview) return "❌ Không lấy được số liệu hệ thống";
+
+  const { totalUsers, totalCourses, totalExams, publishedExams, totalQuestions, totalSubmissions, integrity } = overview;
+
+  return (
+    `📊 System Overview\n\n` +
+    `👥 Tổng số người dùng: ${totalUsers}\n` +
+    `📚 Tổng số khóa học: ${totalCourses}\n` +
+    `📝 Tổng số bài thi: ${totalExams} (Đã công bố: ${publishedExams})\n` +
+    `❓ Tổng số câu hỏi: ${totalQuestions}\n` +
+    `📥 Tổng số lượt nộp: ${totalSubmissions}\n\n` +
+    `🛡️ Giám sát rủi ro\n` +
+    `• Tổng tín hiệu: ${integrity.totalFlagged}\n` +
+    `• Chờ xem xét: ${integrity.pendingReview}\n` +
+    `• Mức tín hiệu cao: ${integrity.highConfidence}\n` +
+    `• Đã xác nhận: ${integrity.confirmedCases}\n\n` +
+    `🔎 Nhận xét\n` +
+    buildSystemOverviewConclusions(overview)
+  );
+}
+
 async function buildBeInfoText() {
   const [beRun, aiStatus] = await Promise.all([
     getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE),
@@ -409,7 +482,7 @@ async function buildBeInfoText() {
   const aiLine = aiStatus ? `🧠 AI: ${aiStatus.provider} (${aiStatus.model})` : `🧠 AI: ?`;
   return (
     `🖥️ BE Info\n` +
-    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n\n` +
     `${aiLine}\n` +
     `💰 AWS Console: ${ZALO_AWS_CONSOLE_URL}`
   );
@@ -435,11 +508,11 @@ async function buildPublicInfoText() {
     `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
     `📊 Cloudflare Usage\n` +
     `• Requests today: ${fmt(requests)} / 100,000\n` +
-    `• Observability events today: ${fmt(obsEvents)} / 200,000` +
+    `• Observability events today: ${fmt(obsEvents)} / 200,000\n\n` +
     // `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}\n\n` +
     `--------------------\n\n` +
     `🖥️ BE Info\n` +
-    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n\n` +
     `${aiLine}`
   );
 }
@@ -487,20 +560,26 @@ export const handler = async (event) => {
     senderId,
   );
 
-  // "Info" is available to everyone, no owner check required — but the
-  // owner gets the full FE+BE detail (Cloudflare usage, AWS console link),
-  // while anyone else only gets the stripped-down public status.
-  if (
-    body?.event_name === "message.text.received" &&
-    text === normalizeCommand(ZALO_PUBLIC_INFO_COMMAND)
-  ) {
-    if (senderId === ZALO_ALLOWED_USER_ID) {
-      const [feText, beText] = await Promise.all([buildFeInfoText(), buildBeInfoText()]);
-      await replyToZalo(chatId, `${feText}\n\n--------------------\n\n${beText}`);
-    } else {
-      await replyToZalo(chatId, await buildPublicInfoText());
+  // "Info" and "System Overview" are available to everyone, no owner check
+  // required — Info gives the owner the full FE+BE detail (Cloudflare usage,
+  // AWS console link) while anyone else only gets the stripped-down public
+  // status; System Overview has no sensitive infra detail so it's identical
+  // for everyone.
+  if (body?.event_name === "message.text.received") {
+    if (text === normalizeCommand(ZALO_PUBLIC_INFO_COMMAND)) {
+      if (senderId === ZALO_ALLOWED_USER_ID) {
+        const [feText, beText] = await Promise.all([buildFeInfoText(), buildBeInfoText()]);
+        await replyToZalo(chatId, `${feText}\n\n--------------------\n\n${beText}`);
+      } else {
+        await replyToZalo(chatId, await buildPublicInfoText());
+      }
+      return ok;
     }
-    return ok;
+
+    if (text === normalizeCommand(ZALO_SYSTEM_OVERVIEW_COMMAND)) {
+      await replyToZalo(chatId, await buildSystemOverviewText());
+      return ok;
+    }
   }
 
   if (senderId !== ZALO_ALLOWED_USER_ID) {
@@ -508,7 +587,9 @@ export const handler = async (event) => {
     if (body?.event_name === "message.text.received") {
       await replyToZalo(
         chatId,
-        `🤖 Vui lòng chọn một trong các lệnh sau:\n` + `• ${ZALO_PUBLIC_INFO_COMMAND}`,
+        `🤖 Vui lòng chọn một trong các lệnh sau:\n` +
+          `• ${ZALO_SYSTEM_OVERVIEW_COMMAND}\n` +
+          `• ${ZALO_PUBLIC_INFO_COMMAND}`,
       );
     }
     return ok;
@@ -604,15 +685,19 @@ export const handler = async (event) => {
     } else {
       await replyToZalo(
         chatId,
-        `🤖 Vui lòng chọn một trong các lệnh sau:\n` +
+        `🤖 Vui lòng chọn một trong các lệnh sau:\n\n` +
+        `🖥️ Hệ Thống\n` +
+        `• ${ZALO_SYSTEM_OVERVIEW_COMMAND}\n` +
+        `• ${ZALO_PUBLIC_INFO_COMMAND}\n\n` +
+        `--------------------\n\n` +
+        `⚙️ DevOps\n` +
         `• ${ZALO_BUILD_FE_COMMAND}\n` +
         `• ${ZALO_BUILD_BE_COMMAND}\n` +
         `• On / Off FE\n` +
         `• ${ZALO_USAGE_FE_COMMAND} / ${ZALO_USAGE_BE_COMMAND} / ${ZALO_USAGE_R2_COMMAND}\n` +
         `• ${ZALO_AI_DEEPSEEK_COMMAND} / ${ZALO_AI_OPENROUTER_COMMAND}\n` +
         `• ${ZALO_RESET_DB_COMMAND} (⚠️ xóa sạch DB + seed lại)\n` +
-        `• ${ZALO_CLEAR_QUESTIONS_COMMAND} / ${ZALO_CLEAR_EVIDENCE_COMMAND} / ${ZALO_CLEAR_ALL_STORAGE_COMMAND} (⚠️ xóa vĩnh viễn tệp trên R2)\n` +
-        `• ${ZALO_PUBLIC_INFO_COMMAND}`,
+        `• ${ZALO_CLEAR_QUESTIONS_COMMAND} / ${ZALO_CLEAR_EVIDENCE_COMMAND} / ${ZALO_CLEAR_ALL_STORAGE_COMMAND} (⚠️ xóa vĩnh viễn tệp trên R2)`,
       );
     }
   }

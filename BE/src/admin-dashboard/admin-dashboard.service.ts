@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
+import { SubmissionsService } from '../submissions/submissions.service';
 
 const TZ = 'Asia/Ho_Chi_Minh';
 const COMPLETED = ['SUBMITTED', 'GRADED', 'FLAGGED'];
@@ -10,6 +11,7 @@ const COMPLETED = ['SUBMITTED', 'GRADED', 'FLAGGED'];
 // which is a separate deployable with no shared source of truth to import
 // this from.
 const ZALO_BOT_COMMANDS = [
+  { command: 'System Overview', description: 'Tổng quan số liệu hệ thống (người dùng, khóa học, bài thi, câu hỏi, tín hiệu giám sát...)' },
   { command: 'Build FE', description: 'Build + deploy FE lên Cloudflare Workers' },
   { command: 'Build BE', description: 'Build + deploy BE lên EC2' },
   { command: 'On FE / Off FE', description: 'Bật / tắt FE (Cloudflare Worker)' },
@@ -25,12 +27,48 @@ export class AdminDashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly submissionsService: SubmissionsService,
   ) {}
 
   async devopsStatus() {
     return {
       ai: this.aiService.getProviderStatus(),
       botCommands: ZALO_BOT_COMMANDS,
+    };
+  }
+
+  // Every number here mirrors an existing admin screen's KPI card exactly
+  // (same query, same "all roles / all-time, no filters" scope) — see
+  // CourseManagement.tsx "Tổng số khóa học", ExamManagement.tsx "Tổng số bài
+  // thi"/"Đã công bố"/"Tổng số lượt nộp", QuestionBankManagement.tsx "Tổng số
+  // câu hỏi", UserRoleManagement.tsx "Tổng số người dùng". Deliberately does
+  // NOT invent any number that isn't already visible somewhere on screen
+  // (e.g. no per-role user totals, no "% scored 7+" — neither is displayed
+  // anywhere as a single figure today).
+  async systemOverview() {
+    const [totalUsers, totalCourses, totalExams, publishedExams, totalQuestions, totalSubmissions, integrityCases] =
+      await Promise.all([
+        this.prisma.user.count(),
+        this.prisma.course.count(),
+        this.prisma.exam.count({ where: { deletedAt: null } }),
+        this.prisma.exam.count({ where: { deletedAt: null, status: 'PUBLISHED' } }),
+        this.prisma.question.count(),
+        this.prisma.examSubmission.count(),
+        // Reuses the exact same query the "Giám sát rủi ro" admin screen
+        // calls (no user scope = unfiltered/admin-wide, matching its default
+        // view) instead of re-deriving highConfidence/confirmedCases here —
+        // that classification logic lives in one place only.
+        this.submissionsService.getIntegrityCases({}),
+      ]);
+
+    return {
+      totalUsers,
+      totalCourses,
+      totalExams,
+      publishedExams,
+      totalQuestions,
+      totalSubmissions,
+      integrity: integrityCases.stats,
     };
   }
 
