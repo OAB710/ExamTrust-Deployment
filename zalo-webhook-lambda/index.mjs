@@ -18,6 +18,9 @@ const {
   ZALO_CLEAR_QUESTIONS_COMMAND = "Clear Question Media",
   ZALO_CLEAR_EVIDENCE_COMMAND = "Clear Evidence Media",
   ZALO_CLEAR_ALL_STORAGE_COMMAND = "Clear All Media",
+  // Bump this alongside every CHANGELOG.md release entry (xem skill
+  // release-versioning) — hiển thị trong lệnh Info cho mọi user.
+  ZALO_APP_VERSION = "v1.0.0",
   ZALO_FE_URL = "https://examtrust-deployment-final-thesis.examtrust.workers.dev",
   ZALO_BE_API_URL = "https://32-236-182-208.sslip.io/api",
   ZALO_AWS_CONSOLE_URL = "https://ap-southeast-2.console.aws.amazon.com/",
@@ -381,6 +384,7 @@ async function buildFeInfoText() {
   const buildMinutesNote = buildMinutes === 0 ? " (deploy chạy qua GitHub Actions, không tính vào đây)" : "";
   return (
     `🖥️ FE Info\n` +
+    `🏷️ Version: ${ZALO_APP_VERSION}\n` +
     `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
     `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
     `📊 Cloudflare Usage\n` +
@@ -458,7 +462,8 @@ async function buildSystemOverviewText() {
   const { totalUsers, totalCourses, totalExams, publishedExams, totalQuestions, totalSubmissions, integrity } = overview;
 
   return (
-    `📊 System Overview\n\n` +
+    `📊 System Overview\n` +
+    `🏷️ Version: ${ZALO_APP_VERSION}\n\n` +
     `👥 Tổng số người dùng: ${totalUsers}\n` +
     `📚 Tổng số khóa học: ${totalCourses}\n` +
     `📝 Tổng số bài thi: ${totalExams} (Đã công bố: ${publishedExams})\n` +
@@ -504,6 +509,7 @@ async function buildPublicInfoText() {
   const aiLine = aiStatus ? `🧠 AI: ${aiStatus.provider} (${aiStatus.model})` : `🧠 AI: ?`;
   return (
     `🖥️ FE Info\n` +
+    `🏷️ Version: ${ZALO_APP_VERSION}\n` +
     `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
     `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
     `📊 Cloudflare Usage\n` +
