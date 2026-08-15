@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description:
     "Nền tảng tổ chức thi với đề ngẫu nhiên, giám sát toàn vẹn, phân tích kết quả và hỗ trợ AI có giảng viên kiểm duyệt.",
   icons: {
-    icon: "/examtrust-favicon.svg",
+    icon: "/examtrust-mark.svg",
   },
   openGraph: {
     title: "ExamTrust",

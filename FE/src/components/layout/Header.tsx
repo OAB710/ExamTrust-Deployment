@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, User, GraduationCap } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,9 +22,7 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/90 backdrop-blur-lg">
       <div className="container flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-bold text-foreground">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <GraduationCap className="h-3.5 w-3.5" />
-          </div>
+          <img src="/examtrust-mark.svg" alt="" width={32} height={32} className="h-8 w-8" />
           <span className="text-base tracking-tight">ExamTrust</span>
         </Link>
 

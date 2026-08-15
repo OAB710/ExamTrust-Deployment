@@ -213,9 +213,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           !isMobile && collapsed ? "justify-center" : "gap-3",
         )}
       >
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <GraduationCap className="h-3.5 w-3.5" />
-        </div>
+        <img src="/examtrust-mark.svg" alt="" width={28} height={28} className="h-7 w-7 shrink-0" />
         {(isMobile || !collapsed) && (
           <span className="font-bold text-sidebar-foreground text-base tracking-normal">
             ExamTrust

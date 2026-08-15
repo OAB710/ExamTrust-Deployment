@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GraduationCap, Loader2, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Loader2, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function ResetPassword() {
@@ -36,7 +36,7 @@ export default function ResetPassword() {
       <div className="w-full max-w-md rounded-2xl border border-border/80 bg-card p-6 shadow-medium sm:p-8">
         <div className="mb-8">
           <Link href="/" className="inline-flex items-center gap-2 text-foreground">
-            <GraduationCap className="h-6 w-6 text-primary" />
+            <img src="/examtrust-mark.svg" alt="" width={32} height={32} className="h-8 w-8" />
             <span className="text-xl font-semibold">ExamTrust</span>
           </Link>
         </div>
