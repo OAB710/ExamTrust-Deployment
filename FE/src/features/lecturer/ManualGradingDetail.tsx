@@ -39,6 +39,18 @@ function normalizeFeedback(value: any): string {
   return String(value || "");
 }
 
+// Slot 0 is always the exam-start checkpoint, the highest slot seen is
+// always the guaranteed end-of-exam checkpoint, anything else is numbered
+// by its own slot index (1, 2, 3...).
+function getScheduledCaptureLabel(capture: any, maxScheduledSlot: number | null): string {
+  if (capture.trigger === "IDLE") return "Không tương tác (lịch sử)";
+  if (capture.trigger !== "SCHEDULED") return "Tín hiệu bảo mật";
+  const slot = capture.scheduledSlot;
+  if (slot === 0) return "Ảnh bắt đầu";
+  if (slot != null && maxScheduledSlot != null && slot === maxScheduledSlot) return "Ảnh kết thúc";
+  return slot != null ? `Định kỳ ${slot}` : "Chụp theo lịch";
+}
+
 type DraftGrade = {
   pointsAwarded: string;
   feedback: string;
@@ -74,6 +86,12 @@ export default function ManualGradingDetail() {
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [evidenceCaptures, setEvidenceCaptures] = useState<any[]>([]);
   const [evidenceImageUrls, setEvidenceImageUrls] = useState<Record<string, string>>({});
+  const evidenceMaxScheduledSlot = useMemo(() => {
+    const slots = evidenceCaptures
+      .filter((c) => c.trigger === "SCHEDULED" && c.scheduledSlot != null)
+      .map((c) => c.scheduledSlot as number);
+    return slots.length ? Math.max(...slots) : null;
+  }, [evidenceCaptures]);
 
   useEffect(() => {
     let mounted = true;
@@ -374,7 +392,7 @@ export default function ManualGradingDetail() {
                   {evidenceCaptures.map((capture: any) => (
                     <div key={capture.id} className="rounded-lg border p-3 space-y-2">
                       {evidenceImageUrls[capture.id] ? <img src={evidenceImageUrls[capture.id]} alt="Webcam evidence" className="aspect-video w-full rounded bg-black object-cover" /> : <div className="aspect-video rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">{capture.status === "PURGED" ? "Ảnh đã được xóa theo thời hạn lưu trữ" : "Không tải được ảnh"}</div>}
-                      <div className="text-xs text-muted-foreground">{capture.trigger === "SCHEDULED" ? "Chụp theo lịch" : capture.trigger === "IDLE" ? "Không tương tác (lịch sử)" : "Tín hiệu bảo mật"} · {capture.capturedAt ? new Date(capture.capturedAt).toLocaleString("vi-VN") : "Đang chờ ảnh"}</div>
+                      <div className="text-xs text-muted-foreground">{getScheduledCaptureLabel(capture, evidenceMaxScheduledSlot)} · {capture.capturedAt ? new Date(capture.capturedAt).toLocaleString("vi-VN") : "Đang chờ ảnh"}</div>
                       <div className="flex flex-wrap gap-1">{(capture.aiTags || []).map((tag: any) => <Badge key={`${capture.id}-${tag.tag}`} variant="secondary">{tag.tag} {Number.isFinite(Number(tag.confidence)) ? `${Math.round(Number(tag.confidence) * 100)}%` : ""}</Badge>)}</div>
                       <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void reviewEvidence(capture.id, "REVIEWED")}>Đã xem</Button><Button size="sm" variant="ghost" onClick={() => void reviewEvidence(capture.id, "DISMISSED")}>Bỏ qua</Button><span className="ml-auto text-xs text-muted-foreground">{capture.reviewStatus}</span></div>
                     </div>

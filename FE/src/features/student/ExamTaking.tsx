@@ -145,6 +145,7 @@ export default function ExamTaking() {
   const screenStreamRef = useRef<MediaStream | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const evidenceCaptureInFlightRef = useRef(false);
+  const firedScheduledCaptureSlotsRef = useRef<Set<number>>(new Set());
   const cameraIssueActiveRef = useRef(false);
   const screenIssueActiveRef = useRef(false);
   const lastActivityAtRef = useRef(Date.now());
@@ -608,7 +609,12 @@ export default function ExamTaking() {
     void startScreenShare({ silent: true });
   }, [isPreviewMode, screenCaptureRequired, screenShareReady, startScreenShare]);
 
-  const requestWebcamEvidence = useCallback(async (trigger: "SCHEDULED" | "SUSPICIOUS_EVENT", options?: { signals?: string[] }) => {
+  // Returns whether the webcam frame was actually captured & uploaded — callers
+  // that must not silently "use up" an attempt (e.g. a scheduled slot that
+  // should retry until the grace window closes) need this instead of a
+  // fire-and-forget void, otherwise a skip here (webcam not ready yet, another
+  // capture in flight) would be indistinguishable from a real success.
+  const requestWebcamEvidence = useCallback(async (trigger: "SCHEDULED" | "SUSPICIOUS_EVENT", options?: { signals?: string[]; final?: boolean }): Promise<boolean> => {
     const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
     const video = webcamVideoRef.current;
     if (!webcamPolicy?.enabled || !webcamReady || !activeSubmissionId || !video || evidenceCaptureInFlightRef.current || video.videoWidth < 1) {
@@ -622,7 +628,7 @@ export default function ExamTaking() {
         videoWidth: video?.videoWidth ?? null,
         captureInFlight: evidenceCaptureInFlightRef.current,
       });
-      return;
+      return false;
     }
     evidenceCaptureInFlightRef.current = true;
     try {
@@ -665,12 +671,55 @@ export default function ExamTaking() {
           screenVideoWidth: screenVideo?.videoWidth ?? null,
         });
       }
+      return true;
     } catch (error) {
       console.warn("Webcam evidence capture was skipped:", { trigger, signals: options?.signals, error });
+      return false;
     } finally {
       evidenceCaptureInFlightRef.current = false;
     }
   }, [screenShareReady, submissionId, webcamPolicy, webcamReady]);
+
+  // Fires periodic webcam evidence at the offsets the backend computed for
+  // this exam (fixed % checkpoints, or the lecturer's configured interval —
+  // see ProctoringEvidenceService.normalizePolicy). Checked well inside the
+  // server's 90s grace window (SCHEDULED_CAPTURE_GRACE_MS) so a slow tick
+  // never misses a slot; firedScheduledCaptureSlotsRef stops a slot from
+  // being requested twice (the backend also has a unique-index-per-slot
+  // safeguard, but re-hitting it would just surface as an avoidable error).
+  useEffect(() => {
+    firedScheduledCaptureSlotsRef.current = new Set();
+  }, [submissionId]);
+
+  useEffect(() => {
+    const offsets = webcamPolicy?.scheduledCaptureOffsetsMs;
+    if (!webcamPolicy?.enabled || !examStartedAt || !Array.isArray(offsets) || offsets.length === 0) return;
+
+    const SCHEDULED_CAPTURE_GRACE_MS = 90_000;
+    const pendingSlotsRef = new Set<number>();
+    const tick = () => {
+      const elapsedMs = Date.now() - examStartedAt;
+      offsets.forEach((offset: number, slot: number) => {
+        if (firedScheduledCaptureSlotsRef.current.has(slot) || pendingSlotsRef.has(slot)) return;
+        if (elapsedMs >= offset && elapsedMs <= offset + SCHEDULED_CAPTURE_GRACE_MS) {
+          pendingSlotsRef.add(slot);
+          // Only mark this slot as done once the capture actually succeeds —
+          // requestWebcamEvidence resolves false (webcam not ready yet,
+          // another capture in flight, transient error) without throwing, so
+          // marking it fired unconditionally here would permanently skip a
+          // slot on nothing more than bad timing. Left unmarked, the next
+          // tick retries it for as long as we're still inside the grace window.
+          void requestWebcamEvidence("SCHEDULED").then((success) => {
+            pendingSlotsRef.delete(slot);
+            if (success) firedScheduledCaptureSlotsRef.current.add(slot);
+          });
+        }
+      });
+    };
+    tick();
+    const timer = window.setInterval(tick, 5_000);
+    return () => window.clearInterval(timer);
+  }, [webcamPolicy, examStartedAt, requestWebcamEvidence]);
 
   useEffect(() => {
     if (!cameraRecoveryDeadline) return;
@@ -718,10 +767,14 @@ export default function ExamTaking() {
     window.addEventListener("pointerdown", onActivity, { passive: true });
     window.addEventListener("keydown", onActivity);
 
+    const idleThresholdMs = Number(webcamPolicy?.mouseIdleThresholdMs) > 0 ? Number(webcamPolicy.mouseIdleThresholdMs) : 60_000;
+    const idleThresholdLabel = idleThresholdMs >= 60_000
+      ? `${Math.round(idleThresholdMs / 60_000)} phút`
+      : `${Math.round(idleThresholdMs / 1000)} giây`;
     const timer = window.setInterval(() => {
-      if (idleCaptureArmedRef.current || Date.now() - lastActivityAtRef.current < 60_000) return;
+      if (idleCaptureArmedRef.current || Date.now() - lastActivityAtRef.current < idleThresholdMs) return;
       idleCaptureArmedRef.current = true;
-      persistIntegrityEvent("mouse_idle", "Không có tương tác chuột, bàn phím hoặc trả lời trong 1 phút");
+      persistIntegrityEvent("mouse_idle", `Không có tương tác chuột, bàn phím hoặc trả lời trong ${idleThresholdLabel}`);
       void requestWebcamEvidence("SUSPICIOUS_EVENT", { signals: ["mouse_idle"] });
     }, 5_000);
 
@@ -784,6 +837,19 @@ export default function ExamTaking() {
   const doSubmit = useCallback(async (options: { deadlineReached?: boolean } = {}) => {
     setIsSubmitting(true);
     log("submit");
+    // The exam-taking page navigates away ~1.5s after a successful submit and
+    // tears down the webcam stream on unmount, well before the periodic
+    // scheduled-capture tick (every 5s) would reliably catch the "end of
+    // exam" checkpoint — and when the student submits early instead of
+    // running out the clock, elapsed time may never even reach that
+    // checkpoint's window at all. Fire it explicitly here on EVERY submit
+    // (not just deadlineReached), with `final: true` so the server captures
+    // it as the guaranteed last slot regardless of elapsed time. Not
+    // awaited — it shouldn't delay the actual answer submission, and
+    // requestWebcamEvidence never throws.
+    if (webcamPolicy?.enabled) {
+      void requestWebcamEvidence("SCHEDULED", { final: true });
+    }
     // attempt to submit answers + logs if we have a submissionId stored
     try {
       let activeSubmissionId =
@@ -886,7 +952,7 @@ export default function ExamTaking() {
     if (examId)
       router.push(`/student/grading?examId=${encodeURIComponent(examId)}`);
     else router.push("/student/grading");
-  }, [log, router, examId, answers, questions, submissionId, orderState]);
+  }, [log, router, examId, answers, questions, submissionId, orderState, webcamPolicy, requestWebcamEvidence]);
   doSubmitRef.current = doSubmit;
 
   useEffect(() => {

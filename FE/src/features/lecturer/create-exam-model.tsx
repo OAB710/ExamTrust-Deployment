@@ -38,7 +38,9 @@ export interface ExamForm {
   webcamEvidenceLimitFullscreenExit: string;
   webcamEvidenceLimitPasteExternal: string;
   webcamEvidenceLimitMouseIdle: string;
+  webcamEvidenceMouseIdleThresholdSeconds: string;
   webcamEvidenceCooldownSeconds: string;
+  webcamEvidenceScheduledIntervalSeconds: string;
   screenCaptureEnabled: boolean;
   allowLateSubmission: boolean;
   shuffleQuestions: boolean;
@@ -165,7 +167,9 @@ export const createDefaultForm = (): ExamForm => {
     webcamEvidenceLimitFullscreenExit: "3",
     webcamEvidenceLimitPasteExternal: "3",
     webcamEvidenceLimitMouseIdle: "3",
+    webcamEvidenceMouseIdleThresholdSeconds: "60",
     webcamEvidenceCooldownSeconds: "60",
+    webcamEvidenceScheduledIntervalSeconds: "",
     screenCaptureEnabled: false,
     allowLateSubmission: false,
     shuffleQuestions: true,

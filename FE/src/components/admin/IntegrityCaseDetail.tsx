@@ -72,8 +72,17 @@ const EVIDENCE_SIGNAL_LABELS: Record<string, string> = {
   mouse_idle: 'Ngồi im',
 };
 
-function getEvidenceEventLabel(capture: EvidenceCapture): string {
-  if (capture.trigger === 'SCHEDULED') return 'Định kỳ';
+// Labels a SCHEDULED capture by its position in the schedule — slot 0 is
+// always the exam-start checkpoint, the highest slot seen is always the
+// guaranteed end-of-exam checkpoint, and anything in between is numbered by
+// its own slot index (1, 2, 3...).
+function getEvidenceEventLabel(capture: EvidenceCapture, maxScheduledSlot?: number | null): string {
+  if (capture.trigger === 'SCHEDULED') {
+    const slot = capture.scheduledSlot;
+    if (slot === 0) return 'Ảnh bắt đầu';
+    if (slot != null && maxScheduledSlot != null && slot === maxScheduledSlot) return 'Ảnh kết thúc';
+    return slot != null ? `Định kỳ ${slot}` : 'Định kỳ';
+  }
   const details = capture.triggerDetails as { signals?: string[] } | null | undefined;
   const signal = details?.signals?.find((s) => EVIDENCE_SIGNAL_LABELS[s]);
   return signal ? EVIDENCE_SIGNAL_LABELS[signal] : 'Sự kiện nghi vấn';
@@ -99,7 +108,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
   const [evidenceImageLoading, setEvidenceImageLoading] = useState(false);
   const [evidenceReviewNote, setEvidenceReviewNote] = useState('');
   const [evidenceReviewLoading, setEvidenceReviewLoading] = useState(false);
-  const [evidenceFilter, setEvidenceFilter] = useState<'all' | 'suspicious' | 'webcam' | 'screen' | 'unreviewed'>('all');
+  const [evidenceFilter, setEvidenceFilter] = useState<'all' | 'suspicious' | 'scheduled' | 'webcam' | 'screen' | 'unreviewed'>('all');
   const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
   const [deductionPercent, setDeductionPercent] = useState<10 | 25 | 50 | 100>(10);
   const [applyPenalty, setApplyPenalty] = useState(false);
@@ -213,11 +222,20 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const maxScheduledSlot = useMemo(() => {
+    const slots = evidenceCaptures
+      .filter((c) => c.trigger === 'SCHEDULED' && c.scheduledSlot != null)
+      .map((c) => c.scheduledSlot as number);
+    return slots.length ? Math.max(...slots) : null;
+  }, [evidenceCaptures]);
+
   const filteredEvidenceCaptures = useMemo(() => {
     return evidenceCaptures.filter((capture) => {
       switch (evidenceFilter) {
         case 'suspicious':
           return capture.trigger === 'SUSPICIOUS_EVENT';
+        case 'scheduled':
+          return capture.trigger === 'SCHEDULED';
         case 'webcam':
           return (capture.captureSource || 'WEBCAM') === 'WEBCAM';
         case 'screen':
@@ -633,6 +651,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                         [
                           { key: 'all', label: 'Tất cả' },
                           { key: 'suspicious', label: 'Chỉ nghi vấn' },
+                          { key: 'scheduled', label: 'Định kỳ' },
                           { key: 'webcam', label: 'Webcam' },
                           { key: 'screen', label: 'Màn hình' },
                           { key: 'unreviewed', label: 'Chưa rà soát' },
@@ -659,7 +678,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                           evidenceGroups.map((group) => (
                             <div key={getEvidenceGroupKey(group[0])} className="rounded-lg border p-2">
                               <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
-                                <span className="text-xs font-medium">{getEvidenceEventLabel(group[0])}</span>
+                                <span className="text-xs font-medium">{getEvidenceEventLabel(group[0], maxScheduledSlot)}</span>
                                 <span className="text-[10px] text-muted-foreground">{formatEvidenceTime(group[0].capturedAt || group[0].scheduledAt || group[0].createdAt)}</span>
                               </div>
                               <div className="grid grid-cols-2 gap-1.5">
@@ -716,7 +735,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
 
                           <div className="grid gap-3 text-sm sm:grid-cols-2">
                             <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Thời gian chụp</p><p className="mt-1 font-medium">{formatEvidenceTime(selectedEvidence.capturedAt)}</p></div>
-                            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Nguồn / sự kiện</p><p className="mt-1 flex items-center gap-1.5 font-medium">{selectedEvidence.captureSource === 'SCREEN' ? <Monitor className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />} {getEvidenceEventLabel(selectedEvidence)}</p></div>
+                            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Nguồn / sự kiện</p><p className="mt-1 flex items-center gap-1.5 font-medium">{selectedEvidence.captureSource === 'SCREEN' ? <Monitor className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />} {getEvidenceEventLabel(selectedEvidence, maxScheduledSlot)}</p></div>
                           </div>
 
                           <div className="rounded-lg border p-3">

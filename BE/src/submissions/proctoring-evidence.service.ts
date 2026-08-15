@@ -43,9 +43,11 @@ type EventCaptureLimits = {
 type WebcamEvidencePolicy = {
   enabled: boolean;
   examProfile: 'THEORY' | 'MIXED' | 'CALCULATION';
+  scheduledCaptureIntervalSeconds: number | null;
   scheduledCaptureOffsetsMs: number[];
   eventCaptureLimits: EventCaptureLimits;
   eventCooldownMs: number;
+  mouseIdleThresholdMs: number;
   retentionDays: number;
   consentVersion: string;
   requireFullScreenCapture: boolean;
@@ -53,7 +55,16 @@ type WebcamEvidencePolicy = {
 };
 
 const SCHEDULED_CAPTURE_GRACE_MS = 90_000;
+// Default schedule when the lecturer hasn't configured an interval — 5 fixed
+// checkpoints by % of exam duration (0/25/50/75/100%).
 const SCHEDULED_CAPTURE_PERCENTAGES = [0, 0.25, 0.5, 0.75, 1];
+// A full-length exam with a tiny interval is bounded by the slot ceiling
+// below, not by this floor — this just rejects a zero/negative value.
+const MIN_SCHEDULED_CAPTURE_INTERVAL_SECONDS = 1;
+const MAX_SCHEDULED_CAPTURE_SLOTS = 200;
+const MIN_MOUSE_IDLE_THRESHOLD_MS = 1_000;
+const MIN_EVENT_COOLDOWN_MS = 1_000;
+const DEFAULT_MOUSE_IDLE_THRESHOLD_MS = 60_000;
 
 const DEFAULT_EVENT_CAPTURE_LIMITS: EventCaptureLimits = {
   tab_switch: 3,
@@ -65,14 +76,33 @@ const DEFAULT_EVENT_CAPTURE_LIMITS: EventCaptureLimits = {
 const DEFAULT_POLICY: WebcamEvidencePolicy = {
   enabled: false,
   examProfile: 'MIXED',
+  scheduledCaptureIntervalSeconds: null,
   scheduledCaptureOffsetsMs: [],
   eventCaptureLimits: DEFAULT_EVENT_CAPTURE_LIMITS,
   eventCooldownMs: 60_000,
+  mouseIdleThresholdMs: DEFAULT_MOUSE_IDLE_THRESHOLD_MS,
   retentionDays: 30,
   consentVersion: 'webcam-evidence-v1',
   requireFullScreenCapture: false,
   screenCaptureEnabled: false,
 };
+
+// Fixed cadence from the start, but always guarantees a final capture at
+// exam end even when the duration isn't an exact multiple of the interval
+// (e.g. a 12-minute exam with a 5-minute interval still captures at
+// 0, 5, 10, AND 12 — not just 0/5/10 leaving the last ~2 minutes unwatched).
+function buildIntervalOffsets(durationMs: number, intervalMs: number): number[] {
+  const offsets: number[] = [];
+  for (let t = 0; t <= durationMs && offsets.length < MAX_SCHEDULED_CAPTURE_SLOTS; t += intervalMs) {
+    offsets.push(t);
+  }
+  const last = offsets[offsets.length - 1];
+  if (last === undefined || durationMs - last > 1_000) {
+    if (offsets.length >= MAX_SCHEDULED_CAPTURE_SLOTS) offsets.pop();
+    offsets.push(durationMs);
+  }
+  return offsets;
+}
 
 @Injectable()
 export class ProctoringEvidenceService implements OnModuleInit {
@@ -119,15 +149,33 @@ export class ProctoringEvidenceService implements OnModuleInit {
       mouse_idle: Math.max(1, Number(sourceLimits.mouse_idle) || DEFAULT_EVENT_CAPTURE_LIMITS.mouse_idle),
     };
     const durationMs = Number(durationMinutes) > 0 ? Number(durationMinutes) * 60_000 : null;
-    const scheduledCaptureOffsetsMs = durationMs
-      ? SCHEDULED_CAPTURE_PERCENTAGES.map((pct) => Math.round(durationMs * pct))
-      : [];
+
+    const rawIntervalSeconds = Number(source.scheduledCaptureIntervalSeconds);
+    const scheduledCaptureIntervalSeconds =
+      rawIntervalSeconds > 0 ? Math.max(MIN_SCHEDULED_CAPTURE_INTERVAL_SECONDS, Math.round(rawIntervalSeconds)) : null;
+
+    const scheduledCaptureOffsetsMs = (() => {
+      if (!durationMs) return [];
+      if (scheduledCaptureIntervalSeconds) {
+        return buildIntervalOffsets(durationMs, scheduledCaptureIntervalSeconds * 1_000);
+      }
+      return SCHEDULED_CAPTURE_PERCENTAGES.map((pct) => Math.round(durationMs * pct));
+    })();
+
+    const rawMouseIdleThresholdMs = Number(source.mouseIdleThresholdMs);
+    const mouseIdleThresholdMs =
+      rawMouseIdleThresholdMs > 0
+        ? Math.max(MIN_MOUSE_IDLE_THRESHOLD_MS, Math.round(rawMouseIdleThresholdMs))
+        : DEFAULT_MOUSE_IDLE_THRESHOLD_MS;
+
     return {
       enabled,
       examProfile: String(source.examProfile || 'MIXED').toUpperCase() as WebcamEvidencePolicy['examProfile'],
+      scheduledCaptureIntervalSeconds,
       scheduledCaptureOffsetsMs,
       eventCaptureLimits,
-      eventCooldownMs: Math.max(60_000, Number(source.eventCooldownMs) || DEFAULT_POLICY.eventCooldownMs),
+      eventCooldownMs: Math.max(MIN_EVENT_COOLDOWN_MS, Number(source.eventCooldownMs) || DEFAULT_POLICY.eventCooldownMs),
+      mouseIdleThresholdMs,
       retentionDays: 30,
       consentVersion: String(source.consentVersion || DEFAULT_POLICY.consentVersion),
       requireFullScreenCapture: Boolean(source.requireFullScreenCapture),
@@ -154,7 +202,7 @@ export class ProctoringEvidenceService implements OnModuleInit {
     );
   }
 
-  async requestCapture(submissionId: string, studentId: string, dto: { trigger: 'SCHEDULED' | 'SUSPICIOUS_EVENT'; signals?: string[] }) {
+  async requestCapture(submissionId: string, studentId: string, dto: { trigger: 'SCHEDULED' | 'SUSPICIOUS_EVENT'; signals?: string[]; final?: boolean }) {
     const submission = await this.getStudentSubmission(submissionId, studentId);
     if (submission.status !== 'IN_PROGRESS') throw new BadRequestException('Bài thi không còn đang diễn ra');
     const policy = this.policyFromInstance(submission.examInstance);
@@ -190,12 +238,43 @@ export class ProctoringEvidenceService implements OnModuleInit {
           skipDuplicates: true,
         });
       }
-      const next = policy.scheduledCaptureOffsetsMs
-        .map((offset, slot) => ({ offset, slot }))
-        .find(({ offset }) => elapsedMs >= offset && elapsedMs <= offset + SCHEDULED_CAPTURE_GRACE_MS);
-      if (!next) throw new BadRequestException('Chưa đến thời điểm chụp webcam theo lịch');
-      scheduledSlot = next.slot;
-      scheduledAt = new Date(startedAt.getTime() + next.offset);
+      if (dto.final) {
+        // Guaranteed end-of-exam capture requested right at submission time
+        // (see ExamTaking.tsx doSubmit) — always targets the last configured
+        // checkpoint instead of requiring elapsed time to land inside its
+        // normal grace window, since a student who submits early (rather
+        // than running out the clock) almost never does. Duplicate-safe: if
+        // the normal polling path already captured this slot, reject instead
+        // of inserting a second row for the same slot.
+        const lastSlot = policy.scheduledCaptureOffsetsMs.length - 1;
+        const alreadyCaptured = await this.prisma.proctoringEvidenceCapture.findFirst({
+          where: { submissionId, scheduledSlot: lastSlot, captureSource: 'WEBCAM' },
+        });
+        if (alreadyCaptured) throw new BadRequestException('Ảnh cuối bài thi đã được ghi nhận');
+        scheduledSlot = lastSlot;
+        scheduledAt = now;
+      } else {
+        // Grace windows overlap whenever the interval is smaller than
+        // SCHEDULED_CAPTURE_GRACE_MS (90s) — e.g. a 10s interval keeps up to
+        // 9 offsets simultaneously "in window" at once. Without excluding
+        // already-captured slots, .find() below would keep re-resolving to
+        // the same earliest (already-done) slot for the entire 90s its
+        // window stays open, so every capture attempt in between fails on
+        // the (submissionId, scheduledSlot) unique index instead of ever
+        // reaching the next slot — the schedule would only ever advance
+        // once per ~90s no matter how short the configured interval is.
+        const capturedSlots = await this.prisma.proctoringEvidenceCapture.findMany({
+          where: { submissionId, trigger: 'SCHEDULED', captureSource: 'WEBCAM' },
+          select: { scheduledSlot: true },
+        });
+        const capturedSlotSet = new Set(capturedSlots.map((c) => c.scheduledSlot));
+        const next = policy.scheduledCaptureOffsetsMs
+          .map((offset, slot) => ({ offset, slot }))
+          .find(({ offset, slot }) => !capturedSlotSet.has(slot) && elapsedMs >= offset && elapsedMs <= offset + SCHEDULED_CAPTURE_GRACE_MS);
+        if (!next) throw new BadRequestException('Chưa đến thời điểm chụp webcam theo lịch');
+        scheduledSlot = next.slot;
+        scheduledAt = new Date(startedAt.getTime() + next.offset);
+      }
     } else {
       const signalType = (dto.signals || []).find((signal): signal is keyof EventCaptureLimits =>
         Object.prototype.hasOwnProperty.call(policy.eventCaptureLimits, signal),
