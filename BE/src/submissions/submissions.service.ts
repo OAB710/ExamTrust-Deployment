@@ -357,12 +357,38 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         const studentB = input.studentsBySubmissionId.get(candidate.submissionB);
         if (!studentA || !studentB) return null;
         if (candidate.evidence.length < 3 || common.length < 10) return null;
+        // Chi tiết từng câu mà cả hai chọn CÙNG một đáp án (đúng hoặc sai).
+        // Bên phân biệt đúng/sai, chỉ cần trùng pattern (cùng đáp án) là nổi bật.
+        const matched = common
+          .filter((key) => {
+            const a = answersA.get(key);
+            const b = answersB.get(key);
+            return a?.selectedLetter && a.selectedLetter === b?.selectedLetter;
+          })
+          .map((key) => {
+            const a = answersA.get(key)!;
+            return {
+              questionIdentity: key,
+              questionId: a.questionId,
+              orderIndex: a.questionVersionId
+                ? input.orderIndexByQuestionVersionId.get(a.questionVersionId) ?? null
+                : null,
+              letter: a.selectedLetter,
+              isCorrect: Boolean(a.isCorrect),
+            };
+          })
+          .sort((x, y) => (x.orderIndex ?? Number.MAX_SAFE_INTEGER) - (y.orderIndex ?? Number.MAX_SAFE_INTEGER));
         return {
           studentA: { submissionId: candidate.submissionA, ...studentA },
           studentB: { submissionId: candidate.submissionB, ...studentB },
           similarityScore: Number(((sameAnswerCount / common.length) * 100).toFixed(1)),
           rareWrongMatches: candidate.evidence.length,
           comparableQuestions: common.length,
+          matchedBreakdown: {
+            total: matched.length,
+            correctMatches: matched.filter((m) => m.isCorrect),
+            wrongMatches: matched.filter((m) => !m.isCorrect),
+          },
           evidence: candidate.evidence
             .map((item) => ({
               ...item,

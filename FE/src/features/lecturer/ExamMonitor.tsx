@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { StatusBadge, getStatusBadgeLabel } from "@/components/ui/status-badge";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -304,6 +305,46 @@ const getRiskLevel = (session: StudentSession): "clean" | "watch" | "high" => {
 
 const STUDENTS_PER_PAGE = 10;
 
+type SimilarAnswerMatch = {
+  questionIdentity: string;
+  questionId: string;
+  orderIndex: number | null;
+  letter: string;
+  isCorrect: boolean;
+};
+
+interface SimilarAnswerPair {
+  studentA: { submissionId: string; studentId: string; studentName: string; studentCode?: string | null };
+  studentB: { submissionId: string; studentId: string; studentName: string; studentCode?: string | null };
+  similarityScore: number;
+  rareWrongMatches: number;
+  comparableQuestions: number;
+  matchedBreakdown: {
+    total: number;
+    correctMatches: SimilarAnswerMatch[];
+    wrongMatches: SimilarAnswerMatch[];
+  };
+  severity: "REVIEW" | "HIGH";
+}
+
+interface FastCompletion {
+  submissionId: string;
+  studentId: string;
+  studentName: string;
+  studentCode?: string | null;
+  severity: "REVIEW" | "HIGH";
+  elapsedMinutes: number;
+  allowedMinutes: number;
+  completionRatio: number;
+  scorePct: number;
+  cohortMedianMinutes?: number | null;
+}
+
+type IntegritySignals = {
+  fastCompletions: FastCompletion[];
+  similarAnswerPairs: SimilarAnswerPair[];
+};
+
 export default function ExamMonitor() {
   const params = useParams();
   const slug = Array.isArray(params?.slug) ? params.slug : [];
@@ -335,6 +376,8 @@ export default function ExamMonitor() {
   const [page, setPage] = useState(1);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [integritySignals, setIntegritySignals] = useState<IntegritySignals | null>(null);
+  const [similarDetail, setSimilarDetail] = useState<SimilarAnswerPair | null>(null);
   const [historyDialogStudent, setHistoryDialogStudent] = useState<StudentSession | null>(null);
   const [lastRefresh, setLastRefresh] = useState(
     new Date().toLocaleTimeString(),
@@ -379,6 +422,16 @@ export default function ExamMonitor() {
       setRiskFlags(flags || []);
     } catch {
       // Non-blocking: risk flags are supplementary to the core monitor view.
+    }
+  };
+
+  const loadIntegritySignals = async () => {
+    if (!id) return;
+    try {
+      const payload = (await api.getExamIntelligence(id)) as any;
+      if (payload?.integritySignals) setIntegritySignals(payload.integritySignals);
+    } catch {
+      // Non-blocking: integrity signals are supplementary to the monitor view.
     }
   };
 
@@ -602,6 +655,7 @@ export default function ExamMonitor() {
   useEffect(() => {
     loadMonitorData(false);
     loadRiskFlags();
+    loadIntegritySignals();
   }, [id]);
 
   const openRiskDialog = async (submissionId: string, studentName: string) => {
@@ -1071,17 +1125,16 @@ export default function ExamMonitor() {
     .filter((s) => s.score !== null)
     .map((s) => s.score!);
   const chartData = {
-    labels: ["0-50", "51-60", "61-70", "71-80", "81-90", "91-100"],
+    labels: ["0-2", "2-4", "4-6", "6-8", "8-10"],
     datasets: [
       {
         label: "Sinh viên",
         data: [
-          submittedScores.filter((s) => s <= 50).length,
-          submittedScores.filter((s) => s > 50 && s <= 60).length,
-          submittedScores.filter((s) => s > 60 && s <= 70).length,
-          submittedScores.filter((s) => s > 70 && s <= 80).length,
-          submittedScores.filter((s) => s > 80 && s <= 90).length,
-          submittedScores.filter((s) => s > 90).length,
+          submittedScores.filter((s) => s <= 2).length,
+          submittedScores.filter((s) => s > 2 && s <= 4).length,
+          submittedScores.filter((s) => s > 4 && s <= 6).length,
+          submittedScores.filter((s) => s > 6 && s <= 8).length,
+          submittedScores.filter((s) => s > 8).length,
         ],
         backgroundColor: "rgba(37, 99, 235, 0.7)",
         borderRadius: 4,
@@ -1144,7 +1197,10 @@ export default function ExamMonitor() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => loadMonitorData(true)}
+              onClick={() => {
+                loadMonitorData(true);
+                loadIntegritySignals();
+              }}
               className="gap-1"
             >
               <RefreshCw className="h-3.5 w-3.5" /> Làm mới
@@ -1325,6 +1381,84 @@ export default function ExamMonitor() {
             </CardContent>
           </Card>
         )}
+
+        {/* Tín hiệu toàn vẹn: làm bài nhanh + mẫu trả lời giống nhau */}
+        <Card className="mb-6 border-amber-200/70">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+              <AlertTriangle className="h-4 w-4 text-amber-600" /> Tín hiệu toàn vẹn
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Hoàn thành nhanh bất thường và mẫu trả lời trùng nhau là tín hiệu để giảng viên rà soát, không phải kết luận gian lận.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <section>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Làm bài nhanh bất thường</h3>
+                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                  {(integritySignals?.fastCompletions || []).length} cần xem xét
+                </Badge>
+              </div>
+              {(integritySignals?.fastCompletions || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Chưa có bài hoàn tất nhanh bất thường đủ điều kiện cảnh báo.</p>
+              ) : (
+                <div className="divide-y divide-border/70 rounded-md border border-border/70">
+                  {integritySignals!.fastCompletions.map((item) => (
+                    <div key={item.submissionId} className="flex flex-wrap items-center justify-between gap-2 p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                          {item.studentName}
+                          {item.studentCode ? <span className="ml-1 text-xs text-muted-foreground">{item.studentCode}</span> : null}
+                          <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${item.severity === "HIGH" ? "bg-red-100 text-red-700 border border-red-200" : "bg-amber-100 text-amber-700 border border-amber-200"}`}>
+                            {item.severity === "HIGH" ? "Rủi ro cao" : "Cần xem xét"}
+                          </span>
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {item.elapsedMinutes} phút / {item.allowedMinutes} phút · {item.scorePct.toFixed(1)} điểm · nhanh hơn {((1 - item.completionRatio) * 100).toFixed(1)}% thời lượng cho phép
+                          {item.cohortMedianMinutes != null ? ` · Trung vị lớp ${item.cohortMedianMinutes} phút` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="border-t border-border/70 pt-5">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Mẫu trả lời giống nhau bất thường</h3>
+                <Badge variant="outline" className="border-border bg-muted/40 text-muted-foreground">
+                  {(integritySignals?.similarAnswerPairs || []).length} cặp
+                </Badge>
+              </div>
+              {(integritySignals?.similarAnswerPairs || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Chưa có cặp bài làm đủ bằng chứng đáp án sai hiếm trùng nhau.</p>
+              ) : (
+                <div className="divide-y divide-border/70 rounded-md border border-border/70">
+                  {integritySignals!.similarAnswerPairs.map((pair) => (
+                    <div key={`${pair.studentA.submissionId}-${pair.studentB.submissionId}`} className="flex flex-wrap items-center justify-between gap-2 p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                          {pair.studentA.studentName} ↔ {pair.studentB.studentName}
+                          <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${pair.severity === "HIGH" ? "bg-red-100 text-red-700 border border-red-200" : "bg-amber-100 text-amber-700 border border-amber-200"}`}>
+                            {pair.severity === "HIGH" ? "Rủi ro cao" : "Cần xem xét"}
+                          </span>
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {pair.rareWrongMatches} đáp án sai hiếm trùng nhau · {pair.comparableQuestions} câu so sánh · tương đồng {pair.similarityScore.toFixed(1)}%
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => setSimilarDetail(pair)}>
+                        <Eye className="h-3.5 w-3.5" /> Xem chi tiết câu
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </CardContent>
+        </Card>
 
         <div className="mb-6 space-y-3">
           <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
@@ -1745,6 +1879,71 @@ export default function ExamMonitor() {
                 </div>
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!similarDetail} onOpenChange={(open) => !open && setSimilarDetail(null)}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5" /> Chi tiết mẫu trả lời giống nhau
+              </DialogTitle>
+              <DialogDescription>
+                {similarDetail
+                  ? `${similarDetail.studentA.studentName} ↔ ${similarDetail.studentB.studentName} — tương đồng ${similarDetail.similarityScore.toFixed(1)}% (${similarDetail.comparableQuestions} câu so sánh). Chỉ cần trùng pattern là thể hiện, không phân biệt đúng/sai.`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            {similarDetail ? (
+              <div className="space-y-5">
+                <section>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-emerald-700">
+                      Chọn đúng giống nhau ({similarDetail.matchedBreakdown.correctMatches.length})
+                    </h3>
+                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                      {similarDetail.matchedBreakdown.correctMatches.length} câu
+                    </Badge>
+                  </div>
+                  {similarDetail.matchedBreakdown.correctMatches.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Không có câu nào cùng chọn đúng.</p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {similarDetail.matchedBreakdown.correctMatches.map((m) => (
+                        <div key={m.questionIdentity} className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-sm">
+                          <span className="font-medium">Câu {m.orderIndex != null ? m.orderIndex + 1 : "?"}:</span> đáp án{" "}
+                          <span className="font-semibold text-emerald-800">{m.letter}</span>{" "}
+                          <span className="text-emerald-700">(đúng)</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+                <section>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-red-700">
+                      Chọn sai giống nhau ({similarDetail.matchedBreakdown.wrongMatches.length})
+                    </h3>
+                    <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                      {similarDetail.matchedBreakdown.wrongMatches.length} câu
+                    </Badge>
+                  </div>
+                  {similarDetail.matchedBreakdown.wrongMatches.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Không có câu nào cùng chọn sai.</p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {similarDetail.matchedBreakdown.wrongMatches.map((m) => (
+                        <div key={m.questionIdentity} className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-sm">
+                          <span className="font-medium">Câu {m.orderIndex != null ? m.orderIndex + 1 : "?"}:</span> đáp án{" "}
+                          <span className="font-semibold text-red-800">{m.letter}</span>{" "}
+                          <span className="text-red-700">(sai)</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </div>
+            ) : null}
           </DialogContent>
         </Dialog>
 
