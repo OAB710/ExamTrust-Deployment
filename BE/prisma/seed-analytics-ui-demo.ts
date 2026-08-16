@@ -346,6 +346,7 @@ const SINGLE_LETTER_ANSWER_COUNT = QUESTION_SPECS.filter((q) =>
 ).length;
 
 async function main() {
+  try {
   const lecturer = await prisma.user.findUnique({ where: { email: LECTURER_EMAIL } });
   if (!lecturer) {
     throw new Error(`Không tìm thấy giảng viên ${LECTURER_EMAIL}; hãy chạy seed accounts trước.`);
@@ -649,13 +650,16 @@ async function main() {
   console.log(`Hồ sơ tín hiệu:`);
   console.log(`  - Làm bài nhanh: index ${FAST_HIGH_INDEX} (HIGH), index ${FAST_REVIEW_INDEX} (REVIEW)`);
   console.log(`  - Cặp trùng mẫu: index [${[...COLLUDE_INDICES].join(', ')}] trên các câu ${[...COLLUSION_QUESTION_INDICES].join(', ')}`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((error) => {
+export { main };
+
+if (process.argv[1] && process.argv[1].includes('seed-analytics-ui-demo.ts')) {
+  main().catch((error) => {
     console.error(error);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });
+}

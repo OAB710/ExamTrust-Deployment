@@ -118,6 +118,7 @@ const topics: TopicSeed[] = [
 ];
 
 async function main() {
+  try {
   const course = await prisma.course.findFirst({
     where: {
       code: {
@@ -155,9 +156,9 @@ async function main() {
 
   for (const topic of topics) {
     const topicRow = await prisma.topic.upsert({
-      where: { code: topic.code },
+      where: { courseId_code: { courseId: course.id, code: topic.code } },
       update: { name: topic.name },
-      create: { code: topic.code, name: topic.name },
+      create: { courseId: course.id, code: topic.code, name: topic.name },
       select: { id: true, code: true, name: true },
     });
 
@@ -241,13 +242,16 @@ async function main() {
   for (const row of summary) {
     console.log(`  ${row.code} - ${row.name}: ${Number(row.questionCount)} cau hoi`);
   }
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((error) => {
+export { main };
+
+if (process.argv[1] && process.argv[1].includes('seed-cls001-grade1-math.ts')) {
+  main().catch((error) => {
     console.error('Seed that bai:', error);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });
+}

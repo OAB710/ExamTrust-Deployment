@@ -3790,7 +3790,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         )
       : submissions.filter((s) => ['SUBMITTED', 'GRADED', 'FLAGGED'].includes(s.status));
     const scoresPct = completed
-      .filter((s) => typeof s.score === 'number')
+      .filter((s) => s.score !== null && s.score !== undefined)
       .map((s) => {
         const scoreValue = Number(s.score || 0);
         if ((exam.totalPoints || 0) > 0) {

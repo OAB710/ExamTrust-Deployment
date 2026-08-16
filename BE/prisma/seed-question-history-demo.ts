@@ -74,6 +74,7 @@ const EXAMS: Array<{ title: string; year: number; month: number; day: number }> 
 ];
 
 async function main() {
+  try {
   const lecturer = await prisma.user.findUnique({ where: { email: LECTURER_EMAIL } });
   if (!lecturer) throw new Error(`Không tìm thấy giảng viên ${LECTURER_EMAIL}`);
 
@@ -212,8 +213,13 @@ async function main() {
   console.log(`Khoá học: ${course.code} (id: ${course.id})`);
   console.log(`Số câu hỏi: ${questionRows.length}; kỳ thi: ${exams.length}`);
   console.log(`URL: http://localhost:3000/lecturer/question-history?courseCode=${course.code}&courseId=${course.id}`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((error) => { console.error(error); process.exit(1); })
-  .finally(async () => { await prisma.$disconnect(); });
+export { main };
+
+if (process.argv[1] && process.argv[1].includes('seed-question-history-demo.ts')) {
+  main().catch((error) => { console.error(error); process.exit(1); });
+}

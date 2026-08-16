@@ -124,6 +124,7 @@ Bảng tóm tắt kỳ vọng:
 `;
 
 async function main() {
+  try {
   const lecturer = await prisma.user.findUnique({ where: { email: LECTURER_EMAIL } });
   if (!lecturer) throw new Error(`Không tìm thấy giảng viên ${LECTURER_EMAIL}; hãy chạy seed accounts trước.`);
 
@@ -175,8 +176,13 @@ async function main() {
   console.log(PRINT_TEST_CASES);
   console.log('URL ngân hàng câu hỏi (chọn course TOPIC-DEMO-DB, mở dialog tạo Topic):');
   console.log(`  http://localhost:3000/lecturer/question-bank?courseId=${course.id}`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((error) => { console.error(error); process.exit(1); })
-  .finally(async () => { await prisma.$disconnect(); });
+export { main };
+
+if (process.argv[1] && process.argv[1].includes('seed-topic-similarity-demo.ts')) {
+  main().catch((error) => { console.error(error); process.exit(1); });
+}

@@ -121,6 +121,7 @@ const PROFILES: Profile[] = [
 ];
 
 async function main() {
+  try {
   const lecturer = await prisma.user.findUnique({ where: { email: LECTURER_EMAIL } });
   if (!lecturer) throw new Error(`Không tìm thấy giảng viên ${LECTURER_EMAIL}; hãy chạy seed accounts trước.`);
 
@@ -313,8 +314,13 @@ async function main() {
   console.log(`Bài thi: ${examRow.title} (id: ${examRow.id})`);
   console.log(`Số phiên làm bài: ${sessionCount}; evidence: ${evidenceCount}; integrity log: ${totalLogs}`);
   console.log(`URL: http://localhost:3000/lecturer/exam/${examRow.id}/monitor`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((error) => { console.error(error); process.exit(1); })
-  .finally(async () => { await prisma.$disconnect(); });
+export { main };
+
+if (process.argv[1] && process.argv[1].includes('seed-monitor-ui-demo.ts')) {
+  main().catch((error) => { console.error(error); process.exit(1); });
+}

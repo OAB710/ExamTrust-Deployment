@@ -17,6 +17,7 @@ const students = Array.from({ length: STUDENT_COUNT }, (_, index) => {
 });
 
 async function main() {
+  try {
   const hashed = await bcrypt.hash(PASSWORD, 10);
 
   await prisma.user.upsert({
@@ -77,13 +78,16 @@ async function main() {
   }
 
   console.log('Seeded accounts only: 1 admin, 1 lecturer, 36 students. No course/exam/question data.');
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((e) => {
+export { main };
+
+if (process.argv[1] && process.argv[1].includes('seed-accounts-only.ts')) {
+  main().catch((e) => {
     console.error(e);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });
+}
