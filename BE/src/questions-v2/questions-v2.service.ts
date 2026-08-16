@@ -718,6 +718,7 @@ export class QuestionsService {
     }
     const difficulty = Math.max(1, Math.min(10, Math.round(Number(final?.difficulty || fallbackQuestion.difficulty || 1))));
     return {
+      type: this.normalizeQuestionType(final?.type || fallbackQuestion.type),
       content,
       options: final?.options && typeof final.options === 'object' ? final.options : (fallbackQuestion.options || {}),
       correctAnswer: final?.correctAnswer && typeof final.correctAnswer === 'object' ? final.correctAnswer : (fallbackQuestion.correctAnswer || {}),
@@ -800,6 +801,9 @@ export class QuestionsService {
         points: question.points || 1,
         topics: question.topicLinks.map((link: any) => link.topic?.name).filter(Boolean),
       };
+      const targetQuestionType = dto.targetQuestionType
+        ? this.normalizeQuestionType(dto.targetQuestionType)
+        : question.type;
 
       const record = await this.aiJobsService.createJob({
         task: 'question-improvement',
@@ -816,6 +820,7 @@ export class QuestionsService {
           original,
           analytics: dto.analytics || {},
           instruction: String(dto.instruction || '').trim(),
+          targetQuestionType,
           qualitySignals: qualitySignals.map((item) => ({
             id: item.id,
             severity: item.severity,
@@ -831,6 +836,7 @@ export class QuestionsService {
             questionId: question.id,
             questionVersionId: latestVersion?.id || examQuestion.questionVersionId || null,
             questionType: question.type,
+            targetQuestionType,
             examId: dto.examId,
           },
         },
@@ -910,6 +916,7 @@ export class QuestionsService {
       const updatedQuestion = await tx.question.update({
         where: { id: question.id },
         data: {
+          type: finalData.type,
           content: finalData.content,
           options: finalData.options,
           correctAnswer: finalData.correctAnswer,
@@ -931,6 +938,7 @@ export class QuestionsService {
           points: question.points,
           metadata: {
             source: 'AI_ASSISTED_IMPROVEMENT',
+            questionType: finalData.type,
             aiImprovementId: id,
             originalSnapshot: payload.original || null,
             aiProposal: output?.suggestion || null,

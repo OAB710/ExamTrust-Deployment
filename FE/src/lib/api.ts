@@ -775,6 +775,7 @@ class ApiClient {
     qualityReviewId?: string;
     analytics?: Record<string, any>;
     instruction?: string;
+    targetQuestionType?: string;
   }) {
     return this.request<any>('/questions/ai-improvements', {
       method: 'POST',

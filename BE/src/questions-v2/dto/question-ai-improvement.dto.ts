@@ -23,6 +23,10 @@ export class CreateQuestionAiImprovementDto {
   @IsString()
   @MaxLength(2000)
   instruction?: string;
+
+  @IsOptional()
+  @IsString()
+  targetQuestionType?: string;
 }
 
 export class UpdateQuestionAiImprovementDraftDto {

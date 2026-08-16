@@ -19,6 +19,10 @@ vi.mock("@/components/layout/DashboardLayout", () => ({
   ),
 }));
 
+vi.mock("@/components/common/ContextHelp", () => ({
+  HelpedTitle: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
 vi.mock("@/lib/api", () => ({
   default: {
     getExams: mocks.getExams,
@@ -54,7 +58,7 @@ describe("LecturerDashboard question bank panel", () => {
         {
           id: "q-1",
           type: "MULTIPLE_CHOICE",
-          difficulty: 2,
+          difficulty: 3,
           updatedAt: "2026-07-10T00:00:00.000Z",
           course: { id: "course-1", code: "CLS001", name: "Academic Writing" },
         },
@@ -77,6 +81,8 @@ describe("LecturerDashboard question bank panel", () => {
     );
     expect(screen.getByText("CLS001")).toBeInTheDocument();
     expect(screen.getByText("Academic Writing")).toBeInTheDocument();
+    expect(screen.getByText("2 câu hỏi")).toBeInTheDocument();
+    expect(screen.getByText("Dễ")).toHaveClass("text-green-600");
     expect(screen.getByText("Quản lý ngân hàng câu hỏi")).toBeInTheDocument();
     expect(screen.queryByText("Quản lý khóa học")).not.toBeInTheDocument();
   });

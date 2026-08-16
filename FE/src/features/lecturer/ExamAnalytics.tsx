@@ -69,6 +69,7 @@ export default function ExamAnalytics() {
   const [aiImprovingQuestionId, setAiImprovingQuestionId] = useState<string | null>(null);
   const [improvementTarget, setImprovementTarget] = useState<IntelligencePayload["mostIncorrectQuestions"][number] | null>(null);
   const [improvementInstruction, setImprovementInstruction] = useState("");
+  const [targetQuestionType, setTargetQuestionType] = useState("KEEP_CURRENT");
   const [reviewingImprovement, setReviewingImprovement] = useState<AiImprovementDetail | null>(null);
   const [reviewQuestionCourse, setReviewQuestionCourse] =
     useState<QuestionCourseInfo | null>(null);
@@ -301,12 +302,14 @@ export default function ExamAnalytics() {
   const openAiImprovementDialog = (item: IntelligencePayload["mostIncorrectQuestions"][number]) => {
     setImprovementTarget(item);
     setImprovementInstruction("");
+    setTargetQuestionType("KEEP_CURRENT");
   };
 
   const closeAiImprovementDialog = () => {
     if (aiImprovingQuestionId) return;
     setImprovementTarget(null);
     setImprovementInstruction("");
+    setTargetQuestionType("KEEP_CURRENT");
   };
 
   const createAiImprovement = async () => {
@@ -319,6 +322,7 @@ export default function ExamAnalytics() {
         questionId: item.questionId,
         examId: selectedExamId,
         instruction: improvementInstruction.trim() || undefined,
+        targetQuestionType: targetQuestionType === "KEEP_CURRENT" ? undefined : targetQuestionType,
         analytics: {
           orderIndex: item.orderIndex,
           questionText: item.questionText,
@@ -343,6 +347,7 @@ export default function ExamAnalytics() {
       setAiImprovingQuestionId(null);
       setImprovementTarget(null);
       setImprovementInstruction("");
+      setTargetQuestionType("KEEP_CURRENT");
     }
   };
 
@@ -530,6 +535,14 @@ export default function ExamAnalytics() {
     } catch {
       // Non-blocking tracking.
     }
+  };
+
+  const openQuestionInBank = (questionId: string, questionCourseCode?: string | null) => {
+    const courseCode = questionCourseCode || examOptions.find((exam) => exam.id === selectedExamId)?.course?.code;
+    const query = new URLSearchParams({ id: questionId });
+    if (courseCode) query.set("courseCode", courseCode);
+    void trackAction("most_incorrect_open_question_bank");
+    router.push(`/lecturer/question-editor?${query.toString()}`);
   };
 
   if (loading) {
@@ -1004,7 +1017,7 @@ export default function ExamAnalytics() {
                               </div>
                             ) : (
                               <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <Button variant="ghost" size="sm" className="h-8 px-0 text-primary hover:bg-transparent hover:text-primary/80" onClick={() => { trackAction("most_incorrect_open_preview"); openQuestionPreview(item); }}>
+                                <Button variant="ghost" size="sm" className="h-8 px-0 text-primary hover:bg-transparent hover:text-primary/80" onClick={() => { void trackAction("most_incorrect_open_preview"); openQuestionPreview(item); }}>
                                   Mở câu hỏi <ExternalLink className="ml-1 h-3.5 w-3.5" />
                                 </Button>
 
@@ -1138,15 +1151,26 @@ export default function ExamAnalytics() {
                   </Badge>
                 ) : null}
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={closeQuestionPreview}
-              >
-                <span className="sr-only">Đóng</span>
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  disabled={!previewQuestion?.id || previewLoading}
+                  onClick={() => openQuestionInBank(previewQuestion!.id, previewQuestion?.course?.code)}
+                >
+                  Chỉnh sửa trong ngân hàng <ExternalLink className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={closeQuestionPreview}
+                >
+                  <span className="sr-only">Đóng</span>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             {previewLoading ? (
@@ -1340,6 +1364,23 @@ export default function ExamAnalytics() {
                 <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
                   <p className="font-medium text-foreground">Câu {improvementTarget.orderIndex + 1}</p>
                   <p className="mt-1 line-clamp-3 text-muted-foreground">{improvementTarget.questionText}</p>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="ai-improvement-question-type" className="text-sm font-medium text-foreground">
+                    Loại câu hỏi mong muốn
+                  </label>
+                  <Select value={targetQuestionType} onValueChange={setTargetQuestionType}>
+                    <SelectTrigger id="ai-improvement-question-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="KEEP_CURRENT">Giữ nguyên loại hiện tại</SelectItem>
+                      {Object.entries(QUESTION_TYPE_LABELS).map(([type, label]) => (
+                        <SelectItem key={type} value={type}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">AI sẽ tạo đề xuất với cấu trúc đáp án phù hợp. Bạn vẫn xem và duyệt trước khi áp dụng.</p>
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="ai-improvement-instruction" className="text-sm font-medium text-foreground">

@@ -30,6 +30,7 @@ import { format, addHours } from "date-fns";
 import Link from "next/link";
 import api, { unwrapPaginatedData } from "@/lib/api";
 import { AttentionSection } from "./attention/AttentionSection";
+import { difficultyLabel } from "./question-bank-utils";
 
 export interface Exam {
   id: string;
@@ -88,10 +89,34 @@ const questionTypeLabels: Record<string, string> = {
 
 const formatDifficulty = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) return "Chưa có";
-  if (value < 1.8) return "Dễ";
-  if (value < 2.6) return "Trung bình";
-  return "Khó";
+  return difficultyLabel(value).text;
 };
+
+const difficultyClassName = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return "text-muted-foreground";
+  return difficultyLabel(value).color;
+};
+
+async function fetchAllQuestions(): Promise<QuestionItem[]> {
+  const firstResponse = await api.listQuestions({ page: 1, limit: 100 });
+  const firstPage = unwrapPaginatedData<QuestionItem>(firstResponse);
+  const totalPages = Number(firstResponse?.pagination?.totalPages) || 1;
+
+  if (totalPages <= 1) return firstPage;
+
+  const remainingResponses = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      api.listQuestions({ page: index + 2, limit: 100 }),
+    ),
+  );
+
+  return [
+    ...firstPage,
+    ...remainingResponses.flatMap((response) =>
+      unwrapPaginatedData<QuestionItem>(response),
+    ),
+  ];
+}
 
 const buildQuestionBankSummaries = (
   questions: QuestionItem[],
@@ -217,10 +242,10 @@ export default function LecturerDashboard() {
         setLoading(true);
         const [examsData, questionsData, coursesData] = await Promise.all([
           api.getExams(),
-          api.listQuestions(),
+          fetchAllQuestions(),
           api.getMyCourses(),
         ]);
-        const questions = unwrapPaginatedData<QuestionItem>(questionsData);
+        const questions = questionsData;
         const normalizedCourses = Array.isArray(coursesData)
           ? coursesData
           : unwrapPaginatedData<CourseSummary>(coursesData);
@@ -481,12 +506,15 @@ export default function LecturerDashboard() {
                             {bank.courseCode}
                           </p>
                         </div>
-                        <span className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold tabular-nums text-primary">
-                          {bank.questionCount}
+                        <span
+                          className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold tabular-nums text-primary"
+                          aria-label={`Tổng ${bank.questionCount} câu hỏi`}
+                        >
+                          {bank.questionCount} câu hỏi
                         </span>
                       </div>
                       <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1.5">
+                        <span className={`flex items-center gap-1.5 font-medium ${difficultyClassName(bank.avgDifficulty)}`}>
                           <BarChart3 className="h-3.5 w-3.5" />
                           {formatDifficulty(bank.avgDifficulty)}
                         </span>

@@ -909,6 +909,7 @@ Rules:
   async generateQuestionImprovement(params: {
     language?: string;
     instruction?: string;
+    targetQuestionType?: string;
     context?: ExamTrustAiContext;
     original: Record<string, any>;
     analytics?: Record<string, any>;
@@ -922,7 +923,7 @@ Rules:
       : 'The lecturer explicitly requested English. Write diagnosis, reasons, warnings, and every human-readable field of the improved question in English.';
 
     const original = params.original || {};
-    const questionType = String(original.type || params.context?.questionType || 'MULTIPLE_CHOICE');
+    const questionType = String(params.targetQuestionType || original.type || params.context?.questionType || 'MULTIPLE_CHOICE');
     const prompt = `${buildExamTrustPromptHeader({
       appName: this.appName,
       useCase: 'question_quality_improvement',
@@ -948,6 +949,8 @@ ${JSON.stringify(params.qualitySignals || [], null, 2)}
 Lecturer instruction:
 ${params.instruction || 'No additional instruction.'}
 
+Target question type: ${questionType}
+
 You MUST respond with a valid JSON object (no markdown, no code fences, just pure JSON) with this exact structure:
 {
   "diagnosis": {
@@ -960,6 +963,7 @@ You MUST respond with a valid JSON object (no markdown, no code fences, just pur
     "reason": "string"
   },
   "suggestion": {
+    "type": "${questionType}",
     "content": "string",
     "options": {},
     "correctAnswer": {},
@@ -979,7 +983,7 @@ You MUST respond with a valid JSON object (no markdown, no code fences, just pur
 }
 
 Rules:
-- Preserve the original question type unless there is a clear quality reason to adjust only wording/options.
+- Use the target question type above. Build options and the correct-answer schema that are valid for that type.
 - Return only the student-facing question text in "suggestion.content"; never append editorial notes such as "(đã hiệu chỉnh để làm rõ yêu cầu)" or any equivalent status annotation.
 - Keep the answer schema compatible with the original options and correctAnswer shape.
 - Do not include student names, emails, or individual answer records.
