@@ -13,6 +13,20 @@ Quy ước:
 
 ---
 
+## [1.1.2] - 2026-08-16
+
+### Thay đổi
+- **Fix bug seed tổng chạy trên production bị crash ở bước 6/10 (`seed-duplicate-demo.ts:93`)**: `prisma.questionVersion.findFirst({ where: { metadata: { path: 'seededDuplicateKey', ... } } })` dùng `path` dạng string — hợp lệ trên MariaDB (local dev) nhưng MySQL 8.0 thật (production) báo lỗi `1064/3143 Invalid JSON path expression`. Đã sửa thành `path: ['seededDuplicateKey']` (mảng path segment, đúng cú pháp Prisma yêu cầu cho MySQL). Phát hiện được khi chạy `Reset DB` thật trên production, không phải suy đoán — xem thêm ở `BE/docs/SEED_DATA_ANALYSIS.md`.
+- Đã xác nhận: production hiện đang ở trạng thái seed dở dang (dừng ở bước 6/10 do lỗi trên) — cần chạy lại seed sau khi `Build BE` để hoàn tất các bước 6-10 còn lại (không cần `--force-reset` lại vì các bước còn lại đều idempotent).
+
+### Cập nhật dữ liệu
+**Không cần `db-rebuild.sh` (không cần force-reset lại).** Chỉ cần chạy lại `npx ts-node prisma/seed-master.ts` (không kèm `db push --force-reset`) sau khi `Build BE` để tiếp tục từ bước 6 — dữ liệu bước 1-5 đã có sẵn, các bước còn lại đều `upsert`/idempotent.
+
+### Cần deploy
+- `Build BE` — bắt buộc để bake bản sửa `seed-duplicate-demo.ts` vào image production.
+
+---
+
 ## [1.1.1] - 2026-08-16
 
 ### Thay đổi
