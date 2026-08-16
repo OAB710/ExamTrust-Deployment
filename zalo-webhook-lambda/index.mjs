@@ -20,7 +20,7 @@ const {
   ZALO_CLEAR_ALL_STORAGE_COMMAND = "Clear All Media",
   // Bump this alongside every CHANGELOG.md release entry (xem skill
   // release-versioning) — hiển thị trong lệnh Info cho mọi user.
-  ZALO_APP_VERSION = "v1.0.0",
+  ZALO_APP_VERSION = "v1.1.3",
   ZALO_FE_URL = "https://examtrust-deployment-final-thesis.examtrust.workers.dev",
   ZALO_BE_API_URL = "https://32-236-182-208.sslip.io/api",
   ZALO_AWS_CONSOLE_URL = "https://ap-southeast-2.console.aws.amazon.com/",
@@ -480,14 +480,16 @@ async function buildSystemOverviewText() {
 }
 
 async function buildBeInfoText() {
-  const [beRun, aiStatus] = await Promise.all([
+  const [beRun, resetDbRun, aiStatus] = await Promise.all([
     getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE),
+    getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_RESET_DB),
     getAiStatus(),
   ]);
   const aiLine = aiStatus ? `🧠 AI: ${aiStatus.provider} (${aiStatus.model})` : `🧠 AI: ?`;
   return (
     `🖥️ BE Info\n` +
-    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n\n` +
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +
+    `🗄️ Reset DB Status: ${formatBuildStatus(resetDbRun)}\n\n` +
     `${aiLine}\n` +
     `💰 AWS Console: ${ZALO_AWS_CONSOLE_URL}`
   );

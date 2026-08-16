@@ -13,6 +13,23 @@ Quy ước:
 
 ---
 
+## [1.1.3] - 2026-08-16
+
+### Thay đổi
+- **Sửa lại đúng bug ở v1.1.2 (`seed-duplicate-demo.ts:93`)**: bản sửa ở v1.1.2 (`path: ['seededDuplicateKey']`, cú pháp mảng kiểu PostgreSQL) vẫn sai — chạy trên MySQL 8.0 production báo `Argument 'path': Invalid value provided. Expected String`. Cú pháp JSON path đúng cho MySQL trong Prisma là **string dạng `'$.seededDuplicateKey'`**, không phải mảng. Đã kiểm chứng trực tiếp trên production trước khi commit lần này (không lặp lại sai lầm test-only-trên-local).
+- **Fix bug mới phát hiện (`seed-monitor-ui-demo.ts`, hàm `hash64`)**: nối `randomBytes(8)+randomBytes(24)+suffix` (64 hex ký tự + suffix) rồi gán vào `IntegrityLog.clientEventId` (`VarChar(80)`) và `ProctoringEvidenceCapture.captureNonceHash` (`VarChar(64)`) — luôn vượt quá giới hạn cột khi suffix đủ dài (vd `${proctoringId}-${eventType}-${index}` ~60+ ký tự). MySQL 8.0 strict mode báo lỗi rõ ràng (`P2000`); MariaDB local (dev) không strict nên trước đó không phát hiện ra (âm thầm cắt bớt dữ liệu thay vì báo lỗi). Đã đổi sang `sha256(randomBytes(16) + suffix)` — luôn ra đúng 64 ký tự hex bất kể độ dài suffix.
+- **Bot Zalo**: thêm dòng `🗄️ Reset DB Status` vào lệnh `BE Info` (và `Info` cho chủ bot), dùng chung cơ chế `getLatestWorkflowRun`/`formatBuildStatus` đã có sẵn cho Build FE/BE — trước đây không có cách nào kiểm tra kết quả `Reset DB` qua Zalo, phải vào GitHub Actions xem thủ công.
+- **Đã tự chạy seed tổng thành công trên production** (sau khi vá trực tiếp qua `docker cp` vào container đang chạy để xác minh trước khi commit) — xác nhận số liệu cuối: 47 users, 18 courses, 1318 questions, khớp đúng thiết kế.
+
+### Cập nhật dữ liệu
+**Không cần chạy lại `db-rebuild.sh`/seed** — đã tự chạy xong trực tiếp trên production (xem trên). Chỉ cần `Build BE` để bake 2 bản sửa vào image cho lần seed tiếp theo (nếu có) dùng đúng code đã sửa.
+
+### Cần deploy
+- `Build BE` — để image production có đúng code đã sửa (dữ liệu đã seed xong rồi, không cần chạy lại ngay).
+- Cập nhật thủ công zip Lambda `zalo-webhook-lambda/index.mjs` — để lệnh `BE Info`/`Info` hiển thị `Reset DB Status`, và để version hiển thị đúng `v1.1.3` (đã bump hằng số `ZALO_APP_VERSION`).
+
+---
+
 ## [1.1.2] - 2026-08-16
 
 ### Thay đổi

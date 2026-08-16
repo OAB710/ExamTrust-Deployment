@@ -23,7 +23,7 @@
  * Script idempotent (dùng upsert) nên chạy lại nhiều lần an toàn.
  */
 import { PrismaClient, QuestionLifecycleStatus, CourseTerm } from '@prisma/client';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -37,7 +37,11 @@ const ALLOWED_MINUTES = 90;
 const QUESTION_COUNT = 10;
 const TOTAL_POINTS = 10; // điểm 0-10 => scorePct 0-100 cho phân bố điểm số
 
-const hash64 = (suffix: string) => randomBytes(8).toString('hex') + randomBytes(24).toString('hex') + suffix;
+// Must fit `integrity_logs.clientEventId` (VarChar(80)) and
+// `proctoring_evidence_captures.captureNonceHash` (VarChar(64)) — sha256 hex
+// digest is always exactly 64 chars regardless of `suffix` length, so hash
+// the suffix in (for readability/uniqueness) instead of concatenating it.
+const hash64 = (suffix: string) => createHash('sha256').update(randomBytes(16)).update(suffix).digest('hex');
 
 type LogSpec = { type: string; details: string; minutesAgo: number };
 type Profile = {
