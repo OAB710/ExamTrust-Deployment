@@ -40,6 +40,7 @@ import {
   normalizeCorrectAnswerIds,
   normalizeEditableOptions,
   toQuery,
+  safeJsonValue,
   translateAiAnalysisText,
   translateMetricText,
   type AiImprovementDetail,
@@ -1188,13 +1189,6 @@ export default function ExamAnalytics() {
                 </p>
               </div>
             ) : previewQuestion ? (() => {
-              const options = normalizeEditableOptions(previewQuestion.options);
-              const correctAnswers = normalizeCorrectAnswerIds(
-                previewQuestion.correctAnswer,
-              );
-              const hasOptions = !["ESSAY", "SHORT_ANSWER"].includes(
-                String(previewQuestion.type || ""),
-              );
               const difficulty = getDifficultyLabel(previewQuestion.difficulty);
 
               return (
@@ -1205,74 +1199,7 @@ export default function ExamAnalytics() {
                     </p>
                   </QuestionReviewCard>
 
-                  <QuestionReviewCard title="Các lựa chọn">
-                    {hasOptions && options.length > 0 ? (
-                      <div className="space-y-2">
-                        {options.map((option) => {
-                          const isCorrect = correctAnswers.some(
-                            (answer) =>
-                              answer.toUpperCase() === option.id.toUpperCase() ||
-                              answer === option.text,
-                          );
-                          return (
-                            <div
-                              key={option.id}
-                              className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${
-                                isCorrect
-                                  ? "border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950/30"
-                                  : "border-border bg-card"
-                              }`}
-                            >
-                              <span
-                                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                                  isCorrect
-                                    ? "bg-green-500 text-white"
-                                    : "bg-muted text-muted-foreground"
-                                }`}
-                              >
-                                {isCorrect ? "✓" : option.id}
-                              </span>
-                              <span className="flex-1 whitespace-pre-wrap break-words pt-0.5">
-                                {option.text}
-                              </span>
-                              {isCorrect ? (
-                                <Badge
-                                  variant="outline"
-                                  className="shrink-0 border-green-200 bg-green-100 text-green-700 dark:border-green-700 dark:bg-green-900/40 dark:text-green-400"
-                                >
-                                  Đáp án đúng
-                                </Badge>
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm italic text-muted-foreground">
-                        Loại câu hỏi này không dùng lựa chọn
-                      </p>
-                    )}
-                  </QuestionReviewCard>
-
-                  <QuestionReviewCard title="Đáp án đúng">
-                    {correctAnswers.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {correctAnswers.map((answer) => (
-                          <Badge
-                            key={answer}
-                            variant="outline"
-                            className="border-green-200 bg-green-100 text-green-800 dark:border-green-700 dark:bg-green-900/40 dark:text-green-300"
-                          >
-                            ✓ {answer}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm italic text-muted-foreground">
-                        Chưa có đáp án đúng
-                      </p>
-                    )}
-                  </QuestionReviewCard>
+                  <QuestionPreviewResponse question={previewQuestion} />
 
                   <QuestionReviewCard title="Giải thích">
                     {previewQuestion.explanation ? (
@@ -1539,6 +1466,75 @@ function QuestionReviewCard({ title, children }: { title: string; children: Reac
     </Card>
   );
 }
+
+function QuestionPreviewResponse({ question }: { question: PreviewQuestion }) {
+  const type = String(question.type || "").toUpperCase();
+  const options = normalizeEditableOptions(question.options);
+  const correctAnswers = normalizeCorrectAnswerIds(question.correctAnswer);
+  const rawOptions = safeJsonValue(question.options);
+  const toValues = (value: unknown) => Array.isArray(value)
+    ? value.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : typeof value === "string"
+      ? value.split(",").map((item) => item.trim()).filter(Boolean)
+      : [];
+
+  if (type === "MATCHING") {
+    const structured = rawOptions && typeof rawOptions === "object" && !Array.isArray(rawOptions)
+      ? rawOptions as Record<string, unknown>
+      : null;
+    const pairs = Array.isArray(rawOptions)
+      ? rawOptions.map((item, index) => {
+          const pair = item && typeof item === "object" ? item as Record<string, unknown> : {};
+          return { id: String(pair.id ?? index + 1), left: String(pair.text ?? pair.left ?? ""), right: String(pair.match ?? pair.right ?? "") };
+        })
+      : (() => {
+          const left = toValues(structured?.left);
+          const right = toValues(structured?.right);
+          return left.map((item, index) => ({ id: String(index + 1), left: item, right: right[index] || "Chưa ghép" }));
+        })();
+    return <QuestionReviewCard title="Các cặp ghép đôi">
+      {pairs.length ? <div className="space-y-2">{pairs.map((pair) => <div key={pair.id} className="grid gap-2 rounded-lg border bg-card p-3 text-sm sm:grid-cols-[1fr_auto_1fr] sm:items-center"><span className="break-words font-medium">{pair.left}</span><span className="text-center text-muted-foreground">→</span><span className="break-words text-primary">{pair.right}</span></div>)}</div> : <PreviewEmpty text="Chưa có cặp ghép đôi." />}
+    </QuestionReviewCard>;
+  }
+
+  if (type === "ORDERING") {
+    return <QuestionReviewCard title="Thứ tự đúng">
+      {options.length ? <div className="space-y-2">{options.map((option, index) => <div key={option.id} className="flex items-start gap-3 rounded-lg border bg-card p-3 text-sm"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">{index + 1}</span><span className="break-words pt-0.5">{option.text}</span></div>)}</div> : <PreviewEmpty text="Chưa có các bước để sắp xếp." />}
+    </QuestionReviewCard>;
+  }
+
+  if (type === "FILL_IN_BLANK") {
+    const inlineAnswers = Array.from(String(question.content || "").matchAll(/\[\[([^\]]+)\]\]/g), (match) => match[1].trim()).filter(Boolean);
+    const answers = correctAnswers.length ? correctAnswers : inlineAnswers;
+    const template = String(question.content || "").replace(/\[\[[^\]]+\]\]/g, "_____ ");
+    return <>
+      <QuestionReviewCard title="Câu có chỗ trống"><p className="whitespace-pre-wrap break-words rounded-lg border border-dashed bg-muted/30 p-4 text-sm leading-7">{template}</p></QuestionReviewCard>
+      <QuestionReviewCard title="Đáp án các chỗ trống">{answers.length ? <div className="flex flex-wrap gap-2">{answers.map((answer, index) => <Badge key={`${answer}-${index}`} variant="outline" className="border-green-200 bg-green-50 text-green-800">Chỗ trống {index + 1}: {answer}</Badge>)}</div> : <PreviewEmpty text="Chưa có đáp án cho chỗ trống." />}</QuestionReviewCard>
+    </>;
+  }
+
+  if (["ESSAY", "SHORT_ANSWER"].includes(type)) {
+    return <QuestionReviewCard title="Đáp án / tiêu chí mong đợi">{correctAnswers.length ? <AnswerBadges answers={correctAnswers} /> : <PreviewEmpty text="Câu tự luận không có đáp án cố định; xem phần giải thích hoặc chỉnh sửa để thêm tiêu chí chấm." />}</QuestionReviewCard>;
+  }
+
+  const optionTitle = type === "FIND_ERROR" ? "Dòng mã cần tìm lỗi" : type === "TRUE_FALSE" ? "Khẳng định" : "Các lựa chọn";
+  return <>
+    <QuestionReviewCard title={optionTitle}>{options.length ? <div className="space-y-2">{options.map((option) => {
+      const isCorrect = correctAnswers.some((answer) => answer.toUpperCase() === option.id.toUpperCase() || answer === option.text);
+      return <div key={option.id} className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${isCorrect ? "border-green-300 bg-green-50" : "border-border bg-card"}`}><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${isCorrect ? "bg-green-500 text-white" : "bg-muted text-muted-foreground"}`}>{isCorrect ? "✓" : option.id}</span><span className={`flex-1 whitespace-pre-wrap break-words pt-0.5 ${type === "FIND_ERROR" ? "font-mono" : ""}`}>{option.text}</span></div>;
+    })}</div> : <PreviewEmpty text="Chưa có lựa chọn." />}</QuestionReviewCard>
+    <QuestionReviewCard title="Đáp án đúng">{correctAnswers.length ? <AnswerBadges answers={correctAnswers} /> : <PreviewEmpty text="Chưa có đáp án đúng." />}</QuestionReviewCard>
+  </>;
+}
+
+function AnswerBadges({ answers }: { answers: string[] }) {
+  return <div className="flex flex-wrap gap-2">{answers.map((answer, index) => <Badge key={`${answer}-${index}`} variant="outline" className="border-green-200 bg-green-50 text-green-800">✓ {answer}</Badge>)}</div>;
+}
+
+function PreviewEmpty({ text }: { text: string }) {
+  return <p className="text-sm italic text-muted-foreground">{text}</p>;
+}
+
 function QuestionComparisonCard({
   title,
   snapshot,

@@ -586,16 +586,16 @@
     ]
   },
   "total_files": 575,
-  "total_words": 526759,
+  "total_words": 526836,
   "needs_graph": true,
-  "warning": "Large corpus: 575 files · ~526,759 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 575 files · ~526,836 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],
   "graphifyignore_patterns": 66,
   "git": {
     "source_owner": "git",
-    "source_hash": "a50c3a673cef7a1ed8bb2ac2ec412c7ed584745f",
+    "source_hash": "bbcb9b09645be5bdb3172211487276631fc2736b",
     "branches": [
       "duc",
       "main"
@@ -609,11 +609,11 @@
     "source": "default-auto",
     "root": ".",
     "git_root": ".",
-    "head": "a50c3a673cef7a1ed8bb2ac2ec412c7ed584745f",
+    "head": "bbcb9b09645be5bdb3172211487276631fc2736b",
     "candidate_count": 637,
     "included_count": 575,
     "excluded_untracked_count": 0,
-    "excluded_ignored_count": 105103,
+    "excluded_ignored_count": 105112,
     "excluded_sensitive_count": 1,
     "missing_committed_count": 0,
     "warnings": [],
