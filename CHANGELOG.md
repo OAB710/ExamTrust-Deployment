@@ -13,6 +13,19 @@ Quy ước:
 
 ---
 
+## [1.1.1] - 2026-08-16
+
+### Thay đổi
+- **Fix bug FE build fail (`FE/src/features/lecturer/ExamAnalytics.tsx`)**: 2 dòng `console.log` debug còn sót lại tham chiếu field `questionType`/`questionMetrics` không tồn tại trên type `IntelligencePayload` (xem `exam-analytics-model.ts`), khiến `next build`/`opennextjs-cloudflare build` báo `Failed to compile` (`Type error: Property 'questionType' does not exist...`). Bug này có sẵn từ trước (không liên quan tới thay đổi ở v1.1.0), chỉ mới lộ ra khi build lại. Đã xóa 2 dòng debug.
+
+### Cập nhật dữ liệu
+**Không cần.** Chỉ sửa code FE, không đổi schema/dữ liệu.
+
+### Cần deploy
+- `Build FE` — bắt buộc để có bản build FE thành công (bản build trước đó fail do lỗi này).
+
+---
+
 ## [1.1.0] - 2026-08-16
 
 ### Thay đổi

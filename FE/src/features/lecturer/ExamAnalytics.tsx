@@ -168,16 +168,6 @@ export default function ExamAnalytics() {
         setLoadingIntelligence(true);
         const payload = await api.getExamIntelligence(selectedExamId);
         setData(payload as IntelligencePayload);
-        // Log toàn bộ loại câu hỏi trong "Bài tập ưu tiên" + toàn bộ đề để
-        // kiểm tra lỗi UI (mỗi loại câu hỏi phải render đúng).
-        console.log(
-          "[Analytics] TOÀN BỘ loại câu hỏi trong \"Bài tập ưu tiên\" (Câu hỏi cần rà soát):",
-          [...new Set(((payload as IntelligencePayload).mostIncorrectQuestions || []).map((m) => m.questionType))],
-        );
-        console.log(
-          "[Analytics] Loại câu hỏi toàn bộ đề thi:",
-          [...new Set(((payload as IntelligencePayload).questionMetrics || []).map((m) => m.questionType))],
-        );
         const nextImprovements: Record<string, AiImprovementSummary> = {};
         for (const item of (payload as IntelligencePayload).mostIncorrectQuestions || []) {
           if (item.aiImprovement?.id) {
