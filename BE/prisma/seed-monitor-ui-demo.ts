@@ -253,6 +253,26 @@ async function main() {
       create: { examId: examRow.id, studentId, examInstanceId: instance.id, attemptNo: 1, status: profile.status!, score: profile.score ?? undefined, startedAt, submittedAt, gradedAt: submittedAt, lastActivityAt: submittedAt ?? new Date() },
     });
 
+    // 2 of the 3 FLAGGED sessions already have a review decision on record
+    // (mirrors a lecturer having triaged part of the queue) so "Đã xác
+    // nhận"/"Đã review" aren't permanently zero. The 3rd FLAGGED session
+    // (index 2) is deliberately left without a review — still pending, like
+    // the rest of the queue. decidedAt is minutes after submittedAt (a
+    // review can't happen before the exam it's reviewing).
+    if (i === 0) {
+      await prisma.integrityReview.upsert({
+        where: { submissionId: submission.id },
+        update: { status: 'CONFIRMED', reviewerId: lecturer.id, reviewerNote: 'Xác nhận gian lận: chuyển tab kết hợp không phát hiện khuôn mặt qua webcam.', decidedAt: new Date(now - 5 * 60_000) },
+        create: { submissionId: submission.id, status: 'CONFIRMED', reviewerId: lecturer.id, reviewerNote: 'Xác nhận gian lận: chuyển tab kết hợp không phát hiện khuôn mặt qua webcam.', decidedAt: new Date(now - 5 * 60_000) },
+      });
+    } else if (i === 1) {
+      await prisma.integrityReview.upsert({
+        where: { submissionId: submission.id },
+        update: { status: 'DISMISSED', reviewerId: lecturer.id, reviewerNote: 'Đã xem lại: sao chép/dán nội dung đề bài, không phải hành vi gian lận.', decidedAt: new Date(now - 15 * 60_000) },
+        create: { submissionId: submission.id, status: 'DISMISSED', reviewerId: lecturer.id, reviewerNote: 'Đã xem lại: sao chép/dán nội dung đề bài, không phải hành vi gian lận.', decidedAt: new Date(now - 15 * 60_000) },
+      });
+    }
+
     const proctoring = await prisma.proctoringSession.upsert({
       where: { submissionId: submission.id },
       update: { tabSwitchCount: 0, mouseAnomalies: 0, flaggedStatus: profile.status === 'FLAGGED' ? 'FLAGGED' : null },

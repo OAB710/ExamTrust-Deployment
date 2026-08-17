@@ -453,8 +453,14 @@ async function main() {
   }
 
   // 4) Bài thi năm học 2026.
-  const endTime = new Date('2026-08-10T14:00:00.000Z');
-  const startTime = new Date('2026-08-10T12:00:00.000Z');
+  // Anchored to "now" (not a fixed calendar date) so these submissions always
+  // fall inside the admin dashboard's default 30-day analytics window, and
+  // always land AFTER every seeded student's createdAt (students are seeded
+  // 6-25 days ago — see seed-accounts-only.ts) — a student can't submit an
+  // exam before their account existed.
+  const DEMO_DAY_MS = Date.now() - 5 * 24 * 60 * 60 * 1000;
+  const endTime = new Date(DEMO_DAY_MS + 14 * 60 * 60 * 1000);
+  const startTime = new Date(DEMO_DAY_MS + 12 * 60 * 60 * 1000);
 
   let examRow = await prisma.exam.findFirst({
     where: { courseId: course.id, title: EXAM_TITLE, deletedAt: null },
@@ -509,7 +515,7 @@ async function main() {
     if (s.studentId) studentsByCode.set(s.studentId, s);
   }
 
-  const BASE = new Date('2026-08-10T02:00:00.000Z');
+  const BASE = new Date(DEMO_DAY_MS + 2 * 60 * 60 * 1000);
   let submissionCount = 0;
 
   for (let i = 0; i < STUDENT_COUNT; i += 1) {

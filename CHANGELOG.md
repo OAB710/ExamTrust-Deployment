@@ -13,6 +13,22 @@ Quy ước:
 
 ---
 
+## [1.1.4] - 2026-08-17
+
+### Thay đổi
+- **Sửa 3 chart trống trên trang Tổng quan admin** ("Hoạt động nộp bài", "Tín hiệu toàn vẹn", "Tăng trưởng người dùng"):
+  - `BE/prisma/seed-accounts-only.ts`: gán `createdAt` cho admin/lecturer01/36 sinh viên rải trong ~4 tuần gần nhất (thay vì tất cả đều nhận giá trị `now()` tại đúng lúc chạy seed) — để chart "Tăng trưởng người dùng" (bucket theo `User.createdAt`) có đường tăng trưởng thật.
+  - `BE/prisma/seed-analytics-ui-demo.ts`: đổi mốc thời gian bài làm từ ngày cố định tuyệt đối `2026-08-10` sang tương đối `Date.now() - 5 ngày` — để dữ liệu luôn nằm trong khoảng 30 ngày mặc định của trang phân tích, và luôn sau ngày tạo tài khoản của sinh viên đó (không còn tình trạng sinh viên "nộp bài trước khi tài khoản tồn tại").
+  - `BE/prisma/seed-monitor-ui-demo.ts`: thêm 2 bản ghi `IntegrityReview` (1 `CONFIRMED`, 1 `DISMISSED`) cho 2 trong 3 phiên `FLAGGED` — trước đó không seed nào tạo `IntegrityReview` nên "Đã review"/"Đã xác nhận" luôn bằng 0.
+  - `FE/src/features/admin/AdminAnalyticsDashboard.tsx` (`ChartCard`): bug riêng biệt phát hiện trong lúc kiểm tra — `data` chỉ được dùng để quyết định hiện placeholder "chưa có dữ liệu", không được truyền xuống `<LineChart>`/`<BarChart>` bên trong nên Recharts luôn vẽ trống dù mảng data không rỗng. Sửa bằng `cloneElement(children, { data })`.
+
+### Cập nhật dữ liệu
+- **Không cần chạy thêm.** Không đổi schema. Đã chạy `seed-master.ts` (idempotent) trực tiếp trên EC2 production trong lúc chuẩn bị release này để xác nhận đúng trên MySQL 8.0 thật trước khi commit.
+
+### Cần deploy
+- **Build FE** (đẩy code `AdminAnalyticsDashboard.tsx` mới) — Cloudflare Workers Builds tự chạy khi push lên `origin/main`.
+- BE trên EC2 đã có sẵn code seed mới (đã rebuild image `app` + chạy seed lúc test) — không cần "Build BE" thêm cho riêng thay đổi này trừ khi có thay đổi BE runtime khác đi kèm.
+
 ## [1.1.3] - 2026-08-16
 
 ### Thay đổi
