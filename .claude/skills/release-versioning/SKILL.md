@@ -15,7 +15,18 @@ Repo dùng versioning kiểu `MAJOR.MINOR.PATCH`, không dùng `prisma migrate d
 - Tăng **PATCH** (`1.2.0` → `1.2.1`): chỉ sửa lỗi/UI, không đổi schema.
 - Không tự ý tăng MAJOR — hỏi user nếu nghi ngờ đây là breaking change lớn.
 
-## 2. Luôn ghi vào `CHANGELOG.md` (ở gốc repo) trước
+## 2. BẮT BUỘC kiểm tra/build thử TRƯỚC khi commit + release
+
+Không commit "Release vX.Y.Z" dựa trên code chưa được verify chạy thật — kể cả khi trông có vẻ đúng. Lý do: local dev (Windows, MariaDB) đã từng che giấu bug chỉ lộ ra trên MySQL 8.0 production thật (JSON path filter, strict mode column-length) — build/test local "pass" KHÔNG đủ để tin sẽ chạy đúng trên production.
+
+Tuỳ loại thay đổi, tối thiểu phải làm xong PHẦN NÀY rồi mới sang mục 3:
+
+- **Đổi code FE**: chạy `npm run build:cf` (hoặc `npm run build`) trong `FE/`, đọc hết log — phải "Compiled successfully", không còn `Type error`/`Failed to compile`. Đừng chỉ nhìn qua, phải cuộn hết output vì lỗi TS có thể nằm giữa hàng loạt warning.
+- **Đổi code BE thường (không đụng seed/schema)**: chạy build/typecheck tương ứng của BE trước khi commit.
+- **Đổi seed script hoặc bất kỳ query Prisma nào lọc/ghi theo kiểu dữ liệu đặc thù (JSON path, độ dài cột, encoding...)**: chạy thử THẬT trên MySQL — ưu tiên chạy thẳng trên EC2 production qua `docker exec examtrust-be-app-1 npx ts-node ...` (an toàn để test lại nhiều lần vì các seed script đều idempotent) trước khi commit, KHÔNG chỉ test trên MariaDB/MySQL local vì 2 engine xử lý JSON path và strict SQL mode khác nhau, che giấu lỗi thật. Nếu chưa thể test trên MySQL thật, phải nói rõ với user rằng chưa verify được trên đúng engine production, đừng ngầm giả định là đã ổn.
+- Nếu bước kiểm tra phát hiện lỗi: sửa, chạy lại kiểm tra cho tới khi PASS thật sự, rồi mới viết CHANGELOG/commit — không release "coi như sẽ ổn" rồi sửa tiếp ở version sau.
+
+## 3. Luôn ghi vào `CHANGELOG.md` (ở gốc repo) trước
 
 Thêm 1 entry mới lên đầu (ngay dưới phần "Quy ước"), theo đúng khuôn:
 
@@ -35,7 +46,7 @@ Một trong 3:
 - Liệt kê đúng bước cần chạy (Build FE / Build BE / cập nhật zip Lambda thủ công / v.v.)
 ```
 
-## 3. Commit — bắt buộc theo mẫu tên sau
+## 4. Commit — bắt buộc theo mẫu tên sau
 
 ```
 Release vX.Y.Z: <mô tả ngắn>
@@ -49,7 +60,7 @@ Ví dụ thật đã dùng: `Release v1.2.1: CHANGELOG.md + quy trinh versioning
 
 Nếu code thay đổi (feature/fix) đã được commit ở 1 commit khác trước đó rồi mới nhớ ra cần bump version, tạo thêm 1 commit riêng chỉ chứa update CHANGELOG.md (+ file liên quan nếu có) theo mẫu tên trên, và tag vào chính commit đó — KHÔNG tag vào commit code cũ không có CHANGELOG.md.
 
-## 4. Gắn tag — làm ngay sau khi commit, cùng một lượt
+## 5. Gắn tag — làm ngay sau khi commit, cùng một lượt
 
 ```bash
 git tag -a vX.Y.Z <commit-hash-vừa-tạo> -m "<mô tả ngắn, không dấu>"
@@ -61,13 +72,13 @@ git tag -a vX.Y.Z <commit-hash-vừa-tạo> -m "<mô tả ngắn, không dấu>"
 - Nếu commit message cần sửa lại (amend) sau khi đã tag: amend trước, xóa tag cũ, tạo lại tag trỏ vào hash mới (amend đổi hash).
 - Tag mặc định chỉ tạo local — không tự `git push --tags`, phải hỏi user trước khi push tag lên remote.
 
-## 5. Sau khi tag xong
+## 6. Sau khi tag xong
 
 Nhắc user (không tự làm nếu không được yêu cầu):
 - Có cần chạy `scripts/db-migrate.sh` hoặc `scripts/db-rebuild.sh` trên EC2 theo đúng mục "Cập nhật dữ liệu" đã ghi không.
 - Có cần "Build FE"/"Build BE" hoặc build lại Lambda `zalo-webhook-lambda/index.mjs` không.
 - Nếu Lambda có in version ra bot (`ZALO_APP_VERSION` trong `zalo-webhook-lambda/index.mjs`), nhắc cập nhật hằng số này khớp version mới rồi mới build lại zip.
 
-## 6. Giới hạn hiện tại (chưa làm)
+## 7. Giới hạn hiện tại (chưa làm)
 
 **Chức năng rollback (quay code + DB về đúng version cũ) CHƯA được xây dựng** — hiện chỉ có tag để xác định đúng commit của từng version. Việc quay DB về đúng schema/dữ liệu tại thời điểm đó (backup/restore, hay script rollback tự động) để làm sau, không tự ý implement khi chưa được yêu cầu rõ.

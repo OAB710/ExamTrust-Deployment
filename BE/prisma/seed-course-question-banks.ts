@@ -55,6 +55,7 @@ const banks: CourseBank[] = [
 ];
 
 async function main() {
+  try {
   const lecturer = await prisma.user.findUnique({ where: { email: 'lecturer01@tdtutdtu.edu.vn' } });
   if (!lecturer) throw new Error('Không tìm thấy lecturer01; hãy chạy seed lớp học trước.');
   let total = 0;
@@ -105,6 +106,13 @@ async function main() {
     await prisma.questionCourseScope.createMany({ data: allCourseQuestions.map((question) => ({ questionId: question.id, courseId: course.id })), skipDuplicates: true });
   }
   console.log(`Đã đảm bảo ${total} câu hỏi chuyên môn cho ${banks.length} lớp.`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => prisma.$disconnect());
+export { main };
+
+if (process.argv[1] && process.argv[1].includes('seed-course-question-banks.ts')) {
+  main().catch((error) => { console.error(error); process.exitCode = 1; });
+}

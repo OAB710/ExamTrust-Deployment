@@ -11,15 +11,15 @@ const COMPLETED = ['SUBMITTED', 'GRADED', 'FLAGGED'];
 // which is a separate deployable with no shared source of truth to import
 // this from.
 const ZALO_BOT_COMMANDS = [
-  { command: 'System Overview', category: 'Hệ Thống', public: true, description: 'Tổng quan số liệu hệ thống (người dùng, khóa học, bài thi, câu hỏi, tín hiệu giám sát...)' },
-  { command: 'Info', category: 'Hệ Thống', public: true, description: 'Xem chi tiết tất cả status về hệ thống' },
+  { command: 'System Summary', category: 'Hệ Thống', public: true, description: 'Tổng quan số liệu hệ thống (người dùng, khóa học, bài thi, câu hỏi, tín hiệu giám sát...)' },
+  { command: 'Info', category: 'DevOps', public: true, description: 'Xem chi tiết tất cả status về hệ thống' },
   { command: 'Build FE', category: 'DevOps', public: false, description: 'Build + deploy FE lên Cloudflare Workers' },
   { command: 'Build BE', category: 'DevOps', public: false, description: 'Build + deploy BE lên EC2' },
   { command: 'On FE / Off FE', category: 'DevOps', public: false, description: 'Bật / tắt FE (Cloudflare Worker)' },
   { command: 'FE Info / BE Info / R2 Info', category: 'DevOps', public: false, description: 'Xem mức dùng tài nguyên FE, BE, và Cloudflare R2' },
   { command: 'AI Deepseek / AI Openrouter', category: 'DevOps', public: false, description: 'Chuyển provider AI đang dùng' },
   { command: 'Reset DB', category: 'DevOps', public: false, description: '⚠️ Xóa sạch database production và seed lại data demo' },
-  { command: 'Clear Question Media / Clear Evidence Media / Clear All Media', category: 'DevOps', public: false, description: '⚠️ Xóa vĩnh viễn tệp trên R2 (ảnh câu hỏi / bằng chứng giám sát / cả hai) — không đụng dữ liệu trong database' },
+  { command: 'CQM / CEM / CAM', category: 'DevOps', public: false, description: '⚠️ Xóa vĩnh viễn tệp trên R2 (Clear Question/Evidence/All Media — ảnh câu hỏi / bằng chứng giám sát / cả hai) — không đụng dữ liệu trong database' },
 ];
 
 @Injectable()
@@ -103,7 +103,7 @@ export class AdminDashboardService {
     submissions.forEach((x) => { if (x.startedAt && x.startedAt >= from && x.startedAt <= to) row(maps.activity, x.startedAt).started++; if (x.submittedAt && COMPLETED.includes(x.status) && x.submittedAt >= from && x.submittedAt <= to) row(maps.activity, x.submittedAt).completed++; });
     new Set(sessions.map((x) => x.submissionId)).forEach((id) => { const session = sessions.find((x) => x.submissionId === id)!; row(maps.integrity, session.createdAt).signaled++; });
     reviews.forEach((x) => { if (x.decidedAt && x.status !== 'PENDING') row(maps.integrity, x.decidedAt).reviewed++; });
-    const scored = submissions.filter((x) => x.submittedAt && COMPLETED.includes(x.status) && x.exam.maxAttempts !== null && typeof x.score === 'number'); const bands = [{ label: '0–<2', count: 0 }, { label: '2–<4', count: 0 }, { label: '4–<5', count: 0 }, { label: '5–<7', count: 0 }, { label: '7–<8.5', count: 0 }, { label: '8.5–10', count: 0 }];
+    const scored = submissions.filter((x) => x.submittedAt && COMPLETED.includes(x.status) && x.exam.maxAttempts !== null && x.score !== null && x.score !== undefined); const bands = [{ label: '0–<2', count: 0 }, { label: '2–<4', count: 0 }, { label: '4–<5', count: 0 }, { label: '5–<7', count: 0 }, { label: '7–<8.5', count: 0 }, { label: '8.5–10', count: 0 }];
     scored.forEach((x) => { const score = Math.max(0, Math.min(10, Number(x.score))); const index = score < 2 ? 0 : score < 4 ? 1 : score < 5 ? 2 : score < 7 ? 3 : score < 8.5 ? 4 : 5; bands[index].count++; });
     const pendingReview = await this.prisma.proctoringSession.count({ where: { OR: [{ tabSwitchCount: { gt: 0 } }, { mouseAnomalies: { gt: 0 } }, { logs: { some: {} } }], submission: { integrityReview: { is: null } } } }) + await this.prisma.integrityReview.count({ where: { status: 'PENDING' } });
     return { range: { from: from.toISOString(), to: to.toISOString(), bucket, timeZone: TZ }, kpis: { newUsers: users.length, activeExams, completedSubmissions: submissions.filter((x) => x.submittedAt && COMPLETED.includes(x.status) && x.submittedAt >= from && x.submittedAt <= to).length, pendingReview }, series: { activity: [...maps.activity.values()].sort((a,b) => a.period.localeCompare(b.period)), integrity: [...maps.integrity.values()].sort((a,b) => a.period.localeCompare(b.period)), users: [...maps.users.values()].sort((a,b) => a.period.localeCompare(b.period)) }, scoreDistribution: { sampleSize: scored.length, bands } };

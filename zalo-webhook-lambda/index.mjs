@@ -10,17 +10,17 @@ const {
   ZALO_USAGE_BE_COMMAND = "BE Info",
   ZALO_USAGE_R2_COMMAND = "R2 Info",
   ZALO_PUBLIC_INFO_COMMAND = "Info",
-  ZALO_SYSTEM_OVERVIEW_COMMAND = "System Overview",
+  ZALO_SYSTEM_OVERVIEW_COMMAND = "Summary",
   ZALO_BUILD_BE_COMMAND = "Build BE",
   ZALO_AI_DEEPSEEK_COMMAND = "AI Deepseek",
   ZALO_AI_OPENROUTER_COMMAND = "AI Openrouter",
   ZALO_RESET_DB_COMMAND = "Reset DB",
-  ZALO_CLEAR_QUESTIONS_COMMAND = "Clear Question Media",
-  ZALO_CLEAR_EVIDENCE_COMMAND = "Clear Evidence Media",
-  ZALO_CLEAR_ALL_STORAGE_COMMAND = "Clear All Media",
+  ZALO_CLEAR_QUESTIONS_COMMAND = "CQM",
+  ZALO_CLEAR_EVIDENCE_COMMAND = "CEM",
+  ZALO_CLEAR_ALL_STORAGE_COMMAND = "CAM",
   // Bump this alongside every CHANGELOG.md release entry (xem skill
   // release-versioning) — hiển thị trong lệnh Info cho mọi user.
-  ZALO_APP_VERSION = "v1.0.0",
+  ZALO_APP_VERSION = "v1.1.3",
   ZALO_FE_URL = "https://examtrust-deployment-final-thesis.examtrust.workers.dev",
   ZALO_BE_API_URL = "https://32-236-182-208.sslip.io/api",
   ZALO_AWS_CONSOLE_URL = "https://ap-southeast-2.console.aws.amazon.com/",
@@ -312,6 +312,31 @@ function formatBytesGB(bytes) {
   return (bytes / (1024 * 1024 * 1024)).toFixed(2);
 }
 
+function progressBar(ratio, size = 10) {
+  const clamped = Math.max(0, Math.min(1, ratio));
+  const filled = Math.round(clamped * size);
+  return "█".repeat(filled) + "░".repeat(size - filled);
+}
+
+// 2 decimal places always, not just when rounding would erase small values
+// (e.g. 26/100,000 = 0.026% → "0.03%") — the bar only has 10-cell resolution
+// (1 cell = 10%) so this % text is the only place sub-10% usage is legible.
+function formatPct(ratio) {
+  return `${(ratio * 100).toFixed(2)}%`;
+}
+
+function formatVnTimestamp() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+  }).formatToParts(new Date());
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  return `${get("hour")}:${get("minute")} ${get("day")}/${get("month")}`;
+}
+
 async function buildR2InfoText() {
   const [storageBytes, monthlyOps] = await Promise.all([
     getR2StorageBytes(),
@@ -322,7 +347,7 @@ async function buildR2InfoText() {
       ? monthlyOps === null
         ? "• Dung lượng hiện tại: ? (thiếu quyền 'Workers R2 Storage: Read' trên token)"
         : "• Dung lượng hiện tại: 0 B / 10 GB (0%) — bucket đang trống hoặc chưa có snapshot dung lượng trong 2 ngày qua"
-      : `• Dung lượng hiện tại: ${formatBytesGB(storageBytes)} GB / 10 GB (${Math.round((storageBytes / R2_FREE_TIER_STORAGE_BYTES) * 100)}%)`;
+      : `• Dung lượng hiện tại: [${progressBar(storageBytes / R2_FREE_TIER_STORAGE_BYTES)}] ${formatPct(storageBytes / R2_FREE_TIER_STORAGE_BYTES)} (${formatBytesGB(storageBytes)} GB / 10 GB)`;
   const opsLine =
     monthlyOps === null
       ? "• Số lượt request tháng này: ?"
@@ -330,9 +355,10 @@ async function buildR2InfoText() {
   return (
     `📦 R2 Info (${CLOUDFLARE_R2_BUCKET_NAME})\n` +
     `${storageLine}\n` +
-    `${opsLine}\n\n` +
+    `${opsLine}\n` +
     `⚠️ Số này là dung lượng THẬT trên Cloudflare (quyết định có bị tính phí không). ` +
-    `App còn có ngưỡng chặn riêng ở 3GB (30% free tier) để không bao giờ chạm mốc này — xem media_storage_usage.`
+    `App còn có ngưỡng chặn riêng ở 3GB (30% free tier) để không bao giờ chạm mốc này — xem media_storage_usage.\n` +
+    `🕒 Cập nhật lúc ${formatVnTimestamp()}`
   );
 }
 
@@ -382,15 +408,24 @@ async function buildFeInfoText() {
   // (see deploy-fe.yml), not Cloudflare's own hosted Workers Builds service —
   // so this quota is expected to stay at/near 0 regardless of deploy volume.
   const buildMinutesNote = buildMinutes === 0 ? " (deploy chạy qua GitHub Actions, không tính vào đây)" : "";
+  const requestsLine =
+    requests === null
+      ? `• Requests today: ?`
+      : `• Requests today: [${progressBar(requests / 100_000)}] ${formatPct(requests / 100_000)} (${fmt(requests)} / 100,000)`;
+  const obsLine =
+    obsEvents === null
+      ? `• Observability events today: ?`
+      : `• Observability events today: [${progressBar(obsEvents / 200_000)}] ${formatPct(obsEvents / 200_000)} (${fmt(obsEvents)} / 200,000)`;
   return (
     `🖥️ FE Info\n` +
     `🏷️ Version: ${ZALO_APP_VERSION}\n` +
     `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
-    `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
+    `🏗️ Build Status: ${formatBuildStatus(feRun)}\n` +
     `📊 Cloudflare Usage\n` +
-    `• Requests today: ${fmt(requests)} / 100,000\n` +
-    `• Observability events today: ${fmt(obsEvents)} / 200,000`
-    // `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}`
+    `${requestsLine}\n` +
+    `${obsLine}\n` +
+    // `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}\n` +
+    `🕒 Cập nhật lúc ${formatVnTimestamp()}`
   );
 }
 
@@ -460,36 +495,43 @@ async function buildSystemOverviewText() {
   if (!overview) return "❌ Không lấy được số liệu hệ thống";
 
   const { totalUsers, totalCourses, totalExams, publishedExams, totalQuestions, totalSubmissions, integrity } = overview;
+  const n = (x) => x.toLocaleString("en-US");
 
   return (
-    `📊 System Overview\n` +
-    `🏷️ Version: ${ZALO_APP_VERSION}\n\n` +
-    `👥 Tổng số người dùng: ${totalUsers}\n` +
-    `📚 Tổng số khóa học: ${totalCourses}\n` +
-    `📝 Tổng số bài thi: ${totalExams} (Đã công bố: ${publishedExams})\n` +
-    `❓ Tổng số câu hỏi: ${totalQuestions}\n` +
-    `📥 Tổng số lượt nộp: ${totalSubmissions}\n\n` +
+    `📊 System Summary\n` +
+    `🏷️ Version: ${ZALO_APP_VERSION}\n` +
+    `👥 Tổng số người dùng: ${n(totalUsers)}\n` +
+    `📚 Tổng số khóa học: ${n(totalCourses)}\n` +
+    `📝 Tổng số bài thi: ${n(totalExams)} (Đã công bố: ${n(publishedExams)})\n` +
+    `❓ Tổng số câu hỏi: ${n(totalQuestions)}\n` +
+    `📥 Tổng số lượt nộp: ${n(totalSubmissions)}\n` +
+    `--------------------\n` +
     `🛡️ Giám sát rủi ro\n` +
-    `• Tổng tín hiệu: ${integrity.totalFlagged}\n` +
-    `• Chờ xem xét: ${integrity.pendingReview}\n` +
-    `• Mức tín hiệu cao: ${integrity.highConfidence}\n` +
-    `• Đã xác nhận: ${integrity.confirmedCases}\n\n` +
+    `• Tổng tín hiệu: ${n(integrity.totalFlagged)}\n` +
+    `• Chờ xem xét: ${n(integrity.pendingReview)}\n` +
+    `• Mức tín hiệu cao: ${n(integrity.highConfidence)}\n` +
+    `• Đã xác nhận: ${n(integrity.confirmedCases)}\n` +
+    `--------------------\n` +
     `🔎 Nhận xét\n` +
-    buildSystemOverviewConclusions(overview)
+    buildSystemOverviewConclusions(overview) +
+    `\n🕒 Cập nhật lúc ${formatVnTimestamp()}`
   );
 }
 
 async function buildBeInfoText() {
-  const [beRun, aiStatus] = await Promise.all([
+  const [beRun, resetDbRun, aiStatus] = await Promise.all([
     getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_BE),
+    getLatestWorkflowRun(GITHUB_WORKFLOW_FILE_RESET_DB),
     getAiStatus(),
   ]);
   const aiLine = aiStatus ? `🧠 AI: ${aiStatus.provider} (${aiStatus.model})` : `🧠 AI: ?`;
   return (
     `🖥️ BE Info\n` +
-    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n\n` +
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +
+    `🗄️ Reset DB Status: ${formatBuildStatus(resetDbRun)}\n` +
     `${aiLine}\n` +
-    `💰 AWS Console: ${ZALO_AWS_CONSOLE_URL}`
+    `💰 AWS Console: ${ZALO_AWS_CONSOLE_URL}\n` +
+    `🕒 Cập nhật lúc ${formatVnTimestamp()}`
   );
 }
 
@@ -507,19 +549,28 @@ async function buildPublicInfoText() {
   const statusLabel = enabled === null ? "?" : enabled ? "On" : "Off";
   const buildMinutesNote = buildMinutes === 0 ? " (deploy chạy qua GitHub Actions, không tính vào đây)" : "";
   const aiLine = aiStatus ? `🧠 AI: ${aiStatus.provider} (${aiStatus.model})` : `🧠 AI: ?`;
+  const requestsLine =
+    requests === null
+      ? `• Requests today: ?`
+      : `• Requests today: [${progressBar(requests / 100_000)}] ${formatPct(requests / 100_000)} (${fmt(requests)} / 100,000)`;
+  const obsLine =
+    obsEvents === null
+      ? `• Observability events today: ?`
+      : `• Observability events today: [${progressBar(obsEvents / 200_000)}] ${formatPct(obsEvents / 200_000)} (${fmt(obsEvents)} / 200,000)`;
   return (
     `🖥️ FE Info\n` +
     `🏷️ Version: ${ZALO_APP_VERSION}\n` +
     `🔗 Link: ${ZALO_FE_URL} (${statusLabel})\n` +
-    `🏗️ Build Status: ${formatBuildStatus(feRun)}\n\n` +
+    `🏗️ Build Status: ${formatBuildStatus(feRun)}\n` +
     `📊 Cloudflare Usage\n` +
-    `• Requests today: ${fmt(requests)} / 100,000\n` +
-    `• Observability events today: ${fmt(obsEvents)} / 200,000\n\n` +
-    // `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}\n\n` +
-    `--------------------\n\n` +
+    `${requestsLine}\n` +
+    `${obsLine}\n` +
+    // `• Workers build minutes this month: ${fmt(buildMinutes)} / 3,000${buildMinutesNote}\n` +
+    `--------------------\n` +
     `🖥️ BE Info\n` +
-    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n\n` +
-    `${aiLine}`
+    `🏗️ Build Status: ${formatBuildStatus(beRun)}\n` +
+    `${aiLine}\n` +
+    `🕒 Cập nhật lúc ${formatVnTimestamp()}`
   );
 }
 
@@ -566,16 +617,16 @@ export const handler = async (event) => {
     senderId,
   );
 
-  // "Info" and "System Overview" are available to everyone, no owner check
+  // "Info" and "System Summary" are available to everyone, no owner check
   // required — Info gives the owner the full FE+BE detail (Cloudflare usage,
   // AWS console link) while anyone else only gets the stripped-down public
-  // status; System Overview has no sensitive infra detail so it's identical
+  // status; System Summary has no sensitive infra detail so it's identical
   // for everyone.
   if (body?.event_name === "message.text.received") {
     if (text === normalizeCommand(ZALO_PUBLIC_INFO_COMMAND)) {
       if (senderId === ZALO_ALLOWED_USER_ID) {
         const [feText, beText] = await Promise.all([buildFeInfoText(), buildBeInfoText()]);
-        await replyToZalo(chatId, `${feText}\n\n--------------------\n\n${beText}`);
+        await replyToZalo(chatId, `${feText}\n--------------------\n${beText}`);
       } else {
         await replyToZalo(chatId, await buildPublicInfoText());
       }
@@ -641,9 +692,7 @@ export const handler = async (event) => {
         const dispatched = await triggerDeploy(GITHUB_WORKFLOW_FILE_RESET_DB);
         await replyToZalo(
           chatId,
-          dispatched
-            ? "⚠️ Đang XÓA SẠCH database production và seed lại data demo..."
-            : "❌ Trigger lỗi rồi",
+          dispatched ? "🚀 Đang reset DB..." : "❌ Trigger lỗi rồi",
         );
       }
     } else if (
@@ -691,19 +740,20 @@ export const handler = async (event) => {
     } else {
       await replyToZalo(
         chatId,
-        `🤖 Vui lòng chọn một trong các lệnh sau:\n\n` +
+        `🤖 Vui lòng chọn một trong các lệnh sau:\n` +
         `🖥️ Hệ Thống\n` +
         `• ${ZALO_SYSTEM_OVERVIEW_COMMAND}\n` +
-        `• ${ZALO_PUBLIC_INFO_COMMAND}\n\n` +
-        `--------------------\n\n` +
+        `--------------------\n` +
         `⚙️ DevOps\n` +
-        `• ${ZALO_BUILD_FE_COMMAND}\n` +
-        `• ${ZALO_BUILD_BE_COMMAND}\n` +
+        `• ${ZALO_PUBLIC_INFO_COMMAND}\n` +
+        `• ${ZALO_BUILD_FE_COMMAND} / ${ZALO_BUILD_BE_COMMAND}\n` +
         `• On / Off FE\n` +
         `• ${ZALO_USAGE_FE_COMMAND} / ${ZALO_USAGE_BE_COMMAND} / ${ZALO_USAGE_R2_COMMAND}\n` +
         `• ${ZALO_AI_DEEPSEEK_COMMAND} / ${ZALO_AI_OPENROUTER_COMMAND}\n` +
-        `• ${ZALO_RESET_DB_COMMAND} (⚠️ xóa sạch DB + seed lại)\n` +
-        `• ${ZALO_CLEAR_QUESTIONS_COMMAND} / ${ZALO_CLEAR_EVIDENCE_COMMAND} / ${ZALO_CLEAR_ALL_STORAGE_COMMAND} (⚠️ xóa vĩnh viễn tệp trên R2)`,
+        `• ${ZALO_RESET_DB_COMMAND} (Reset DB lại dữ liệu gốc)\n` +
+        `• ${ZALO_CLEAR_QUESTIONS_COMMAND} (Clear Question Media)\n` +
+        `• ${ZALO_CLEAR_EVIDENCE_COMMAND} (Clear Evidence Media)\n` +
+        `• ${ZALO_CLEAR_ALL_STORAGE_COMMAND} (Clear All Media)`,
       );
     }
   }

@@ -69,6 +69,7 @@ const SINGLETON: Q[] = [
 ];
 
 async function main() {
+  try {
   const lecturer = await prisma.user.findUnique({ where: { email: LECTURER_EMAIL } });
   if (!lecturer) throw new Error(`Không tìm thấy giảng viên ${LECTURER_EMAIL}`);
 
@@ -89,7 +90,7 @@ async function main() {
   let created = 0;
   for (const q of all) {
     const existing = await prisma.questionVersion.findFirst({
-      where: { question: { courseId: course.id }, metadata: { path: 'seededDuplicateKey', equals: q.key } },
+      where: { question: { courseId: course.id }, metadata: { path: '$.seededDuplicateKey', equals: q.key } },
       select: { questionId: true },
     });
     if (existing) continue;
@@ -114,8 +115,13 @@ async function main() {
   console.log(`  - Trùng nghĩa (AI nhận diện): ${SEMANTIC.length} cặp`);
   console.log(`  - Singleton: ${SINGLETON.length}`);
   console.log(`URL ngân hàng câu hỏi: http://localhost:3000/lecturer/question-bank?courseId=${course.id}`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((error) => { console.error(error); process.exit(1); })
-  .finally(async () => { await prisma.$disconnect(); });
+export { main };
+
+if (process.argv[1] && process.argv[1].includes('seed-duplicate-demo.ts')) {
+  main().catch((error) => { console.error(error); process.exit(1); });
+}

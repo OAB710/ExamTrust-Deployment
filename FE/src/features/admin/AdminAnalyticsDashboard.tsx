@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { cloneElement, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -42,4 +42,4 @@ export default function AdminAnalyticsDashboard() {
     </div>}
   </AdminPageShell></DashboardLayout>;
 }
-function ChartCard({ title, description, data, children, href }: any) { return <Card><CardHeader><div className="flex items-center justify-between"><CardTitle className="text-lg">{title}</CardTitle><Link className="text-sm text-primary underline-offset-4 hover:underline" href={href}>Xem chi tiết →</Link></div><CardDescription>{description}</CardDescription></CardHeader><CardContent className="h-72">{data.length ? <ResponsiveContainer width="100%" height="100%">{children}</ResponsiveContainer> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Chưa có dữ liệu trong khoảng đã chọn.</div>}</CardContent></Card>; }
+function ChartCard({ title, description, data, children, href }: any) { return <Card><CardHeader><div className="flex items-center justify-between"><CardTitle className="text-lg">{title}</CardTitle><Link className="text-sm text-primary underline-offset-4 hover:underline" href={href}>Xem chi tiết →</Link></div><CardDescription>{description}</CardDescription></CardHeader><CardContent className="h-72">{data.length ? <ResponsiveContainer width="100%" height="100%">{cloneElement(children, { data })}</ResponsiveContainer> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Chưa có dữ liệu trong khoảng đã chọn.</div>}</CardContent></Card>; }

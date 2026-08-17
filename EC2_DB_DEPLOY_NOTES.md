@@ -131,6 +131,16 @@ Stage `builder` có copy `scripts/` để build, nhưng stage `runtime` (image t
 
 File `ZALO_BOT_FALLBACK_COMMANDS.md` ở gốc repo (gitignore, không commit — chứa IP EC2 + đường dẫn SSH key) liệt kê lệnh SSH/docker copy-paste tương ứng 1-1 với từng lệnh bot Zalo (Reset DB, Clear Question/Evidence/All Media, Build BE, On/Off FE, AI Deepseek/Openrouter), dùng khi bot lỗi hoặc chưa deploy code mới.
 
-## 5. Lưu ý về việc fork sang repo khác
+## 5. Cập nhật 2026-08-17 — sửa 3 chart trống ở trang Tổng quan admin
+
+**KHÔNG cần làm gì thêm** — đã chạy xong trên cả local và EC2 production trong phiên này.
+
+Bug: "Hoạt động nộp bài", "Tín hiệu toàn vẹn", "Tăng trưởng người dùng" trống vì (1) `User.createdAt` toàn bộ 47 user seed đều rơi vào cùng 1 phút (lúc chạy seed), (2) `seed-analytics-ui-demo.ts` dùng ngày cố định tuyệt đối `2026-08-10` nên trôi ra khỏi khung 30 ngày mặc định của trang phân tích theo thời gian, (3) không seed nào từng tạo `IntegrityReview` nên "Đã review"/"Đã xác nhận" luôn bằng 0. Đã sửa cả 3 nguyên nhân trong `BE/prisma/seed-accounts-only.ts`, `seed-analytics-ui-demo.ts`, `seed-monitor-ui-demo.ts` (xem CHANGELOG.md [1.1.4]).
+
+Đã chạy `seed-master.ts` (idempotent, không mất dữ liệu) trực tiếp trên EC2 production đúng runbook mục 8.8 của `CLOUDFLARE_DEPLOY_NOTES.txt` (scp 3 file → `docker compose build app` → `docker compose run --rm app npx ts-node --transpile-only --compiler-options '{"module":"commonjs","moduleResolution":"node"}' prisma/seed-master.ts`) — thành công, không lỗi.
+
+Kèm 1 bug riêng ở FE (`AdminAnalyticsDashboard.tsx`): component `ChartCard` không truyền `data` xuống `<LineChart>`/`<BarChart>` bên trong nên Recharts luôn vẽ trống dù mảng dữ liệu không rỗng — không liên quan gì đến seed/DB, chỉ là code FE thiếu 1 dòng `cloneElement(children, { data })`.
+
+## 6. Lưu ý về việc fork sang repo khác
 
 File này được tạo **sau khi bạn đã fork** sang repo mới, nên **sẽ không tự có mặt bên repo fork**. Bạn cần copy thủ công file `EC2_DB_DEPLOY_NOTES.md` này sang repo mới (hoặc merge/pull lại từ repo gốc) nếu muốn giữ lại làm tài liệu tham khảo khi deploy.
