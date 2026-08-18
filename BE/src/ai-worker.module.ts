@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
+import { SharedRedisModule } from './redis/redis.module';
 import { AiService } from './ai/ai.service';
 import { AIGenerationProcessor } from './queue/processors/ai-generation.processor';
 
@@ -12,6 +13,7 @@ import { AIGenerationProcessor } from './queue/processors/ai-generation.processo
       envFilePath: ['.env', '../.env'],
     }),
     PrismaModule,
+    SharedRedisModule,
     BullModule.forRoot({
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
