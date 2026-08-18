@@ -232,8 +232,9 @@ export class SubmissionsController {
   @Get('exam/:examId/answer-matrix')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('LECTURER', 'ADMIN')
-  getExamAnswerMatrix(@Param('examId') examId: string, @Request() req) {
-    return this.submissionsService.getExamAnswerMatrix(examId, req.user);
+  getExamAnswerMatrix(@Param('examId') examId: string, @Query('attemptNo') attemptNo: string, @Request() req) {
+    const parsedAttemptNo = attemptNo ? parseInt(attemptNo, 10) : undefined;
+    return this.submissionsService.getExamAnswerMatrix(examId, req.user, parsedAttemptNo);
   }
 
   @Get('exam/:examId')

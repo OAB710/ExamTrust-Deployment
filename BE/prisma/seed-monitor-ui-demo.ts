@@ -215,6 +215,55 @@ async function main() {
     });
   }
 
+  // 3b) Exam snapshot — mirrors what ExamsService.publishExam() creates for a
+  // real published exam. The lecturer results page's answer-matrix feature
+  // reads submission.examSnapshot.questions to build its columns; without
+  // this, seeded submissions have examSnapshotId = NULL and the matrix opens
+  // with a student list but zero question columns.
+  let examSnapshot = await prisma.examSnapshot.findFirst({ where: { examId: examRow.id } });
+  if (!examSnapshot) {
+    examSnapshot = await prisma.examSnapshot.create({
+      data: {
+        examId: examRow.id,
+        title: examRow.title,
+        payload: { timeLimitMinutes: ALLOWED_MINUTES, maxAttempts: 1, gradingStrategy: 'HIGHEST' },
+        createdBy: lecturer.id,
+        publishedAt: new Date(),
+      },
+    });
+    for (const [index, q] of createdQuestions.entries()) {
+      const stem = `[MONITOR-2026] Câu ${index + 1}: Which SQL statement is correct?`;
+      const questionSnapshot = await prisma.questionSnapshot.create({
+        data: {
+          originalQuestionId: q.questionId,
+          questionVersionId: q.versionId,
+          payload: {
+            questionId: q.questionId,
+            questionVersionId: q.versionId,
+            type: 'MULTIPLE_CHOICE',
+            stem,
+            content: stem,
+            options: { A: 'a', B: 'b', C: 'c', D: 'd' },
+            answerKey: { answer: 'A' },
+            correctAnswer: { answer: 'A' },
+            assignedScore: 1,
+          },
+        },
+      });
+      await prisma.examQuestionSnapshot.create({
+        data: {
+          examSnapshotId: examSnapshot.id,
+          questionId: q.questionId,
+          questionVersionId: q.versionId,
+          questionSnapshotId: questionSnapshot.id,
+          orderIndex: index,
+          points: 1,
+          assignedScore: 1,
+        },
+      });
+    }
+  }
+
   // 4) Sinh viên + phiên làm bài.
   const students = await prisma.user.findMany({ where: { role: 'STUDENT' }, select: { id: true, studentId: true } });
   const studentsByCode = new Map<string, string>();
@@ -249,8 +298,8 @@ async function main() {
 
     const submission = await prisma.examSubmission.upsert({
       where: { examId_studentId_attemptNo: { examId: examRow.id, studentId, attemptNo: 1 } },
-      update: { examInstanceId: instance.id, status: profile.status!, score: profile.score ?? undefined, startedAt, submittedAt, gradedAt: submittedAt, lastActivityAt: submittedAt ?? new Date() },
-      create: { examId: examRow.id, studentId, examInstanceId: instance.id, attemptNo: 1, status: profile.status!, score: profile.score ?? undefined, startedAt, submittedAt, gradedAt: submittedAt, lastActivityAt: submittedAt ?? new Date() },
+      update: { examInstanceId: instance.id, examSnapshotId: examSnapshot.id, status: profile.status!, score: profile.score ?? undefined, startedAt, submittedAt, gradedAt: submittedAt, lastActivityAt: submittedAt ?? new Date() },
+      create: { examId: examRow.id, studentId, examInstanceId: instance.id, examSnapshotId: examSnapshot.id, attemptNo: 1, status: profile.status!, score: profile.score ?? undefined, startedAt, submittedAt, gradedAt: submittedAt, lastActivityAt: submittedAt ?? new Date() },
     });
 
     // 2 of the 3 FLAGGED sessions already have a review decision on record

@@ -495,7 +495,7 @@ export default function ExamAnalytics() {
   const getKpiCards = (payload: IntelligencePayload) => [
     {
       icon: TrendingUp,
-      value: payload.kpis.avgScorePct.toFixed(1) + "%",
+      value: (payload.kpis.avgScorePct / 10).toFixed(1) + "/10",
       label: "Điểm trung bình",
       iconWrapClassName: "bg-sky-500/10",
       iconClassName: "text-sky-600",
@@ -847,7 +847,7 @@ export default function ExamAnalytics() {
                     <div key={row.date} className="flex items-center gap-3">
                       <span className="w-24 shrink-0 text-xs text-muted-foreground">{row.date}</span>
                       <Progress value={row.avgScorePct} className="h-1.5 flex-1 [&>div]:bg-primary" />
-                      <span className="w-12 text-right text-xs font-medium">{row.avgScorePct}%</span>
+                      <span className="w-12 text-right text-xs font-medium">{(row.avgScorePct / 10).toFixed(1)}/10</span>
                     </div>
                   ))}
                 </CardContent>

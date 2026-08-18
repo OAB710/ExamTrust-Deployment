@@ -70,6 +70,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import api, { unwrapPaginatedData } from "@/lib/api";
+import { getIntegrityEventLabel } from "@/lib/integrity-event-labels";
 import {
   getNumericInputError,
   parseNumericInput,
@@ -768,6 +769,14 @@ export default function ExamManagement() {
                   <TableBody>
                     {paginatedExams.map((exam) => {
                       const canViewResults = (exam._count?.submissions ?? 0) > 0;
+                      // exam.status is set once at creation/publish time and
+                      // nothing in the app ever transitions it forward when
+                      // the schedule closes, so a PUBLISHED/ONGOING exam
+                      // whose endTime has already passed keeps showing that
+                      // stale status forever. Override the badge the same
+                      // way LecturerDashboard's "recent exams" list already
+                      // does, so the two screens agree on the same exam.
+                      const isPastEnd = Boolean(exam.endTime) && new Date(exam.endTime as string).getTime() < Date.now();
                       return (
                         <TableRow key={exam.id} className="hover:bg-muted/50">
                           <TableCell className="min-w-[18rem]">
@@ -840,11 +849,17 @@ export default function ExamManagement() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <StatusBadge
-                              status={exam.status}
-                              domain="exam"
-                              className="text-xs"
-                            />
+                            {isPastEnd && exam.status !== "ARCHIVED" ? (
+                              <StatusBadge tone="danger" className="text-xs">
+                                Đã hết hạn
+                              </StatusBadge>
+                            ) : (
+                              <StatusBadge
+                                status={exam.status}
+                                domain="exam"
+                                className="text-xs"
+                              />
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1.5">
@@ -1053,10 +1068,10 @@ export default function ExamManagement() {
                       </p>
                       {webcamPolicy.enabled && (
                         <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-                          <p>Giới hạn chuyển tab: <span className="text-foreground">{eventLimits.tab_switch ?? "—"}</span></p>
-                          <p>Giới hạn thoát fullscreen: <span className="text-foreground">{eventLimits.fullscreen_exit ?? "—"}</span></p>
-                          <p>Giới hạn dán nội dung ngoài: <span className="text-foreground">{eventLimits.paste_external ?? "—"}</span></p>
-                          <p>Giới hạn ngồi im: <span className="text-foreground">{eventLimits.mouse_idle ?? "—"}</span></p>
+                          <p>Giới hạn {getIntegrityEventLabel("tab_switch").toLowerCase()}: <span className="text-foreground">{eventLimits.tab_switch ?? "—"}</span></p>
+                          <p>Giới hạn {getIntegrityEventLabel("fullscreen_exit").toLowerCase()}: <span className="text-foreground">{eventLimits.fullscreen_exit ?? "—"}</span></p>
+                          <p>Giới hạn {getIntegrityEventLabel("paste_external").toLowerCase()}: <span className="text-foreground">{eventLimits.paste_external ?? "—"}</span></p>
+                          <p>Giới hạn {getIntegrityEventLabel("mouse_idle").toLowerCase()}: <span className="text-foreground">{eventLimits.mouse_idle ?? "—"}</span></p>
                           <p>Ngưỡng không thao tác: <span className="text-foreground">{webcamPolicy.mouseIdleThresholdMs ? formatSecondsLabel(Math.round(webcamPolicy.mouseIdleThresholdMs / 1000)) : "—"}</span></p>
                           <p>Cooldown chụp sự kiện: <span className="text-foreground">{webcamPolicy.eventCooldownMs ? formatSecondsLabel(Math.round(webcamPolicy.eventCooldownMs / 1000)) : "—"}</span></p>
                           <p className="col-span-2">

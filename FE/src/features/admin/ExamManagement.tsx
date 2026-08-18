@@ -630,6 +630,14 @@ export default function AdminExamManagement() {
                   </TableHeader>
                   <TableBody>
                     {displayedExams.map((exam) => {
+                      // exam.status is set once at creation/publish time and
+                      // nothing in the app ever transitions it forward when
+                      // the schedule closes, so a PUBLISHED/ONGOING exam
+                      // whose endTime has already passed keeps showing that
+                      // stale status forever. Override the badge the same
+                      // way LecturerDashboard's "recent exams" list already
+                      // does, so the two screens agree on the same exam.
+                      const isPastEnd = Boolean(exam.endTime) && new Date(exam.endTime).getTime() < Date.now();
                       return (
                         <TableRow key={exam.id} className="hover:bg-muted/50">
                           <TableCell className="font-medium">
@@ -687,11 +695,17 @@ export default function AdminExamManagement() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <StatusBadge
-                              status={exam.status}
-                              domain="exam"
-                              className="text-xs"
-                            />
+                            {isPastEnd && exam.status !== "ARCHIVED" ? (
+                              <StatusBadge tone="danger" className="text-xs">
+                                Đã hết hạn
+                              </StatusBadge>
+                            ) : (
+                              <StatusBadge
+                                status={exam.status}
+                                domain="exam"
+                                className="text-xs"
+                              />
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>

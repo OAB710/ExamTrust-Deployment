@@ -32,6 +32,7 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import api, { API_BASE_URL, unwrapPaginatedData } from "@/lib/api";
+import { getIntegrityEventLabel } from "@/lib/integrity-event-labels";
 
 type ExamOverview = {
   exam: {
@@ -123,6 +124,8 @@ type AnswerMatrix = {
     status: string;
     cells: Record<string, "CORRECT" | "INCORRECT" | "BLANK" | "PENDING_MANUAL" | "NOT_ASSIGNED" | "RANDOM_NOT_COMPARABLE">;
   }>;
+  availableAttempts: number[];
+  selectedAttemptNo: number;
 };
 
 function formatTimeSpent(start?: string | null, end?: string | null) {
@@ -143,11 +146,7 @@ function toLocalDateTimeInput(value: string | Date) {
 }
 
 function getEventTypeLabel(eventType?: string) {
-  const labels: Record<string, string> = {
-    tab_switch: "Chuyển tab", window_blur: "Mất tiêu điểm cửa sổ",
-    focus_lost: "Mất tiêu điểm", fullscreen_exit: "Thoát chế độ toàn màn hình",
-  };
-  return labels[String(eventType || "").toLowerCase()] || "Sự kiện giám sát";
+  return getIntegrityEventLabel(eventType);
 }
 
 function getAnomalyDescription(eventType?: string, details?: string) {
@@ -274,7 +273,11 @@ export default function ExamResultsList() {
   const [isExtendingDeadline, setIsExtendingDeadline] = useState(false);
   const ITEMS_PER_PAGE = 10;
   const groupedAnomalies = groupAnomaliesByStudent(overview?.anomalies ?? []);
-  const canOpenAnswerMatrix = overview?.exam?.maxAttempts === 1;
+  // The matrix is one row per submission, so with multiple attempts allowed
+  // it now shows one attempt at a time (picked via a dropdown in the dialog)
+  // instead of being blocked outright — any exam with at least one
+  // submission can open it.
+  const canOpenAnswerMatrix = (overview?.summary?.totalSubmissions ?? 0) > 0;
 
   useEffect(() => {
     let mounted = true;
@@ -437,15 +440,15 @@ export default function ExamResultsList() {
     }
   };
 
-  const openAnswerMatrix = async () => {
+  const openAnswerMatrix = async (attemptNo?: number) => {
     if (!examId) return;
     if (!canOpenAnswerMatrix) {
-      toast.error("Ma trận đáp án không áp dụng cho bài thi có nhiều lượt làm.");
+      toast.error("Chưa có lượt nộp bài nào để xem ma trận.");
       return;
     }
     setAnswerMatrixLoading(true);
     try {
-      const matrix = await api.getExamAnswerMatrix(examId);
+      const matrix = await api.getExamAnswerMatrix(examId, attemptNo);
       setAnswerMatrix(matrix as AnswerMatrix);
       setAnswerMatrixOpen(true);
     } catch (err: any) {
@@ -609,12 +612,20 @@ export default function ExamResultsList() {
                         ? `Còn ${manualStatus.manualPending} câu cần nhập điểm và nhận xét.`
                         : "Sẵn sàng công bố để sinh viên xem điểm và đáp án."}
                   </p>
+                  {!manualStatus.published ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Công bố áp dụng cho toàn bộ sinh viên đủ điều kiện của kỳ thi này cùng một lúc (không công bố
+                      được riêng từng sinh viên/lượt). Chỉ có thể công bố khi tất cả câu tự luận trong kỳ thi đã
+                      được chấm điểm xong.
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <Button
                 onClick={handlePublishResults}
                 disabled={!manualStatus.canPublish || isPublishing}
                 className="gap-2 shadow-sm"
+                title="Công bố kết quả cho toàn bộ sinh viên đủ điều kiện của kỳ thi này"
               >
                 {isPublishing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -640,11 +651,11 @@ export default function ExamResultsList() {
                 <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-muted-foreground">
                   Trung bình:{" "}
                   <span className="font-semibold text-foreground">
-                    {overview?.summary?.avgScorePct ?? 0}%
+                    {((overview?.summary?.avgScorePct ?? 0) / 10).toFixed(1)}/10
                   </span>{" "}
                   | Cao nhất:{" "}
                   <span className="font-semibold text-foreground">
-                    {overview?.summary?.highestScorePct ?? 0}%
+                    {((overview?.summary?.highestScorePct ?? 0) / 10).toFixed(1)}/10
                   </span>
                 </div>
               </div>
@@ -679,7 +690,7 @@ export default function ExamResultsList() {
                         boxShadow: "0 16px 30px -20px rgba(15, 23, 42, 0.45)",
                       }}
                     />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} maxBarSize={70} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -733,34 +744,43 @@ export default function ExamResultsList() {
                   groupedAnomalies.map((item) => (
                     <div
                       key={item.key}
-                      className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-background to-slate-50/70 p-3 shadow-sm"
+                      className="flex h-full flex-col justify-between gap-3 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-background to-slate-50/70 p-3 shadow-sm"
                     >
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <p className="truncate text-sm font-medium">
-                          {item.student?.fullName || "Không xác định sinh viên"}
+                      <div>
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <p className="truncate text-sm font-medium">
+                            {item.student?.fullName || "Không xác định sinh viên"}
+                          </p>
+                          <StatusBadge domain="severity" status={item.severity} />
+                        </div>
+                        <p className="text-sm font-medium text-slate-700">
+                          {item.eventCount} sự kiện cần đối chiếu
                         </p>
-                        <StatusBadge domain="severity" status={item.severity} />
+                        <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                          {item.eventTypes.map((eventType) => getEventTypeLabel(eventType)).join(", ")}
+                        </p>
                       </div>
-                      <p className="text-sm font-medium text-slate-700">
-                        {item.eventCount} sự kiện cần đối chiếu
-                      </p>
-                      <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                        {item.eventTypes.map((eventType) => getEventTypeLabel(eventType)).join(", ")}
-                      </p>
-                      <p className="mt-2 text-[11px] text-muted-foreground">
-                        Sự kiện gần nhất: {new Date(item.latestTimestamp).toLocaleString("vi-VN")}
-                      </p>
-                      {item.submissionId ? (
-                        <Button
-                          className="mt-3 w-full"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => router.push(`${basePath}/integrity?submissionId=${encodeURIComponent(item.submissionId)}`)}
-                        >
-                          <ShieldCheck className="mr-2 h-4 w-4" />
-                          Xem xét
-                        </Button>
-                      ) : null}
+                      {/* Grouped as one unit (not left as separate flex
+                          children) so the timestamp and button always sit
+                          together at the card's bottom edge — otherwise the
+                          timestamp's own position still drifted with however
+                          many lines the event-type list above it wrapped to. */}
+                      <div className="space-y-2">
+                        <p className="text-[11px] text-muted-foreground">
+                          Sự kiện gần nhất: {new Date(item.latestTimestamp).toLocaleString("vi-VN")}
+                        </p>
+                        {item.submissionId ? (
+                          <Button
+                            className="w-full"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`${basePath}/integrity?submissionId=${encodeURIComponent(item.submissionId)}`)}
+                          >
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            Xem xét
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   ))
                 )}
@@ -786,15 +806,15 @@ export default function ExamResultsList() {
                   type="button"
                   variant="outline"
                   className="gap-2 bg-background"
-                  onClick={openAnswerMatrix}
+                  onClick={() => openAnswerMatrix()}
                   disabled={answerMatrixLoading || !canOpenAnswerMatrix}
-                  title={!canOpenAnswerMatrix ? "Ma trận chỉ áp dụng cho bài thi có đúng một lượt làm." : "Xem ma trận đáp án theo sinh viên"}
+                  title={!canOpenAnswerMatrix ? "Chưa có lượt nộp bài nào để xem ma trận." : "Xem ma trận đáp án theo sinh viên"}
                 >
                   {answerMatrixLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <TableProperties className="h-4 w-4" />}
                   Xem chi tiết
                 </Button>
                 {!canOpenAnswerMatrix ? (
-                  <p className="max-w-xs text-xs text-muted-foreground">Chỉ áp dụng cho bài thi có đúng một lượt làm.</p>
+                  <p className="max-w-xs text-xs text-muted-foreground">Chưa có lượt nộp bài nào để xem ma trận.</p>
                 ) : null}
               </div>
               </div>
@@ -822,7 +842,7 @@ export default function ExamResultsList() {
                       Trạng thái
                     </TableHead>
                     <TableHead className="bg-slate-50/80 text-right font-semibold text-slate-600">
-                      Chấm thủ công
+                      Thao tác
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -885,37 +905,32 @@ export default function ExamResultsList() {
                           <StatusBadge domain="submission" status={s.status} />
                         </TableCell>
                         <TableCell className="py-4 text-right">
-                          <div className="flex flex-wrap justify-end gap-2">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
                           {manualRow?.manualTotal > 0 ? (
-                            <Button
-                              size="sm"
-                              variant={isManualCompleted ? "outline" : "default"}
+                            <Badge
+                              variant="outline"
                               className={
                                 isManualCompleted
-                                  ? "border-emerald-600 bg-emerald-600 text-white shadow-sm hover:border-emerald-700 hover:bg-emerald-700"
-                                  : "shadow-sm"
-                              }
-                              onClick={() =>
-                                router.push(`${basePath}/exam/${examId}/submissions/${s.id}/manual-grading`)
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-amber-200 bg-amber-50 text-amber-700"
                               }
                             >
                               {isManualCompleted
                                 ? isPublished
-                                  ? "Xem điểm"
-                                  : "Đã chấm - sửa lại"
+                                  ? "Đã công bố"
+                                  : "Đã chấm xong"
                                 : `Chấm còn ${manualRow.manualPending}/${manualRow.manualTotal}`}
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                router.push(`${basePath}/exam/${examId}/submissions/${s.id}/manual-grading`)
-                              }
-                            >
-                              Điều chỉnh điểm
-                            </Button>
-                          )}
+                            </Badge>
+                          ) : null}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              router.push(`${basePath}/exam/${examId}/submissions/${s.id}/review`)
+                            }
+                          >
+                            Chi tiết bài làm
+                          </Button>
                           {!isPublished && ["SUBMITTED", "GRADED", "FLAGGED"].includes(String(s.status || "").toUpperCase()) ? (
                             <Button
                               size="sm"
@@ -1116,7 +1131,25 @@ export default function ExamResultsList() {
       <Dialog open={answerMatrixOpen} onOpenChange={setAnswerMatrixOpen}>
         <DialogContent className="max-h-[92vh] max-w-[calc(100vw-2rem)] overflow-hidden p-0 sm:max-w-[calc(100vw-4rem)]">
           <DialogHeader className="border-b px-6 py-5">
-            <DialogTitle className="flex items-center gap-2"><TableProperties className="h-5 w-5 text-primary" />Ma trận đáp án theo sinh viên</DialogTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <DialogTitle className="flex items-center gap-2"><TableProperties className="h-5 w-5 text-primary" />Ma trận đáp án theo sinh viên</DialogTitle>
+              {answerMatrix && answerMatrix.availableAttempts.length > 1 ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <label htmlFor="answer-matrix-attempt" className="text-muted-foreground">Lượt</label>
+                  <select
+                    id="answer-matrix-attempt"
+                    className="flex h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={answerMatrix.selectedAttemptNo}
+                    disabled={answerMatrixLoading}
+                    onChange={(event) => openAnswerMatrix(Number(event.target.value))}
+                  >
+                    {answerMatrix.availableAttempts.map((attempt) => (
+                      <option key={attempt} value={attempt}>Lượt {attempt}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+            </div>
             <DialogDescription>
               {answerMatrix?.students.length || 0} sinh viên · {answerMatrix?.submittedCount || 0} lượt đã nộp. Chỉ dùng để đối chiếu nhanh, không thay đổi điểm hay đáp án.
             </DialogDescription>

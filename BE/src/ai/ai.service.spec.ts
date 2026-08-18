@@ -22,14 +22,18 @@ describe('AiService.generateExamQualityReview', () => {
     get: (key: string) => values[key],
   });
 
+  const buildMockRedisService = () => ({
+    getOrThrow: () => ({ get: async () => null, set: async () => 'OK' }),
+  }) as any;
+
   describe('question generation language policy', () => {
     it('defaults question output to Vietnamese even when a caller locale is English', () => {
-      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any);
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any, buildMockRedisService());
       expect((service as any).resolveQuestionOutputLanguage('Create a database indexing question')).toBe('vi');
     });
 
     it('uses English only when the lecturer explicitly requests it in the prompt', () => {
-      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any);
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any, buildMockRedisService());
       expect((service as any).resolveQuestionOutputLanguage('Tạo 3 câu hỏi bằng tiếng Anh về SQL')).toBe('en');
       expect((service as any).resolveQuestionOutputLanguage('Generate two questions in English about SQL')).toBe('en');
     });
@@ -37,7 +41,7 @@ describe('AiService.generateExamQualityReview', () => {
 
   describe('success flow (mock provider)', () => {
     it('returns a well-formed overallSummary and suggestions array', async () => {
-      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any);
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any, buildMockRedisService());
 
       const result = await service.generateExamQualityReview({
         examTitle: 'Midterm Exam',
@@ -56,7 +60,7 @@ describe('AiService.generateExamQualityReview', () => {
     });
 
     it('drops suggestions whose questionId is not part of the supplied stats', async () => {
-      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any);
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any, buildMockRedisService());
       // Force a provider response with a hallucinated question id by monkey-patching the private caller.
       (service as any).provider = 'local';
       (service as any).localUrl = 'http://fake-local-model';
@@ -86,7 +90,7 @@ describe('AiService.generateExamQualityReview', () => {
 
   describe('AI provider error', () => {
     it('throws a descriptive error when the provider request fails', async () => {
-      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any);
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any, buildMockRedisService());
       (service as any).localUrl = 'http://fake-local-model';
       global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 503, text: async () => 'Service unavailable' }) as any;
 
@@ -101,7 +105,7 @@ describe('AiService.generateExamQualityReview', () => {
     });
 
     it('throws a descriptive error when the provider returns invalid JSON', async () => {
-      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any);
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any, buildMockRedisService());
       (service as any).localUrl = 'http://fake-local-model';
       global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => 'not json at all' }) as any;
 
@@ -116,7 +120,7 @@ describe('AiService.generateExamQualityReview', () => {
     });
 
     it('throws when the provider returns a JSON shape missing the required fields', async () => {
-      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any);
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any, buildMockRedisService());
       (service as any).localUrl = 'http://fake-local-model';
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
@@ -143,7 +147,7 @@ describe('AiService.generateExamQualityReview', () => {
       { id: 'transactions', name: 'Giao dịch cơ sở dữ liệu' },
     ];
     const createLocalService = (matches: unknown) => {
-      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any);
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any, buildMockRedisService());
       (service as any).localUrl = 'http://fake-local-model';
       global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ matches }) }) as any;
       return service;
@@ -161,7 +165,7 @@ describe('AiService.generateExamQualityReview', () => {
     });
 
     it('classifies the same name as DUPLICATE', async () => {
-      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any);
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any, buildMockRedisService());
       const result = await request(service, 'Cơ sở dữ liệu');
       expect(result.matches).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Cơ sở dữ liệu', relation: 'DUPLICATE', matchMethod: 'LEXICAL' })]));
     });
@@ -185,7 +189,7 @@ describe('AiService.generateExamQualityReview', () => {
     });
 
     it('marks the fallback as LEXICAL when the AI provider fails', async () => {
-      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any);
+      const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any, buildMockRedisService());
       (service as any).localUrl = 'http://fake-local-model';
       global.fetch = jest.fn().mockRejectedValue(new Error('offline')) as any;
       const result = await request(service, 'Chuẩn hóa dữ liệu');

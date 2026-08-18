@@ -183,9 +183,12 @@ const completedSubmissionStatuses = new Set([
   "FINALIZED",
 ]);
 
+// `value` is a 0-100 percentage (score/totalPoints*100, same source as
+// ExamResultsList/ExamMonitor's avgScorePct) — displayed as points out of
+// 10 for consistency with those screens instead of a raw percentage.
 const formatPercent = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) return "Chưa có dữ liệu";
-  return `${Math.round(value)}%`;
+  return `${(value / 10).toFixed(1)}/10`;
 };
 
 const formatDateTime = (value: string | null) => {

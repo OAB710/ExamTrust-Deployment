@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { ArrowLeft, Loader2, Save, UserCheck, Plus, Undo2, Sparkles, CheckCircle2, XCircle, ListChecks } from "lucide-react";
+import { ArrowLeft, Loader2, Save, UserCheck, Plus, Undo2, Sparkles, CheckCircle2, XCircle, ListChecks, Image as ImageIcon, Music } from "lucide-react";
 import { toast } from "sonner";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -55,6 +55,19 @@ type DraftGrade = {
   pointsAwarded: string;
   feedback: string;
 };
+
+function MediaBadge({ mediaType }: { mediaType?: "image" | "audio" | null }) {
+  if (mediaType === "image") return <ImageIcon className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom text-muted-foreground" aria-label="Câu hỏi có hình ảnh đính kèm" />;
+  if (mediaType === "audio") return <Music className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom text-muted-foreground" aria-label="Câu hỏi có âm thanh đính kèm" />;
+  return null;
+}
+
+function QuestionMedia({ mediaType, mediaUrl }: { mediaType?: "image" | "audio" | null; mediaUrl?: string | null }) {
+  if (!mediaUrl) return null;
+  if (mediaType === "image") return <img src={mediaUrl} alt="Hình ảnh minh họa câu hỏi" className="mt-2 max-h-56 w-full rounded-md border object-contain" />;
+  if (mediaType === "audio") return <audio src={mediaUrl} controls className="mt-2 w-full" />;
+  return null;
+}
 
 type AiSuggestion = {
   summary: string;
@@ -133,6 +146,12 @@ export default function ManualGradingDetail() {
       mounted = false;
     };
   }, [submissionId]);
+
+  useEffect(() => {
+    if (submission?.student?.fullName) {
+      document.title = `Chi tiết bài làm - ${submission.student.fullName} | ExamTrust`;
+    }
+  }, [submission?.student?.fullName]);
 
   const reviewEvidence = async (captureId: string, reviewStatus: "REVIEWED" | "DISMISSED") => {
     if (!submissionId) return;
@@ -290,10 +309,11 @@ export default function ManualGradingDetail() {
                   <div>
                     <CardTitle className="flex items-center gap-2 text-2xl">
                       <UserCheck className="h-6 w-6 text-primary" />
-                      Chấm thủ công
+                      Chi tiết bài làm - {submission?.student?.fullName || "Sinh viên"}
                     </CardTitle>
                     <CardDescription className="mt-2">
-                      {submission?.student?.fullName || "Sinh viên"} - {submission?.exam?.title || "Bài thi"}
+                      {submission?.exam?.title || "Bài thi"}
+                      {submission?.submittedAt ? ` · Nộp lúc ${new Date(submission.submittedAt).toLocaleString("vi-VN")}` : ""}
                     </CardDescription>
                   </div>
                   <Badge
@@ -424,9 +444,10 @@ export default function ManualGradingDetail() {
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
                             <p className="text-sm font-medium">
-                              Câu {index + 1}. {answer.questionText}
+                              <MediaBadge mediaType={answer.questionMediaType} /> Câu {index + 1}. {answer.questionText}
                             </p>
                             <p className="mt-0.5 text-xs text-muted-foreground">{answer.questionType} · tối đa {answer.maxPoints} điểm</p>
+                            <QuestionMedia mediaType={answer.questionMediaType} mediaUrl={answer.questionMediaUrl} />
                           </div>
                           <Badge
                             variant="outline"
@@ -485,11 +506,12 @@ export default function ManualGradingDetail() {
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <CardTitle className="text-base">
-                              Câu {index + 1}. {answer.questionText}
+                              <MediaBadge mediaType={answer.questionMediaType} /> Câu {index + 1}. {answer.questionText}
                             </CardTitle>
                             <CardDescription className="mt-1">
                               {answer.questionType} · tối đa {answer.maxPoints} điểm
                             </CardDescription>
+                            <QuestionMedia mediaType={answer.questionMediaType} mediaUrl={answer.questionMediaUrl} />
                           </div>
                           {answer.manualGradedAt ? (
                             <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">

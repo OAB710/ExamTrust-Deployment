@@ -4,6 +4,10 @@ const buildConfigService = (values: Record<string, string>) => ({
   get: (key: string) => values[key],
 });
 
+const buildMockRedisService = () => ({
+  getOrThrow: () => ({ get: async () => null, set: async () => 'OK' }),
+}) as any;
+
 describe('AiService.analyzeProctoringImage', () => {
   afterEach(() => jest.restoreAllMocks());
 
@@ -12,7 +16,7 @@ describe('AiService.analyzeProctoringImage', () => {
       AI_PROVIDER: 'ollama',
       AI_OLLAMA_URL: 'http://ollama.test',
       AI_OLLAMA_VISION_MODEL: 'moondream',
-    }) as any);
+    }) as any, buildMockRedisService());
     const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ response: '{"tags":[{"tag":"FACE_NOT_VISIBLE","confidence":1.2,"note":"Face not visible"},{"tag":"UNSUPPORTED","confidence":1,"note":"Ignore"}]}' }),
@@ -32,7 +36,7 @@ describe('AiService.analyzeProctoringImage', () => {
       AI_OLLAMA_URL: 'http://ollama.test',
       AI_OLLAMA_VISION_MODEL: 'gemma3:4b',
       AI_OLLAMA_VISION_FALLBACK_MODEL: 'moondream',
-    }) as any);
+    }) as any, buildMockRedisService());
     const fetchSpy = jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce({ ok: false, status: 404, text: async () => 'model not found' } as any)
       .mockResolvedValueOnce({ ok: true, json: async () => ({ response: '{"tags":[]}' }) } as any);
@@ -44,7 +48,7 @@ describe('AiService.analyzeProctoringImage', () => {
   });
 
   it('keeps mock mode free of any model request', async () => {
-    const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any);
+    const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any, buildMockRedisService());
     const fetchSpy = jest.spyOn(global, 'fetch');
 
     await expect(service.analyzeProctoringImage({ image: Buffer.from('frame'), mimeType: 'image/jpeg' })).resolves.toEqual({ tags: [], model: 'mock' });

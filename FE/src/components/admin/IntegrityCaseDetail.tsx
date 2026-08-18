@@ -30,6 +30,7 @@ import {
 import type { FlaggedSubmission, IntegrityReason } from '@/features/admin/IntegrityOverview';
 import { useEffect, useMemo, useState } from 'react';
 import api from '@/lib/api';
+import { INTEGRITY_EVENT_LABELS, getIntegrityEventLabel } from '@/lib/integrity-event-labels';
 import { toast } from 'sonner';
 
 interface IntegrityCaseDetailProps {
@@ -65,13 +66,6 @@ type EvidenceCapture = {
   reviewedAt?: string | null;
 };
 
-const EVIDENCE_SIGNAL_LABELS: Record<string, string> = {
-  tab_switch: 'Chuyển tab',
-  fullscreen_exit: 'Thoát fullscreen',
-  paste_external: 'Dán nội dung ngoài',
-  mouse_idle: 'Ngồi im',
-};
-
 // Labels a SCHEDULED capture by its position in the schedule — slot 0 is
 // always the exam-start checkpoint, the highest slot seen is always the
 // guaranteed end-of-exam checkpoint, and anything in between is numbered by
@@ -84,8 +78,8 @@ function getEvidenceEventLabel(capture: EvidenceCapture, maxScheduledSlot?: numb
     return slot != null ? `Định kỳ ${slot}` : 'Định kỳ';
   }
   const details = capture.triggerDetails as { signals?: string[] } | null | undefined;
-  const signal = details?.signals?.find((s) => EVIDENCE_SIGNAL_LABELS[s]);
-  return signal ? EVIDENCE_SIGNAL_LABELS[signal] : 'Sự kiện nghi vấn';
+  const signal = details?.signals?.find((s) => INTEGRITY_EVENT_LABELS[s.toLowerCase()]);
+  return signal ? getIntegrityEventLabel(signal) : 'Sự kiện nghi vấn';
 }
 
 // Webcam + screen shots for one trigger are created back-to-back — bucketing

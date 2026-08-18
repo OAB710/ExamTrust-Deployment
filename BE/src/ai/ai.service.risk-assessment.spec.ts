@@ -18,8 +18,12 @@ describe('AiService.assessExamIntegrityRisk', () => {
     get: (key: string) => values[key],
   });
 
+  const buildMockRedisService = () => ({
+    getOrThrow: () => ({ get: async () => null, set: async () => 'OK' }),
+  }) as any;
+
   const buildLocalService = () => {
-    const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any);
+    const service = new AiService(buildConfigService({ AI_PROVIDER: 'local' }) as any, buildMockRedisService());
     (service as any).localUrl = 'http://fake-local-model';
     return service;
   };

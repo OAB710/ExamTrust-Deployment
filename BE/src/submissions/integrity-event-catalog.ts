@@ -17,8 +17,13 @@ export const INTEGRITY_EVENT_LABELS: Record<string, string> = {
   window_blur: 'Mất tiêu điểm cửa sổ',
   blur: 'Mất tiêu điểm cửa sổ',
   focus: 'Đã quay lại cửa sổ làm bài',
-  mouse_idle: 'Không thao tác chuột/bàn phím',
-  mouse_anomaly: 'Chuyển động chuột bất thường',
+  // The client only ever emits `mouse_idle`. `mouse_anomaly` is kept here
+  // (mapped to the same label) only for backward compatibility with any
+  // pre-existing/demo-seeded rows still tagged that way — it is never
+  // newly produced going forward (see submissions.service.ts's
+  // getExamOverview synthetic alert builder).
+  mouse_idle: 'Gián đoạn tương tác (chuột/bàn phím)',
+  mouse_anomaly: 'Gián đoạn tương tác (chuột/bàn phím)',
   copy: 'Sao chép nội dung',
   paste: 'Dán nội dung',
   paste_external: 'Dán nội dung từ ngoài bài thi',

@@ -391,7 +391,14 @@ export default function LecturerDashboard() {
                         >
                           <div className="min-w-0 space-y-2">
                             <div className="flex min-w-0 items-center gap-2.5">
-                              <h4 className="min-w-0 truncate font-semibold leading-5 text-foreground">
+                              {/* flex-1 (not just min-w-0) so the title always
+                                  claims the same available width regardless of
+                                  its own text length — otherwise a short title
+                                  left the badge sitting right next to it while
+                                  a long one pushed its badge much further
+                                  right, so the badges never lined up as a
+                                  column down the list. */}
+                              <h4 className="min-w-0 flex-1 truncate font-semibold leading-5 text-foreground">
                                 {exam.title}
                               </h4>
                               {isExpired ? (

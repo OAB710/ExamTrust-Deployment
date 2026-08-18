@@ -138,7 +138,7 @@ describe("CourseDetail exam statistics tabs", () => {
 
     expect(await screen.findByText("Bài kiểm tra của khóa học")).toBeInTheDocument();
     expect(screen.getByText("Kiểm tra giữa kỳ")).toBeInTheDocument();
-    expect(screen.getAllByText("80%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("8.0/10").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Tín hiệu cần xem xét").length).toBeGreaterThan(0);
     expect(mocks.getExams).toHaveBeenCalledWith({ courseId: "course-1", limit: 100 });
   });

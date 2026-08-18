@@ -123,8 +123,8 @@ export default function StudentResults() {
     courseCode: "all",
     score: { min: undefined, max: undefined },
   });
-  const [sortField, setSortField] = useState("exam.title");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+  const [sortField, setSortField] = useState("lastActivityAt");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [page, setPage] = useState(1);
   const [attemptPages, setAttemptPages] = useState<Record<string, number>>({});
 
