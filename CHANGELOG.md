@@ -13,6 +13,19 @@ Quy ước:
 
 ---
 
+## [1.2.2] - 2026-08-18
+
+### Thay đổi
+- **Sửa bug đổi AI provider không có hiệu lực thật**: `app` (nhận lệnh đổi provider) và `ai-worker` (nơi thực sự chạy sinh nội dung AI) là 2 process Docker riêng, mỗi bên giữ 1 instance `AiService` với `this.provider` trong bộ nhớ riêng. Gọi `/ai-status/switch-provider` chỉ cập nhật instance của `app` + Redis, không đồng bộ sang `ai-worker` — nơi job thật sự chạy chỉ đọc provider từ Redis đúng 1 lần lúc boot, nên tiếp tục dùng provider cũ cho tới khi được restart thủ công. Đã thêm `AiService.syncProviderFromRedis()` (public, đổi tên từ `restoreProviderFromRedis`), gọi trước mỗi job trong `AIGenerationProcessor` để `ai-worker` luôn đồng bộ provider mới nhất.
+- **Sửa bug hiển thị sai provider trên job record**: `AiJobsService.createJob()` đang đọc `process.env.AI_PROVIDER` (tĩnh, không đổi theo runtime) để ghi field `provider`/`model` vào `AIGenerationRecord` hiển thị cho user, khiến job luôn hiện provider cũ dù đã đổi thật. Đã sửa thành đọc từ `aiService.getProviderStatus()` (dựa trên Redis).
+
+### Cập nhật dữ liệu
+- **Không cần.** Không đổi schema.
+
+### Cần deploy
+- **Build BE**: ĐÃ deploy thật trên EC2 — rebuild image `app` + `ai-worker` (`docker compose -f docker-compose.prod.yml build app ai-worker`, log đầy đủ tới "Image ... Built" cho cả 2), sau đó `up -d --force-recreate app ai-worker`. Xác nhận qua: 27 test AI pass trước khi deploy; `curl /ai-status/switch-provider` đổi qua `deepseek` thành công, đối chiếu Redis key `ai:active-provider` đọc trực tiếp từ container `ai-worker` khớp đúng `deepseek`; sau đó đổi lại về `google` (provider đang dùng thật).
+- **Build FE**: không cần — không có thay đổi FE trong bản này.
+
 ## [1.2.1] - 2026-08-18
 
 ### Thay đổi
