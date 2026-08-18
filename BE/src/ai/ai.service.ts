@@ -158,10 +158,17 @@ export class AiService implements OnModuleInit {
     this.logger.log(`AI provider switched to '${provider}' (persisted to Redis)`);
   }
 
-  private async restoreProviderFromRedis(): Promise<void> {
+  // Each process (the `app` API server and the separate `ai-worker` process)
+  // holds its own in-memory AiService instance with its own `this.provider`.
+  // setProvider() above only updates the instance it's called on — calling
+  // it via the /ai-status/switch-provider HTTP endpoint (which only runs in
+  // `app`) never touches ai-worker's copy. Since actual generation happens
+  // in ai-worker, it must re-sync from Redis (the shared source of truth)
+  // before every job, not just once at boot.
+  async syncProviderFromRedis(): Promise<void> {
     try {
       const persisted = await this.redis.get(AI_PROVIDER_REDIS_KEY);
-      if (persisted && (SWITCHABLE_PROVIDERS as readonly string[]).includes(persisted)) {
+      if (persisted && (SWITCHABLE_PROVIDERS as readonly string[]).includes(persisted) && persisted !== this.provider) {
         this.provider = persisted;
         this.logger.log(`AI provider restored from Redis: ${persisted}`);
       }
@@ -171,7 +178,7 @@ export class AiService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    await this.restoreProviderFromRedis();
+    await this.syncProviderFromRedis();
     if (this.provider !== 'ollama') return;
     await Promise.all([this.ollamaVisionModel, this.ollamaVisionFallbackModel]
       .filter((model, index, models) => Boolean(model) && models.indexOf(model) === index)
