@@ -13,6 +13,19 @@ Quy ước:
 
 ---
 
+## [1.2.1] - 2026-08-18
+
+### Thay đổi
+- **Sửa bug ma trận đáp án hiện toàn "Để trống"** ở 3 seed script demo (`seed-question-history-demo.ts`, `seed-monitor-ui-demo.ts`, `seed-analytics-ui-demo.ts`): `submissionAnswer.upsert()` không set `questionSnapshotId`, khiến key đáp án (fallback về `questionVersionId`) không khớp với key cột (dựa trên `ExamQuestionSnapshot.questionSnapshotId`), nên mọi ô hiện "Để trống" dù sinh viên đã có điểm/đã được chấm. Luồng nộp bài thật (`submissions.service.ts`) không bị ảnh hưởng — đã set đúng field này từ trước.
+- **Sửa ai-worker crash loop trên production**: `AiWorkerModule` thiếu import `SharedRedisModule` nên không resolve được `RedisService` mà `AiService` mới cần (từ tính năng đổi AI provider ở v1.2.0), khiến container `ai-worker` crash-restart liên tục kể từ lúc deploy v1.2.0 — toàn bộ tính năng chấm/sinh nội dung bằng AI bị gián đoạn. Đã thêm `SharedRedisModule` vào `imports` của `AiWorkerModule`.
+
+### Cập nhật dữ liệu
+- **Không cần.** Không đổi schema. Đã chạy lại cả 3 seed script sửa lỗi trực tiếp trên MySQL production để xác nhận (đối chiếu SQL: mọi `submission_answers.questionSnapshotId` liên quan giờ khớp đúng `exam_question_snapshots`, không còn NULL).
+
+### Cần deploy
+- **Build BE**: ĐÃ deploy thật trên EC2 — rebuild image `ai-worker` + `docker compose up -d --force-recreate ai-worker` (chỉ container này, không đụng `app`). Xác nhận qua log container: boot sạch, `RestartCount` reset về 0 và đứng yên, `AI provider restored from Redis: openrouter`, `AI worker started and waiting for queued jobs.`.
+- **Build FE**: không cần — không có thay đổi FE trong bản này.
+
 ## [1.2.0] - 2026-08-18
 
 ### Thay đổi

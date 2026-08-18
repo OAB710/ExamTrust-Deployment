@@ -1,6 +1,6 @@
 {
   "name": "examtrust-backend",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "ExamTrust Backend API - NestJS + Prisma + MySQL",
   "main": "dist/main.js",
   "scripts": {
