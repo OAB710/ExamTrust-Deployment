@@ -514,6 +514,7 @@ async function main() {
   // SubmissionAnswer.isCorrect, set below per student) — no need to
   // replicate each of the 9 question types' options/answerKey shape here.
   let examSnapshot = await prisma.examSnapshot.findFirst({ where: { examId: examRow.id } });
+  const questionSnapshotIdByQuestion = new Map<string, string>();
   if (!examSnapshot) {
     examSnapshot = await prisma.examSnapshot.create({
       data: { examId: examRow.id, title: examRow.title, payload: { timeLimitMinutes: ALLOWED_MINUTES, maxAttempts: 1 }, createdBy: lecturer.id, publishedAt: endTime },
@@ -528,6 +529,7 @@ async function main() {
           payload: { questionId: eq.questionId, questionVersionId: eq.versionId, type: eq.type, stem, content: stem, assignedScore: 1 },
         },
       });
+      questionSnapshotIdByQuestion.set(eq.questionId, questionSnapshot.id);
       await prisma.examQuestionSnapshot.create({
         data: {
           examSnapshotId: examSnapshot.id,
@@ -539,6 +541,14 @@ async function main() {
           assignedScore: 1,
         },
       });
+    }
+  } else {
+    const existingLinks = await prisma.examQuestionSnapshot.findMany({
+      where: { examSnapshotId: examSnapshot.id },
+      select: { questionId: true, questionSnapshotId: true },
+    });
+    for (const link of existingLinks) {
+      if (link.questionSnapshotId) questionSnapshotIdByQuestion.set(link.questionId, link.questionSnapshotId);
     }
   }
 
@@ -625,12 +635,14 @@ async function main() {
     });
 
     for (const q of perQuestion) {
+      const questionSnapshotId = questionSnapshotIdByQuestion.get(q.questionId) ?? null;
       await prisma.submissionAnswer.upsert({
         where: { submissionId_questionId: { submissionId: submission.id, questionId: q.questionId } },
         update: {
           answer: q.answer as any,
           isCorrect: q.correct,
           questionVersionId: q.versionId,
+          questionSnapshotId,
           timeTaken: 25 + ((i + 7 * q.questionId.length) % 90),
           sequence: 1,
         },
@@ -638,6 +650,7 @@ async function main() {
           submissionId: submission.id,
           questionId: q.questionId,
           questionVersionId: q.versionId,
+          questionSnapshotId,
           answer: q.answer as any,
           isCorrect: q.correct,
           timeTaken: 25 + ((i + 7 * q.questionId.length) % 90),

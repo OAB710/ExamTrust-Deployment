@@ -221,6 +221,7 @@ async function main() {
   // this, seeded submissions have examSnapshotId = NULL and the matrix opens
   // with a student list but zero question columns.
   let examSnapshot = await prisma.examSnapshot.findFirst({ where: { examId: examRow.id } });
+  const questionSnapshotIdByQuestion = new Map<string, string>();
   if (!examSnapshot) {
     examSnapshot = await prisma.examSnapshot.create({
       data: {
@@ -250,6 +251,7 @@ async function main() {
           },
         },
       });
+      questionSnapshotIdByQuestion.set(q.questionId, questionSnapshot.id);
       await prisma.examQuestionSnapshot.create({
         data: {
           examSnapshotId: examSnapshot.id,
@@ -261,6 +263,14 @@ async function main() {
           assignedScore: 1,
         },
       });
+    }
+  } else {
+    const existingLinks = await prisma.examQuestionSnapshot.findMany({
+      where: { examSnapshotId: examSnapshot.id },
+      select: { questionId: true, questionSnapshotId: true },
+    });
+    for (const link of existingLinks) {
+      if (link.questionSnapshotId) questionSnapshotIdByQuestion.set(link.questionId, link.questionSnapshotId);
     }
   }
 
@@ -337,10 +347,11 @@ async function main() {
       const q = createdQuestions[a % createdQuestions.length];
       const colludeWrong = isCollude(i) && a >= 6; // 4 câu cuối
       const answer = colludeWrong ? { answer: 'D' } : { answer: 'A' };
+      const questionSnapshotId = questionSnapshotIdByQuestion.get(q.questionId) ?? null;
       await prisma.submissionAnswer.upsert({
         where: { submissionId_questionId: { submissionId: submission.id, questionId: q.questionId } },
-        update: { answer: answer as any, isCorrect: !colludeWrong, questionVersionId: q.versionId, sequence: a + 1 },
-        create: { submissionId: submission.id, questionId: q.questionId, questionVersionId: q.versionId, answer: answer as any, isCorrect: !colludeWrong, sequence: a + 1 },
+        update: { answer: answer as any, isCorrect: !colludeWrong, questionVersionId: q.versionId, questionSnapshotId, sequence: a + 1 },
+        create: { submissionId: submission.id, questionId: q.questionId, questionVersionId: q.versionId, questionSnapshotId, answer: answer as any, isCorrect: !colludeWrong, sequence: a + 1 },
       });
     }
 

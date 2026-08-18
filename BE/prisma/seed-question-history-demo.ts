@@ -170,6 +170,7 @@ async function main() {
     // this, seeded submissions have examSnapshotId = NULL and the matrix
     // opens with a student list but zero question columns.
     let examSnapshot = await prisma.examSnapshot.findFirst({ where: { examId: exam.id } });
+    const questionSnapshotIdByQuestion = new Map<string, string>();
     if (!examSnapshot) {
       examSnapshot = await prisma.examSnapshot.create({
         data: { examId: exam.id, title: exam.title, payload: { timeLimitMinutes: 90, maxAttempts: 1 }, createdBy: lecturer.id, publishedAt: exam.date },
@@ -184,6 +185,7 @@ async function main() {
             payload: { questionId: c.questionId, questionVersionId: c.version.id, type: questionRows.find((q) => q.id === c.questionId)!.type, stem, content: stem, options: { A: 'a', B: 'b', C: 'c', D: 'd' }, answerKey: { answer: 'A' }, assignedScore: 1 },
           },
         });
+        questionSnapshotIdByQuestion.set(c.questionId, questionSnapshot.id);
         await prisma.examQuestionSnapshot.create({
           data: {
             examSnapshotId: examSnapshot.id,
@@ -195,6 +197,14 @@ async function main() {
             assignedScore: 1,
           },
         });
+      }
+    } else {
+      const existingLinks = await prisma.examQuestionSnapshot.findMany({
+        where: { examSnapshotId: examSnapshot.id },
+        select: { questionId: true, questionSnapshotId: true },
+      });
+      for (const link of existingLinks) {
+        if (link.questionSnapshotId) questionSnapshotIdByQuestion.set(link.questionId, link.questionSnapshotId);
       }
     }
 
@@ -215,10 +225,11 @@ async function main() {
       for (const c of ctx) {
         const correct = s < Math.round(c.version.rate * usedStudents.length);
         if (correct) correctCount += 1;
+        const questionSnapshotId = questionSnapshotIdByQuestion.get(c.questionId) ?? null;
         await prisma.submissionAnswer.upsert({
           where: { submissionId_questionId: { submissionId: submission.id, questionId: c.questionId } },
-          update: { questionVersionId: c.version.id, answer: { answer: 'A' }, isCorrect: correct, sequence: orderIndexByQuestion.get(c.questionId)! + 1 },
-          create: { submissionId: submission.id, questionId: c.questionId, questionVersionId: c.version.id, answer: { answer: 'A' }, isCorrect: correct, sequence: orderIndexByQuestion.get(c.questionId)! + 1 },
+          update: { questionVersionId: c.version.id, questionSnapshotId, answer: { answer: 'A' }, isCorrect: correct, sequence: orderIndexByQuestion.get(c.questionId)! + 1 },
+          create: { submissionId: submission.id, questionId: c.questionId, questionVersionId: c.version.id, questionSnapshotId, answer: { answer: 'A' }, isCorrect: correct, sequence: orderIndexByQuestion.get(c.questionId)! + 1 },
         });
       }
       await prisma.examSubmission.update({ where: { id: submission.id }, data: { score: Math.min(10, correctCount) } });
