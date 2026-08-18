@@ -5168,6 +5168,31 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
   }
 
+  // Mirrors the labels the lecturer already sees on-screen for the same enum
+  // (FE StatusBadge domain="submission"/"integrity", status-badge.tsx) — the
+  // PDF/CSV export previously printed the raw English DB enum ("GRADED",
+  // "SUBMITTED"...) verbatim instead of translating it.
+  private getSubmissionStatusLabelVi(status: string | null | undefined): string {
+    const labels: Record<string, string> = {
+      IN_PROGRESS: 'Đang làm bài',
+      SUBMITTED: 'Đã nộp bài',
+      GRADED: 'Đã chấm',
+      FLAGGED: 'Cần xem xét',
+      FINALIZED: 'Đã hoàn tất',
+    };
+    return labels[String(status || '').toUpperCase()] || String(status || '-');
+  }
+
+  private getIntegrityStatusLabelVi(status: string | null | undefined): string {
+    const labels: Record<string, string> = {
+      PENDING: 'Chờ xem xét',
+      REVIEWED: 'Đã xem xét',
+      DISMISSED: 'Đã bỏ qua',
+      CONFIRMED: 'Đã xác nhận',
+    };
+    return labels[String(status || '').toUpperCase()] || String(status || '-');
+  }
+
   /**
    * Private, lecturer-authorized print payload. Unlike getExamAnswerMatrix(),
    * this intentionally exposes the student's stored answer for an audit PDF.
@@ -5265,7 +5290,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           row.studentName,
           row.email,
           row.attemptNo,
-          row.status,
+          this.getSubmissionStatusLabelVi(row.status),
           row.startedAt ?? '',
           row.submittedAt ?? '',
           row.gradedAt ?? '',
@@ -5275,7 +5300,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           row.finalScore ?? '',
           row.percentage ?? '',
           row.passed === null ? '' : row.passed ? 'Đạt' : 'Không đạt',
-          row.integrityStatus ?? '',
+          row.integrityStatus ? this.getIntegrityStatusLabelVi(row.integrityStatus) : '',
           row.integrityPenaltyPercent ?? '',
           row.resultsPublished ? 'Có' : 'Chưa',
         ]
@@ -5390,6 +5415,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             return row.passed === null ? '-' : row.passed ? 'Đạt' : 'Không đạt';
           case 'submittedAt':
             return row.submittedAt ? new Date(row.submittedAt).toLocaleString('vi-VN') : '-';
+          case 'status':
+            return this.getSubmissionStatusLabelVi(row.status);
           default:
             return String((row as any)[key] ?? '-');
         }

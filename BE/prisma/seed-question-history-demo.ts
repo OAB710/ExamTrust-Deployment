@@ -164,6 +164,40 @@ async function main() {
       });
     }
 
+    // Exam snapshot — mirrors what ExamsService.publishExam() creates for a
+    // real published exam. The lecturer results page's answer-matrix feature
+    // reads submission.examSnapshot.questions to build its columns; without
+    // this, seeded submissions have examSnapshotId = NULL and the matrix
+    // opens with a student list but zero question columns.
+    let examSnapshot = await prisma.examSnapshot.findFirst({ where: { examId: exam.id } });
+    if (!examSnapshot) {
+      examSnapshot = await prisma.examSnapshot.create({
+        data: { examId: exam.id, title: exam.title, payload: { timeLimitMinutes: 90, maxAttempts: 1 }, createdBy: lecturer.id, publishedAt: exam.date },
+      });
+      for (const c of ctx) {
+        const versionRecord = await prisma.questionVersion.findUnique({ where: { id: c.version.id }, select: { stem: true } });
+        const stem = versionRecord?.stem || '';
+        const questionSnapshot = await prisma.questionSnapshot.create({
+          data: {
+            originalQuestionId: c.questionId,
+            questionVersionId: c.version.id,
+            payload: { questionId: c.questionId, questionVersionId: c.version.id, type: questionRows.find((q) => q.id === c.questionId)!.type, stem, content: stem, options: { A: 'a', B: 'b', C: 'c', D: 'd' }, answerKey: { answer: 'A' }, assignedScore: 1 },
+          },
+        });
+        await prisma.examQuestionSnapshot.create({
+          data: {
+            examSnapshotId: examSnapshot.id,
+            questionId: c.questionId,
+            questionVersionId: c.version.id,
+            questionSnapshotId: questionSnapshot.id,
+            orderIndex: orderIndexByQuestion.get(c.questionId)!,
+            points: 1,
+            assignedScore: 1,
+          },
+        });
+      }
+    }
+
     for (let s = 0; s < usedStudents.length; s += 1) {
       const studentId = usedStudents[s];
       await prisma.enrollment.upsert({ where: { courseId_studentId: { courseId: course.id, studentId } }, update: {}, create: { courseId: course.id, studentId, status: 'active' } });
@@ -173,8 +207,8 @@ async function main() {
 
       const submission = await prisma.examSubmission.upsert({
         where: { examId_studentId_attemptNo: { examId: exam.id, studentId, attemptNo: 1 } },
-        update: { status: 'GRADED', startedAt, submittedAt, gradedAt: submittedAt },
-        create: { examId: exam.id, studentId, attemptNo: 1, status: 'GRADED', startedAt, submittedAt, gradedAt: submittedAt },
+        update: { status: 'GRADED', startedAt, submittedAt, gradedAt: submittedAt, examSnapshotId: examSnapshot.id },
+        create: { examId: exam.id, studentId, attemptNo: 1, status: 'GRADED', startedAt, submittedAt, gradedAt: submittedAt, examSnapshotId: examSnapshot.id },
       });
 
       let correctCount = 0;

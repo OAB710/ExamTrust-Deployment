@@ -505,6 +505,43 @@ async function main() {
     });
   }
 
+  // Exam snapshot — mirrors what ExamsService.publishExam() creates for a
+  // real published exam. The lecturer results page's answer-matrix feature
+  // reads submission.examSnapshot.questions to build its columns; without
+  // this, seeded submissions have examSnapshotId = NULL and the matrix opens
+  // with a student list but zero question columns. The matrix only needs
+  // stem/content for its column labels (correctness comes from
+  // SubmissionAnswer.isCorrect, set below per student) — no need to
+  // replicate each of the 9 question types' options/answerKey shape here.
+  let examSnapshot = await prisma.examSnapshot.findFirst({ where: { examId: examRow.id } });
+  if (!examSnapshot) {
+    examSnapshot = await prisma.examSnapshot.create({
+      data: { examId: examRow.id, title: examRow.title, payload: { timeLimitMinutes: ALLOWED_MINUTES, maxAttempts: 1 }, createdBy: lecturer.id, publishedAt: endTime },
+    });
+    for (const [index, eq] of createdQuestions.entries()) {
+      const versionRecord = await prisma.questionVersion.findUnique({ where: { id: eq.versionId }, select: { stem: true } });
+      const stem = versionRecord?.stem || '';
+      const questionSnapshot = await prisma.questionSnapshot.create({
+        data: {
+          originalQuestionId: eq.questionId,
+          questionVersionId: eq.versionId,
+          payload: { questionId: eq.questionId, questionVersionId: eq.versionId, type: eq.type, stem, content: stem, assignedScore: 1 },
+        },
+      });
+      await prisma.examQuestionSnapshot.create({
+        data: {
+          examSnapshotId: examSnapshot.id,
+          questionId: eq.questionId,
+          questionVersionId: eq.versionId,
+          questionSnapshotId: questionSnapshot.id,
+          orderIndex: index,
+          points: 1,
+          assignedScore: 1,
+        },
+      });
+    }
+  }
+
   // 6) 36 sinh viên: enroll + bài làm + câu trả lời.
   const students = await prisma.user.findMany({
     where: { role: 'STUDENT' },
@@ -571,6 +608,7 @@ async function main() {
         submittedAt,
         gradedAt: submittedAt,
         lastActivityAt: submittedAt,
+        examSnapshotId: examSnapshot.id,
       },
       create: {
         examId: examRow.id,
@@ -582,6 +620,7 @@ async function main() {
         submittedAt,
         gradedAt: submittedAt,
         lastActivityAt: submittedAt,
+        examSnapshotId: examSnapshot.id,
       },
     });
 
