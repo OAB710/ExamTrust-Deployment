@@ -13,6 +13,32 @@ Quy ước:
 
 ---
 
+## [1.2.0] - 2026-08-18
+
+### Thay đổi
+- **Đổi hiển thị điểm từ % sang thang 10** ở `ExamResultsList`, `ExamMonitor`, `ExamAnalytics`, `CourseDetail` (dùng chung lecturer/admin).
+- **Sửa bug hiển thị đáp án raw JSON** cho câu Matching/Ordering/Find-error ở trang xem kết quả sinh viên (`GradingBreakdown`) và trang chấm thủ công.
+- **Thống nhất nhãn sự kiện giám sát** (mouse_idle, tab_switch...) qua 1 file dùng chung `FE/src/lib/integrity-event-labels.ts`, bỏ các bảng nhãn hardcode rải rác ở `ExamMonitor`/`IntegrityCaseDetail`/`ExamResultsList`/`ExamManagement`.
+- **Sửa sắp xếp "Cảnh báo toàn vẹn"** dùng timestamp thật của vi phạm thay vì giờ poll (khiến alert nhảy lên đầu dù không có gì mới).
+- **Sửa race condition**: đảm bảo log vi phạm gây auto-submit được lưu xong trước khi ảnh "kết thúc" được chụp (`use-exam-security.ts`).
+- **Đổi tên route/cột**: `manual-grading` → `review`, cột "Chấm thủ công" → "Thao tác", nút "Chi tiết bài làm" (cả lecturer và admin), không còn giới hạn chỉ xem được khi bài thi 1 lượt.
+- **Ma trận đáp án**: bỏ giới hạn chỉ áp dụng bài thi 1 lượt, thêm dropdown lọc theo lượt làm (attemptNo).
+- **Sửa 3 seed script** (`seed-monitor-ui-demo.ts`, `seed-question-history-demo.ts`, `seed-analytics-ui-demo.ts`) tạo `ExamSubmission` không qua luồng publish thật nên thiếu `ExamSnapshot`/`QuestionSnapshot`, khiến ma trận đáp án hiển thị rỗng (chỉ có cột "Sinh viên"). Đã xác nhận đúng bài thi user báo lỗi (`0e8811cf-...`, "Kiểm tra cuối kỳ – 2026") giờ có snapshot đầy đủ.
+- **PDF/CSV xuất kết quả**: dịch cột "Trạng thái" sang tiếng Việt (Đã chấm, Đã nộp bài, Đã xác nhận...) thay vì in nguyên enum tiếng Anh (GRADED, SUBMITTED, CONFIRMED...).
+- **Đổi AI provider tức thời, không cần restart BE**: `AiService` khởi tạo sẵn cả 3 client (OpenRouter/DeepSeek/Google) lúc boot; endpoint mới `POST /ai-status/switch-provider` (xác thực bằng secret header) đổi provider ngay lập tức và lưu vào Redis để bền vững qua các lần restart. Thêm provider **Google** (model `gemini-3.5-flash-lite`).
+- **Bot Zalo**: rút gọn tên lệnh AI (`AI Deepseek`/`AI Openrouter` → `AI DS`/`AI OR`), thêm `AI GG` (Google), đổi cơ chế gọi thẳng endpoint mới thay vì trigger GitHub Actions + đợi BE restart.
+- **Fix build:cf lỗi ENOENT** (`FE/next.config.ts` thiếu `output: "standalone"` — yêu cầu bắt buộc của `@opennextjs/cloudflare`, thiếu từ lúc setup Cloudflare tới giờ, khiến FE có thể đã fail âm thầm build trên CI một thời gian).
+- Cập nhật skill `release-versioning`: quy tắc commit không kèm ghi công AI, mặc định push, bắt buộc verify thật trên production trước khi release.
+
+### Cập nhật dữ liệu
+- **Không cần chạy `db-rebuild.sh`/`db-migrate.sh`.** Không đổi schema (Redis key `ai:active-provider` là runtime state, không phải schema). Đã tự chạy cả 3 seed script sửa lỗi trực tiếp trên MySQL production để xác nhận trước khi commit — không lặp lại sai lầm chỉ test trên MariaDB local.
+
+### Cần deploy
+- **Build FE**: ĐÃ deploy thật (`npm run deploy:cf`), xác nhận qua `wrangler deployments list` — Version ID `0a3a9267-3ed0-4e0d-ab9a-9b97b65ee44a`.
+- **Build BE**: ĐÃ deploy thật (rebuild image + `docker compose up -d --force-recreate app ai-worker` trên EC2), xác nhận qua `curl /api/ai-status` và log container.
+- **`.env.production` trên EC2**: đã thêm `GOOGLE_AI_API_KEY`, `AI_GOOGLE_MODEL`, `AI_SWITCH_SECRET` (đã áp dụng, không cần làm lại).
+- ⚠️ **Lambda `zalo-webhook-lambda/index.mjs` CHƯA được deploy** — không có AWS CLI/credentials trong môi trường agent nên không tự upload được. Cần bạn tự nén (`Compress-Archive -Path index.mjs -DestinationPath function.zip -Force`) rồi upload thủ công qua AWS Console (Lambda → function → Code → Upload from .zip), và thêm biến môi trường `AI_SWITCH_SECRET` (giá trị đã set ở BE) vào cấu hình Lambda. Bot Zalo hiện vẫn chạy code cũ, chưa có lệnh `AI GG` hay cơ chế đổi provider mới.
+
 ## [1.1.4] - 2026-08-17
 
 ### Thay đổi

@@ -25,7 +25,7 @@ const {
   ZALO_CLEAR_ALL_STORAGE_COMMAND = "CAM",
   // Bump this alongside every CHANGELOG.md release entry (xem skill
   // release-versioning) — hiển thị trong lệnh Info cho mọi user.
-  ZALO_APP_VERSION = "v1.1.3",
+  ZALO_APP_VERSION = "v1.2.0",
   ZALO_FE_URL = "https://examtrust-deployment-final-thesis.examtrust.workers.dev",
   ZALO_BE_API_URL = "https://32-236-182-208.sslip.io/api",
   ZALO_AWS_CONSOLE_URL = "https://ap-southeast-2.console.aws.amazon.com/",

@@ -4,12 +4,8 @@ import { AlertTriangle, Timer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { LiveClock } from "./LiveClock";
-import type { FirstViolationNotice, ViolationLog, ViolationType } from "../../hooks/use-exam-security";
-
-const violationLabels: Record<ViolationType, string> = {
-  fullscreen_exit: "Đã thoát toàn màn hình",
-  tab_switch: "Đã chuyển tab",
-};
+import { getIntegrityEventLabel } from "@/lib/integrity-event-labels";
+import type { FirstViolationNotice, ViolationLog } from "../../hooks/use-exam-security";
 
 interface ExamSecurityModalProps {
   open: boolean;
@@ -64,7 +60,7 @@ export function ExamSecurityModal({
   // answering questions. It's independent of `open`/the countdown flow below
   // (which only ever runs for a real, counted violation).
   if (!open && firstViolationNotice) {
-    const noticeReason = violationLabels[firstViolationNotice.type];
+    const noticeReason = getIntegrityEventLabel(firstViolationNotice.type);
     return (
       <div
         className="fixed inset-0 z-[120] bg-black flex items-center justify-center"
@@ -90,7 +86,7 @@ export function ExamSecurityModal({
 
   if (!open) return null;
 
-  const reason = lastViolation ? violationLabels[lastViolation.type] : null;
+  const reason = lastViolation ? getIntegrityEventLabel(lastViolation.type) : null;
 
   return (
     <div
