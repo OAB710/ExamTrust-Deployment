@@ -178,8 +178,8 @@ export default function AuditLogViewer() {
                     Trang {pagination.page}/{Math.max(1, pagination.totalPages)} · {pagination.total} sự kiện
                   </p>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => { loadLogs(pagination.page - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Trước</Button>
-                    <Button variant="outline" size="sm" disabled={pagination.page >= pagination.totalPages} onClick={() => { loadLogs(pagination.page + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Sau</Button>
+                    <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => loadLogs(pagination.page - 1)}>Trước</Button>
+                    <Button variant="outline" size="sm" disabled={pagination.page >= pagination.totalPages} onClick={() => loadLogs(pagination.page + 1)}>Sau</Button>
                   </div>
                 </div>
               </>

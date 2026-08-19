@@ -81,13 +81,6 @@ export function DataPagination({
       const clamped = Math.max(1, Math.min(effectiveTotalPages, newPage));
       onPageChange(clamped);
 
-      // Changing page (often triggered from the bottom of a long list) must
-      // not leave the user scrolled to the bottom looking at a page they
-      // didn't ask for — jump back to the top of the content.
-      if (typeof window !== "undefined") {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
-
       if (syncUrl) {
         const next = new URLSearchParams(searchParams.toString());
         if (clamped <= 1) {
@@ -96,7 +89,12 @@ export function DataPagination({
           next.set(urlParamKey, String(clamped));
         }
         const query = next.toString();
-        router.replace((query ? `${pathname}?${query}` : pathname) as any);
+        // `scroll: false` is the actual fix: Next.js router navigation
+        // scrolls to top by default, which is what was yanking the page
+        // back up every time someone clicked Trước/Sau from the bottom of
+        // a long list. Without syncUrl, onPageChange() alone never
+        // triggers a router navigation, so there's nothing to suppress.
+        router.replace((query ? `${pathname}?${query}` : pathname) as any, { scroll: false });
       }
     },
     [effectiveTotalPages, onPageChange, pathname, router, searchParams, syncUrl, urlParamKey],
