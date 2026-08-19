@@ -27,7 +27,7 @@ export const NO_OPTIONS_TYPES = new Set(["ESSAY", "SHORT_ANSWER"]);
 
 export const typeLabels: Record<string, string> = {
   MULTIPLE_CHOICE: "Trắc nghiệm", MULTI_SELECT: "Nhiều đáp án", TRUE_FALSE: "Đúng / Sai",
-  SHORT_ANSWER: "Trả lời ngắn", ESSAY: "Tự luận", FILL_IN_BLANK: "Điền khuyết",
+  SHORT_ANSWER: "Trả lời ngắn", ESSAY: "Tự luận", FILL_IN_BLANK: "Điền vào chỗ trống",
   MATCHING: "Ghép đôi", ORDERING: "Sắp xếp", FIND_ERROR: "Tìm lỗi sai",
 };
 

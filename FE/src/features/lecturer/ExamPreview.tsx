@@ -69,11 +69,11 @@ function normalizeType(rawType?: string) {
     MULTIPLE_CHOICE: "Trắc nghiệm",
     MULTI_SELECT: "Chọn nhiều",
     TRUE_FALSE: "Đúng / Sai",
-    MATCHING: "Ghép nối",
+    MATCHING: "Ghép đôi",
     SHORT_ANSWER: "Trả lời ngắn",
     ESSAY: "Tự luận",
-    FILL_IN_BLANK: "Điền khuyết",
-    ORDERING: "Sắp xếp thứ tự",
+    FILL_IN_BLANK: "Điền vào chỗ trống",
+    ORDERING: "Sắp xếp",
     FIND_ERROR: "Tìm lỗi sai",
   };
   if (!rawType) return "Không rõ";

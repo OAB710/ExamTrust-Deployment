@@ -128,7 +128,7 @@ export const QUESTION_TYPE_LABELS: Record<string, string> = {
   TRUE_FALSE: "Đúng / Sai",
   SHORT_ANSWER: "Trả lời ngắn",
   ESSAY: "Tự luận",
-  FILL_IN_BLANK: "Điền khuyết",
+  FILL_IN_BLANK: "Điền vào chỗ trống",
   MATCHING: "Ghép đôi",
   ORDERING: "Sắp xếp",
   FIND_ERROR: "Tìm lỗi sai",

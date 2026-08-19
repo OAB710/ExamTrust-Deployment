@@ -1290,10 +1290,16 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         const examQuestion = validQuestions.get(answerDto.questionId)!;
         const answerMeta = answerMetaByQuestionId.get(answerDto.questionId);
         let pointsAwarded = 0;
-        let isCorrect = false;
 
         const correctAnswer = examQuestion.answerKey ?? null;
-        if (this.isAutoGradable(examQuestion.type, correctAnswer)) {
+        const autoGradable = this.isAutoGradable(examQuestion.type, correctAnswer);
+        // Manual questions have no result yet at submission time — leave
+        // isCorrect null (same convention as reopenSubmission) instead of a
+        // misleading `false`, so the answer matrix/manual-grading views can
+        // tell "not graded yet" apart from "graded, awarded zero points".
+        let isCorrect: boolean | null = autoGradable ? false : null;
+
+        if (autoGradable) {
           if (correctAnswer && this.compareAnswers(answerDto.answer, correctAnswer, examQuestion.type)) {
             pointsAwarded = examQuestion.assignedScore;
             isCorrect = true;
@@ -1313,7 +1319,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           isCorrect,
           // A zero point is a legitimate manual score. Leave it null until an
           // instructor explicitly grades the response.
-          pointsAwarded: this.isAutoGradable(examQuestion.type, correctAnswer) ? pointsAwarded : null,
+          pointsAwarded: autoGradable ? pointsAwarded : null,
         };
       });
 
@@ -1367,11 +1373,17 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
         if (!answerRow) {
           bucket.skipped += 1;
-        } else if (answerRow.isCorrect) {
-          bucket.correct += 1;
-        } else {
-          bucket.incorrect += 1;
+        } else if (this.isAutoGradable(examQuestion.type, examQuestion.answerKey)) {
+          if (answerRow.isCorrect) {
+            bucket.correct += 1;
+          } else {
+            bucket.incorrect += 1;
+          }
         }
+        // Manual questions (ESSAY/FILL_IN_BLANK/...) have no result yet at
+        // submission time — do not count them as "incorrect" here. Their
+        // correct/incorrect tally is recorded once in gradeAnswer(), when an
+        // instructor actually grades the response.
 
         answeredByVersionId.set(versionId, bucket);
       }
@@ -2587,6 +2599,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         select: {
           id: true,
           submissionId: true,
+          questionId: true,
+          questionVersionId: true,
           pointsAwarded: true,
           manualGradedAt: true,
           feedback: true,
@@ -2651,6 +2665,40 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             reason: gradeDto.reason || 'Manual regrade',
           } as any,
         });
+      }
+
+      // Manual questions are excluded from correct/incorrect at submission
+      // time (see submitExam) precisely so they can be counted here, once an
+      // actual grading decision exists — either the first time this answer
+      // is graded, or when a regrade moves it across the "0 points" line.
+      if (existing.questionVersionId) {
+        const wasGraded = existing.manualGradedAt !== null;
+        const wasCorrect = wasGraded && Number(existing.pointsAwarded || 0) > 0;
+        const isNowCorrect = Number(gradeDto.pointsAwarded || 0) > 0;
+        if (!wasGraded || wasCorrect !== isNowCorrect) {
+          const correctDelta = !wasGraded ? (isNowCorrect ? 1 : 0) : (isNowCorrect ? 1 : -1);
+          const incorrectDelta = !wasGraded ? (isNowCorrect ? 0 : 1) : (isNowCorrect ? -1 : 1);
+          await tx.questionStatistics.upsert({
+            where: { questionVersionId: existing.questionVersionId },
+            create: {
+              questionVersionId: existing.questionVersionId,
+              questionId: existing.questionId,
+              totalAttempts: !wasGraded ? 1 : 0,
+              correctAttempts: Math.max(0, correctDelta),
+              incorrectAttempts: Math.max(0, incorrectDelta),
+              skippedAttempts: 0,
+              pValue: isNowCorrect ? 1 : 0,
+              difficultyIndex: isNowCorrect ? 0 : 1,
+              lastRecomputedAt: new Date(),
+            },
+            update: {
+              totalAttempts: !wasGraded ? { increment: 1 } : undefined,
+              correctAttempts: { increment: correctDelta },
+              incorrectAttempts: { increment: incorrectDelta },
+              lastRecomputedAt: new Date(),
+            },
+          });
+        }
       }
 
       await this.recalculateSubmissionScore(existing.submissionId, tx);

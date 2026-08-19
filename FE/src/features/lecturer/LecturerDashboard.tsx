@@ -78,12 +78,12 @@ interface QuestionBankSummary {
 
 const questionTypeLabels: Record<string, string> = {
   MULTIPLE_CHOICE: "Trắc nghiệm",
-  TRUE_FALSE: "Đúng/sai",
+  TRUE_FALSE: "Đúng / Sai",
   SHORT_ANSWER: "Tự luận ngắn",
   ESSAY: "Tự luận",
-  FILL_BLANK: "Điền khuyết",
+  FILL_IN_BLANK: "Điền vào chỗ trống",
   MATCHING: "Ghép đôi",
-  ORDERING: "Sắp xếp thứ tự",
+  ORDERING: "Sắp xếp",
   FIND_ERROR: "Tìm lỗi sai",
 };
 

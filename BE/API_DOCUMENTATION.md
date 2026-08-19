@@ -205,8 +205,7 @@ npx prisma migrate dev --name <migration_name>
 
 ### Reset and seed database
 ```bash
-npx prisma db push --force-reset
-npx tsx prisma/seed.ts
+npm run db:rebuild
 ```
 
 ### Prisma Studio (Database GUI)

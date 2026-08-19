@@ -58,6 +58,7 @@ exports/
 # Local working notes
 CLOUDFLARE_DEPLOY_NOTES.txt
 ZALO_BOT_FALLBACK_COMMANDS.md
+.presentation/
 
 # CodeGraph — local daemon PID changes every restart, shouldn't be tracked
 .codegraph/daemon.pid

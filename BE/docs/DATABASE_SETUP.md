@@ -72,7 +72,13 @@ Lệnh này (đã thêm vào `package.json`) làm 2 việc:
 1. `prisma db push --force-reset` — đọc `schema.prisma`, xóa sạch bảng hiện có trong DB `examtrust` và
    tạo lại **toàn bộ bảng, enum, index, foreign key** đúng như schema hiện tại. Không phụ thuộc migration
    history, nên schema có sửa/thêm bảng thế nào cũng luôn ra kết quả đúng.
-2. `npm run seed` (`prisma/seed.ts`) — chèn dữ liệu mẫu: tài khoản, khóa học, câu hỏi, v.v.
+2. `npm run seed:all` (`prisma/seed-master.ts`) — chạy tuần tự 9 script con
+   (`seed-users` → `seed-courses` → `seed-question-bank` → `seed-question-bank-duplicates`
+   → `seed-topics` → `seed-exams` → `seed-submissions` → `seed-integrity` →
+   `seed-grading-adjustments`), tạo 1 admin/10 giảng viên/20 sinh viên, ~18-20
+   khóa học CNTT, ngân hàng câu hỏi đủ 7 loại, đề thi đủ trạng thái, bài làm đã
+   chấm đúng logic thật, và dữ liệu giám thị/toàn vẹn. Xem chi tiết ở
+   `BE/docs/SEED_REBUILD_PLAN.md`.
 
 Sau khi chạy xong, database có đầy đủ bảng và dữ liệu demo, sẵn sàng chạy `npm run start:dev`.
 
@@ -82,14 +88,14 @@ Sau khi chạy xong, database có đầy đủ bảng và dữ liệu demo, sẵ
 npx prisma db push --force-reset --accept-data-loss --schema prisma/schema.prisma
 ```
 
-### Seed thêm dữ liệu tùy biến (tùy chọn)
-
-Các script seed bổ sung trong `prisma/`, chạy sau khi đã có bảng:
+### Chạy lại riêng seed (không xóa bảng)
 
 ```powershell
-npm run seed:question-banks
-npm run seed:question-history-demo
+npm run seed:all
 ```
+
+Toàn bộ 9 script con đều dùng `upsert`/kiểm tra tồn tại trước khi tạo — chạy
+lại nhiều lần trên cùng 1 DB an toàn, không tạo trùng dữ liệu.
 
 ---
 
