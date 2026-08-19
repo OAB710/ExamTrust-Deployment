@@ -61,6 +61,7 @@ import {
   Archive,
   RotateCcw,
   MoreHorizontal,
+  RefreshCw,
   Settings,
   Shield,
   Repeat,
@@ -641,13 +642,29 @@ export default function ExamManagement() {
         <ListPageHeader
           title="Quản lý bài thi"
           actions={
-            <Button
-              onClick={() => router.push("/lecturer/exams/create")}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Tạo bài thi
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchExams}
+                disabled={loading}
+                className="gap-2"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Làm mới
+              </Button>
+              <Button
+                onClick={() => router.push("/lecturer/exams/create")}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Tạo bài thi
+              </Button>
+            </>
           }
         />
 

@@ -40,6 +40,7 @@ import {
   Shield,
   Repeat,
   Camera,
+  RefreshCw,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -521,7 +522,16 @@ export default function AdminExamManagement() {
   return (
     <DashboardLayout>
       <AdminPageShell>
-        <ListPageHeader title="Tất cả bài thi" className="mb-4" />
+        <ListPageHeader
+          title="Tất cả bài thi"
+          className="mb-4"
+          actions={
+            <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="gap-2">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Làm mới
+            </Button>
+          }
+        />
 
         {/* Stats */}
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

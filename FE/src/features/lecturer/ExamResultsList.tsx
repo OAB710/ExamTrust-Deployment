@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { Activity, AlertTriangle, Camera, ClipboardCheck, History, Loader2, Search, Send, ShieldCheck, TableProperties } from "lucide-react";
+import { Activity, AlertTriangle, Camera, ClipboardCheck, History, Loader2, RefreshCw, Search, Send, ShieldCheck, TableProperties } from "lucide-react";
 import { toast } from "sonner";
 import {
   ResponsiveContainer,
@@ -241,6 +241,7 @@ export default function ExamResultsList() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [page, setPage] = useState(1);
+  const fetchDataRef = useRef<((silent?: boolean) => Promise<void>) | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
   const [reviewSubmission, setReviewSubmission] = useState<{ id: string; name: string } | null>(null);
@@ -321,6 +322,7 @@ export default function ExamResultsList() {
       }
     };
 
+    fetchDataRef.current = fetchData;
     fetchData();
     const intervalId = window.setInterval(() => fetchData(true), 10000);
 
@@ -329,6 +331,10 @@ export default function ExamResultsList() {
       window.clearInterval(intervalId);
     };
   }, [examId, page]);
+
+  const handleManualRefresh = () => {
+    void fetchDataRef.current?.(true);
+  };
 
   const filtered = submissions
     .filter((s) => {
@@ -548,6 +554,20 @@ export default function ExamResultsList() {
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="gap-2"
+            >
+              {isRefreshing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Làm mới
+            </Button>
             <Button onClick={() => handleExport("csv")} className="shadow-sm">
               Xuất CSV
             </Button>

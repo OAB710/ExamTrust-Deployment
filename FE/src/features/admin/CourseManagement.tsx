@@ -83,6 +83,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
   Trash2,
   Archive,
@@ -963,6 +964,11 @@ export default function AdminCourseManagement() {
         <ListPageHeader
           title="Tất cả khóa học"
           actions={
+            <>
+            <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="gap-2">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Làm mới
+            </Button>
             <Dialog
               open={showCreateDialog}
               onOpenChange={(open) => {
@@ -1582,6 +1588,7 @@ export default function AdminCourseManagement() {
                 )}
               </DialogContent>
             </Dialog>
+            </>
           }
         />
 

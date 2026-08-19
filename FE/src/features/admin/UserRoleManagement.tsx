@@ -57,6 +57,7 @@ import {
   Lock,
   MoreHorizontal,
   Pencil,
+  RefreshCw,
   Trash2,
   Unlock,
   UserPlus,
@@ -518,6 +519,11 @@ export default function UserRoleManagement() {
         <ListPageHeader
           title="Tất cả người dùng"
           actions={
+            <>
+            <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading} className="gap-2">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Làm mới
+            </Button>
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
               <DialogTrigger asChild>
                 <Button className="gap-2">
@@ -656,6 +662,7 @@ export default function UserRoleManagement() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            </>
           }
           className="mb-4"
         />

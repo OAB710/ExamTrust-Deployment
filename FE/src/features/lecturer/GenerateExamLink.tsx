@@ -39,6 +39,7 @@ import {
   Clock,
   Shield,
   Users,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import api, { unwrapPaginatedData } from "@/lib/api";
@@ -136,42 +137,47 @@ export default function GenerateExamLink() {
     init();
   }, []);
 
+  const [linksLoading, setLinksLoading] = useState(false);
+
+  const loadLinks = async () => {
+    if (!selectedExamId) {
+      setLinks([]);
+      return;
+    }
+
+    setLinksLoading(true);
+    try {
+      const res = await api.getExamLinks(selectedExamId);
+      setLinks(res || []);
+    } catch (error) {
+      console.error("Failed to load exam links:", error);
+    } finally {
+      setLinksLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadLinks = async () => {
-      if (!selectedExamId) {
-        setLinks([]);
-        return;
-      }
-
-      try {
-        const res = await api.getExamLinks(selectedExamId);
-        setLinks(res || []);
-      } catch (error) {
-        console.error("Failed to load exam links:", error);
-      }
-    };
-
     loadLinks();
   }, [selectedExamId]);
 
+  const loadUsage = async () => {
+    if (!selectedLinkId) {
+      setUsage([]);
+      return;
+    }
+
+    setLoadingUsage(true);
+    try {
+      const res = await api.getExamLinkUsage(selectedLinkId);
+      setUsage(res || []);
+    } catch (error) {
+      console.error("Failed to load usage logs:", error);
+    } finally {
+      setLoadingUsage(false);
+    }
+  };
+
   useEffect(() => {
-    const loadUsage = async () => {
-      if (!selectedLinkId) {
-        setUsage([]);
-        return;
-      }
-
-      setLoadingUsage(true);
-      try {
-        const res = await api.getExamLinkUsage(selectedLinkId);
-        setUsage(res || []);
-      } catch (error) {
-        console.error("Failed to load usage logs:", error);
-      } finally {
-        setLoadingUsage(false);
-      }
-    };
-
     loadUsage();
   }, [selectedLinkId]);
 
@@ -429,9 +435,25 @@ export default function GenerateExamLink() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Liên kết bài thi</CardTitle>
-            <CardDescription>Thu hồi liên kết và kiểm tra lượt sử dụng</CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+            <div>
+              <CardTitle className="text-lg">Liên kết bài thi</CardTitle>
+              <CardDescription>Thu hồi liên kết và kiểm tra lượt sử dụng</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadLinks}
+              disabled={linksLoading}
+              className="gap-2"
+            >
+              {linksLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Làm mới
+            </Button>
           </CardHeader>
           <CardContent>
             <Table>
@@ -546,13 +568,29 @@ export default function GenerateExamLink() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Nhật ký sử dụng</CardTitle>
-            <CardDescription>
-              {selectedLinkId
-                ? `Nhật ký truy cập gần nhất cho liên kết ${selectedLinkId}`
-                : "Chọn một liên kết để xem lịch sử sử dụng"}
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+            <div>
+              <CardTitle className="text-lg">Nhật ký sử dụng</CardTitle>
+              <CardDescription>
+                {selectedLinkId
+                  ? `Nhật ký truy cập gần nhất cho liên kết ${selectedLinkId}`
+                  : "Chọn một liên kết để xem lịch sử sử dụng"}
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadUsage}
+              disabled={loadingUsage || !selectedLinkId}
+              className="gap-2"
+            >
+              {loadingUsage ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Làm mới
+            </Button>
           </CardHeader>
           <CardContent>
             {loadingUsage ? (

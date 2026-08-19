@@ -81,6 +81,13 @@ export function DataPagination({
       const clamped = Math.max(1, Math.min(effectiveTotalPages, newPage));
       onPageChange(clamped);
 
+      // Changing page (often triggered from the bottom of a long list) must
+      // not leave the user scrolled to the bottom looking at a page they
+      // didn't ask for — jump back to the top of the content.
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
       if (syncUrl) {
         const next = new URLSearchParams(searchParams.toString());
         if (clamped <= 1) {

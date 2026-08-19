@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { BookOpen, Calendar, Clock, FileText } from "lucide-react";
+import { BookOpen, Calendar, Clock, FileText, Loader2, RefreshCw } from "lucide-react";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { DataPagination } from "@/components/common/DataPagination";
@@ -105,36 +105,36 @@ export default function StudentCourseDetail() {
   });
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!id) {
-        setError("Thiếu mã khóa học.");
-        setLoading(false);
-        return;
-      }
+  const loadCourseDetail = useCallback(async () => {
+    if (!id) {
+      setError("Thiếu mã khóa học.");
+      setLoading(false);
+      return;
+    }
 
-      setLoading(true);
-      setError(null);
-      try {
-        const [courseRes, examsRes, submissionsRes] = await Promise.all([
-          api.getCourse(id),
-          api.getExams({ courseId: id, limit: 50 }),
-          api.getMySubmissions().catch(() => []),
-        ]);
+    setLoading(true);
+    setError(null);
+    try {
+      const [courseRes, examsRes, submissionsRes] = await Promise.all([
+        api.getCourse(id),
+        api.getExams({ courseId: id, limit: 50 }),
+        api.getMySubmissions().catch(() => []),
+      ]);
 
-        setCourse(courseRes || null);
-        setExams(unwrapPaginatedData<Exam>(examsRes));
-        setSubmissions(Array.isArray(submissionsRes) ? submissionsRes : []);
-      } catch (err: any) {
-        const message = err?.message || "Không thể tải chi tiết khóa học.";
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+      setCourse(courseRes || null);
+      setExams(unwrapPaginatedData<Exam>(examsRes));
+      setSubmissions(Array.isArray(submissionsRes) ? submissionsRes : []);
+    } catch (err: any) {
+      const message = err?.message || "Không thể tải chi tiết khóa học.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    loadCourseDetail();
+  }, [loadCourseDetail]);
 
   const sortedExams = useMemo(
     () =>
@@ -258,11 +258,17 @@ export default function StudentCourseDetail() {
           <BackToDashboardButton to="/student" className="-ml-2" />
 
           <div className="rounded-2xl border border-border/50 bg-card p-6">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-bold text-foreground">
-                {course?.name || "Chi tiết khóa học"}
-              </h1>
-              {course?.code && <Badge variant="secondary">{course.code}</Badge>}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl font-bold text-foreground">
+                  {course?.name || "Chi tiết khóa học"}
+                </h1>
+                {course?.code && <Badge variant="secondary">{course.code}</Badge>}
+              </div>
+              <Button variant="outline" size="sm" onClick={loadCourseDetail} disabled={loading} className="gap-2">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Làm mới
+              </Button>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
               {course?.description ||

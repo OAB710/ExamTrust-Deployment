@@ -75,6 +75,7 @@ import {
   Clock,
   ChevronDown,
   MoreHorizontal,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import api, { unwrapPaginatedData } from "@/lib/api";
@@ -436,12 +437,12 @@ export default function CourseDetail() {
     await loadCourseExamData(courseId, mapped);
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = async () => {
       if (!id) {
         setLoading(false);
         return;
       }
+      setLoading(true);
       try {
         // Try fetching by id first (DB id). If not found, fallback to searching by course code.
         let courseRes: any | null = null;
@@ -518,6 +519,8 @@ export default function CourseDetail() {
         setLoading(false);
       }
     };
+
+  useEffect(() => {
     fetchData();
   }, [id]);
 
@@ -743,6 +746,20 @@ export default function CourseDetail() {
             title={`${course?.name || "Chi tiết khóa học"}${course?.code ? ` (${course.code})` : ""}`}
             actions={
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchData}
+                  disabled={loading}
+                  className="gap-2"
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Làm mới
+                </Button>
                 <Button variant="outline" className="gap-2">
                   <Download className="h-4 w-4" /> Xuất danh sách
                 </Button>

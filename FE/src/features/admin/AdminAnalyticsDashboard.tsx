@@ -9,7 +9,7 @@ import { AdminPageShell } from "@/components/admin/AdminPageShell";
 import { AdminStatCard } from "@/components/admin/AdminStatCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Shield, Users, FileCheck2 } from "lucide-react";
+import { Activity, Shield, Users, FileCheck2, Loader2, RefreshCw } from "lucide-react";
 import api from "@/lib/api";
 
 const iso = (date: Date) => date.toISOString();
@@ -30,7 +30,7 @@ export default function AdminAnalyticsDashboard() {
   const applyCustom = () => { if (!customFrom || !customTo || customFrom > customTo) return setError('Khoảng ngày không hợp lệ.'); setPreset('custom'); setRange({ from: new Date(`${customFrom}T00:00:00+07:00`).toISOString(), to: new Date(`${customTo}T23:59:59.999+07:00`).toISOString() }); };
   const charts = data?.series || { activity: [], integrity: [], users: [] }; const scoreReady = (data?.scoreDistribution?.sampleSize || 0) >= 10;
   return <DashboardLayout><AdminPageShell showBackButton={false}>
-    <div><h1 className="text-2xl font-semibold">Quản trị hệ thống</h1><p className="mt-1 text-muted-foreground">Xu hướng vận hành, toàn vẹn và kết quả theo thời gian.</p></div>
+    <div className="flex items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold">Quản trị hệ thống</h1><p className="mt-1 text-muted-foreground">Xu hướng vận hành, toàn vẹn và kết quả theo thời gian.</p></div><Button variant="outline" size="sm" onClick={() => load()} disabled={loading} className="gap-2 shrink-0">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}Làm mới</Button></div>
     <Card><CardContent className="flex flex-wrap items-end gap-2 pt-5"><div className="flex flex-wrap gap-2">{[7,30,90].map((d) => <Button key={d} size="sm" variant={preset === String(d) ? 'default' : 'outline'} onClick={() => setDays(d)}>{d} ngày</Button>)}<Button size="sm" variant={preset === 'semester' ? 'default' : 'outline'} onClick={setSemester}>Học kỳ hiện tại</Button></div><div className="ml-auto flex flex-wrap items-end gap-2"><label className="text-xs">Từ ngày<input className="ml-1 rounded border px-2 py-1" type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} /></label><label className="text-xs">Đến ngày<input className="ml-1 rounded border px-2 py-1" type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} /></label><Button size="sm" variant="outline" onClick={applyCustom}>Áp dụng</Button></div></CardContent></Card>
     {error ? <Card><CardContent className="py-8 text-destructive">{error}</CardContent></Card> : null}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><AdminStatCard icon={Users} value={data?.kpis?.newUsers ?? '—'} label="Người dùng mới"/><AdminStatCard icon={Activity} value={data?.kpis?.activeExams ?? '—'} label="Bài thi đang diễn ra"/><AdminStatCard icon={FileCheck2} value={data?.kpis?.completedSubmissions ?? '—'} label="Lượt nộp hoàn tất"/><AdminStatCard icon={Shield} value={data?.kpis?.pendingReview ?? '—'} label="Tín hiệu chờ xem xét"/></div>

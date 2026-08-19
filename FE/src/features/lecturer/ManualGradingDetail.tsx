@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { ArrowLeft, Loader2, Save, UserCheck, Plus, Undo2, Sparkles, CheckCircle2, XCircle, ListChecks, Image as ImageIcon, Music } from "lucide-react";
+import { ArrowLeft, Loader2, Save, UserCheck, Plus, RefreshCw, Undo2, Sparkles, CheckCircle2, XCircle, ListChecks, Image as ImageIcon, Music } from "lucide-react";
 import { toast } from "sonner";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -106,44 +106,46 @@ export default function ManualGradingDetail() {
     return slots.length ? Math.max(...slots) : null;
   }, [evidenceCaptures]);
 
+  const loadSubmissionDetail = async (mountedRef?: { mounted: boolean }) => {
+    const isMounted = () => !mountedRef || mountedRef.mounted;
+    if (!submissionId) {
+      setLoading(false);
+      toast.error("Thiếu mã bài nộp.");
+      return;
+    }
+    try {
+      setLoading(true);
+      const data = await api.getManualGradingSubmission(submissionId);
+      if (!isMounted()) return;
+      setSubmission(data);
+      const captures = await api.getEvidenceCaptures(submissionId).catch(() => []);
+      if (!isMounted()) return;
+      setEvidenceCaptures(captures);
+      const urls = await Promise.all(captures.filter((capture: any) => capture.status !== "PURGED" && capture.capturedAt).map(async (capture: any) => [capture.id, await api.getEvidenceImageUrl(submissionId, capture.id).catch(() => "")] as const));
+      if (isMounted()) setEvidenceImageUrls(Object.fromEntries(urls.filter(([, url]) => url)));
+      const nextDrafts: Record<string, DraftGrade> = {};
+      (data.manualAnswers || []).forEach((answer: any) => {
+        nextDrafts[answer.id] = {
+          pointsAwarded:
+            answer.pointsAwarded === null || answer.pointsAwarded === undefined
+              ? ""
+              : String(answer.pointsAwarded),
+          feedback: answer.feedback || "",
+        };
+      });
+      setDrafts(nextDrafts);
+    } catch (err: any) {
+      toast.error(err?.message || "Không thể tải chi tiết chấm thủ công.");
+    } finally {
+      if (isMounted()) setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      if (!submissionId) {
-        setLoading(false);
-        toast.error("Thiếu mã bài nộp.");
-        return;
-      }
-      try {
-        setLoading(true);
-        const data = await api.getManualGradingSubmission(submissionId);
-        if (!mounted) return;
-        setSubmission(data);
-        const captures = await api.getEvidenceCaptures(submissionId).catch(() => []);
-        if (!mounted) return;
-        setEvidenceCaptures(captures);
-        const urls = await Promise.all(captures.filter((capture: any) => capture.status !== "PURGED" && capture.capturedAt).map(async (capture: any) => [capture.id, await api.getEvidenceImageUrl(submissionId, capture.id).catch(() => "")] as const));
-        if (mounted) setEvidenceImageUrls(Object.fromEntries(urls.filter(([, url]) => url)));
-        const nextDrafts: Record<string, DraftGrade> = {};
-        (data.manualAnswers || []).forEach((answer: any) => {
-          nextDrafts[answer.id] = {
-            pointsAwarded:
-              answer.pointsAwarded === null || answer.pointsAwarded === undefined
-                ? ""
-                : String(answer.pointsAwarded),
-            feedback: answer.feedback || "",
-          };
-        });
-        setDrafts(nextDrafts);
-      } catch (err: any) {
-        toast.error(err?.message || "Không thể tải chi tiết chấm thủ công.");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    load();
+    const mountedRef = { mounted: true };
+    loadSubmissionDetail(mountedRef);
     return () => {
-      mounted = false;
+      mountedRef.mounted = false;
     };
   }, [submissionId]);
 
@@ -288,14 +290,30 @@ export default function ManualGradingDetail() {
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-5xl space-y-5 rounded-3xl bg-gradient-to-b from-slate-50/90 via-background to-background px-4 py-5 sm:px-6 lg:px-8">
-        <Button
-          variant="ghost"
-          className="-ml-2 gap-2 text-muted-foreground"
-          onClick={() => router.push(`${basePath}/exam/${examId}/results`)}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Quay lại kết quả
-        </Button>
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            className="-ml-2 gap-2 text-muted-foreground"
+            onClick={() => router.push(`${basePath}/exam/${examId}/results`)}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Quay lại kết quả
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadSubmissionDetail()}
+            disabled={loading}
+            className="gap-2"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Làm mới
+          </Button>
+        </div>
 
         {loading ? (
           <div className="flex h-40 items-center justify-center">

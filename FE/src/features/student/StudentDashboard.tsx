@@ -22,6 +22,7 @@ import {
   AlertCircle,
   BookOpen,
   Loader2,
+  RefreshCw,
   TrendingUp,
   Target,
   Award,
@@ -46,6 +47,8 @@ export default function StudentDashboard() {
     examHistory,
     latestCompletedSubmissionByExamId,
     loading,
+    initialized,
+    reload,
   } = useStudentDashboardData();
 
   const avgScore =
@@ -56,7 +59,7 @@ export default function StudentDashboard() {
         ).toFixed(2))
       : 0;
 
-  if (loading) {
+  if (loading && !initialized) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -75,15 +78,21 @@ export default function StudentDashboard() {
     <DashboardLayout>
       <div className="space-y-8">
         {/* Welcome Section */}
-        <div className="animate-fade-in opacity-0">
-          <h1 className="text-2xl font-bold text-foreground">
-            Chào mừng trở lại, {user?.fullName.split(" ")[0]}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {upcomingExams.length > 0
-              ? `Bạn có ${upcomingExams.length} bài thi sắp diễn ra`
-              : "Bạn đã hoàn tất lịch hiện tại. Không có bài thi sắp tới."}
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3 animate-fade-in opacity-0">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">
+              Chào mừng trở lại, {user?.fullName.split(" ")[0]}
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {upcomingExams.length > 0
+                ? `Bạn có ${upcomingExams.length} bài thi sắp diễn ra`
+                : "Bạn đã hoàn tất lịch hiện tại. Không có bài thi sắp tới."}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={reload} disabled={loading} className="gap-2">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Làm mới
+          </Button>
         </div>
 
         {/* Quick Stats */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { DataPagination } from "@/components/common/DataPagination";
@@ -26,7 +26,7 @@ import {
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Loader2, RotateCcw } from "lucide-react";
+import { Calendar, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import api from "@/lib/api";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
 
@@ -116,91 +116,84 @@ export default function StudentExams() {
   });
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadExams = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [available, mySubs] = await Promise.all([
+        api.getAvailableExams(),
+        api.getMySubmissions(),
+      ]);
+      const examsList = (available || []) as any[];
+      const submissions = (mySubs || []) as any[];
+      const submittedExamIds = new Set<string>(
+        submissions
+          .filter((s: any) =>
+            completedAttemptStatuses.has(String(s.status || "").toUpperCase()),
+          )
+          .map((s: any) => String(s.examId ?? s.exam?.id)),
+      );
 
-    const fetch = async () => {
-      try {
-        setLoading(true);
-        const [available, mySubs] = await Promise.all([
-          api.getAvailableExams(),
-          api.getMySubmissions(),
-        ]);
-        const examsList = (available || []) as any[];
-        const submissions = (mySubs || []) as any[];
-        const submittedExamIds = new Set<string>(
-          submissions
-            .filter((s: any) =>
+      const byId = new Map<string, StudentExamItem>();
+
+      examsList.forEach((exam: any) => {
+        const id = String(exam.id);
+        const latestSubmission = [...submissions]
+          .filter((s: any) => String(s.examId ?? s.exam?.id ?? "") === id)
+          .sort((a: any, b: any) => {
+            const aTime = new Date(a?.submittedAt || a?.startedAt || a?.createdAt || 0).getTime();
+            const bTime = new Date(b?.submittedAt || b?.startedAt || b?.createdAt || 0).getTime();
+            return bTime - aTime;
+          })[0];
+        const latestCompletedSubmission = [...submissions]
+          .filter(
+            (s: any) =>
+              String(s.examId ?? s.exam?.id ?? "") === id &&
               completedAttemptStatuses.has(String(s.status || "").toUpperCase()),
-            )
-            .map((s: any) => String(s.examId ?? s.exam?.id)),
-        );
+          )
+          .sort((a: any, b: any) => {
+            const aTime = new Date(a?.submittedAt || a?.startedAt || a?.createdAt || 0).getTime();
+            const bTime = new Date(b?.submittedAt || b?.startedAt || b?.createdAt || 0).getTime();
+            return bTime - aTime;
+          })[0];
 
-        const byId = new Map<string, StudentExamItem>();
+        const configuredMaxAttempts =
+          typeof exam?.maxAttempts === "number"
+            ? exam.maxAttempts
+            : typeof exam?.settings?.maxAttempts === "number"
+              ? exam.settings.maxAttempts
+              : null;
 
-        examsList.forEach((exam: any) => {
-          const id = String(exam.id);
-          const latestSubmission = [...submissions]
-            .filter((s: any) => String(s.examId ?? s.exam?.id ?? "") === id)
-            .sort((a: any, b: any) => {
-              const aTime = new Date(a?.submittedAt || a?.startedAt || a?.createdAt || 0).getTime();
-              const bTime = new Date(b?.submittedAt || b?.startedAt || b?.createdAt || 0).getTime();
-              return bTime - aTime;
-            })[0];
-          const latestCompletedSubmission = [...submissions]
-            .filter(
-              (s: any) =>
-                String(s.examId ?? s.exam?.id ?? "") === id &&
-                completedAttemptStatuses.has(String(s.status || "").toUpperCase()),
-            )
-            .sort((a: any, b: any) => {
-              const aTime = new Date(a?.submittedAt || a?.startedAt || a?.createdAt || 0).getTime();
-              const bTime = new Date(b?.submittedAt || b?.startedAt || b?.createdAt || 0).getTime();
-              return bTime - aTime;
-            })[0];
-
-          const configuredMaxAttempts =
-            typeof exam?.maxAttempts === "number"
-              ? exam.maxAttempts
-              : typeof exam?.settings?.maxAttempts === "number"
-                ? exam.settings.maxAttempts
-                : null;
-
-          byId.set(id, {
-            id,
-            title: exam.title,
-            status: exam.status,
-            startTime: exam.startTime,
-            endTime: exam.endTime,
-            duration: exam.duration,
-            course: exam.course,
-            submitted: submittedExamIds.has(id) || Boolean(latestSubmission),
-            completed: false,
-            source: "available",
-            hasCompletedAttempt: submittedExamIds.has(id),
-            mySubmissionId: latestSubmission?.id ?? null,
-            myCompletedSubmissionId: latestCompletedSubmission?.id ?? null,
-            maxAttempts: configuredMaxAttempts,
-            mySubmissionStatus: latestSubmission?.status ?? null,
-            mySubmissionAttemptNo: latestSubmission?.attemptNo ?? null,
-          });
+        byId.set(id, {
+          id,
+          title: exam.title,
+          status: exam.status,
+          startTime: exam.startTime,
+          endTime: exam.endTime,
+          duration: exam.duration,
+          course: exam.course,
+          submitted: submittedExamIds.has(id) || Boolean(latestSubmission),
+          completed: false,
+          source: "available",
+          hasCompletedAttempt: submittedExamIds.has(id),
+          mySubmissionId: latestSubmission?.id ?? null,
+          myCompletedSubmissionId: latestCompletedSubmission?.id ?? null,
+          maxAttempts: configuredMaxAttempts,
+          mySubmissionStatus: latestSubmission?.status ?? null,
+          mySubmissionAttemptNo: latestSubmission?.attemptNo ?? null,
         });
+      });
 
-        if (mounted) {
-          setExams(Array.from(byId.values()));
-        }
-      } catch (err) {
-        console.error("Failed to load exams", err);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    fetch();
-    return () => {
-      mounted = false;
-    };
+      setExams(Array.from(byId.values()));
+    } catch (err) {
+      console.error("Failed to load exams", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadExams();
+  }, [loadExams]);
 
   const examFilterDefinitions: FilterDefinition[] = useMemo(
     () => [
@@ -358,7 +351,15 @@ export default function StudentExams() {
         <BackToDashboardButton to="/student" className="-ml-2" />
 
         <div className="space-y-3">
-          <ListPageHeader title="Bài thi" />
+          <ListPageHeader
+            title="Bài thi"
+            actions={
+              <Button variant="outline" size="sm" onClick={loadExams} disabled={loading} className="gap-2">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Làm mới
+              </Button>
+            }
+          />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className={summaryCardClassByKey.upcoming}>
               <p className="text-xs text-muted-foreground">Sắp diễn ra</p>

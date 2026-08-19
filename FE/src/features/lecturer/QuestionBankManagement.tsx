@@ -93,6 +93,7 @@ import {
   MoreHorizontal,
   Image,
   Music,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
@@ -311,7 +312,7 @@ export default function QuestionBankManagement() {
     ? "/admin"
     : "/lecturer";
   const questionEditorPath = `${basePath}/question-editor`;
-  const { questions, setQuestions, courses, loading } = useQuestionBankData();
+  const { questions, setQuestions, courses, loading, refetch } = useQuestionBankData();
   const [courseSearchInput, setCourseSearchInput] = useState("");
   const [appliedCourseSearch, setAppliedCourseSearch] = useState("");
   const [questionSearchInput, setQuestionSearchInput] = useState("");
@@ -814,12 +815,28 @@ export default function QuestionBankManagement() {
               title="Ngân hàng câu hỏi"
               className="mb-6"
               actions={
-                <Button
-                  className="gap-2"
-                  onClick={() => router.push(questionEditorPath)}
-                >
-                  <Plus className="h-4 w-4" /> Câu hỏi mới
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={refetch}
+                    disabled={loading}
+                    className="gap-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    Làm mới
+                  </Button>
+                  <Button
+                    className="gap-2"
+                    onClick={() => router.push(questionEditorPath)}
+                  >
+                    <Plus className="h-4 w-4" /> Câu hỏi mới
+                  </Button>
+                </>
               }
             />
 
@@ -1055,6 +1072,20 @@ export default function QuestionBankManagement() {
                 </div>
               </div>
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refetch}
+                  disabled={loading}
+                  className="gap-2"
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Làm mới
+                </Button>
                 <Button
                   variant="outline"
                   className="gap-2"

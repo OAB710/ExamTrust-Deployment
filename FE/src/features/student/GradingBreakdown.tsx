@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, Calculator, CheckCircle2, Clock3, Cpu, Image as ImageIcon, Loader2, MessageSquare, Music, ShieldCheck, User, XCircle } from "lucide-react";
+import { AlertTriangle, Calculator, CheckCircle2, Clock3, Cpu, Image as ImageIcon, Loader2, MessageSquare, Music, RefreshCw, ShieldCheck, User, XCircle } from "lucide-react";
 import { formatManualAnswer } from "@/features/lecturer/manual-grading-formatters";
 
 type Question = {
@@ -131,22 +131,22 @@ export default function GradingBreakdown() {
   const [loading, setLoading] = useState(false);
   const [submission, setSubmission] = useState<any | null>(null);
 
-  useEffect(() => {
+  const loadSubmission = useCallback(async () => {
     if (!examId && !submissionId) return;
-    let mounted = true;
-    (async () => {
-      try {
-        setLoading(true);
-        const result = submissionId ? await api.getMySubmissionById(submissionId) : await api.getMyExamSubmission(examId!);
-        if (mounted) setSubmission(result);
-      } catch (error) {
-        console.error("Không thể tải chi tiết chấm điểm:", error);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
+    try {
+      setLoading(true);
+      const result = submissionId ? await api.getMySubmissionById(submissionId) : await api.getMyExamSubmission(examId!);
+      setSubmission(result);
+    } catch (error) {
+      console.error("Không thể tải chi tiết chấm điểm:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [examId, submissionId]);
+
+  useEffect(() => {
+    loadSubmission();
+  }, [loadSubmission]);
 
   const questions = useMemo<Question[]>(() => (submission?.answers || []).map((answer: any, index: number) => {
     const question = answer.question || {};
@@ -203,8 +203,16 @@ export default function GradingBreakdown() {
 
   return <DashboardLayout><div className="mx-auto max-w-5xl">
     <BackToDashboardButton to="/student/results" className="mb-4 -ml-2" />
-    <h1 className="text-2xl font-semibold">Chi tiết chấm điểm</h1>
-    <p className="mt-1 text-muted-foreground">Theo dõi điểm tạm tính, tiến độ chấm và nhận xét của giảng viên.</p>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-semibold">Chi tiết chấm điểm</h1>
+        <p className="mt-1 text-muted-foreground">Theo dõi điểm tạm tính, tiến độ chấm và nhận xét của giảng viên.</p>
+      </div>
+      <Button variant="outline" size="sm" onClick={loadSubmission} disabled={loading} className="gap-2">
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        Làm mới
+      </Button>
+    </div>
 
     {loading ? <div className="py-20 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></div> : <div className="mt-6 space-y-6">
       <div className="flex flex-wrap gap-2"><Badge variant={gradingComplete ? "default" : "secondary"}>{gradingComplete ? "Đã hoàn tất chấm" : `Đã chấm tự động · Chờ giảng viên chấm ${manualPending} câu`}</Badge>{manualQuestions.length > 0 ? <Badge variant="outline">Chấm thủ công: {manualGraded}/{manualQuestions.length} câu</Badge> : null}</div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   addDays,
@@ -27,6 +27,7 @@ import {
   ChevronRight,
   Clock3,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -90,33 +91,31 @@ export default function StudentSchedule() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<ScheduleExamItem | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    const loadSchedule = async () => {
-      try {
-        setLoading(true);
-        const [availableExams, submissions] = await Promise.all([api.getAvailableExams(), api.getMySubmissions()]);
-        if (!mounted) return;
-        const submittedIds = new Set(
-          (submissions || [])
-            .filter((item: any) => ["SUBMITTED", "GRADED", "FLAGGED", "FINALIZED"].includes(String(item.status || "").toUpperCase()))
-            .map((item: any) => String(item.examId || item.exam?.id || "")),
-        );
-        setItems((availableExams || []).map((exam: any) => ({
-          id: String(exam.id), title: exam.title, status: exam.status, startTime: exam.startTime,
-          endTime: exam.endTime, duration: exam.duration, course: exam.course,
-          submitted: submittedIds.has(String(exam.id)),
-        })));
-      } catch (error) {
-        console.error("Failed to load student schedule", error);
-        if (mounted) setItems([]);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    loadSchedule();
-    return () => { mounted = false; };
+  const loadSchedule = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [availableExams, submissions] = await Promise.all([api.getAvailableExams(), api.getMySubmissions()]);
+      const submittedIds = new Set(
+        (submissions || [])
+          .filter((item: any) => ["SUBMITTED", "GRADED", "FLAGGED", "FINALIZED"].includes(String(item.status || "").toUpperCase()))
+          .map((item: any) => String(item.examId || item.exam?.id || "")),
+      );
+      setItems((availableExams || []).map((exam: any) => ({
+        id: String(exam.id), title: exam.title, status: exam.status, startTime: exam.startTime,
+        endTime: exam.endTime, duration: exam.duration, course: exam.course,
+        submitted: submittedIds.has(String(exam.id)),
+      })));
+    } catch (error) {
+      console.error("Failed to load student schedule", error);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadSchedule();
+  }, [loadSchedule]);
 
   const courses = useMemo(() => Array.from(new Set(items.map((item) => item.course?.code).filter(Boolean))) as string[], [items]);
   const filteredItems = useMemo(() => items.filter((item) => {
@@ -183,6 +182,10 @@ export default function StudentSchedule() {
               <CardDescription className="mt-1">Mỗi khối là một ca thi trong khung thời gian được công bố.</CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={loadSchedule} disabled={loading} className="gap-2">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Làm mới
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setCursorDate(startOfDay(new Date()))}>Hôm nay</Button>
               <Button variant="outline" size="icon" aria-label="Kỳ trước" onClick={() => moveCursor(-1)}><ChevronLeft className="h-4 w-4" /></Button>
               <p className="min-w-40 text-center text-sm font-semibold capitalize">{periodLabel}</p>

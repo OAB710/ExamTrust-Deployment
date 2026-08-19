@@ -76,8 +76,8 @@ export default function AuditLogViewer() {
               Luồng nhật ký chỉ đọc, được lưu trữ bền vững trong EventStore.
             </p>
           </div>
-          <Button variant="outline" className="gap-2" onClick={() => loadLogs()}>
-            <RefreshCw className="h-4 w-4" /> Làm mới
+          <Button variant="outline" className="gap-2" onClick={() => loadLogs()} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Làm mới
           </Button>
         </div>
 
@@ -178,8 +178,8 @@ export default function AuditLogViewer() {
                     Trang {pagination.page}/{Math.max(1, pagination.totalPages)} · {pagination.total} sự kiện
                   </p>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => loadLogs(pagination.page - 1)}>Trước</Button>
-                    <Button variant="outline" size="sm" disabled={pagination.page >= pagination.totalPages} onClick={() => loadLogs(pagination.page + 1)}>Sau</Button>
+                    <Button variant="outline" size="sm" disabled={pagination.page <= 1} onClick={() => { loadLogs(pagination.page - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Trước</Button>
+                    <Button variant="outline" size="sm" disabled={pagination.page >= pagination.totalPages} onClick={() => { loadLogs(pagination.page + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Sau</Button>
                   </div>
                 </div>
               </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { DataPagination } from "@/components/common/DataPagination";
@@ -28,7 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, Loader2, UserRound, CalendarDays } from "lucide-react";
+import { BookOpen, Loader2, RefreshCw, UserRound, CalendarDays } from "lucide-react";
 import api from "@/lib/api";
 import { formatCourseTerm, type CourseTerm } from "@/lib/course-term";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
@@ -72,28 +72,22 @@ export default function StudentCourses() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const data = await api.getMyCourses();
-        if (!mounted) return;
-        setCourses(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error("Failed to load my courses", error);
-        if (mounted) setCourses([]);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    fetchData();
-    return () => {
-      mounted = false;
-    };
+  const loadCourses = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await api.getMyCourses();
+      setCourses(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to load my courses", error);
+      setCourses([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadCourses();
+  }, [loadCourses]);
 
   const filterDefinitions: FilterDefinition[] = useMemo(() => {
     const termOptions = Array.from(
@@ -253,7 +247,15 @@ export default function StudentCourses() {
         <BackToDashboardButton to="/student" className="-ml-2" />
 
         <div className="space-y-3">
-          <ListPageHeader title="Khóa học của tôi" />
+          <ListPageHeader
+            title="Khóa học của tôi"
+            actions={
+              <Button variant="outline" size="sm" onClick={loadCourses} disabled={loading} className="gap-2">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Làm mới
+              </Button>
+            }
+          />
           <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}

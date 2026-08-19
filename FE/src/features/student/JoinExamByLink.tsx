@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Link2, ShieldCheck } from 'lucide-react';
+import { Loader2, Link2, RefreshCw, ShieldCheck } from 'lucide-react';
 import api from '@/lib/api';
 
 export default function JoinExamByLink() {
@@ -22,26 +22,28 @@ export default function JoinExamByLink() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const validate = async () => {
-      if (!token) {
-        setError('Thiếu mã token');
-        setLoading(false);
-        return;
-      }
+  const validate = useCallback(async () => {
+    if (!token) {
+      setError('Thiếu mã token');
+      setLoading(false);
+      return;
+    }
 
-      try {
-        const info = await api.validateExamLink(token);
-        setLinkInfo(info);
-      } catch (err: any) {
-        setError(err?.message || 'Liên kết không hợp lệ hoặc đã hết hạn');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    validate();
+    setLoading(true);
+    setError('');
+    try {
+      const info = await api.validateExamLink(token);
+      setLinkInfo(info);
+    } catch (err: any) {
+      setError(err?.message || 'Liên kết không hợp lệ hoặc đã hết hạn');
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => {
+    validate();
+  }, [validate]);
 
   const handleJoin = async () => {
     if (!token) return;
@@ -66,7 +68,7 @@ export default function JoinExamByLink() {
     }
   };
 
-  if (loading) {
+  if (loading && !linkInfo && !error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -78,9 +80,15 @@ export default function JoinExamByLink() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Link2 className="h-4 w-4" /> Tham gia bài thi
-          </CardTitle>
+          <div className="flex items-start justify-between gap-3">
+            <CardTitle className="flex items-center gap-2">
+              <Link2 className="h-4 w-4" /> Tham gia bài thi
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={validate} disabled={loading} className="gap-2">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Làm mới
+            </Button>
+          </div>
           <CardDescription>
             {linkInfo?.examTitle || 'Liên kết truy cập bài thi'}
           </CardDescription>

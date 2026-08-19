@@ -32,6 +32,7 @@ import {
   BarChart3,
   CheckCircle2,
   QrCode,
+  RefreshCw,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -181,23 +182,23 @@ export default function ExamPreview() {
   const [loading, setLoading] = useState(true);
   const [showQRDialog, setShowQRDialog] = useState(false);
 
-  useEffect(() => {
-    const loadExam = async () => {
-      if (!examId) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const res = await api.getExam(examId);
-        setExam(res);
-      } catch (error) {
-        console.error("Failed to load exam preview:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadExam = async () => {
+    if (!examId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.getExam(examId);
+      setExam(res);
+    } catch (error) {
+      console.error("Failed to load exam preview:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadExam();
   }, [examId]);
 
@@ -269,6 +270,20 @@ export default function ExamPreview() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadExam}
+              disabled={loading}
+              className="gap-2"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Làm mới
+            </Button>
             <Button
               variant="ghost"
               size="sm"

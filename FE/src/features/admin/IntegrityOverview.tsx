@@ -35,6 +35,7 @@ import {
   MousePointerClick,
   Copy,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { IntegrityCaseDetail } from "@/components/admin/IntegrityCaseDetail";
 import { ListPageHeader } from "@/components/common/list/ListPageHeader";
@@ -290,62 +291,62 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
     };
   }, []);
 
+  const fetchCases = async (mountedRef?: { mounted: boolean }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const examIdFilter = appliedFilters.examId as string | undefined;
+      const termFilter = appliedFilters.term as string | undefined;
+      const academicYearFilter = appliedFilters.academicYear as string | undefined;
+      const submittedAtRange = appliedFilters.submittedAt as
+        | { from?: string; to?: string }
+        | undefined;
+      const response = (await api.getIntegrityCases({
+        page,
+        limit: INTEGRITY_ROWS_PER_VIEW,
+        search: appliedSearch || undefined,
+        confidence: (appliedFilters.confidence as string | undefined) || "all",
+        examId: examIdFilter && examIdFilter !== "all" ? examIdFilter : undefined,
+        term: termFilter && termFilter !== "all" ? termFilter : undefined,
+        academicYear:
+          academicYearFilter && academicYearFilter !== "all"
+            ? academicYearFilter
+            : undefined,
+        submittedFrom: submittedAtRange?.from,
+        submittedTo: submittedAtRange?.to,
+        timeAnomaly: appliedFilters.timeAnomaly as boolean | undefined,
+        status: activeTab,
+        submissionId: directSubmissionId || undefined,
+      })) as IntegrityCasesResponse;
+
+      if (mountedRef && !mountedRef.mounted) return;
+      setSubmissions(Array.isArray(response.data) ? response.data : []);
+      setStats(response.stats || EMPTY_STATS);
+      setPatterns(response.patterns || EMPTY_PATTERNS);
+      setTotalItems(response.pagination?.total || 0);
+      setTotalPages(response.pagination?.totalPages || 1);
+    } catch (err) {
+      if (mountedRef && !mountedRef.mounted) return;
+      setSubmissions([]);
+      setStats(EMPTY_STATS);
+      setPatterns(EMPTY_PATTERNS);
+      setTotalItems(0);
+      setTotalPages(1);
+      setError(
+        err instanceof Error ? err.message : "Không thể tải các trường hợp cần xem xét",
+      );
+    } finally {
+      if (!mountedRef || mountedRef.mounted) setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
-
-    const fetchCases = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const examIdFilter = appliedFilters.examId as string | undefined;
-        const termFilter = appliedFilters.term as string | undefined;
-        const academicYearFilter = appliedFilters.academicYear as string | undefined;
-        const submittedAtRange = appliedFilters.submittedAt as
-          | { from?: string; to?: string }
-          | undefined;
-        const response = (await api.getIntegrityCases({
-          page,
-          limit: INTEGRITY_ROWS_PER_VIEW,
-          search: appliedSearch || undefined,
-          confidence: (appliedFilters.confidence as string | undefined) || "all",
-          examId: examIdFilter && examIdFilter !== "all" ? examIdFilter : undefined,
-          term: termFilter && termFilter !== "all" ? termFilter : undefined,
-          academicYear:
-            academicYearFilter && academicYearFilter !== "all"
-              ? academicYearFilter
-              : undefined,
-          submittedFrom: submittedAtRange?.from,
-          submittedTo: submittedAtRange?.to,
-          timeAnomaly: appliedFilters.timeAnomaly as boolean | undefined,
-          status: activeTab,
-          submissionId: directSubmissionId || undefined,
-        })) as IntegrityCasesResponse;
-
-        if (!mounted) return;
-        setSubmissions(Array.isArray(response.data) ? response.data : []);
-        setStats(response.stats || EMPTY_STATS);
-        setPatterns(response.patterns || EMPTY_PATTERNS);
-        setTotalItems(response.pagination?.total || 0);
-        setTotalPages(response.pagination?.totalPages || 1);
-      } catch (err) {
-        if (!mounted) return;
-        setSubmissions([]);
-        setStats(EMPTY_STATS);
-        setPatterns(EMPTY_PATTERNS);
-        setTotalItems(0);
-        setTotalPages(1);
-        setError(
-          err instanceof Error ? err.message : "Không thể tải các trường hợp cần xem xét",
-        );
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    fetchCases();
+    const mountedRef = { mounted: true };
+    fetchCases(mountedRef);
     return () => {
-      mounted = false;
+      mountedRef.mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, appliedFilters, appliedSearch, directSubmissionId, page]);
 
   useEffect(() => {
@@ -469,7 +470,26 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
     <DashboardLayout>
       <AdminPageShell>
         {lecturerScope ? <p className="mb-2 text-sm text-muted-foreground">Chỉ hiển thị tín hiệu của bài thi và khóa học do bạn phụ trách.</p> : null}
-        <ListPageHeader title="Giám sát rủi ro" className="mb-4" />
+        <ListPageHeader
+          title="Giám sát rủi ro"
+          className="mb-4"
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchCases()}
+              disabled={loading}
+              className="gap-2"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Làm mới
+            </Button>
+          }
+        />
 
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <AdminStatCard
