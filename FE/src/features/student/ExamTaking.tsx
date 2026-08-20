@@ -28,7 +28,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import { api } from "@/lib/api";
+import { api, ApiRequestError } from "@/lib/api";
 import { takePendingWebcamStream, takePendingScreenStream, hasPendingScreenStream } from "@/lib/exam-proctoring-handoff";
 import { ExamSecurityModal } from "../../components/common/ExamSecurityModal";
 import { LiveClock } from "../../components/common/LiveClock";
@@ -71,11 +71,57 @@ type PendingIntegrityEvent = {
   clientEventId: string;
 };
 
+// Backs up pendingIntegrityEventsRef to localStorage so an event that fails
+// to reach the server (typically because it's reporting the exact moment
+// connectivity died) survives a page close/crash, not just a clean
+// `pagehide`. Otherwise the report of "mạng vừa mất" is the one report
+// most at risk of being silently lost — it can only ever be attempted while
+// the network is actually down.
+const INTEGRITY_QUEUE_PREFIX = "exam-integrity-queue:";
+
+function getIntegrityQueueStorageKey(submissionId: string) {
+  return `${INTEGRITY_QUEUE_PREFIX}${submissionId}`;
+}
+
+function loadPersistedIntegrityQueue(submissionId: string): PendingIntegrityEvent[] {
+  try {
+    const raw = localStorage.getItem(getIntegrityQueueStorageKey(submissionId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePersistedIntegrityQueue(submissionId: string, queue: Map<string, PendingIntegrityEvent>) {
+  try {
+    localStorage.setItem(getIntegrityQueueStorageKey(submissionId), JSON.stringify(Array.from(queue.values())));
+  } catch {}
+}
+
+function clearPersistedIntegrityQueue(submissionId: string) {
+  try {
+    localStorage.removeItem(getIntegrityQueueStorageKey(submissionId));
+  } catch {}
+}
+
 function createIntegrityEventId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
   return `integrity-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// A response the server actually answered (even an error one, e.g. 401/500)
+// throws ApiRequestError. Anything else reaching a catch block here is the
+// `fetch()` call itself failing to reach the server at all — that is the
+// real "no internet" signal, unlike navigator.onLine/the browser "offline"
+// event, which only reflects the network adapter's link state and stays
+// "online" for the most common real-world outage (router/ISP down, wifi
+// connected but no route to the internet).
+function isNetworkFailure(error: unknown) {
+  return !(error instanceof ApiRequestError);
 }
 
 // ─── Main component ───────────────────────────────────────────────
@@ -137,9 +183,26 @@ export default function ExamTaking() {
   const [showFullscreenExitConfirm, setShowFullscreenExitConfirm] = useState(false);
   const [showNavigationGuard, setShowNavigationGuard] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  // True once the 15s "return to fullscreen or get submitted" countdown has
+  // expired while offline — the decision to submit is final at that point,
+  // just deferred until connectivity is confirmed (see pendingAutoSubmitRef).
+  const [offlineAutoSubmitPending, setOfflineAutoSubmitPending] = useState(false);
   const [isCheckingConnection, setIsCheckingConnection] = useState(false);
   const [connectionVerified, setConnectionVerified] = useState(false);
   const wasOfflineRef = useRef(false);
+  const isOfflineRef = useRef(false);
+  // Bridges persistIntegrityEvent's network-failure branch (defined earlier)
+  // to triggerOffline (defined later, since it itself calls
+  // persistIntegrityEvent) — same ref-indirection pattern as doSubmitRef.
+  const triggerOfflineRef = useRef<((reason: string) => void) | null>(null);
+  // Set when the violation threshold is crossed while offline (tab-switch
+  // path only — the fullscreen-exit path already has its own 15s blocked
+  // countdown in the effect below that keeps retrying doSubmit on its own).
+  // A submit attempted right now would just fail on the network and never
+  // get retried, letting the student keep answering indefinitely after
+  // reconnecting. Deferring to handleResumeAfterOffline submits exactly
+  // once, right when connectivity is actually confirmed.
+  const pendingAutoSubmitRef = useRef(false);
   const [pendingRestoreAnswers, setPendingRestoreAnswers] = useState<Array<{
     questionId: string;
     answer: unknown;
@@ -399,9 +462,19 @@ export default function ExamTaking() {
   }, []);
 
   const persistIntegrityEvent = useCallback(async (type: string, detail?: string, clientEventId = createIntegrityEventId()) => {
+    const baseDetails = detail ?? `Integrity event: ${type}`;
+    // Tag every OTHER event that happens while offline so a lecturer reading
+    // the timeline sees the context inline (e.g. "Chuyển tab (xảy ra trong
+    // lúc mất kết nối mạng)") instead of having to cross-reference
+    // timestamps against a separate network_disconnected row. Excludes
+    // network_disconnected itself — tagging the disconnection event with
+    // "happened while offline" is redundant.
+    const details = isOfflineRef.current && type !== "network_disconnected"
+      ? `${baseDetails} (xảy ra trong lúc mất kết nối mạng)`
+      : baseDetails;
     const event: PendingIntegrityEvent = {
       type,
-      details: detail ?? `Integrity event: ${type}`,
+      details,
       ts: Date.now(),
       clientEventId,
     };
@@ -420,18 +493,71 @@ export default function ExamTaking() {
       return undefined;
     }
     pendingIntegrityEventsRef.current.set(event.clientEventId, event);
+    savePersistedIntegrityQueue(activeSubmissionId, pendingIntegrityEventsRef.current);
     try {
       const response = await api.sendExamLogs(activeSubmissionId, [event]);
       if (response?.securityState) setSecurityState(response.securityState);
       pendingIntegrityEventsRef.current.delete(event.clientEventId);
+      savePersistedIntegrityQueue(activeSubmissionId, pendingIntegrityEventsRef.current);
       return response?.securityState as ExamSecurityState | undefined;
     } catch (error) {
-      // Retain the exact event for pagehide/retry. The server deduplicates it
-      // by clientEventId, so this cannot inflate the violation count.
+      // Retain the exact event for pagehide/retry — already backed up to
+      // localStorage above, so it also survives a page close/crash before
+      // any retry gets a chance to run. The server deduplicates it by
+      // clientEventId, so this cannot inflate the violation count.
       console.error("sendExamLogs failed", error);
+      // A genuine fetch failure here (not just an error status the server
+      // answered with) means the request never reached the backend — the
+      // most direct signal available that connectivity is actually down,
+      // independent of navigator.onLine.
+      if (isNetworkFailure(error)) triggerOfflineRef.current?.("Mất kết nối mạng khi đang gửi dữ liệu giám sát bài thi");
       return undefined;
     }
   }, [log, submissionId]);
+
+  // Re-sends every integrity event that failed to reach the server while
+  // offline (they stay queued in pendingIntegrityEventsRef — see
+  // persistIntegrityEvent's catch above). Without this, a violation that
+  // happened during an outage would only ever reach the server on
+  // `pagehide`; if the student simply keeps taking the exam to a normal
+  // final submit after reconnecting, it would be lost forever — submitExam's
+  // own log insert has no clientEventId dedup (see the comment in
+  // persistIntegrityEvent), so those pending events can only be safely
+  // resent through this same dedup-safe sendExamLogs path, never merged into
+  // the final submit payload.
+  const flushPendingIntegrityEventsNow = useCallback(async () => {
+    const activeSubmissionId = submissionId || localStorage.getItem("currentSubmissionId");
+    if (!activeSubmissionId) return;
+    const pending = Array.from(pendingIntegrityEventsRef.current.values());
+    if (pending.length === 0) return;
+    try {
+      const response = await api.sendExamLogs(activeSubmissionId, pending);
+      if (response?.securityState) setSecurityState(response.securityState);
+      for (const event of pending) pendingIntegrityEventsRef.current.delete(event.clientEventId);
+      savePersistedIntegrityQueue(activeSubmissionId, pendingIntegrityEventsRef.current);
+    } catch (error) {
+      // Still offline, or dropped again right away — left in the queue (and
+      // in localStorage) for the next attempt to retry.
+      console.error("Failed to resync pending integrity events after reconnect", error);
+    }
+  }, [submissionId]);
+
+  // Restores anything left in localStorage from a previous page load of
+  // this exact submission (e.g. the browser was closed/crashed before a
+  // clean `pagehide` could fire) and immediately tries to flush it — this
+  // is the recovery path for reports (most notably "network_disconnected"
+  // itself) that would otherwise be lost forever once the tab is gone.
+  useEffect(() => {
+    if (!submissionId) return;
+    const restored = loadPersistedIntegrityQueue(submissionId);
+    if (restored.length === 0) return;
+    for (const event of restored) {
+      if (!pendingIntegrityEventsRef.current.has(event.clientEventId)) {
+        pendingIntegrityEventsRef.current.set(event.clientEventId, event);
+      }
+    }
+    void flushPendingIntegrityEventsNow();
+  }, [submissionId, flushPendingIntegrityEventsNow]);
 
   useEffect(() => {
     if (isPreviewMode) return;
@@ -463,20 +589,62 @@ export default function ExamTaking() {
   // confirm. `checkConnection()` hits the backend directly instead of
   // trusting navigator.onLine, which only reflects the network adapter's
   // link state (e.g. still "online" on wifi with no real internet).
+  //
+  // triggerOffline is the single entry point for ALL three detection paths
+  // below (browser "offline" event, periodic heartbeat, real API calls
+  // failing at the network level) — isOfflineRef guards it so whichever
+  // path notices first wins and the other two become no-ops instead of each
+  // re-running the side effects (re-arming wasOfflineRef, re-logging the
+  // integrity event).
+  const triggerOffline = useCallback((reason: string) => {
+    if (isOfflineRef.current) return;
+    isOfflineRef.current = true;
+    wasOfflineRef.current = true;
+    setConnectionVerified(false);
+    setIsOffline(true);
+    void persistIntegrityEvent("network_disconnected", reason);
+  }, [persistIntegrityEvent]);
+
+  useEffect(() => {
+    triggerOfflineRef.current = triggerOffline;
+  }, [triggerOffline]);
+
   useEffect(() => {
     if (isPreviewMode || examSessionStatus !== "IN_PROGRESS") return;
 
-    const handleOffline = () => {
-      wasOfflineRef.current = true;
-      setConnectionVerified(false);
-      setIsOffline(true);
-      void persistIntegrityEvent("network_disconnected", "Mất kết nối mạng trong khi đang làm bài");
-    };
+    const handleOffline = () => triggerOffline("Mất kết nối mạng trong khi đang làm bài");
 
     if (!navigator.onLine) handleOffline();
     window.addEventListener("offline", handleOffline);
     return () => window.removeEventListener("offline", handleOffline);
-  }, [examSessionStatus, isPreviewMode, persistIntegrityEvent]);
+  }, [examSessionStatus, isPreviewMode, triggerOffline]);
+
+  // Active fallback for the browser event above: navigator.onLine/the
+  // "offline" event only fires on a link-layer change (adapter disabled,
+  // airplane mode) — the far more common real outage (router/ISP down,
+  // wifi connected but no route to the internet) never fires it at all, so
+  // without this the dialog above would simply never appear. Polls the
+  // real backend directly instead.
+  useEffect(() => {
+    if (isPreviewMode || examSessionStatus !== "IN_PROGRESS") return;
+    const HEARTBEAT_MS = 15000;
+    const id = window.setInterval(() => {
+      if (isOfflineRef.current) return;
+      void api.checkConnection().then((ok) => {
+        if (!ok) {
+          triggerOffline("Mất kết nối mạng trong khi đang làm bài (phát hiện qua kiểm tra định kỳ)");
+          return;
+        }
+        // Connectivity confirmed and nothing is currently blocking the UI —
+        // opportunistically clear any events still stuck in the queue
+        // (e.g. a persistIntegrityEvent call that failed on its own,
+        // transient blip without ever tripping the full offline dialog)
+        // instead of waiting for the student to hit "Tiếp tục làm bài".
+        if (pendingIntegrityEventsRef.current.size > 0) void flushPendingIntegrityEventsNow();
+      });
+    }, HEARTBEAT_MS);
+    return () => window.clearInterval(id);
+  }, [examSessionStatus, isPreviewMode, triggerOffline, flushPendingIntegrityEventsNow]);
 
   const handleCheckConnection = useCallback(async () => {
     setIsCheckingConnection(true);
@@ -490,13 +658,20 @@ export default function ExamTaking() {
   }, []);
 
   const handleResumeAfterOffline = useCallback(() => {
+    isOfflineRef.current = false;
     setIsOffline(false);
     setConnectionVerified(false);
     if (wasOfflineRef.current) {
       wasOfflineRef.current = false;
       void persistIntegrityEvent("network_restored", "Đã xác nhận có mạng trở lại, tiếp tục làm bài");
     }
-  }, [persistIntegrityEvent]);
+    void flushPendingIntegrityEventsNow();
+    if (pendingAutoSubmitRef.current) {
+      pendingAutoSubmitRef.current = false;
+      setOfflineAutoSubmitPending(false);
+      doSubmitRef.current();
+    }
+  }, [persistIntegrityEvent, flushPendingIntegrityEventsNow]);
 
   useEffect(() => () => {
     autosaveTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
@@ -525,9 +700,10 @@ export default function ExamTaking() {
         setDuringReviewFeedback((current) => ({ ...current, [feedback.questionId]: feedback }));
       }).catch((error) => {
         console.warn("Could not save answer for review feedback:", error);
+        if (isNetworkFailure(error)) triggerOffline("Mất kết nối mạng khi đang lưu câu trả lời");
       });
     }, 600));
-  }, [isPreviewMode, submissionId]);
+  }, [isPreviewMode, submissionId, triggerOffline]);
 
   const markActivity = useCallback(() => {
     lastActivityAtRef.current = Date.now();
@@ -1012,6 +1188,7 @@ export default function ExamTaking() {
         localStorage.removeItem("currentSubmissionDeadline");
         localStorage.removeItem("currentSubmissionWebcamPolicy");
       } catch {}
+      clearPersistedIntegrityQueue(activeSubmissionId);
 
       if (options.deadlineReached || submitResult?.autoSubmitted) {
         if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -1076,6 +1253,14 @@ export default function ExamTaking() {
   const handleEscalate = useCallback(() => {
     if (isSubmitting) return;
     log("violation_escalation", `Reached ${MAX_VIOLATIONS} violations`);
+    if (isOfflineRef.current) {
+      // No point firing a submitExam call that's guaranteed to fail right
+      // now — defer it to the moment the student confirms connectivity is
+      // back (handleResumeAfterOffline), instead of one dead attempt that
+      // never gets retried.
+      pendingAutoSubmitRef.current = true;
+      return;
+    }
     doSubmitRef.current();
   }, [isSubmitting, log]);
 
@@ -1154,7 +1339,22 @@ export default function ExamTaking() {
         // The free first-violation notice (isFirstFullscreenWarning) is
         // "chưa tính vi phạm" by definition — it must never risk auto-submit
         // just because the student took >15s to read it and click through.
-        if (isSecurityBlocked && !isFirstFullscreenWarning) doSubmitRef.current();
+        if (isSecurityBlocked && !isFirstFullscreenWarning) {
+          if (isOfflineRef.current) {
+            // A submit attempt right now is guaranteed to fail on the
+            // network — and doSubmit's catch resets isSubmitting back to
+            // false, which is a dependency of this very effect, so it would
+            // just restart this same 15s countdown from scratch every
+            // cycle (a fresh "15 giây" + a failed-submit toast, repeating
+            // forever while offline). Commit to submitting instead — no
+            // more counting down — and let handleResumeAfterOffline fire
+            // the actual submit exactly once connectivity is confirmed.
+            pendingAutoSubmitRef.current = true;
+            setOfflineAutoSubmitPending(true);
+          } else {
+            doSubmitRef.current();
+          }
+        }
       }
     }, 200);
 
@@ -1522,6 +1722,13 @@ export default function ExamTaking() {
         </div>
       </header>
 
+      {/* ExamSecurityModal paints its own opaque z-[120] overlay — higher
+          than the offline dialog below (default Dialog z-50) by design.
+          A proctoring violation takes priority over a connectivity issue:
+          the security modal stays on top and interactable even while
+          isOffline is also true; the offline dialog is only reached once
+          the student resolves it (returns to fullscreen), same as it would
+          without any network issue involved. */}
       <ExamSecurityModal
         open={isSecurityBlocked || isFullscreenExitPending}
         violationCount={displayedViolationCount}
@@ -1530,6 +1737,7 @@ export default function ExamTaking() {
         countdownSeconds={fullscreenCountdown}
         isFullscreenExitPending={isFullscreenExitPending}
         isFirstFullscreenWarning={isFirstFullscreenWarning}
+        offlineAutoSubmitPending={offlineAutoSubmitPending}
         lastViolation={lastViolation}
         canFullscreen={canFullscreen}
         onReturnToExam={returnToExam}
@@ -1622,45 +1830,57 @@ export default function ExamTaking() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isOffline}>
-        <DialogContent
-          className="sm:max-w-md"
-          hideCloseButton
-          onEscapeKeyDown={(event) => event.preventDefault()}
-          onPointerDownOutside={(event) => event.preventDefault()}
-          onInteractOutside={(event) => event.preventDefault()}
+      {/* Deliberately NOT a Radix Dialog: Radix's modal Dialog sets
+          `document.body.style.pointerEvents = "none"` while open and only
+          re-enables it on its own portal node (see
+          @radix-ui/react-dismissable-layer). ExamSecurityModal is a plain
+          div outside that layer stack, so if it were a Radix Dialog here,
+          a concurrent fullscreen/tab-switch violation would visually sit on
+          top (z-[120] > Radix's z-50) but be completely inert to clicks —
+          exactly the "popup vi phạm không bấm được" deadlock this replaced.
+          A plain fixed overlay has no such lock, so z-index alone decides
+          both paint order AND click priority — kept below
+          ExamSecurityModal's z-[120] so a violation always wins first. */}
+      {isOffline && (
+        <div
+          className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center pointer-events-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="offline-dialog-title"
         >
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <WifiOff className="h-5 w-5 text-destructive" />
-              Mất kết nối mạng
-            </DialogTitle>
-            <DialogDescription>
-              Bài thi đã tạm khoá vì thiết bị mất kết nối mạng. Câu trả lời đã lưu trước đó vẫn an toàn.
-              Khi có mạng trở lại, nhấn "Kiểm tra kết nối", sau đó nhấn "Tiếp tục làm bài".
-            </DialogDescription>
-          </DialogHeader>
-          {connectionVerified && (
-            <p className="flex items-center gap-2 text-sm font-medium text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" />
-              Đã có kết nối mạng trở lại.
-            </p>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => void handleCheckConnection()}
-              disabled={isCheckingConnection}
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isCheckingConnection ? "animate-spin" : ""}`} />
-              Kiểm tra kết nối
-            </Button>
-            <Button onClick={handleResumeAfterOffline} disabled={!connectionVerified}>
-              Tiếp tục làm bài
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="bg-background rounded-lg border shadow-lg p-6 max-w-md w-full mx-4 space-y-4">
+            <div>
+              <h2 id="offline-dialog-title" className="flex items-center gap-2 text-lg font-semibold leading-none tracking-tight">
+                <WifiOff className="h-5 w-5 text-destructive" />
+                Mất kết nối mạng
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1.5">
+                Bài thi đã tạm khoá vì thiết bị mất kết nối mạng. Câu trả lời đã lưu trước đó vẫn an toàn.
+                Khi có mạng trở lại, nhấn "Kiểm tra kết nối", sau đó nhấn "Tiếp tục làm bài".
+              </p>
+            </div>
+            {connectionVerified && (
+              <p className="flex items-center gap-2 text-sm font-medium text-emerald-600">
+                <CheckCircle2 className="h-4 w-4" />
+                Đã có kết nối mạng trở lại.
+              </p>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-0 sm:space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => void handleCheckConnection()}
+                disabled={isCheckingConnection}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${isCheckingConnection ? "animate-spin" : ""}`} />
+                Kiểm tra kết nối
+              </Button>
+              <Button onClick={handleResumeAfterOffline} disabled={!connectionVerified}>
+                Tiếp tục làm bài
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex min-h-screen pt-16">
         {/* ── Navigator Sidebar ────────────────────────────────── */}

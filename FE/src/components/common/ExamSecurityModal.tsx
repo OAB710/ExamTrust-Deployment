@@ -15,6 +15,7 @@ interface ExamSecurityModalProps {
   countdownSeconds: number;
   isFullscreenExitPending?: boolean;
   isFirstFullscreenWarning?: boolean;
+  offlineAutoSubmitPending?: boolean;
   lastViolation: ViolationLog | null;
   canFullscreen: boolean;
   onReturnToExam: () => void;
@@ -32,6 +33,7 @@ export function ExamSecurityModal({
   countdownSeconds,
   isFullscreenExitPending = false,
   isFirstFullscreenWarning = false,
+  offlineAutoSubmitPending = false,
   lastViolation,
   canFullscreen,
   onReturnToExam,
@@ -63,7 +65,7 @@ export function ExamSecurityModal({
     const noticeReason = getIntegrityEventLabel(firstViolationNotice.type);
     return (
       <div
-        className="fixed inset-0 z-[120] bg-black flex items-center justify-center"
+        className="fixed inset-0 z-[120] bg-black flex items-center justify-center pointer-events-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="exam-security-first-violation-title"
@@ -90,7 +92,7 @@ export function ExamSecurityModal({
 
   return (
     <div
-      className="fixed inset-0 z-[120] bg-black flex items-center justify-center"
+      className="fixed inset-0 z-[120] bg-black flex items-center justify-center pointer-events-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby="exam-security-title"
@@ -105,6 +107,10 @@ export function ExamSecurityModal({
         {isFirstFullscreenWarning ? (
           <p className="text-sm mb-2">
             Bạn vừa thoát chế độ toàn màn hình (F11, Esc hoặc chuyển ứng dụng). Đây là <strong>lần đầu tiên</strong> nên hệ thống <strong>chưa ghi nhận vi phạm</strong>. Từ lần thoát tiếp theo, mỗi lần sẽ được tính là 1 tín hiệu vi phạm (tối đa {maxViolations} lần trước khi bài thi bị nộp tự động).
+          </p>
+        ) : offlineAutoSubmitPending ? (
+          <p className="text-sm mb-2 text-red-600 font-medium">
+            Bài thi sẽ được nộp tự động do vi phạm. Thiết bị đang mất kết nối mạng — bài sẽ được gửi ngay khi có mạng trở lại.
           </p>
         ) : (
           <p className="text-sm mb-2">
