@@ -384,16 +384,51 @@ export default function QuestionBankManagement() {
   }, []);
 
   useEffect(() => {
-    const courseId = courses.find((course) => course.code === selectedCourse)?.id;
+    const course = courses.find((c) => c.code === selectedCourse);
+    const courseId = course?.id;
     if (!courseId) {
-      setCourseTopics([]);
+      const questionTopicsMap = new Map<string, string>();
+      questions.forEach((q) => {
+        if (q.topic?.id && q.topic?.name) {
+          questionTopicsMap.set(q.topic.id, q.topic.name);
+        }
+      });
+      setCourseTopics(
+        Array.from(questionTopicsMap.entries()).map(([id, name]) => ({ id, name }))
+      );
       return;
     }
     api
-      .listQuestionTopics({ courseId })
-      .then((response) => setCourseTopics(unwrapPaginatedData<{ id: string; name: string }>(response)))
-      .catch(() => setCourseTopics([]));
-  }, [selectedCourse, courses]);
+      .listQuestionTopics({ courseId, limit: 100 })
+      .then((response) => {
+        const topics = unwrapPaginatedData<{ id: string; name: string }>(response);
+        const questionTopicsMap = new Map<string, string>();
+        topics.forEach((t) => questionTopicsMap.set(t.id, t.name));
+        questions
+          .filter((q) => q.course?.code === selectedCourse || q.courseId === courseId)
+          .forEach((q) => {
+            if (q.topic?.id && q.topic?.name) {
+              questionTopicsMap.set(q.topic.id, q.topic.name);
+            }
+          });
+        setCourseTopics(
+          Array.from(questionTopicsMap.entries()).map(([id, name]) => ({ id, name }))
+        );
+      })
+      .catch(() => {
+        const questionTopicsMap = new Map<string, string>();
+        questions
+          .filter((q) => q.course?.code === selectedCourse || q.courseId === courseId)
+          .forEach((q) => {
+            if (q.topic?.id && q.topic?.name) {
+              questionTopicsMap.set(q.topic.id, q.topic.name);
+            }
+          });
+        setCourseTopics(
+          Array.from(questionTopicsMap.entries()).map(([id, name]) => ({ id, name }))
+        );
+      });
+  }, [selectedCourse, courses, questions]);
 
   const discardQuestionDraft = () => {
     localStorage.removeItem(QUESTION_DRAFT_STORAGE_KEY);
@@ -1334,6 +1369,7 @@ export default function QuestionBankManagement() {
                           </TableHead>
                           <TableHead className="min-w-48">Nội dung</TableHead>
                           <TableHead className="w-36 whitespace-nowrap">Loại</TableHead>
+                          <TableHead className="w-36 whitespace-nowrap">Chủ đề</TableHead>
                           <TableHead className="w-28 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <button
@@ -1369,6 +1405,18 @@ export default function QuestionBankManagement() {
                               </TableCell>
                               <TableCell className="text-sm whitespace-nowrap">
                                 {questionTypeLabels[question.type] || question.type}
+                              </TableCell>
+                              <TableCell className="text-sm whitespace-nowrap">
+                                {question.topic?.name ? (
+                                  <span
+                                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground max-w-[160px] truncate"
+                                    title={question.topic.name}
+                                  >
+                                    {question.topic.name}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">—</span>
+                                )}
                               </TableCell>
                               <TableCell className="text-center">
                                 <span className={`text-xs font-medium px-2 py-1 rounded ${diff.color}`}>

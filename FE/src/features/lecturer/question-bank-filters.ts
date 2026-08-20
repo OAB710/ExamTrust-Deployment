@@ -24,7 +24,6 @@ export const questionFilterDefinitions: FilterDefinition[] = [
 export function buildQuestionFilterDefinitions(
   topics: { id: string; name: string }[],
 ): FilterDefinition[] {
-  if (topics.length === 0) return questionFilterDefinitions;
   return [
     ...questionFilterDefinitions,
     {
