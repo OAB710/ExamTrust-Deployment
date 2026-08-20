@@ -194,6 +194,20 @@ export default function ExamManagement() {
     void fetchExams();
   }, []);
 
+  // requestedStatus comes from useSearchParams(), which re-renders this
+  // component on every URL query change — but since this page never
+  // unmounts when only the query string changes (same route), the
+  // useState initializers above only capture it once, at first mount.
+  // Without this, navigating here a second time with a different
+  // ?status= (e.g. from the dashboard's "Cần bạn chú ý" widget) leaves
+  // the filter — and the page number — stuck on whatever was set last
+  // time, so the requested status can silently show as empty.
+  useEffect(() => {
+    setDraftFilters((prev) => ({ ...prev, status: requestedStatus }));
+    setAppliedFilters((prev) => ({ ...prev, status: requestedStatus }));
+    setPage(1);
+  }, [requestedStatus]);
+
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 30_000);
     return () => window.clearInterval(timer);

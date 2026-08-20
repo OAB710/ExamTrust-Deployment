@@ -13,6 +13,7 @@ export interface Question {
   updatedAt: string;
   mediaType?: "image" | "audio" | null;
   mediaUrl?: string | null;
+  topic?: { id: string; code: string; name: string } | null;
 }
 
 export interface QuestionDraftSummary {

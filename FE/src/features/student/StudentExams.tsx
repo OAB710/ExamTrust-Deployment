@@ -171,7 +171,9 @@ export default function StudentExams() {
           endTime: exam.endTime,
           duration: exam.duration,
           course: exam.course,
-          submitted: submittedExamIds.has(id) || Boolean(latestSubmission),
+          // latestSubmission can be an IN_PROGRESS attempt — only a row in
+          // completedAttemptStatuses means the student actually submitted.
+          submitted: submittedExamIds.has(id),
           completed: false,
           source: "available",
           hasCompletedAttempt: submittedExamIds.has(id),

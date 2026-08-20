@@ -93,6 +93,19 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedTopics>>) {
       const windowDays = plan.status === 'DRAFT' ? 0 : 4;
       const endTime = new Date(startTime.getTime() + windowDays * 24 * 3_600_000 + plan.durationMinutes * 60_000);
 
+      // Pick `questionCount` questions from this course's pool, favouring a
+      // mix of types instead of the first N (which would be skewed toward
+      // whichever type was generated first).
+      const shuffled = [...pool].sort(() => rng() - 0.5);
+      const chosen = shuffled.slice(0, Math.min(plan.questionCount, shuffled.length));
+      // Each question's weight is whatever the bank assigned it (see
+      // pointsForType in seed-question-bank.ts) — inherited the same way a
+      // real exam-builder flow inherits question.defaultPoints, so the exam's
+      // totalPoints always matches the sum of what students can actually earn
+      // instead of assuming every question is worth exactly 1 point.
+      const assignedScores = chosen.map((q) => Number(q.defaultPoints ?? q.points ?? 1));
+      const totalPoints = assignedScores.reduce((sum, score) => sum + score, 0) || plan.questionCount;
+
       let exam = await prisma.exam.findFirst({ where: { courseId: course.id, title: plan.title } });
       if (!exam) {
         exam = await prisma.exam.create({
@@ -102,8 +115,8 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedTopics>>) {
             description: `${plan.title} — dữ liệu demo ExamTrust.`,
             duration: plan.durationMinutes,
             timeLimitMinutes: plan.durationMinutes,
-            totalPoints: plan.questionCount,
-            passingScore: Math.round(plan.questionCount * 0.5),
+            totalPoints,
+            passingScore: Math.round(totalPoints * 0.5),
             startTime,
             endTime,
             status,
@@ -129,24 +142,13 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedTopics>>) {
         });
       }
 
-      // Pick `questionCount` questions from this course's pool, favouring a
-      // mix of types instead of the first N (which would be skewed toward
-      // whichever type was generated first).
-      const shuffled = [...pool].sort(() => rng() - 0.5);
-      const chosen = shuffled.slice(0, Math.min(plan.questionCount, shuffled.length));
-
       for (let i = 0; i < chosen.length; i++) {
         const q = chosen[i];
         const version = await prisma.questionVersion.findFirst({
           where: { questionId: q.id },
           orderBy: { versionNo: 'desc' },
         });
-        // Manual-grading types are worth more points than auto-graded ones —
-        // both more realistic, and it gives SubmissionAnswer.pointsAwarded
-        // (an Int column) a real 0..N range to show partial credit in,
-        // instead of only ever being able to award the full 1 point.
-        const isManualType = q.type === 'ESSAY' || q.type === 'FILL_IN_BLANK';
-        const assignedScore = isManualType ? 4 : 1;
+        const assignedScore = assignedScores[i];
         await prisma.examQuestion.upsert({
           where: { examId_questionId: { examId: exam.id, questionId: q.id } },
           update: {},

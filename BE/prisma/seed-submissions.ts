@@ -64,7 +64,17 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedExams>>) {
         for (const studentIndex of inProgressIndices) {
           const student = studentUsers[studentIndex];
           const rng = makeRng(seedFromString(`submission:${examKey}:${studentIndex}`));
-          const startedAt = new Date(exam.startTime.getTime() + rng() * 20 * 3_600_000);
+          // Anchored to `exam.startTime` (which can be a day+ in the past for
+          // an ONGOING plan), this used to land hours before "now" — already
+          // past the exam's own `durationMinutes` limit the moment the app
+          // boots. onModuleInit() force-submits expired IN_PROGRESS rows
+          // immediately, so the "still in progress" demo row would instantly
+          // flip to "submitted" with an absurd elapsed time (started hours
+          // ago, submitted at boot). Anchor to "now" and stay inside the
+          // exam's real time limit so it's still genuinely in-progress.
+          const safetyMarginMinutes = 2;
+          const maxElapsedMinutes = Math.max(1, (exam.timeLimitMinutes ?? exam.duration ?? 30) - safetyMarginMinutes);
+          const startedAt = new Date(Date.now() - rng() * maxElapsedMinutes * 60_000);
           const instance = await prisma.examInstance.upsert({
             where: { examId_studentId: { examId: exam.id, studentId: student.id } },
             update: {},

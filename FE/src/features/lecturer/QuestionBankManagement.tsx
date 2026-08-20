@@ -108,11 +108,11 @@ import {
 import type { Question, QuestionDraftSummary } from "./question-bank-utils";
 import { QuestionPreviewInfoCard as InfoCard, QuestionPreviewSection as Section } from "./components/QuestionPreviewSections";
 import {
+  buildQuestionFilterDefinitions,
   courseFilterDefinitions,
   EMPTY_COURSE_FILTERS,
   EMPTY_QUESTION_FILTERS,
   filterAndSortQuestions,
-  questionFilterDefinitions,
 } from "./question-bank-filters";
 import { useQuestionBankData } from "./hooks/useQuestionBankData";
 import { useQuestionBankRouteState } from "./hooks/useQuestionBankRouteState";
@@ -332,6 +332,7 @@ export default function QuestionBankManagement() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [courseTopics, setCourseTopics] = useState<{ id: string; name: string }[]>([]);
   const [questionDraft, setQuestionDraft] =
     useState<QuestionDraftSummary | null>(null);
   const [questionPage, setQuestionPage] = useState(1);
@@ -381,6 +382,18 @@ export default function QuestionBankManagement() {
       .then((preference) => setDuplicateThresholdMax(preference.similarityThreshold))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    const courseId = courses.find((course) => course.code === selectedCourse)?.id;
+    if (!courseId) {
+      setCourseTopics([]);
+      return;
+    }
+    api
+      .listQuestionTopics({ courseId })
+      .then((response) => setCourseTopics(unwrapPaginatedData<{ id: string; name: string }>(response)))
+      .catch(() => setCourseTopics([]));
+  }, [selectedCourse, courses]);
 
   const discardQuestionDraft = () => {
     localStorage.removeItem(QUESTION_DRAFT_STORAGE_KEY);
@@ -686,13 +699,17 @@ export default function QuestionBankManagement() {
     appliedCourseFilters,
     courseFilterDefinitions,
   );
+  const activeQuestionFilterDefinitions = useMemo(
+    () => buildQuestionFilterDefinitions(courseTopics),
+    [courseTopics],
+  );
   const activeQuestionFilterCount = getActiveFilterCount(
     appliedQuestionFilters,
-    questionFilterDefinitions,
+    activeQuestionFilterDefinitions,
   );
   const activeQuestionFilterChips = getFilterChips(
     appliedQuestionFilters,
-    questionFilterDefinitions,
+    activeQuestionFilterDefinitions,
   );
 
   const runCourseSearch = () => setAppliedCourseSearch(courseSearchInput.trim());
@@ -1267,8 +1284,8 @@ export default function QuestionBankManagement() {
                 />
                 <FilterPanel
                   title="Bộ lọc câu hỏi"
-                  description="Lọc theo loại, độ khó và trọng số."
-                  filters={questionFilterDefinitions}
+                  description="Lọc theo loại, độ khó, chủ đề và trọng số."
+                  filters={activeQuestionFilterDefinitions}
                   value={draftQuestionFilters}
                   onValueChange={(key, nextValue) =>
                     setDraftQuestionFilters((prev) => ({

@@ -1137,6 +1137,29 @@ class ApiClient {
     });
   }
 
+  /**
+   * Verifies real connectivity to the backend rather than trusting the
+   * browser's navigator.onLine flag, which reflects the network adapter's
+   * link state, not whether the internet/backend is actually reachable.
+   * Bounded by its own timeout so a still-bad connection fails fast instead
+   * of hanging the "Kiểm tra kết nối" button indefinitely.
+   */
+  async checkConnection(timeoutMs = 5000): Promise<boolean> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(`${this.baseUrl}/health`, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      return response.ok;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async sendExamLogs(submissionId: string, logs: Array<{ type: string; details?: any; ts?: number; clientEventId?: string }>) {
     return this.request<any>(`/submissions/${submissionId}/logs`, {
       method: 'POST',

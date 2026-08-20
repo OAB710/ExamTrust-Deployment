@@ -380,7 +380,7 @@ export default function StudentDashboard() {
                         <StatusBadge
                           variant={passed ? "success" : "destructive"}
                         >
-                          {passed ? "Passed" : "Failed"}
+                          {passed ? "ĐẠT" : "KHÔNG ĐẠT"}
                         </StatusBadge>
                       </div>
                     </Link>

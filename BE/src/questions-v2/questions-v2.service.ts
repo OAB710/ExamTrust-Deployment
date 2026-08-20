@@ -2237,6 +2237,10 @@ export class QuestionsService {
         mediaType: true,
         mediaUrl: true,
         course: { select: { id: true, code: true, name: true } },
+        topicLinks: {
+          select: { topic: { select: { id: true, code: true, name: true } } },
+          take: 1,
+        },
       },
     });
 
@@ -2287,6 +2291,7 @@ export class QuestionsService {
       updatedAt: q.updatedAt,
       mediaType: q.mediaType,
       mediaUrl: q.mediaUrl,
+      topic: q.topicLinks?.[0]?.topic || null,
       latestVersion: latestVersionsMap.get(q.id) || null,
     }));
 

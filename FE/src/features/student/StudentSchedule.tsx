@@ -45,6 +45,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import api from "@/lib/api";
 import { getUiStatus } from "@/lib/presentation";
 
@@ -217,8 +219,68 @@ function MonthCalendar({ days, cursorDate, eventsForDay, onSelect }: { days: Dat
   return <div className="overflow-x-auto"><div className="min-w-[760px]"><div className="grid grid-cols-7 border-b bg-muted/20">{["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"].map((label) => <div key={label} className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">{label}</div>)}</div><div className="grid grid-cols-7">{days.map((day) => <div key={day.toISOString()} className={`min-h-32 border-b border-r border-border p-2 ${!isSameMonth(day, cursorDate) ? "bg-muted/20 text-muted-foreground" : "bg-card"}`}><span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm ${isToday(day) ? "bg-primary font-semibold text-primary-foreground" : ""}`}>{format(day, "d")}</span><div className="mt-1 space-y-1">{eventsForDay(day).slice(0, 3).map((item) => <button key={item.id} onClick={() => onSelect(item)} className={`block w-full truncate rounded border px-1.5 py-1 text-left text-xs font-medium ${getEventTone(item)}`}>{format(toDate(item.startTime)!, "HH:mm")} · {item.title}</button>)}{eventsForDay(day).length > 3 && <p className="px-1 text-xs text-muted-foreground">+{eventsForDay(day).length - 3} bài thi</p>}</div></div>)}</div></div></div>;
 }
 
+const HOUR_PX = 68;
+const GRID_PX = HOURS.length * HOUR_PX;
+
+// exam.endTime marks when the take-window closes (can span multiple days for
+// flexible exams), not when a student's ca thi actually ends — so the block's
+// height must come from the exam's real duration, not endTime - startTime,
+// or a multi-day window blows the block up to thousands of pixels tall and
+// overflows the whole page layout.
+function eventBlockStyle(item: ScheduleExamItem, start: Date) {
+  const startMinutes = start.getHours() * 60 + start.getMinutes();
+  const top = Math.max(0, ((startMinutes - HOURS[0] * 60) / 60) * HOUR_PX);
+  const minutesLong = item.duration && item.duration > 0 ? item.duration : 60;
+  const height = Math.max(36, (minutesLong / 60) * HOUR_PX);
+  return { top, height: Math.min(height, GRID_PX - top) };
+}
+
+type LaidOutEvent = { item: ScheduleExamItem; start: Date; top: number; height: number; lane: number; lanes: number };
+
+// Exams at overlapping times would otherwise all render at the same
+// inset-x-1 position and stack directly on top of each other (last one in
+// the list wins visually). Group events whose time ranges transitively
+// overlap into a cluster, then give each one its own lane (side-by-side
+// column) sized to how many lanes that cluster needs.
+function layoutDayEvents(items: ScheduleExamItem[]): LaidOutEvent[] {
+  const blocks = items
+    .map((item) => {
+      const start = toDate(item.startTime)!;
+      const { top, height } = eventBlockStyle(item, start);
+      return { item, start, top, height, bottom: top + height };
+    })
+    .sort((a, b) => a.top - b.top);
+
+  const results: LaidOutEvent[] = [];
+  let cluster: typeof blocks = [];
+  let clusterEnd = -Infinity;
+
+  const flushCluster = () => {
+    if (cluster.length === 0) return;
+    const laneEnds: number[] = [];
+    const withLanes = cluster.map((block) => {
+      let lane = laneEnds.findIndex((end) => end <= block.top);
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(block.bottom); }
+      else laneEnds[lane] = block.bottom;
+      return { ...block, lane };
+    });
+    const lanes = laneEnds.length;
+    withLanes.forEach((block) => results.push({ ...block, lanes }));
+    cluster = [];
+  };
+
+  blocks.forEach((block) => {
+    if (cluster.length > 0 && block.top >= clusterEnd) flushCluster();
+    cluster.push(block);
+    clusterEnd = Math.max(clusterEnd, block.bottom);
+  });
+  flushCluster();
+
+  return results;
+}
+
 function TimeCalendar({ days, eventsForDay, onSelect }: { days: Date[]; eventsForDay: (day: Date) => ScheduleExamItem[]; onSelect: (item: ScheduleExamItem) => void }) {
-  return <div className="overflow-x-auto"><div className="min-w-[780px]"><div className="grid border-b bg-muted/20" style={{ gridTemplateColumns: `64px repeat(${days.length}, minmax(140px, 1fr))` }}><div />{days.map((day) => <div key={day.toISOString()} className={`border-l border-border px-2 py-3 text-center ${isToday(day) ? "bg-primary/5" : ""}`}><p className="text-xs text-muted-foreground capitalize">{format(day, "EEE", { locale: vi })}</p><p className={`mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm ${isToday(day) ? "bg-primary font-semibold text-primary-foreground" : ""}`}>{format(day, "d")}</p></div>)}</div><div className="relative" style={{ minHeight: `${HOURS.length * 68}px` }}>{HOURS.map((hour) => <div key={hour} className="absolute left-0 right-0 flex" style={{ top: `${(hour - HOURS[0]) * 68}px` }}><div className="w-16 -translate-y-2 pr-2 text-right text-xs text-muted-foreground">{String(hour).padStart(2, "0")}:00</div><div className="h-px flex-1 bg-border" /></div>)}<div className="ml-16 grid h-full" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(140px, 1fr))` }}>{days.map((day) => <div key={day.toISOString()} className="relative border-l border-border">{eventsForDay(day).map((item) => { const start = toDate(item.startTime)!; const end = toDate(item.endTime); const startMinutes = start.getHours() * 60 + start.getMinutes(); const top = Math.max(0, ((startMinutes - HOURS[0] * 60) / 60) * 68); const duration = end ? Math.max(36, ((end.getTime() - start.getTime()) / 3600000) * 68) : 52; return <button key={item.id} onClick={() => onSelect(item)} className={`absolute inset-x-1 overflow-hidden rounded-md border p-2 text-left text-xs shadow-sm transition hover:brightness-95 ${getEventTone(item)}`} style={{ top, height: duration }}><span className="block font-semibold leading-4">{item.title}</span><span className="mt-1 block truncate opacity-75">{format(start, "HH:mm")} · {item.course?.code}</span></button>; })}</div>)}</div></div></div></div>;
+  return <div className="overflow-x-auto"><div className="min-w-[780px]"><div className="grid border-b bg-muted/20" style={{ gridTemplateColumns: `64px repeat(${days.length}, minmax(140px, 1fr))` }}><div />{days.map((day) => <div key={day.toISOString()} className={`border-l border-border px-2 py-3 text-center ${isToday(day) ? "bg-primary/5" : ""}`}><p className="text-xs text-muted-foreground capitalize">{format(day, "EEE", { locale: vi })}</p><p className={`mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm ${isToday(day) ? "bg-primary font-semibold text-primary-foreground" : ""}`}>{format(day, "d")}</p></div>)}</div><div className="relative overflow-hidden" style={{ height: `${GRID_PX}px` }}>{HOURS.map((hour) => <div key={hour} className="absolute left-0 right-0 flex" style={{ top: `${(hour - HOURS[0]) * HOUR_PX}px` }}><div className="w-16 -translate-y-2 pr-2 text-right text-xs text-muted-foreground">{String(hour).padStart(2, "0")}:00</div><div className="h-px flex-1 bg-border" /></div>)}<div className="ml-16 grid h-full" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(140px, 1fr))` }}>{days.map((day) => <div key={day.toISOString()} className="relative border-l border-border">{layoutDayEvents(eventsForDay(day)).map(({ item, start, top, height, lane, lanes }) => { const widthPct = 100 / lanes; const end = toDate(item.endTime); return <Tooltip key={item.id}><TooltipTrigger asChild><button onClick={() => onSelect(item)} className={`absolute overflow-hidden rounded-md border p-2 text-left text-xs shadow-sm transition hover:z-10 hover:brightness-95 ${getEventTone(item)}`} style={{ top, height, left: `calc(${lane * widthPct}% + 2px)`, width: `calc(${widthPct}% - 4px)` }}><span className="block truncate font-semibold leading-4">{item.title}</span><span className="mt-1 block truncate opacity-75">{format(start, "HH:mm")} · {item.course?.code}</span></button></TooltipTrigger><TooltipPrimitive.Portal><TooltipContent side="right" className="max-w-xs"><p className="font-semibold">{item.title}</p><p className="text-xs text-muted-foreground">{item.course?.code}{item.course?.name ? ` · ${item.course.name}` : ""}</p><p className="mt-1 text-xs">{format(start, "HH:mm, dd/MM/yyyy")}{end ? ` – ${format(end, "HH:mm")}` : ""}</p></TooltipContent></TooltipPrimitive.Portal></Tooltip>; })}</div>)}</div></div></div></div>;
 }
 
 function FlexibleExamCard({ item, onSelect }: { item: ScheduleExamItem; onSelect: (item: ScheduleExamItem) => void }) {
