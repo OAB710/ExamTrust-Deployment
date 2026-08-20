@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, Calculator, CheckCircle2, Clock3, Cpu, Loader2, MessageSquare, ShieldCheck, User, XCircle } from "lucide-react";
+import { AlertTriangle, Calculator, CheckCircle2, Clock3, Cpu, Image as ImageIcon, Loader2, MessageSquare, Music, RefreshCw, ShieldCheck, User, XCircle } from "lucide-react";
+import { formatManualAnswer } from "@/features/lecturer/manual-grading-formatters";
 
 type Question = {
   id: string;
@@ -25,7 +26,32 @@ type Question = {
   isGraded: boolean;
   feedback?: string;
   explanation?: string;
+  mediaType?: "image" | "audio" | null;
+  mediaUrl?: string | null;
 };
+
+// These structured types serialize their answer/correctAnswer as JSON
+// objects/arrays (matching pairs, ordering lists, find-error id sets...);
+// formatChoiceAnswer below only knows option-id lookups and would otherwise
+// print the raw JSON. formatManualAnswer already renders all of them as
+// readable text, so route these types through it and keep formatChoiceAnswer
+// only for option-based types (MULTIPLE_CHOICE/MULTI_SELECT/ESSAY/...).
+const STRUCTURED_ANSWER_TYPES = new Set(["MATCHING", "ORDERING", "FIND_ERROR", "FILL_IN_BLANK", "TRUE_FALSE"]);
+
+function formatAnswerCell(type: unknown, rawAnswer: unknown, options: unknown): string {
+  const upperType = String(type || "").toUpperCase();
+  if (STRUCTURED_ANSWER_TYPES.has(upperType)) {
+    const lines = formatManualAnswer(upperType, rawAnswer, options);
+    if (lines.length && lines[0] !== "Chưa nộp câu trả lời") return lines.join("; ");
+  }
+  return formatChoiceAnswer(rawAnswer, options);
+}
+
+function MediaBadge({ mediaType }: { mediaType?: "image" | "audio" | null }) {
+  if (mediaType === "image") return <ImageIcon className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom text-muted-foreground" aria-label="Câu hỏi có hình ảnh đính kèm" />;
+  if (mediaType === "audio") return <Music className="inline-block h-3.5 w-3.5 shrink-0 align-text-bottom text-muted-foreground" aria-label="Câu hỏi có âm thanh đính kèm" />;
+  return null;
+}
 
 // Student-facing scores use one decimal place. The underlying score keeps its
 // full precision; rounding happens only at presentation time.
@@ -40,17 +66,6 @@ function textValue(value: unknown): string {
     return textValue(item.answer ?? item.text ?? item.content ?? JSON.stringify(item));
   }
   return String(value);
-}
-
-function parseOptionTexts(options: unknown): string[] {
-  if (Array.isArray(options)) return options.map((option) => textValue(option)).filter(Boolean);
-  if (options && typeof options === "object") {
-    return Object.keys(options as Record<string, unknown>)
-      .sort()
-      .map((key) => textValue((options as Record<string, unknown>)[key]))
-      .filter(Boolean);
-  }
-  return [];
 }
 
 type OptionDisplay = { key: string; text: string };
@@ -109,29 +124,6 @@ function formatChoiceAnswer(rawAnswer: unknown, questionOptions: unknown): strin
     .join(", ");
 }
 
-// Renders a student's MATCHING/ORDERING answer as readable text instead of
-// the raw JSON object it's stored as. Mirrors the same options-splitting
-// convention exam-taking-model.ts uses to present these question types.
-function formatStructuredAnswer(type: string, rawAnswer: unknown, questionOptions: unknown): string | null {
-  if (rawAnswer == null || typeof rawAnswer !== "object" || Array.isArray(rawAnswer)) return null;
-  const answerMap = rawAnswer as Record<string, unknown>;
-
-  if (type === "MATCHING") {
-    const options = parseOptionTexts(questionOptions);
-    if (options.length === 0) return null;
-    const half = Math.max(1, Math.floor(options.length / 2));
-    const left = options.slice(0, half);
-    return left
-      .map((leftText, index) => {
-        const chosen = textValue(answerMap[String(index)]);
-        return `${leftText} → ${chosen || "Chưa ghép"}`;
-      })
-      .join("; ");
-  }
-
-  return null;
-}
-
 export default function GradingBreakdown() {
   const searchParams = useSearchParams();
   const examId = searchParams.get("examId") || undefined;
@@ -139,22 +131,22 @@ export default function GradingBreakdown() {
   const [loading, setLoading] = useState(false);
   const [submission, setSubmission] = useState<any | null>(null);
 
-  useEffect(() => {
+  const loadSubmission = useCallback(async () => {
     if (!examId && !submissionId) return;
-    let mounted = true;
-    (async () => {
-      try {
-        setLoading(true);
-        const result = submissionId ? await api.getMySubmissionById(submissionId) : await api.getMyExamSubmission(examId!);
-        if (mounted) setSubmission(result);
-      } catch (error) {
-        console.error("Không thể tải chi tiết chấm điểm:", error);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
+    try {
+      setLoading(true);
+      const result = submissionId ? await api.getMySubmissionById(submissionId) : await api.getMyExamSubmission(examId!);
+      setSubmission(result);
+    } catch (error) {
+      console.error("Không thể tải chi tiết chấm điểm:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [examId, submissionId]);
+
+  useEffect(() => {
+    loadSubmission();
+  }, [loadSubmission]);
 
   const questions = useMemo<Question[]>(() => (submission?.answers || []).map((answer: any, index: number) => {
     const question = answer.question || {};
@@ -163,8 +155,8 @@ export default function GradingBreakdown() {
       content: textValue(question.content || question.text) || "Nội dung câu hỏi chưa khả dụng",
       // The server derives gradingMode from the immutable exam snapshot.
       // A manually graded answer can legitimately have pointsAwarded.
-      answer: formatStructuredAnswer(question.type, answer.answer, question.options) ?? formatChoiceAnswer(answer.answer, question.options),
-      correctAnswer: textValue(question.correctAnswer),
+      answer: formatAnswerCell(question.type, answer.answer, question.options),
+      correctAnswer: formatAnswerCell(question.type, question.correctAnswer, question.options),
       points: Number(answer.pointsAwarded ?? 0),
       maxPoints: Number(answer.maxPoints ?? question.points ?? 0),
       isCorrect: Boolean(answer.isCorrect),
@@ -172,6 +164,8 @@ export default function GradingBreakdown() {
       type: answer.gradingMode === "MANUAL" ? "manual" : "auto",
       feedback: answer.feedback || undefined,
       explanation: question.explanation || undefined,
+      mediaType: question.mediaType || null,
+      mediaUrl: question.mediaUrl || null,
     };
   }), [submission]);
 
@@ -209,8 +203,16 @@ export default function GradingBreakdown() {
 
   return <DashboardLayout><div className="mx-auto max-w-5xl">
     <BackToDashboardButton to="/student/results" className="mb-4 -ml-2" />
-    <h1 className="text-2xl font-semibold">Chi tiết chấm điểm</h1>
-    <p className="mt-1 text-muted-foreground">Theo dõi điểm tạm tính, tiến độ chấm và nhận xét của giảng viên.</p>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-semibold">Chi tiết chấm điểm</h1>
+        <p className="mt-1 text-muted-foreground">Theo dõi điểm tạm tính, tiến độ chấm và nhận xét của giảng viên.</p>
+      </div>
+      <Button variant="outline" size="sm" onClick={loadSubmission} disabled={loading} className="gap-2">
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        Làm mới
+      </Button>
+    </div>
 
     {loading ? <div className="py-20 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></div> : <div className="mt-6 space-y-6">
       <div className="flex flex-wrap gap-2"><Badge variant={gradingComplete ? "default" : "secondary"}>{gradingComplete ? "Đã hoàn tất chấm" : `Đã chấm tự động · Chờ giảng viên chấm ${manualPending} câu`}</Badge>{manualQuestions.length > 0 ? <Badge variant="outline">Chấm thủ công: {manualGraded}/{manualQuestions.length} câu</Badge> : null}</div>
@@ -226,11 +228,11 @@ export default function GradingBreakdown() {
       {submission?.proctoring ? <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-primary" />Dữ liệu giám sát phiên thi</CardTitle><CardDescription>Phiên thi có dữ liệu giám sát được lưu để giảng viên đối chiếu khi cần.</CardDescription></CardHeader><CardContent><p className="text-sm text-muted-foreground">Dữ liệu này không phải điểm phạt, không tự kết luận hành vi và không làm thay đổi điểm số tự động. Chi tiết kỹ thuật chỉ hiển thị cho giảng viên khi cần xem xét.</p></CardContent></Card> : null}
 
       <Card className="overflow-hidden"><CardHeader className="border-b bg-muted/30"><CardTitle className="flex items-center gap-2 text-lg"><Cpu className="h-5 w-5 text-blue-600" />Câu hỏi chấm tự động</CardTitle><CardDescription>{autoQuestions.length} câu · {formatPoints(autoScoreOnTen)} / {formatPoints(autoMaxOnTen)} điểm · quy đổi thang 10 · Đúng {autoCorrect} câu</CardDescription></CardHeader><CardContent className="pt-5">
-        {autoQuestions.length === 0 ? <EmptyQuestions /> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>#</TableHead><TableHead>Câu hỏi</TableHead><TableHead>Câu trả lời của bạn</TableHead>{showCorrectAnswers ? <TableHead>Đáp án đúng</TableHead> : null}<TableHead className="text-center">Điểm (thang 10)</TableHead><TableHead className="text-center">Kết quả</TableHead></TableRow></TableHeader><TableBody>{autoQuestions.map((question) => <TableRow key={question.id}><TableCell>{question.number}</TableCell><TableCell className="font-medium max-w-xs whitespace-normal break-words"><p>{question.content}</p>{showFeedback && question.explanation ? <p className="mt-2 text-sm font-normal text-muted-foreground"><span className="font-medium text-foreground">Giải thích: </span>{question.explanation}</p> : null}</TableCell><TableCell className="max-w-xs whitespace-normal break-words">{question.answer || "Chưa trả lời"}</TableCell>{showCorrectAnswers ? <TableCell className="max-w-xs whitespace-normal break-words">{question.correctAnswer || "Chưa công bố"}</TableCell> : null}<TableCell className="text-center whitespace-nowrap">{formatPoints(toTenPointScale(question.points))} / {formatPoints(toTenPointScale(question.maxPoints))} điểm</TableCell><TableCell className="text-center whitespace-nowrap">{question.isCorrect ? <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-600" /> : <XCircle className="mx-auto h-5 w-5 text-red-600 dark:text-red-400" />}</TableCell></TableRow>)}</TableBody></Table></div>}
+        {autoQuestions.length === 0 ? <EmptyQuestions /> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>#</TableHead><TableHead>Câu hỏi</TableHead><TableHead>Câu trả lời của bạn</TableHead>{showCorrectAnswers ? <TableHead>Đáp án đúng</TableHead> : null}<TableHead className="text-center">Điểm (thang 10)</TableHead><TableHead className="text-center">Kết quả</TableHead></TableRow></TableHeader><TableBody>{autoQuestions.map((question) => <TableRow key={question.id}><TableCell>{question.number}</TableCell><TableCell className="font-medium max-w-xs whitespace-normal break-words"><p><MediaBadge mediaType={question.mediaType} /> {question.content}</p>{question.mediaType === "image" && question.mediaUrl ? <img src={question.mediaUrl} alt="Hình ảnh minh họa câu hỏi" className="mt-2 max-h-40 w-full rounded-md border object-contain" /> : question.mediaType === "audio" && question.mediaUrl ? <audio src={question.mediaUrl} controls className="mt-2 w-full" /> : null}{showFeedback && question.explanation ? <p className="mt-2 text-sm font-normal text-muted-foreground"><span className="font-medium text-foreground">Giải thích: </span>{question.explanation}</p> : null}</TableCell><TableCell className="max-w-xs whitespace-normal break-words">{question.answer || "Chưa trả lời"}</TableCell>{showCorrectAnswers ? <TableCell className="max-w-xs whitespace-normal break-words">{question.correctAnswer || "Chưa công bố"}</TableCell> : null}<TableCell className="text-center whitespace-nowrap">{formatPoints(toTenPointScale(question.points))} / {formatPoints(toTenPointScale(question.maxPoints))} điểm</TableCell><TableCell className="text-center whitespace-nowrap">{question.isCorrect ? <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-600" /> : <XCircle className="mx-auto h-5 w-5 text-red-600 dark:text-red-400" />}</TableCell></TableRow>)}</TableBody></Table></div>}
         {(!showCorrectAnswers || !showFeedback) && autoQuestions.length > 0 ? <p className="mt-4 text-xs text-muted-foreground">Đáp án đúng và giải thích chỉ hiển thị khi giảng viên công bố kết quả và cho phép xem lại.</p> : null}
       </CardContent></Card>
 
-      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><User className="h-5 w-5 text-violet-600" />Câu hỏi chấm thủ công</CardTitle><CardDescription>Câu tự luận hiển thị điểm và nhận xét theo chính sách xem lại của bài thi. Điểm được quy đổi theo thang 10.</CardDescription></CardHeader><CardContent>{manualQuestions.length === 0 ? <EmptyQuestions /> : <div className="space-y-3">{manualQuestions.map((question) => <div key={question.id} className="rounded-lg border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium break-words">Câu {question.number}. {question.content}</p><Badge variant={question.isGraded ? "outline" : "secondary"}>{question.isGraded ? `${formatPoints(toTenPointScale(question.points))} / ${formatPoints(toTenPointScale(question.maxPoints))} điểm` : "Chờ chấm"}</Badge></div><div className="mt-3 rounded-md bg-muted/40 p-3 text-sm break-words"><span className="font-medium">Câu trả lời của bạn: </span>{question.answer || "Chưa trả lời"}</div>{showFeedback && question.feedback ? <div className="mt-3 flex gap-2 text-sm"><MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><p className="break-words"><span className="font-medium">Nhận xét của giảng viên: </span>{question.feedback}</p></div> : showFeedback && question.isGraded ? <p className="mt-3 text-sm text-muted-foreground">Giảng viên chưa để lại nhận xét.</p> : null}</div>)}</div>}</CardContent></Card>
+      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><User className="h-5 w-5 text-violet-600" />Câu hỏi chấm thủ công</CardTitle><CardDescription>Câu tự luận hiển thị điểm và nhận xét theo chính sách xem lại của bài thi. Điểm được quy đổi theo thang 10.</CardDescription></CardHeader><CardContent>{manualQuestions.length === 0 ? <EmptyQuestions /> : <div className="space-y-3">{manualQuestions.map((question) => <div key={question.id} className="rounded-lg border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium break-words"><MediaBadge mediaType={question.mediaType} /> Câu {question.number}. {question.content}</p><Badge variant={question.isGraded ? "outline" : "secondary"}>{question.isGraded ? `${formatPoints(toTenPointScale(question.points))} / ${formatPoints(toTenPointScale(question.maxPoints))} điểm` : "Chờ chấm"}</Badge></div>{question.mediaType === "image" && question.mediaUrl ? <img src={question.mediaUrl} alt="Hình ảnh minh họa câu hỏi" className="mt-3 max-h-56 w-full rounded-md border object-contain" /> : question.mediaType === "audio" && question.mediaUrl ? <audio src={question.mediaUrl} controls className="mt-3 w-full" /> : null}<div className="mt-3 rounded-md bg-muted/40 p-3 text-sm break-words"><span className="font-medium">Câu trả lời của bạn: </span>{question.answer || "Chưa trả lời"}</div>{showFeedback && question.feedback ? <div className="mt-3 flex gap-2 text-sm"><MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><p className="break-words"><span className="font-medium">Nhận xét của giảng viên: </span>{question.feedback}</p></div> : showFeedback && question.isGraded ? <p className="mt-3 text-sm text-muted-foreground">Giảng viên chưa để lại nhận xét.</p> : null}</div>)}</div>}</CardContent></Card>
     </div>}
   </div></DashboardLayout>;
 }

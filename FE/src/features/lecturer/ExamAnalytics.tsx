@@ -22,7 +22,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ExternalLink, Sparkles, TrendingUp, AlertTriangle, BarChart3, CheckCircle2, Filter, X, XCircle } from "lucide-react";
+import { Loader2, ExternalLink, Sparkles, TrendingUp, AlertTriangle, BarChart3, CheckCircle2, Filter, RefreshCw, X, XCircle } from "lucide-react";
 import api from "@/lib/api";
 import { unwrapPaginatedData } from "@/lib/api";
 import { AdminPageShell } from "@/components/admin/AdminPageShell";
@@ -139,50 +139,50 @@ export default function ExamAnalytics() {
     }
   }, [filteredExams, requestedExamId, selectedExamId]);
 
-  useEffect(() => {
-    const loadExams = async () => {
-      try {
-        setLoading(true);
-        const response = await api.getExams({ page: 1, limit: 100 });
-        const items = unwrapPaginatedData<ExamOption>(response);
-        setExamOptions(items);
-        if (items.length > 0) {
-          const requestedExam = items.find((item) => item.id === requestedExamId);
-          setSelectedExamId(requestedExam?.id || pickDefaultAnalyticsExamId(items));
-        }
-      } catch (error) {
-        console.error("Failed to load exams for analytics:", error);
-      } finally {
-        setLoading(false);
+  const loadExams = async () => {
+    try {
+      setLoading(true);
+      const response = await api.getExams({ page: 1, limit: 100 });
+      const items = unwrapPaginatedData<ExamOption>(response);
+      setExamOptions(items);
+      if (items.length > 0) {
+        const requestedExam = items.find((item) => item.id === requestedExamId);
+        setSelectedExamId(requestedExam?.id || pickDefaultAnalyticsExamId(items));
       }
-    };
+    } catch (error) {
+      console.error("Failed to load exams for analytics:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadExams();
   }, [requestedExamId]);
 
+  const loadIntelligence = async () => {
+    if (!selectedExamId) return;
+    try {
+      setLoadingIntelligence(true);
+      const payload = await api.getExamIntelligence(selectedExamId);
+      setData(payload as IntelligencePayload);
+      const nextImprovements: Record<string, AiImprovementSummary> = {};
+      for (const item of (payload as IntelligencePayload).mostIncorrectQuestions || []) {
+        if (item.aiImprovement?.id) {
+          nextImprovements[item.questionId] = item.aiImprovement;
+        }
+      }
+      setAiImprovements(nextImprovements);
+    } catch (error) {
+      console.error("Failed to load exam intelligence:", error);
+      setData(null);
+    } finally {
+      setLoadingIntelligence(false);
+    }
+  };
+
   useEffect(() => {
     if (!selectedExamId) return;
-
-    const loadIntelligence = async () => {
-      try {
-        setLoadingIntelligence(true);
-        const payload = await api.getExamIntelligence(selectedExamId);
-        setData(payload as IntelligencePayload);
-        const nextImprovements: Record<string, AiImprovementSummary> = {};
-        for (const item of (payload as IntelligencePayload).mostIncorrectQuestions || []) {
-          if (item.aiImprovement?.id) {
-            nextImprovements[item.questionId] = item.aiImprovement;
-          }
-        }
-        setAiImprovements(nextImprovements);
-      } catch (error) {
-        console.error("Failed to load exam intelligence:", error);
-        setData(null);
-      } finally {
-        setLoadingIntelligence(false);
-      }
-    };
-
     loadIntelligence();
   }, [selectedExamId]);
 
@@ -495,7 +495,7 @@ export default function ExamAnalytics() {
   const getKpiCards = (payload: IntelligencePayload) => [
     {
       icon: TrendingUp,
-      value: payload.kpis.avgScorePct.toFixed(1) + "%",
+      value: (payload.kpis.avgScorePct / 10).toFixed(1) + "/10",
       label: "Điểm trung bình",
       iconWrapClassName: "bg-sky-500/10",
       iconClassName: "text-sky-600",
@@ -602,6 +602,23 @@ export default function ExamAnalytics() {
               Phân tích - Luyện tập - Cải thiện theo từng bài thi.
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              loadExams();
+              loadIntelligence();
+            }}
+            disabled={loading || loadingIntelligence}
+            className="gap-2"
+          >
+            {loading || loadingIntelligence ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Làm mới
+          </Button>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -847,7 +864,7 @@ export default function ExamAnalytics() {
                     <div key={row.date} className="flex items-center gap-3">
                       <span className="w-24 shrink-0 text-xs text-muted-foreground">{row.date}</span>
                       <Progress value={row.avgScorePct} className="h-1.5 flex-1 [&>div]:bg-primary" />
-                      <span className="w-12 text-right text-xs font-medium">{row.avgScorePct}%</span>
+                      <span className="w-12 text-right text-xs font-medium">{(row.avgScorePct / 10).toFixed(1)}/10</span>
                     </div>
                   ))}
                 </CardContent>

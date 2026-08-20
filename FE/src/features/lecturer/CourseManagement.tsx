@@ -43,7 +43,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  Loader2,
   MoreHorizontal,
+  RefreshCw,
   Users,
   Clock,
   Archive,
@@ -377,6 +379,20 @@ export default function CourseManagement() {
                   <SelectItem value="list">Danh sách</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchCourses}
+                disabled={loading}
+                className="gap-2"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Làm mới
+              </Button>
               <Button asChild className="gap-2">
                 <Link href="/lecturer/create-course">
                   <Plus className="h-4 w-4" />

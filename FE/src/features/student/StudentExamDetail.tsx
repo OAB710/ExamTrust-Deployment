@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -11,6 +11,7 @@ import {
   Clock3,
   FileText,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -97,54 +98,46 @@ export default function StudentExamDetail() {
   const [mySubmission, setMySubmission] = useState<MySubmission | null>(null);
   const [completedSubmission, setCompletedSubmission] = useState<MySubmission | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadExamDetail = useCallback(async () => {
+    if (!id) {
+      setError("Thiếu mã bài thi.");
+      setLoading(false);
+      return;
+    }
 
-    const fetchData = async () => {
-      if (!id) {
-        setError("Thiếu mã bài thi.");
-        setLoading(false);
-        return;
-      }
+    try {
+      setLoading(true);
+      setError(null);
 
-      try {
-        setLoading(true);
-        setError(null);
+      const [examRes, mySubmissionsRes] = await Promise.all([
+        api.getExam(id),
+        api.getMySubmissions().catch(() => []),
+      ]);
 
-        const [examRes, mySubmissionsRes] = await Promise.all([
-          api.getExam(id),
-          api.getMySubmissions().catch(() => []),
-        ]);
-
-        if (!mounted) return;
-        setExam(examRes || null);
-        const submissionList = Array.isArray(mySubmissionsRes) ? mySubmissionsRes : [];
-        const examSubmissions = submissionList.filter((item: any) => String(item?.examId ?? item?.exam?.id ?? "") === id);
-        const byLatest = [...examSubmissions].sort((a: any, b: any) => {
-          const aTime = new Date(a?.submittedAt || a?.startedAt || a?.createdAt || 0).getTime();
-          const bTime = new Date(b?.submittedAt || b?.startedAt || b?.createdAt || 0).getTime();
-          return bTime - aTime;
-        });
-        const latestAny = byLatest[0] || null;
-        const latestCompleted = byLatest.find((item: any) =>
-          ["SUBMITTED", "GRADED", "FLAGGED", "FINALIZED"].includes(String(item?.status || "").toUpperCase()),
-        ) || null;
-        setMySubmission(latestAny || null);
-        setCompletedSubmission(latestCompleted || null);
-      } catch (err: any) {
-        if (!mounted) return;
-        setError(err?.message || "Không thể tải chi tiết bài thi.");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    fetchData();
-
-    return () => {
-      mounted = false;
-    };
+      setExam(examRes || null);
+      const submissionList = Array.isArray(mySubmissionsRes) ? mySubmissionsRes : [];
+      const examSubmissions = submissionList.filter((item: any) => String(item?.examId ?? item?.exam?.id ?? "") === id);
+      const byLatest = [...examSubmissions].sort((a: any, b: any) => {
+        const aTime = new Date(a?.submittedAt || a?.startedAt || a?.createdAt || 0).getTime();
+        const bTime = new Date(b?.submittedAt || b?.startedAt || b?.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+      const latestAny = byLatest[0] || null;
+      const latestCompleted = byLatest.find((item: any) =>
+        ["SUBMITTED", "GRADED", "FLAGGED", "FINALIZED"].includes(String(item?.status || "").toUpperCase()),
+      ) || null;
+      setMySubmission(latestAny || null);
+      setCompletedSubmission(latestCompleted || null);
+    } catch (err: any) {
+      setError(err?.message || "Không thể tải chi tiết bài thi.");
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    loadExamDetail();
+  }, [loadExamDetail]);
 
   const accessState = useMemo(() => {
     if (!exam) return "unknown";
@@ -177,7 +170,13 @@ export default function StudentExamDetail() {
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-5xl space-y-6 rounded-2xl bg-[linear-gradient(180deg,hsl(200_40%_97%)_0%,hsl(0_0%_100%)_48%)] p-4 sm:p-5 lg:p-6">
-        <BackToDashboardButton to="/student/exams" label="Quay lại bài thi của tôi" className="-ml-2" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <BackToDashboardButton to="/student/exams" label="Quay lại bài thi của tôi" className="-ml-2" />
+          <Button variant="outline" size="sm" onClick={loadExamDetail} disabled={loading} className="gap-2">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Làm mới
+          </Button>
+        </div>
 
         {loading ? (
           <Card className="border-slate-200 bg-white/95 shadow-medium">

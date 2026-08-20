@@ -242,15 +242,15 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       logsRef.current.push(entry);
       setLastViolation(entry);
       setViolationCounts((prev) => ({ ...prev, [type]: prev[type] + 1 }));
-      setViolationCount((prev) => {
-        const next = prev + 1;
-        if (!escalatedRef.current && next >= maxViolations) {
-          escalatedRef.current = true;
-          setIsEscalated(true);
-          onEscalate?.(next, logsRef.current.slice());
-        }
-        return next;
-      });
+      // logsRef was just pushed to above, so its length IS the new total —
+      // reading it here (instead of a `prev => prev + 1` functional update)
+      // lets the escalation decision below run outside setViolationCount's
+      // updater, so it can be sequenced after onViolation's promise settles.
+      const totalCount = logsRef.current.length;
+      const willEscalate = !escalatedRef.current && totalCount >= maxViolations;
+      if (willEscalate) escalatedRef.current = true;
+      setViolationCount(totalCount);
+      if (willEscalate) setIsEscalated(true);
       // A violation that happens while the student is ALREADY back in
       // fullscreen (the "returned within the grace window, but the free
       // first pass was already used earlier" case) must not re-block them —
@@ -262,9 +262,22 @@ export function useExamSecurity(options: UseExamSecurityOptions = {}): UseExamSe
       if (!callOptions?.keepUnblocked) {
         setIsBlocked(true);
       }
-      void Promise.resolve(onViolation?.(entry, logsRef.current.length))
+      const violationPersisted = Promise.resolve(onViolation?.(entry, totalCount))
         .then((state) => reconcileSecurityState(state))
         .catch(() => undefined);
+      if (willEscalate) {
+        // The violation that just crossed the limit must be durably
+        // persisted BEFORE auto-submit fires, otherwise the "end of exam"
+        // webcam capture doSubmit triggers (fire-and-forget, see
+        // ExamTaking.tsx's doSubmit) can reach the server first and no
+        // longer be guaranteed to be the last recorded event. `.finally`
+        // (not `.then`) so a failed live send still escalates — the event
+        // stays queued in logsRef and rides along with the final submit
+        // payload either way.
+        void violationPersisted.finally(() => onEscalate?.(totalCount, logsRef.current.slice()));
+      } else {
+        void violationPersisted;
+      }
     },
     [isTrackingActive, maxViolations, onEscalate, onViolation, reconcileSecurityState, violationCooldownMs],
   );

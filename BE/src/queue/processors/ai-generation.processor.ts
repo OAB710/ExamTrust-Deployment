@@ -255,6 +255,13 @@ export class AIGenerationProcessor {
       payload: Record<string, any>;
     };
 
+    // ai-worker runs as a separate process from the `app` API server, each
+    // with its own in-memory AiService instance — a provider switch made via
+    // the `app` process's HTTP endpoint never reaches this one directly.
+    // Re-sync from Redis before every job so the worker actually uses the
+    // currently active provider, not whatever it had at its own last boot.
+    await this.aiService.syncProviderFromRedis();
+
     const record = await this.prisma.aIGenerationRecord.findUnique({
       where: { id: jobId },
       select: { id: true, status: true },

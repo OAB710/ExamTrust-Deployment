@@ -98,6 +98,7 @@ import {
   Clock,
   Eye,
   MoreHorizontal,
+  RefreshCw,
 } from "lucide-react";
 import api, { unwrapPaginatedData } from "@/lib/api";
 import { toast } from "sonner";
@@ -302,44 +303,46 @@ export default function CreateCourse() {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const trainingSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const fetchCourses = async () => {
+    setLoading(true);
+    try {
+      const data = unwrapPaginatedData(await api.getCourses());
+      const safeIso = (raw?: any) => {
+        if (!raw) return "—";
+        const d = new Date(raw);
+        if (isNaN(d.getTime())) return typeof raw === "string" ? raw : "—";
+        return d.toISOString().split("T")[0];
+      };
+      const mapped: Course[] = data.map((c: APICourse) => ({
+        id: c.id,
+        code: c.code,
+        name: c.name,
+        academicYear: c.academicYear || undefined,
+        term: c.term || undefined,
+        description: c.description,
+        credits: c.credits,
+        // Accept multiple possible shapes returned by the backend:
+        // - admin list: _count.enrollments / _count.exams
+        // - lecturer-specific endpoints: enrolledStudents / exams
+        // - generic: students / exams
+        students:
+          (c as any).students ??
+          (c as any).enrolledStudents ??
+          c._count?.enrollments ??
+          0,
+        exams: (c as any).exams ?? c._count?.exams ?? 0,
+        status: (c.status?.toLowerCase() as Course["status"]) || "draft",
+        createdAt: safeIso(c.createdAt),
+      }));
+      setCourses(mapped);
+    } catch (err) {
+      console.error("Failed to fetch courses:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchCourses = async () => {
-      try {
-        const data = unwrapPaginatedData(await api.getCourses());
-        const safeIso = (raw?: any) => {
-          if (!raw) return "—";
-          const d = new Date(raw);
-          if (isNaN(d.getTime())) return typeof raw === "string" ? raw : "—";
-          return d.toISOString().split("T")[0];
-        };
-        const mapped: Course[] = data.map((c: APICourse) => ({
-          id: c.id,
-          code: c.code,
-          name: c.name,
-          academicYear: c.academicYear || undefined,
-          term: c.term || undefined,
-          description: c.description,
-          credits: c.credits,
-          // Accept multiple possible shapes returned by the backend:
-          // - admin list: _count.enrollments / _count.exams
-          // - lecturer-specific endpoints: enrolledStudents / exams
-          // - generic: students / exams
-          students:
-            (c as any).students ??
-            (c as any).enrolledStudents ??
-            c._count?.enrollments ??
-            0,
-          exams: (c as any).exams ?? c._count?.exams ?? 0,
-          status: (c.status?.toLowerCase() as Course["status"]) || "draft",
-          createdAt: safeIso(c.createdAt),
-        }));
-        setCourses(mapped);
-      } catch (err) {
-        console.error("Failed to fetch courses:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchCourses();
   }, []);
 
@@ -1151,6 +1154,20 @@ export default function CreateCourse() {
           className="mb-6"
           actions={
           <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchCourses}
+            disabled={loading}
+            className="gap-2"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Làm mới
+          </Button>
           <Dialog
             open={showCreateDialog}
             onOpenChange={(open) => {

@@ -120,27 +120,29 @@ export default function QuestionHistoryAnalysis() {
   const [appliedFilters, setAppliedFilters] = useState<FilterValues>(EMPTY_HISTORY_FILTERS);
   const [analysisView, setAnalysisView] = useState<"versions" | "usages" | "history">("versions");
 
+  const loadHistory = async (activeCheck?: () => boolean) => {
+    const isActive = () => !activeCheck || activeCheck();
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await api.getQuestionHistory({
+        courseId: searchParams.get("courseId") || undefined,
+      });
+      const data = Array.isArray(payload?.data) ? payload.data : [];
+      if (!isActive()) return;
+      setRows(data);
+      setStats(payload?.stats || null);
+      setSelectedQuestion(data[0] || null);
+    } catch (err: any) {
+      if (isActive()) setError(err.message || "Không thể tải lịch sử câu hỏi");
+    } finally {
+      if (isActive()) setLoading(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const payload = await api.getQuestionHistory({
-          courseId: searchParams.get("courseId") || undefined,
-        });
-        const data = Array.isArray(payload?.data) ? payload.data : [];
-        if (!active) return;
-        setRows(data);
-        setStats(payload?.stats || null);
-        setSelectedQuestion(data[0] || null);
-      } catch (err: any) {
-        if (active) setError(err.message || "Không thể tải lịch sử câu hỏi");
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    load();
+    loadHistory(() => active);
     return () => {
       active = false;
     };
@@ -303,13 +305,29 @@ export default function QuestionHistoryAnalysis() {
           <ArrowLeft className="h-4 w-4" /> Quay lại ngân hàng câu hỏi
         </Button>
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-foreground mb-1">
-            Lịch sử phiên bản & phân tích chất lượng câu hỏi
-          </h1>
-          <p className="text-muted-foreground">
-            Phân tích từ phiên bản câu hỏi, bài nộp và thống kê chất lượng đã lưu.
-          </p>
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground mb-1">
+              Lịch sử phiên bản & phân tích chất lượng câu hỏi
+            </h1>
+            <p className="text-muted-foreground">
+              Phân tích từ phiên bản câu hỏi, bài nộp và thống kê chất lượng đã lưu.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadHistory()}
+            disabled={loading}
+            className="gap-2"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Làm mới
+          </Button>
         </div>
 
         {loading && (

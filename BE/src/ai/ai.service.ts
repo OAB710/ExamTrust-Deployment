@@ -1,5 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RedisService, DEFAULT_REDIS } from '@liaoliaots/nestjs-redis';
+import { Redis } from 'ioredis';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 import {
@@ -9,9 +11,18 @@ import {
   OllamaGenerationOptions,
 } from './ai-profile';
 
+// Providers that get their client eagerly initialized at boot (regardless of
+// which one is currently active) so switching between them via setProvider()
+// is instant — no restart needed, since the SDK client for the "other" one
+// already exists. Ollama/NVIDIA/local/mock stay lazily gated by `provider`
+// as before; they aren't part of the live-switch surface.
+const SWITCHABLE_PROVIDERS = ['openrouter', 'deepseek', 'google'] as const;
+const AI_PROVIDER_REDIS_KEY = 'ai:active-provider';
+
 @Injectable()
 export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
+  private readonly redis: Redis;
   private genAI: GoogleGenerativeAI;
   private nvidiaAI: OpenAI;
   private openRouterAI: OpenAI;
@@ -26,6 +37,7 @@ export class AiService implements OnModuleInit {
   private nvidiaModel: string;
   private openRouterModel: string;
   private deepseekModel: string;
+  private googleModel: string;
   private appName: string;
   private defaultLanguage: string;
   private ollamaTemperature: number;
@@ -33,7 +45,8 @@ export class AiService implements OnModuleInit {
   private ollamaRepeatPenalty: number;
   private ollamaNumCtx: number;
 
-  constructor(private configService: ConfigService) {
+  constructor(private configService: ConfigService, private redisService: RedisService) {
+    this.redis = this.redisService.getOrThrow(DEFAULT_REDIS);
     const apiKey = this.configService.get<string>('GOOGLE_AI_API_KEY');
     this.provider = this.configService.get<string>('AI_PROVIDER') || 'google';
     this.localUrl = this.configService.get<string>('AI_LOCAL_URL') || undefined;
@@ -52,6 +65,7 @@ export class AiService implements OnModuleInit {
     this.nvidiaModel = this.configService.get<string>('AI_NVIDIA_MODEL') || 'z-ai/glm-5.2';
     this.openRouterModel = this.configService.get<string>('AI_OPENROUTER_MODEL') || 'nvidia/nemotron-3-ultra-550b-a55b:free';
     this.deepseekModel = this.configService.get<string>('AI_DEEPSEEK_MODEL') || 'deepseek-chat';
+    this.googleModel = this.configService.get<string>('AI_GOOGLE_MODEL') || 'gemini-3.5-flash-lite';
     this.appName = this.configService.get<string>('AI_APP_NAME') || 'Academic Trust Suite';
     this.defaultLanguage = this.configService.get<string>('AI_DEFAULT_LANGUAGE') || 'vi';
     this.ollamaTemperature = Number(this.configService.get<string>('AI_OLLAMA_TEMPERATURE') || 0.2);
@@ -59,13 +73,53 @@ export class AiService implements OnModuleInit {
     this.ollamaRepeatPenalty = Number(this.configService.get<string>('AI_OLLAMA_REPEAT_PENALTY') || 1.1);
     this.ollamaNumCtx = Number(this.configService.get<string>('AI_OLLAMA_NUM_CTX') || 8192);
 
-    if (this.provider === 'google') {
-      if (!apiKey) {
-        this.logger.warn('GOOGLE_AI_API_KEY not set. AI features will not work.');
-      }
-      this.genAI = new GoogleGenerativeAI(apiKey || '');
-      this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    } else if (this.provider === 'ollama') {
+    // Google, OpenRouter and DeepSeek are the "live-switchable" set (see
+    // SWITCHABLE_PROVIDERS / setProvider() below) — their clients are always
+    // constructed here regardless of which one is currently active, so
+    // switching between them at runtime never needs a process restart.
+    // Ollama/NVIDIA/local/mock stay gated by `provider` as before since
+    // they aren't part of that live-switch surface.
+    if (!apiKey) {
+      this.logger.warn('GOOGLE_AI_API_KEY not set. Google AI features will not work.');
+    }
+    this.genAI = new GoogleGenerativeAI(apiKey || '');
+    this.model = this.genAI.getGenerativeModel({ model: this.googleModel });
+
+    const openRouterApiKey = this.configService.get<string>('OPENROUTER_API_KEY');
+    const openRouterBaseUrl = this.configService.get<string>('AI_OPENROUTER_BASE_URL') || 'https://openrouter.ai/api/v1';
+    const referer = this.configService.get<string>('AI_OPENROUTER_HTTP_REFERER')
+      || this.configService.get<string>('APP_BASE_URL')
+      || this.configService.get<string>('FRONTEND_URL');
+    const title = this.configService.get<string>('AI_OPENROUTER_X_TITLE') || this.appName;
+    if (!openRouterApiKey) {
+      this.logger.warn('OPENROUTER_API_KEY not set. OpenRouter AI features will not work.');
+    }
+    // The openai SDK throws at construction time if `apiKey` is an empty
+    // string (it requires a truthy credential) — eagerly constructing every
+    // switchable provider's client (see above) means this now runs even when
+    // that provider's key isn't configured, so a placeholder non-empty value
+    // is required to defer the failure to actual call time, matching the
+    // "log a warning, don't crash boot" behavior this already had.
+    this.openRouterAI = new OpenAI({
+      apiKey: openRouterApiKey || 'missing-openrouter-api-key',
+      baseURL: openRouterBaseUrl,
+      defaultHeaders: {
+        ...(referer ? { 'HTTP-Referer': referer } : {}),
+        ...(title ? { 'X-Title': title } : {}),
+      },
+    });
+
+    const deepseekApiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
+    const deepseekBaseUrl = this.configService.get<string>('AI_DEEPSEEK_BASE_URL') || 'https://api.deepseek.com';
+    if (!deepseekApiKey) {
+      this.logger.warn('DEEPSEEK_API_KEY not set. DeepSeek AI features will not work.');
+    }
+    this.deepseekAI = new OpenAI({
+      apiKey: deepseekApiKey || 'missing-deepseek-api-key',
+      baseURL: deepseekBaseUrl,
+    });
+
+    if (this.provider === 'ollama') {
       this.logger.log(`AI provider: Ollama @ ${this.ollamaUrl} (model: ${this.ollamaModel}, vision: ${this.ollamaVisionModel}, fallback: ${this.ollamaVisionFallbackModel})`);
     } else if (this.provider === 'nvidia') {
       const nvidiaApiKey = this.configService.get<string>('NVIDIA_API_KEY');
@@ -78,42 +132,53 @@ export class AiService implements OnModuleInit {
         baseURL: nvidiaBaseUrl,
       });
       this.logger.log(`AI provider: NVIDIA @ ${nvidiaBaseUrl} (model: ${this.nvidiaModel})`);
+    } else if (this.provider === 'google') {
+      this.logger.log(`AI provider: Google @ gemini (model: ${this.googleModel})`);
     } else if (this.provider === 'openrouter') {
-      const openRouterApiKey = this.configService.get<string>('OPENROUTER_API_KEY');
-      const openRouterBaseUrl = this.configService.get<string>('AI_OPENROUTER_BASE_URL') || 'https://openrouter.ai/api/v1';
-      const referer = this.configService.get<string>('AI_OPENROUTER_HTTP_REFERER')
-        || this.configService.get<string>('APP_BASE_URL')
-        || this.configService.get<string>('FRONTEND_URL');
-      const title = this.configService.get<string>('AI_OPENROUTER_X_TITLE') || this.appName;
-      if (!openRouterApiKey) {
-        this.logger.warn('OPENROUTER_API_KEY not set. OpenRouter AI features will not work.');
-      }
-      this.openRouterAI = new OpenAI({
-        apiKey: openRouterApiKey || '',
-        baseURL: openRouterBaseUrl,
-        defaultHeaders: {
-          ...(referer ? { 'HTTP-Referer': referer } : {}),
-          ...(title ? { 'X-Title': title } : {}),
-        },
-      });
       this.logger.log(`AI provider: OpenRouter @ ${openRouterBaseUrl} (model: ${this.openRouterModel})`);
     } else if (this.provider === 'deepseek') {
-      const deepseekApiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
-      const deepseekBaseUrl = this.configService.get<string>('AI_DEEPSEEK_BASE_URL') || 'https://api.deepseek.com';
-      if (!deepseekApiKey) {
-        this.logger.warn('DEEPSEEK_API_KEY not set. DeepSeek AI features will not work.');
-      }
-      this.deepseekAI = new OpenAI({
-        apiKey: deepseekApiKey || '',
-        baseURL: deepseekBaseUrl,
-      });
       this.logger.log(`AI provider: DeepSeek @ ${deepseekBaseUrl} (model: ${this.deepseekModel})`);
     } else {
       this.logger.log(`AI provider set to '${this.provider}'. Using local/mock mode.`);
     }
   }
 
+  /**
+   * Switches the active AI provider immediately (no restart) and persists
+   * the choice to Redis so it survives a real process restart — called by
+   * the /ai-status/switch-provider endpoint (Zalo bot "AI Google"/"AI
+   * Deepseek"/"AI Openrouter" commands).
+   */
+  async setProvider(provider: string): Promise<void> {
+    if (!(SWITCHABLE_PROVIDERS as readonly string[]).includes(provider)) {
+      throw new Error(`Unsupported AI provider '${provider}'. Must be one of: ${SWITCHABLE_PROVIDERS.join(', ')}`);
+    }
+    this.provider = provider;
+    await this.redis.set(AI_PROVIDER_REDIS_KEY, provider);
+    this.logger.log(`AI provider switched to '${provider}' (persisted to Redis)`);
+  }
+
+  // Each process (the `app` API server and the separate `ai-worker` process)
+  // holds its own in-memory AiService instance with its own `this.provider`.
+  // setProvider() above only updates the instance it's called on — calling
+  // it via the /ai-status/switch-provider HTTP endpoint (which only runs in
+  // `app`) never touches ai-worker's copy. Since actual generation happens
+  // in ai-worker, it must re-sync from Redis (the shared source of truth)
+  // before every job, not just once at boot.
+  async syncProviderFromRedis(): Promise<void> {
+    try {
+      const persisted = await this.redis.get(AI_PROVIDER_REDIS_KEY);
+      if (persisted && (SWITCHABLE_PROVIDERS as readonly string[]).includes(persisted) && persisted !== this.provider) {
+        this.provider = persisted;
+        this.logger.log(`AI provider restored from Redis: ${persisted}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Could not read persisted AI provider from Redis: ${String(error)}`);
+    }
+  }
+
   async onModuleInit() {
+    await this.syncProviderFromRedis();
     if (this.provider !== 'ollama') return;
     await Promise.all([this.ollamaVisionModel, this.ollamaVisionFallbackModel]
       .filter((model, index, models) => Boolean(model) && models.indexOf(model) === index)
@@ -144,7 +209,7 @@ export class AiService implements OnModuleInit {
 
   getProviderStatus(): { provider: string; model: string } {
     const modelByProvider: Record<string, string | undefined> = {
-      google: 'gemini-2.0-flash',
+      google: this.googleModel,
       ollama: this.ollamaModel,
       nvidia: this.nvidiaModel,
       openrouter: this.openRouterModel,

@@ -21,6 +21,7 @@ import {
   Database,
   ArrowRight,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
@@ -58,26 +59,28 @@ export default function AdminDashboard() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [usersRes, examsRes, submissionsRes, coursesRes] =
+        await Promise.all([
+          api.getUsers(),
+          api.getExams(),
+          api.getSubmissions(),
+          api.getCourses(),
+        ]);
+      setUsers(unwrapPaginatedData(usersRes));
+      setExams(unwrapPaginatedData(examsRes));
+      setSubmissions(unwrapPaginatedData(submissionsRes));
+      setCourses(unwrapPaginatedData(coursesRes));
+    } catch (err) {
+      console.error("Failed to fetch admin data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [usersRes, examsRes, submissionsRes, coursesRes] =
-          await Promise.all([
-            api.getUsers(),
-            api.getExams(),
-            api.getSubmissions(),
-            api.getCourses(),
-          ]);
-        setUsers(unwrapPaginatedData(usersRes));
-        setExams(unwrapPaginatedData(examsRes));
-        setSubmissions(unwrapPaginatedData(submissionsRes));
-        setCourses(unwrapPaginatedData(coursesRes));
-      } catch (err) {
-        console.error("Failed to fetch admin data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
@@ -140,13 +143,29 @@ export default function AdminDashboard() {
     <DashboardLayout>
       <AdminPageShell showBackButton={false}>
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">
-            Quản trị hệ thống
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Theo dõi và quản lý nền tảng khảo thí
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">
+              Quản trị hệ thống
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Theo dõi và quản lý nền tảng khảo thí
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchData}
+            disabled={loading}
+            className="gap-2 shrink-0"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Làm mới
+          </Button>
         </div>
 
         {/* System Stats */}

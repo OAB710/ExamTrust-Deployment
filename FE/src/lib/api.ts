@@ -1187,8 +1187,9 @@ class ApiClient {
     return this.request<any>(`/submissions/exam/${examId}${query}`);
   }
 
-  async getExamAnswerMatrix(examId: string) {
-    return this.request<any>(`/submissions/exam/${examId}/answer-matrix`);
+  async getExamAnswerMatrix(examId: string, attemptNo?: number) {
+    const query = attemptNo ? `?attemptNo=${encodeURIComponent(attemptNo)}` : "";
+    return this.request<any>(`/submissions/exam/${examId}/answer-matrix${query}`);
   }
 
   async getExamOverview(examId: string) {

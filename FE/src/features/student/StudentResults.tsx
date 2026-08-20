@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Award, FileCheck2, RotateCcw, Trophy, CalendarDays, Clock3 } from "lucide-react";
+import { Loader2, Award, FileCheck2, RefreshCw, RotateCcw, Trophy, CalendarDays, Clock3 } from "lucide-react";
 import api from "@/lib/api";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
 import { getStatusBadgeLabel } from "@/components/ui/status-badge";
@@ -123,29 +123,26 @@ export default function StudentResults() {
     courseCode: "all",
     score: { min: undefined, max: undefined },
   });
-  const [sortField, setSortField] = useState("exam.title");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+  const [sortField, setSortField] = useState("lastActivityAt");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [page, setPage] = useState(1);
   const [attemptPages, setAttemptPages] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    let mounted = true;
-    const fetch = async () => {
-      try {
-        setLoading(true);
-        const data = await api.getMyResultsHistory();
-        if (mounted) setResultGroups(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Failed to load submissions", err);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    fetch();
-    return () => {
-      mounted = false;
-    };
+  const loadResults = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await api.getMyResultsHistory();
+      setResultGroups(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load submissions", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadResults();
+  }, [loadResults]);
 
   const resultFilterDefinitions: FilterDefinition[] = useMemo(
     () => [
@@ -298,7 +295,15 @@ export default function StudentResults() {
         <BackToDashboardButton to="/student" className="-ml-2" />
 
         <div className="space-y-3">
-          <ListPageHeader title="Kết quả" />
+          <ListPageHeader
+            title="Kết quả"
+            actions={
+              <Button variant="outline" size="sm" onClick={loadResults} disabled={loading} className="gap-2">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Làm mới
+              </Button>
+            }
+          />
           <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
             <SearchBar
               value={searchInput}

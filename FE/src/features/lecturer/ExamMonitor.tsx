@@ -79,6 +79,7 @@ import { BackToDashboardButton } from "@/components/common/BackToDashboardButton
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import api, { API_BASE_URL, unwrapPaginatedData } from "@/lib/api";
+import { INTEGRITY_EVENT_LABELS, getIntegrityEventLabel } from "@/lib/integrity-event-labels";
 import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -119,6 +120,10 @@ interface StudentSession {
   integrityEvents: number;
   startedAt: string | null;
   submittedAt: string | null;
+  // Raw ISO timestamp behind the human-formatted `submittedAt` above — kept
+  // around so the "fast completion" alert below can sort by when the
+  // submission actually happened instead of falling back to poll time.
+  submittedAtRaw: string | null;
   timingSignal: {
     severity: "REVIEW" | "HIGH";
     elapsedMinutes: number;
@@ -212,13 +217,6 @@ interface EvidenceCapture {
   reviewedAt?: string | null;
 }
 
-const EVIDENCE_SIGNAL_LABELS: Record<string, string> = {
-  tab_switch: "Chuyển tab",
-  fullscreen_exit: "Thoát fullscreen",
-  paste_external: "Dán nội dung ngoài",
-  mouse_idle: "Ngồi im",
-};
-
 // Labels a SCHEDULED capture by its position in the schedule — slot 0 is
 // always the exam-start checkpoint, the highest slot seen is always the
 // guaranteed end-of-exam checkpoint (see ProctoringEvidenceService), and
@@ -233,8 +231,8 @@ function getEvidenceEventLabel(capture: EvidenceCapture, maxScheduledSlot?: numb
     return slot != null ? `Định kỳ ${slot}` : "Định kỳ";
   }
   const details = capture.triggerDetails as { signals?: string[] } | null | undefined;
-  const signal = details?.signals?.find((s) => EVIDENCE_SIGNAL_LABELS[s]);
-  return signal ? EVIDENCE_SIGNAL_LABELS[signal] : "Sự kiện nghi vấn";
+  const signal = details?.signals?.find((s) => INTEGRITY_EVENT_LABELS[s.toLowerCase()]);
+  return signal ? getIntegrityEventLabel(signal) : "Sự kiện nghi vấn";
 }
 
 // Screen-capture (Part 5) isn't wired up yet, but when it is, the webcam +
@@ -549,6 +547,7 @@ export default function ExamMonitor() {
           submittedAt: submission?.submittedAt
             ? new Date(submission.submittedAt).toLocaleTimeString()
             : null,
+          submittedAtRaw: submission?.submittedAt || null,
           timingSignal: submission?.timingSignal || null,
           flagReason: status === "flagged" ? "Lượt nộp bị gắn cờ" : null,
           evidenceCount: Number(submission?.evidenceCaptureCount || 0),
@@ -624,12 +623,13 @@ export default function ExamMonitor() {
           studentName: session.name,
           type: "timing",
           label: "Hoàn thành bất thường nhanh",
-          message: `Hoàn thành ${timing.elapsedMinutes}/${timing.allowedMinutes} phút · ${timing.scorePct.toFixed(1)} điểm · nhanh hơn ${((1 - timing.completionRatio) * 100).toFixed(1)}% thời lượng cho phép. Cần giảng viên rà soát.`,
+          message: `Hoàn thành ${timing.elapsedMinutes}/${timing.allowedMinutes} phút · ${(timing.scorePct / 10).toFixed(1)}/10 điểm · nhanh hơn ${((1 - timing.completionRatio) * 100).toFixed(1)}% thời lượng cho phép. Cần giảng viên rà soát.`,
           severity: timing.severity === "HIGH" ? "critical" : "warning",
           time: session.submittedAt || "Đã nộp",
-          // session.submittedAt is already formatted (toLocaleTimeString) by buildRow,
-          // so the raw timestamp isn't available here — use now() as the sort key.
-          timestampMs: Date.now(),
+          // Sort by the actual submission time, not poll time — otherwise
+          // this alert re-jumps to the top of the feed on every 10s refresh
+          // even when nothing new happened.
+          timestampMs: session.submittedAtRaw ? new Date(session.submittedAtRaw).getTime() : Date.now(),
         });
       }
       setAlerts((prev) => mergeIntegrityAlerts(prev, mappedAlerts));
@@ -1415,7 +1415,7 @@ export default function ExamMonitor() {
                           </span>
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {item.elapsedMinutes} phút / {item.allowedMinutes} phút · {item.scorePct.toFixed(1)} điểm · nhanh hơn {((1 - item.completionRatio) * 100).toFixed(1)}% thời lượng cho phép
+                          {item.elapsedMinutes} phút / {item.allowedMinutes} phút · {(item.scorePct / 10).toFixed(1)}/10 điểm · nhanh hơn {((1 - item.completionRatio) * 100).toFixed(1)}% thời lượng cho phép
                           {item.cohortMedianMinutes != null ? ` · Trung vị lớp ${item.cohortMedianMinutes} phút` : ""}
                         </p>
                       </div>
@@ -1850,10 +1850,10 @@ export default function ExamMonitor() {
                       Trung bình
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-foreground">
-                      {Math.round(
+                      {(
                         submittedScores.reduce((a, b) => a + b, 0) /
-                          submittedScores.length,
-                      )}
+                          submittedScores.length
+                      ).toFixed(1)}/10
                     </p>
                   </div>
                   <div className="rounded-lg border border-border/70 p-3">
@@ -1861,7 +1861,7 @@ export default function ExamMonitor() {
                       Cao nhất
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-green-600">
-                      {Math.max(...submittedScores)}
+                      {Math.max(...submittedScores).toFixed(1)}/10
                     </p>
                   </div>
                   <div className="rounded-lg border border-border/70 p-3">
@@ -1869,7 +1869,7 @@ export default function ExamMonitor() {
                       Thấp nhất
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-red-600">
-                      {Math.min(...submittedScores)}
+                      {Math.min(...submittedScores).toFixed(1)}/10
                     </p>
                   </div>
                 </div>

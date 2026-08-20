@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
+import { AiService } from './ai.service';
 
 const AI_SECTIONS = [
   'CONTENT',
@@ -31,6 +32,7 @@ export class AiJobsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly queueService: QueueService,
+    private readonly aiService: AiService,
   ) {}
 
   private normalizeSection(section?: AISectionValue | string | null): AISectionValue {
@@ -41,22 +43,11 @@ export class AiJobsService {
   }
 
   async createJob(params: CreateAiJobParams) {
-    const provider = process.env.AI_PROVIDER || 'google';
-    const ollamaModel = process.env.AI_OLLAMA_MODEL || 'gemma3:4b';
-    const ollamaVisionModel = process.env.AI_OLLAMA_VISION_MODEL || process.env.OLLAMA_VISION_MODEL || 'gemma3:4b';
-    const googleModel = process.env.AI_MODEL || 'gemini-2.0-flash';
-    const nvidiaModel = process.env.AI_NVIDIA_MODEL || 'z-ai/glm-5.2';
-    const openRouterModel = process.env.AI_OPENROUTER_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free';
-    const model =
-      provider === 'ollama'
-        ? (params.task === 'proctoring-evidence' ? ollamaVisionModel : ollamaModel)
-        : provider === 'nvidia'
-          ? nvidiaModel
-        : provider === 'openrouter'
-          ? openRouterModel
-        : params.task === 'single-question' || params.task === 'exam-questions' || params.task === 'exam-quality-review' || params.task === 'exam-risk-assessment' || params.task === 'question-improvement'
-          ? googleModel
-          : ollamaModel;
+    // Read from AiService (backed by Redis) rather than process.env.AI_PROVIDER
+    // directly — the latter is a static boot-time value and never reflects a
+    // live provider switch made via /ai-status/switch-provider, which would
+    // stamp every job record with a stale provider/model forever.
+    const { provider, model } = this.aiService.getProviderStatus();
     const section = this.normalizeSection(params.section);
 
     const record = await this.prisma.aIGenerationRecord.create({

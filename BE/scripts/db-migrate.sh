@@ -26,11 +26,11 @@ docker compose --env-file .env.production -f docker-compose.prod.yml \
   --schema prisma/schema.prisma --skip-generate
 
 if [ "${1:-}" = "--seed" ]; then
-  echo "==> re-running seed (idempotent upserts only, safe on existing data)..."
+  echo "==> re-running seed-master (idempotent upserts only, safe on existing data)..."
   docker compose --env-file .env.production -f docker-compose.prod.yml \
     run --rm app npx ts-node --transpile-only \
     --compiler-options '{"module":"commonjs","moduleResolution":"node"}' \
-    prisma/seed.ts
+    prisma/seed-master.ts
 fi
 
 echo "==> db-migrate done."

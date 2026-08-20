@@ -144,3 +144,13 @@ Kèm 1 bug riêng ở FE (`AdminAnalyticsDashboard.tsx`): component `ChartCard` 
 ## 6. Lưu ý về việc fork sang repo khác
 
 File này được tạo **sau khi bạn đã fork** sang repo mới, nên **sẽ không tự có mặt bên repo fork**. Bạn cần copy thủ công file `EC2_DB_DEPLOY_NOTES.md` này sang repo mới (hoặc merge/pull lại từ repo gốc) nếu muốn giữ lại làm tài liệu tham khảo khi deploy.
+
+## 7. Cập nhật — dựng lại toàn bộ seed data (xem BE/docs/SEED_REBUILD_PLAN.md)
+
+**Mục 3 và mục 5 ở trên đã LỖI THỜI** — nói về `prisma/seed.ts`, `seed-accounts-only.ts`, `seed-analytics-ui-demo.ts`, `seed-monitor-ui-demo.ts`: các file này **đã bị xoá hoàn toàn**, thay bằng bộ seed mới 9 bước (`seed-users.ts` → ... → `seed-grading-adjustments.ts`, orchestrate bởi `seed-master.ts`). Chi tiết đầy đủ ở `BE/docs/SEED_REBUILD_PLAN.md`.
+
+Điểm khác biệt cần biết khi deploy/chạy trên EC2:
+- **20 sinh viên** (không phải 36/10 như các bản seed cũ), không còn course `CLS001`/`DATNUO-LECT-xx`.
+- Toàn bộ course dồn về `lecturer01@tdtutdtu.edu.vn` (1 tài khoản sở hữu hết, theo yêu cầu).
+- `npm run db:rebuild` / lệnh bot "Reset DB" giờ chạy `seed-master.ts` mới — **nếu production đang có dữ liệu demo cũ (36 sinh viên, CLS001) và ai đó bấm Reset DB sau khi deploy code mới, dữ liệu sẽ đổi hoàn toàn sang cấu trúc mới này.** Không phải bug, nhưng cần báo trước cho ai đang dùng data cũ để test/chụp màn hình.
+- Kèm sửa bug thật ở `BE/src/submissions/submissions.service.ts` (câu chấm tay lưu `isCorrect=null` lúc nộp bài thay vì `false`) — sửa đúng nguyên nhân ma trận đáp án hiện sai "Sai" cho câu chưa chấm. Không cần migration, chỉ cần "Build BE" bình thường.

@@ -12,15 +12,20 @@ const {
   ZALO_PUBLIC_INFO_COMMAND = "Info",
   ZALO_SYSTEM_OVERVIEW_COMMAND = "Summary",
   ZALO_BUILD_BE_COMMAND = "Build BE",
-  ZALO_AI_DEEPSEEK_COMMAND = "AI Deepseek",
-  ZALO_AI_OPENROUTER_COMMAND = "AI Openrouter",
+  ZALO_AI_DEEPSEEK_COMMAND = "AI DS",
+  ZALO_AI_OPENROUTER_COMMAND = "AI OR",
+  ZALO_AI_GOOGLE_COMMAND = "AI GG",
+  // Shared secret for BE's POST /ai-status/switch-provider — switches the
+  // active AI provider instantly (BE keeps all 3 clients warm), no restart
+  // and no GitHub Actions round-trip needed, unlike Build FE/BE above.
+  AI_SWITCH_SECRET,
   ZALO_RESET_DB_COMMAND = "Reset DB",
   ZALO_CLEAR_QUESTIONS_COMMAND = "CQM",
   ZALO_CLEAR_EVIDENCE_COMMAND = "CEM",
   ZALO_CLEAR_ALL_STORAGE_COMMAND = "CAM",
   // Bump this alongside every CHANGELOG.md release entry (xem skill
   // release-versioning) — hiển thị trong lệnh Info cho mọi user.
-  ZALO_APP_VERSION = "v1.1.3",
+  ZALO_APP_VERSION = "v1.2.0",
   ZALO_FE_URL = "https://examtrust-deployment-final-thesis.examtrust.workers.dev",
   ZALO_BE_API_URL = "https://32-236-182-208.sslip.io/api",
   ZALO_AWS_CONSOLE_URL = "https://ap-southeast-2.console.aws.amazon.com/",
@@ -29,7 +34,6 @@ const {
   GITHUB_REPO = "OAB710/ExamTrust-Deployment",
   GITHUB_WORKFLOW_FILE = "deploy-fe.yml",
   GITHUB_WORKFLOW_FILE_BE = "deploy-be.yml",
-  GITHUB_WORKFLOW_FILE_SWITCH_AI = "switch-ai.yml",
   GITHUB_WORKFLOW_FILE_RESET_DB = "reset-db.yml",
   GITHUB_WORKFLOW_FILE_CLEAR_STORAGE = "clear-storage.yml",
   CLOUDFLARE_API_TOKEN,
@@ -441,6 +445,29 @@ async function getAiStatus() {
   }
 }
 
+// Switches BE's active AI provider immediately via POST /ai-status/switch-provider
+// (shared-secret header, not GitHub Actions) — BE already has all 3 clients
+// (OpenRouter/DeepSeek/Google) warm, so this takes effect on the very next
+// AI request with no restart, and BE persists the choice to Redis itself.
+async function switchAiProvider(provider) {
+  try {
+    const resp = await fetch(`${ZALO_BE_API_URL}/ai-status/switch-provider`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-ai-switch-secret": AI_SWITCH_SECRET ?? "" },
+      body: JSON.stringify({ provider }),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error("AI switch-provider failed", resp.status, text);
+      return null;
+    }
+    return await resp.json();
+  } catch (err) {
+    console.error("AI switch-provider request failed", err);
+    return null;
+  }
+}
+
 async function getSystemOverview() {
   try {
     const resp = await fetch(`${ZALO_BE_API_URL}/system-overview`);
@@ -721,22 +748,22 @@ export const handler = async (event) => {
       }
     } else if (
       text === normalizeCommand(ZALO_AI_DEEPSEEK_COMMAND) ||
-      text === normalizeCommand(ZALO_AI_OPENROUTER_COMMAND)
+      text === normalizeCommand(ZALO_AI_OPENROUTER_COMMAND) ||
+      text === normalizeCommand(ZALO_AI_GOOGLE_COMMAND)
     ) {
-      const provider = text === normalizeCommand(ZALO_AI_DEEPSEEK_COMMAND) ? "deepseek" : "openrouter";
-      const lastRunAgeMs = await getLastRunAgeMs(GITHUB_WORKFLOW_FILE_SWITCH_AI);
-      if (lastRunAgeMs !== null && lastRunAgeMs < COOLDOWN_MS) {
-        const waitSec = Math.ceil((COOLDOWN_MS - lastRunAgeMs) / 1000);
-        await replyToZalo(chatId, `⏳ Vừa đổi xong, đợi ${waitSec}s rồi thử lại nhé`);
-      } else {
-        const dispatched = await triggerDeploy(GITHUB_WORKFLOW_FILE_SWITCH_AI, { provider });
-        await replyToZalo(
-          chatId,
-          dispatched
-            ? `🔄 Đang chuyển AI provider sang ${provider}, BE sẽ tự restart để nhận cấu hình mới...`
-            : "❌ Trigger lỗi rồi",
-        );
-      }
+      const provider =
+        text === normalizeCommand(ZALO_AI_DEEPSEEK_COMMAND)
+          ? "deepseek"
+          : text === normalizeCommand(ZALO_AI_OPENROUTER_COMMAND)
+            ? "openrouter"
+            : "google";
+      const result = await switchAiProvider(provider);
+      await replyToZalo(
+        chatId,
+        result
+          ? `✅ Đã chuyển AI provider sang ${result.provider} (model: ${result.model}) — có hiệu lực ngay, không cần restart.`
+          : "❌ Đổi provider lỗi rồi",
+      );
     } else {
       await replyToZalo(
         chatId,
@@ -749,7 +776,7 @@ export const handler = async (event) => {
         `• ${ZALO_BUILD_FE_COMMAND} / ${ZALO_BUILD_BE_COMMAND}\n` +
         `• On / Off FE\n` +
         `• ${ZALO_USAGE_FE_COMMAND} / ${ZALO_USAGE_BE_COMMAND} / ${ZALO_USAGE_R2_COMMAND}\n` +
-        `• ${ZALO_AI_DEEPSEEK_COMMAND} / ${ZALO_AI_OPENROUTER_COMMAND}\n` +
+        `• ${ZALO_AI_DEEPSEEK_COMMAND} / ${ZALO_AI_OPENROUTER_COMMAND} / ${ZALO_AI_GOOGLE_COMMAND}\n` +
         `• ${ZALO_RESET_DB_COMMAND} (Reset DB lại dữ liệu gốc)\n` +
         `• ${ZALO_CLEAR_QUESTIONS_COMMAND} (Clear Question Media)\n` +
         `• ${ZALO_CLEAR_EVIDENCE_COMMAND} (Clear Evidence Media)\n` +

@@ -40,6 +40,7 @@ import {
   Shield,
   Repeat,
   Camera,
+  RefreshCw,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -521,7 +522,16 @@ export default function AdminExamManagement() {
   return (
     <DashboardLayout>
       <AdminPageShell>
-        <ListPageHeader title="Tất cả bài thi" className="mb-4" />
+        <ListPageHeader
+          title="Tất cả bài thi"
+          className="mb-4"
+          actions={
+            <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="gap-2">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Làm mới
+            </Button>
+          }
+        />
 
         {/* Stats */}
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -630,6 +640,14 @@ export default function AdminExamManagement() {
                   </TableHeader>
                   <TableBody>
                     {displayedExams.map((exam) => {
+                      // exam.status is set once at creation/publish time and
+                      // nothing in the app ever transitions it forward when
+                      // the schedule closes, so a PUBLISHED/ONGOING exam
+                      // whose endTime has already passed keeps showing that
+                      // stale status forever. Override the badge the same
+                      // way LecturerDashboard's "recent exams" list already
+                      // does, so the two screens agree on the same exam.
+                      const isPastEnd = Boolean(exam.endTime) && new Date(exam.endTime).getTime() < Date.now();
                       return (
                         <TableRow key={exam.id} className="hover:bg-muted/50">
                           <TableCell className="font-medium">
@@ -687,11 +705,17 @@ export default function AdminExamManagement() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <StatusBadge
-                              status={exam.status}
-                              domain="exam"
-                              className="text-xs"
-                            />
+                            {isPastEnd && exam.status !== "ARCHIVED" ? (
+                              <StatusBadge tone="danger" className="text-xs">
+                                Đã hết hạn
+                              </StatusBadge>
+                            ) : (
+                              <StatusBadge
+                                status={exam.status}
+                                domain="exam"
+                                className="text-xs"
+                              />
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>

@@ -89,7 +89,12 @@ export function DataPagination({
           next.set(urlParamKey, String(clamped));
         }
         const query = next.toString();
-        router.replace((query ? `${pathname}?${query}` : pathname) as any);
+        // `scroll: false` is the actual fix: Next.js router navigation
+        // scrolls to top by default, which is what was yanking the page
+        // back up every time someone clicked Trước/Sau from the bottom of
+        // a long list. Without syncUrl, onPageChange() alone never
+        // triggers a router navigation, so there's nothing to suppress.
+        router.replace((query ? `${pathname}?${query}` : pathname) as any, { scroll: false });
       }
     },
     [effectiveTotalPages, onPageChange, pathname, router, searchParams, syncUrl, urlParamKey],

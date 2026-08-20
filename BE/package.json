@@ -1,6 +1,6 @@
 {
   "name": "examtrust-backend",
-  "version": "1.1.4",
+  "version": "1.2.2",
   "description": "ExamTrust Backend API - NestJS + Prisma + MySQL",
   "main": "dist/main.js",
   "scripts": {
@@ -22,12 +22,7 @@
     "db:rebuild": "prisma db push --force-reset --accept-data-loss --schema prisma/schema.prisma && npm run seed:all",
     "db:clear-content": "ts-node prisma/clear-academic-data.ts",
     "backfill:question-v2": "ts-node scripts/backfill-question-v2.ts",
-    "seed": "ts-node prisma/seed.ts",
     "seed:all": "ts-node --transpile-only prisma/seed-master.ts",
-    "seed:accounts": "ts-node --transpile-only prisma/seed-accounts-only.ts",
-    "seed:legacy-course-sections": "ts-node --transpile-only prisma/seed-legacy-course-sections.ts",
-    "seed:question-banks": "ts-node --transpile-only prisma/seed-course-question-banks.ts",
-    "seed:question-history-demo": "ts-node --transpile-only prisma/seed-question-history-demo.ts",
     "lint": "eslint \"{src,scripts}/**/*.ts\"",
     "lint:fix": "eslint \"{src,scripts}/**/*.ts\" --fix",
     "test": "jest"

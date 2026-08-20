@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
 import { api } from "@/lib/api";
 import {
@@ -17,6 +18,7 @@ import {
   Monitor,
   MousePointer,
   Play,
+  RefreshCw,
   Send,
   Shield,
 } from "lucide-react";
@@ -59,43 +61,38 @@ export default function ExamEventTimeline() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let active = true;
+  const loadTimeline = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      let submissionId =
+        localStorage.getItem("currentSubmissionId") ||
+        localStorage.getItem("lastSubmissionId") ||
+        "";
 
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        let submissionId =
-          localStorage.getItem("currentSubmissionId") ||
-          localStorage.getItem("lastSubmissionId") ||
-          "";
-
-        if (!submissionId) {
-          const submissions: any = await api.getMySubmissions();
-          const rows = Array.isArray(submissions) ? submissions : submissions?.data || [];
-          submissionId = rows[0]?.id || "";
-        }
-
-        if (!submissionId) {
-          if (active) setPayload(null);
-          return;
-        }
-
-        const data = await api.getSubmissionTimeline(submissionId);
-        if (active) setPayload(data);
-      } catch (err: any) {
-        if (active) setError(err.message || "Không thể tải dòng thời gian");
-      } finally {
-        if (active) setLoading(false);
+      if (!submissionId) {
+        const submissions: any = await api.getMySubmissions();
+        const rows = Array.isArray(submissions) ? submissions : submissions?.data || [];
+        submissionId = rows[0]?.id || "";
       }
-    };
 
-    load();
-    return () => {
-      active = false;
-    };
+      if (!submissionId) {
+        setPayload(null);
+        return;
+      }
+
+      const data = await api.getSubmissionTimeline(submissionId);
+      setPayload(data);
+    } catch (err: any) {
+      setError(err.message || "Không thể tải dòng thời gian");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadTimeline();
+  }, [loadTimeline]);
 
   const events = useMemo(() => payload?.events || [], [payload?.events]);
   const anomalyCount = (payload?.summary.warnings || 0) + (payload?.summary.critical || 0);
@@ -152,9 +149,15 @@ export default function ExamEventTimeline() {
               Dòng thời gian chỉ đọc, được dựng lại từ nhật ký toàn vẹn học thuật đã lưu.
             </p>
           </div>
-          <StatusBadge status={anomalyCount > 2 ? "critical" : anomalyCount > 0 ? "warning" : "none"} domain="severity">
-            {anomalyCount} bất thường được phát hiện
-          </StatusBadge>
+          <div className="flex items-center gap-2">
+            <StatusBadge status={anomalyCount > 2 ? "critical" : anomalyCount > 0 ? "warning" : "none"} domain="severity">
+              {anomalyCount} bất thường được phát hiện
+            </StatusBadge>
+            <Button variant="outline" size="sm" onClick={loadTimeline} disabled={loading} className="gap-2">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Làm mới
+            </Button>
+          </div>
         </div>
 
         {loading && (

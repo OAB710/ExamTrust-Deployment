@@ -13,6 +13,58 @@ Quy ước:
 
 ---
 
+## [1.2.2] - 2026-08-18
+
+### Thay đổi
+- **Sửa bug đổi AI provider không có hiệu lực thật**: `app` (nhận lệnh đổi provider) và `ai-worker` (nơi thực sự chạy sinh nội dung AI) là 2 process Docker riêng, mỗi bên giữ 1 instance `AiService` với `this.provider` trong bộ nhớ riêng. Gọi `/ai-status/switch-provider` chỉ cập nhật instance của `app` + Redis, không đồng bộ sang `ai-worker` — nơi job thật sự chạy chỉ đọc provider từ Redis đúng 1 lần lúc boot, nên tiếp tục dùng provider cũ cho tới khi được restart thủ công. Đã thêm `AiService.syncProviderFromRedis()` (public, đổi tên từ `restoreProviderFromRedis`), gọi trước mỗi job trong `AIGenerationProcessor` để `ai-worker` luôn đồng bộ provider mới nhất.
+- **Sửa bug hiển thị sai provider trên job record**: `AiJobsService.createJob()` đang đọc `process.env.AI_PROVIDER` (tĩnh, không đổi theo runtime) để ghi field `provider`/`model` vào `AIGenerationRecord` hiển thị cho user, khiến job luôn hiện provider cũ dù đã đổi thật. Đã sửa thành đọc từ `aiService.getProviderStatus()` (dựa trên Redis).
+
+### Cập nhật dữ liệu
+- **Không cần.** Không đổi schema.
+
+### Cần deploy
+- **Build BE**: ĐÃ deploy thật trên EC2 — rebuild image `app` + `ai-worker` (`docker compose -f docker-compose.prod.yml build app ai-worker`, log đầy đủ tới "Image ... Built" cho cả 2), sau đó `up -d --force-recreate app ai-worker`. Xác nhận qua: 27 test AI pass trước khi deploy; `curl /ai-status/switch-provider` đổi qua `deepseek` thành công, đối chiếu Redis key `ai:active-provider` đọc trực tiếp từ container `ai-worker` khớp đúng `deepseek`; sau đó đổi lại về `google` (provider đang dùng thật).
+- **Build FE**: không cần — không có thay đổi FE trong bản này.
+
+## [1.2.1] - 2026-08-18
+
+### Thay đổi
+- **Sửa bug ma trận đáp án hiện toàn "Để trống"** ở 3 seed script demo (`seed-question-history-demo.ts`, `seed-monitor-ui-demo.ts`, `seed-analytics-ui-demo.ts`): `submissionAnswer.upsert()` không set `questionSnapshotId`, khiến key đáp án (fallback về `questionVersionId`) không khớp với key cột (dựa trên `ExamQuestionSnapshot.questionSnapshotId`), nên mọi ô hiện "Để trống" dù sinh viên đã có điểm/đã được chấm. Luồng nộp bài thật (`submissions.service.ts`) không bị ảnh hưởng — đã set đúng field này từ trước.
+- **Sửa ai-worker crash loop trên production**: `AiWorkerModule` thiếu import `SharedRedisModule` nên không resolve được `RedisService` mà `AiService` mới cần (từ tính năng đổi AI provider ở v1.2.0), khiến container `ai-worker` crash-restart liên tục kể từ lúc deploy v1.2.0 — toàn bộ tính năng chấm/sinh nội dung bằng AI bị gián đoạn. Đã thêm `SharedRedisModule` vào `imports` của `AiWorkerModule`.
+
+### Cập nhật dữ liệu
+- **Không cần.** Không đổi schema. Đã chạy lại cả 3 seed script sửa lỗi trực tiếp trên MySQL production để xác nhận (đối chiếu SQL: mọi `submission_answers.questionSnapshotId` liên quan giờ khớp đúng `exam_question_snapshots`, không còn NULL).
+
+### Cần deploy
+- **Build BE**: ĐÃ deploy thật trên EC2 — rebuild image `ai-worker` + `docker compose up -d --force-recreate ai-worker` (chỉ container này, không đụng `app`). Xác nhận qua log container: boot sạch, `RestartCount` reset về 0 và đứng yên, `AI provider restored from Redis: openrouter`, `AI worker started and waiting for queued jobs.`.
+- **Build FE**: không cần — không có thay đổi FE trong bản này.
+
+## [1.2.0] - 2026-08-18
+
+### Thay đổi
+- **Đổi hiển thị điểm từ % sang thang 10** ở `ExamResultsList`, `ExamMonitor`, `ExamAnalytics`, `CourseDetail` (dùng chung lecturer/admin).
+- **Sửa bug hiển thị đáp án raw JSON** cho câu Matching/Ordering/Find-error ở trang xem kết quả sinh viên (`GradingBreakdown`) và trang chấm thủ công.
+- **Thống nhất nhãn sự kiện giám sát** (mouse_idle, tab_switch...) qua 1 file dùng chung `FE/src/lib/integrity-event-labels.ts`, bỏ các bảng nhãn hardcode rải rác ở `ExamMonitor`/`IntegrityCaseDetail`/`ExamResultsList`/`ExamManagement`.
+- **Sửa sắp xếp "Cảnh báo toàn vẹn"** dùng timestamp thật của vi phạm thay vì giờ poll (khiến alert nhảy lên đầu dù không có gì mới).
+- **Sửa race condition**: đảm bảo log vi phạm gây auto-submit được lưu xong trước khi ảnh "kết thúc" được chụp (`use-exam-security.ts`).
+- **Đổi tên route/cột**: `manual-grading` → `review`, cột "Chấm thủ công" → "Thao tác", nút "Chi tiết bài làm" (cả lecturer và admin), không còn giới hạn chỉ xem được khi bài thi 1 lượt.
+- **Ma trận đáp án**: bỏ giới hạn chỉ áp dụng bài thi 1 lượt, thêm dropdown lọc theo lượt làm (attemptNo).
+- **Sửa 3 seed script** (`seed-monitor-ui-demo.ts`, `seed-question-history-demo.ts`, `seed-analytics-ui-demo.ts`) tạo `ExamSubmission` không qua luồng publish thật nên thiếu `ExamSnapshot`/`QuestionSnapshot`, khiến ma trận đáp án hiển thị rỗng (chỉ có cột "Sinh viên"). Đã xác nhận đúng bài thi user báo lỗi (`0e8811cf-...`, "Kiểm tra cuối kỳ – 2026") giờ có snapshot đầy đủ.
+- **PDF/CSV xuất kết quả**: dịch cột "Trạng thái" sang tiếng Việt (Đã chấm, Đã nộp bài, Đã xác nhận...) thay vì in nguyên enum tiếng Anh (GRADED, SUBMITTED, CONFIRMED...).
+- **Đổi AI provider tức thời, không cần restart BE**: `AiService` khởi tạo sẵn cả 3 client (OpenRouter/DeepSeek/Google) lúc boot; endpoint mới `POST /ai-status/switch-provider` (xác thực bằng secret header) đổi provider ngay lập tức và lưu vào Redis để bền vững qua các lần restart. Thêm provider **Google** (model `gemini-3.5-flash-lite`).
+- **Bot Zalo**: rút gọn tên lệnh AI (`AI Deepseek`/`AI Openrouter` → `AI DS`/`AI OR`), thêm `AI GG` (Google), đổi cơ chế gọi thẳng endpoint mới thay vì trigger GitHub Actions + đợi BE restart.
+- **Fix build:cf lỗi ENOENT** (`FE/next.config.ts` thiếu `output: "standalone"` — yêu cầu bắt buộc của `@opennextjs/cloudflare`, thiếu từ lúc setup Cloudflare tới giờ, khiến FE có thể đã fail âm thầm build trên CI một thời gian).
+- Cập nhật skill `release-versioning`: quy tắc commit không kèm ghi công AI, mặc định push, bắt buộc verify thật trên production trước khi release.
+
+### Cập nhật dữ liệu
+- **Không cần chạy `db-rebuild.sh`/`db-migrate.sh`.** Không đổi schema (Redis key `ai:active-provider` là runtime state, không phải schema). Đã tự chạy cả 3 seed script sửa lỗi trực tiếp trên MySQL production để xác nhận trước khi commit — không lặp lại sai lầm chỉ test trên MariaDB local.
+
+### Cần deploy
+- **Build FE**: ĐÃ deploy thật (`npm run deploy:cf`), xác nhận qua `wrangler deployments list` — Version ID `0a3a9267-3ed0-4e0d-ab9a-9b97b65ee44a`.
+- **Build BE**: ĐÃ deploy thật (rebuild image + `docker compose up -d --force-recreate app ai-worker` trên EC2), xác nhận qua `curl /api/ai-status` và log container.
+- **`.env.production` trên EC2**: đã thêm `GOOGLE_AI_API_KEY`, `AI_GOOGLE_MODEL`, `AI_SWITCH_SECRET` (đã áp dụng, không cần làm lại).
+- ⚠️ **Lambda `zalo-webhook-lambda/index.mjs` CHƯA được deploy** — không có AWS CLI/credentials trong môi trường agent nên không tự upload được. Cần bạn tự nén (`Compress-Archive -Path index.mjs -DestinationPath function.zip -Force`) rồi upload thủ công qua AWS Console (Lambda → function → Code → Upload from .zip), và thêm biến môi trường `AI_SWITCH_SECRET` (giá trị đã set ở BE) vào cấu hình Lambda. Bot Zalo hiện vẫn chạy code cũ, chưa có lệnh `AI GG` hay cơ chế đổi provider mới.
+
 ## [1.1.4] - 2026-08-17
 
 ### Thay đổi

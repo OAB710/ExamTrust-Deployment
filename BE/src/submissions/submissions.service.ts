@@ -1290,10 +1290,16 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         const examQuestion = validQuestions.get(answerDto.questionId)!;
         const answerMeta = answerMetaByQuestionId.get(answerDto.questionId);
         let pointsAwarded = 0;
-        let isCorrect = false;
 
         const correctAnswer = examQuestion.answerKey ?? null;
-        if (this.isAutoGradable(examQuestion.type, correctAnswer)) {
+        const autoGradable = this.isAutoGradable(examQuestion.type, correctAnswer);
+        // Manual questions have no result yet at submission time — leave
+        // isCorrect null (same convention as reopenSubmission) instead of a
+        // misleading `false`, so the answer matrix/manual-grading views can
+        // tell "not graded yet" apart from "graded, awarded zero points".
+        let isCorrect: boolean | null = autoGradable ? false : null;
+
+        if (autoGradable) {
           if (correctAnswer && this.compareAnswers(answerDto.answer, correctAnswer, examQuestion.type)) {
             pointsAwarded = examQuestion.assignedScore;
             isCorrect = true;
@@ -1313,7 +1319,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           isCorrect,
           // A zero point is a legitimate manual score. Leave it null until an
           // instructor explicitly grades the response.
-          pointsAwarded: this.isAutoGradable(examQuestion.type, correctAnswer) ? pointsAwarded : null,
+          pointsAwarded: autoGradable ? pointsAwarded : null,
         };
       });
 
@@ -1367,11 +1373,17 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
         if (!answerRow) {
           bucket.skipped += 1;
-        } else if (answerRow.isCorrect) {
-          bucket.correct += 1;
-        } else {
-          bucket.incorrect += 1;
+        } else if (this.isAutoGradable(examQuestion.type, examQuestion.answerKey)) {
+          if (answerRow.isCorrect) {
+            bucket.correct += 1;
+          } else {
+            bucket.incorrect += 1;
+          }
         }
+        // Manual questions (ESSAY/FILL_IN_BLANK/...) have no result yet at
+        // submission time — do not count them as "incorrect" here. Their
+        // correct/incorrect tally is recorded once in gradeAnswer(), when an
+        // instructor actually grades the response.
 
         answeredByVersionId.set(versionId, bucket);
       }
@@ -2056,7 +2068,21 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     return submittedLines.size === correctLines.size && [...correctLines].every((line) => submittedLines.has(line));
   }
 
+  private normalizeTrueFalseAnswer(value: any): boolean | null {
+    const raw = value && typeof value === 'object' && !Array.isArray(value) ? value.answer : value;
+    if (typeof raw === 'boolean') return raw;
+    const normalized = String(raw ?? '').trim().toLowerCase();
+    if (normalized === 'true' || normalized === 'a') return true;
+    if (normalized === 'false' || normalized === 'b') return false;
+    return null;
+  }
+
   private compareAnswers(submitted: any, correct: any, type?: string): boolean {
+    if (type === 'TRUE_FALSE') {
+      const submittedBool = this.normalizeTrueFalseAnswer(submitted);
+      const correctBool = this.normalizeTrueFalseAnswer(correct);
+      return submittedBool !== null && submittedBool === correctBool;
+    }
     if (type === 'FIND_ERROR') {
       return this.compareFindErrorAnswer(submitted, correct);
     }
@@ -2573,6 +2599,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         select: {
           id: true,
           submissionId: true,
+          questionId: true,
+          questionVersionId: true,
           pointsAwarded: true,
           manualGradedAt: true,
           feedback: true,
@@ -2637,6 +2665,40 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             reason: gradeDto.reason || 'Manual regrade',
           } as any,
         });
+      }
+
+      // Manual questions are excluded from correct/incorrect at submission
+      // time (see submitExam) precisely so they can be counted here, once an
+      // actual grading decision exists — either the first time this answer
+      // is graded, or when a regrade moves it across the "0 points" line.
+      if (existing.questionVersionId) {
+        const wasGraded = existing.manualGradedAt !== null;
+        const wasCorrect = wasGraded && Number(existing.pointsAwarded || 0) > 0;
+        const isNowCorrect = Number(gradeDto.pointsAwarded || 0) > 0;
+        if (!wasGraded || wasCorrect !== isNowCorrect) {
+          const correctDelta = !wasGraded ? (isNowCorrect ? 1 : 0) : (isNowCorrect ? 1 : -1);
+          const incorrectDelta = !wasGraded ? (isNowCorrect ? 0 : 1) : (isNowCorrect ? -1 : 1);
+          await tx.questionStatistics.upsert({
+            where: { questionVersionId: existing.questionVersionId },
+            create: {
+              questionVersionId: existing.questionVersionId,
+              questionId: existing.questionId,
+              totalAttempts: !wasGraded ? 1 : 0,
+              correctAttempts: Math.max(0, correctDelta),
+              incorrectAttempts: Math.max(0, incorrectDelta),
+              skippedAttempts: 0,
+              pValue: isNowCorrect ? 1 : 0,
+              difficultyIndex: isNowCorrect ? 0 : 1,
+              lastRecomputedAt: new Date(),
+            },
+            update: {
+              totalAttempts: !wasGraded ? { increment: 1 } : undefined,
+              correctAttempts: { increment: correctDelta },
+              incorrectAttempts: { increment: incorrectDelta },
+              lastRecomputedAt: new Date(),
+            },
+          });
+        }
       }
 
       await this.recalculateSubmissionScore(existing.submissionId, tx);
@@ -2863,7 +2925,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
    * Lecturer/admin-only comparison view. It deliberately returns classifications
    * only: never the correct answers or the students' answer payloads.
    */
-  async getExamAnswerMatrix(examId: string, user?: RequestUser) {
+  async getExamAnswerMatrix(examId: string, user?: RequestUser, attemptNo?: number) {
     if (user) {
       await this.accessPolicy.assertInstructorCanAccessExam(examId, user);
     }
@@ -2875,12 +2937,25 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     if (!exam) throw new NotFoundException('Không tìm thấy bài thi');
 
     const maxAttempts = Number(exam.maxAttempts);
-    if (maxAttempts !== 1) {
-      throw new BadRequestException('Ma trận đáp án chỉ áp dụng cho bài thi có tối đa một lượt làm.');
-    }
+
+    // The matrix is one row per student, so it can only ever compare one
+    // attempt at a time — with multiple attempts allowed, ambiguously mixing
+    // rows from different attempts would make columns/cells meaningless.
+    // Resolve which attempt to show instead of just rejecting multi-attempt
+    // exams outright, defaulting to attempt 1.
+    const distinctAttempts = await this.prisma.examSubmission.findMany({
+      where: { examId },
+      select: { attemptNo: true },
+      distinct: ['attemptNo'],
+      orderBy: { attemptNo: 'asc' },
+    });
+    const availableAttempts = distinctAttempts.map((row) => row.attemptNo);
+    const resolvedAttemptNo = attemptNo && availableAttempts.includes(attemptNo)
+      ? attemptNo
+      : (availableAttempts[0] ?? 1);
 
     const submissions = await this.prisma.examSubmission.findMany({
-      where: { examId },
+      where: { examId, attemptNo: resolvedAttemptNo },
       select: {
         id: true,
         status: true,
@@ -3005,6 +3080,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       submittedCount: submissions.filter((item) => item.submittedAt).length,
       students,
       questionColumns,
+      availableAttempts,
+      selectedAttemptNo: resolvedAttemptNo,
     };
   }
 
@@ -3146,6 +3223,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
                 points: true,
                 defaultPoints: true,
                 correctAnswer: true,
+                mediaType: true,
+                mediaUrl: true,
               },
             },
             questionVersion: {
@@ -3191,6 +3270,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         questionType: answer.question?.type,
         questionText: answer.questionVersion?.stem || answer.question?.content || 'Question text unavailable',
         questionOptions: snapshotPayload.options ?? versionPayload.options ?? answer.question?.options ?? null,
+        questionMediaType: answer.question?.mediaType ?? null,
+        questionMediaUrl: answer.question?.mediaUrl ?? null,
         answer: answer.answer,
         pointsAwarded: answer.pointsAwarded,
         manualGradedAt: answer.manualGradedAt,
@@ -3211,6 +3292,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           questionType: answer.question?.type,
           questionText: answer.questionVersion?.stem || answer.question?.content || 'Question text unavailable',
           questionOptions: snapshotPayload.options ?? versionPayload.options ?? answer.question?.options ?? null,
+          questionMediaType: answer.question?.mediaType ?? null,
+          questionMediaUrl: answer.question?.mediaUrl ?? null,
           answer: answer.answer,
           correctAnswer: snapshotPayload.answerKey ?? snapshotPayload.correctAnswer
             ?? this.parseJsonValue(answer.question?.correctAnswer, null),
@@ -3776,6 +3859,31 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       }),
     ]);
 
+    // The tab_switch/mouse_idle alerts below are synthesized from running
+    // counters (ProctoringSession.tabSwitchCount/mouseAnomalies), not from a
+    // single discrete log row, so they have no natural "timestamp" of their
+    // own. Using `new Date()` (this poll's server time) made them re-sort to
+    // the top of the lecturer's alert feed on every 10s refresh regardless of
+    // whether a new violation actually happened — this recovers the real
+    // last-occurrence time per session from the underlying log rows instead.
+    const lastEventAtByProctoringAndType = new Map<string, Date>();
+    const lastEventGroups = await this.prisma.integrityLog.groupBy({
+      by: ['proctoringId', 'eventType'],
+      where: {
+        proctoring: { submission: { examId } },
+        eventType: { in: ['tab_switch', 'mouse_idle', 'mouse_anomaly'] },
+      },
+      _max: { timestamp: true },
+    });
+    for (const group of lastEventGroups) {
+      if (!group._max.timestamp) continue;
+      const key = `${group.proctoringId}:${group.eventType.toLowerCase()}`;
+      const existing = lastEventAtByProctoringAndType.get(key);
+      if (!existing || group._max.timestamp > existing) {
+        lastEventAtByProctoringAndType.set(key, group._max.timestamp);
+      }
+    }
+
     const hasEvidenceForEvent = (submissionId: string | null | undefined, eventType: string) => evidenceRows.some((row) => {
       if (!submissionId || row.submissionId !== submissionId) return false;
       const details = this.parseJsonValue(row.triggerDetails, {});
@@ -3799,12 +3907,15 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         return Math.max(0, Math.min(100, scoreValue));
       });
 
+    // Bin boundaries stay in the 0-100 domain scoresPct is computed in below —
+    // only the label is point-scale (0-10) text, since that's the unit the
+    // lecturer-facing chart displays.
     const bins = [
-      { key: '0-20', min: 0, max: 20, count: 0 },
-      { key: '21-40', min: 21, max: 40, count: 0 },
-      { key: '41-60', min: 41, max: 60, count: 0 },
-      { key: '61-80', min: 61, max: 80, count: 0 },
-      { key: '81-100', min: 81, max: 100, count: 0 },
+      { key: '0-2', min: 0, max: 20, count: 0 },
+      { key: '2-4', min: 21, max: 40, count: 0 },
+      { key: '4-6', min: 41, max: 60, count: 0 },
+      { key: '6-8', min: 61, max: 80, count: 0 },
+      { key: '8-10', min: 81, max: 100, count: 0 },
     ];
 
     for (const value of scoresPct) {
@@ -3860,7 +3971,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           eventType: 'tab_switch',
           label: getIntegrityEventLabel('tab_switch'),
           details: `Đã ghi nhận ${tabSwitchCount} lần chuyển tab`,
-          timestamp: new Date(),
+          timestamp: lastEventAtByProctoringAndType.get(`${p.id}:tab_switch`) ?? new Date(),
           severity: tabSwitchCount >= 5 ? 'high' : 'medium',
           attemptNo: p.submission.attemptNo ?? null,
           student: p.submission.student,
@@ -3870,17 +3981,23 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       }
 
       if (mouseAnomalies > 0) {
+        // Same fix as elsewhere in this file: the client only ever emits
+        // `mouse_idle`, never `mouse_anomaly` — tag this alert with the real
+        // eventType so its label/hasEvidence lookup matches the underlying
+        // event instead of a type that's never actually produced.
         records.push({
           id: `mouse-${p.id}`,
-          eventType: 'mouse_anomaly',
-          label: getIntegrityEventLabel('mouse_anomaly'),
-          details: `Đã ghi nhận ${mouseAnomalies} lần chuyển động chuột bất thường`,
-          timestamp: new Date(),
+          eventType: 'mouse_idle',
+          label: getIntegrityEventLabel('mouse_idle'),
+          details: `Đã ghi nhận ${mouseAnomalies} lần gián đoạn tương tác chuột/bàn phím`,
+          timestamp: lastEventAtByProctoringAndType.get(`${p.id}:mouse_idle`)
+            ?? lastEventAtByProctoringAndType.get(`${p.id}:mouse_anomaly`)
+            ?? new Date(),
           severity: mouseAnomalies >= 8 ? 'high' : 'medium',
           attemptNo: p.submission.attemptNo ?? null,
           student: p.submission.student,
           submissionId: p.submission.id,
-          hasEvidence: hasEvidenceForEvent(p.submission.id, 'mouse_anomaly'),
+          hasEvidence: hasEvidenceForEvent(p.submission.id, 'mouse_idle'),
         });
       }
 
@@ -4396,9 +4513,12 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const avgScorePct = scoreRows.length
       ? Number((scoreRows.reduce((sum, r) => sum + r.scorePct, 0) / scoreRows.length).toFixed(1))
       : 0;
-    const passingScore = Number(exam.passingScore || 50);
+    // passingScore is an absolute point value on the 0-10 scale (e.g. 5.0 —
+    // see getExamResultsExportData), not a percentage — scorePct is 0-100,
+    // so convert the threshold to that same range before comparing.
+    const passingScorePoint = Number(exam.passingScore ?? 5);
     const passRate = this.clampPercent(
-      (scoreRows.filter((r) => r.scorePct >= passingScore).length / Math.max(1, scoreRows.length)) * 100,
+      (scoreRows.filter((r) => r.scorePct >= passingScorePoint * 10).length / Math.max(1, scoreRows.length)) * 100,
     );
 
     const weakestTopic = weakestTopics[0];
@@ -4901,6 +5021,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
                 points: true,
                 explanation: true,
                 correctAnswer: true,
+                mediaType: true,
+                mediaUrl: true,
               },
             },
             questionSnapshot: { select: { payload: true } },
@@ -5034,7 +5156,10 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     });
 
     const resultsPublished = Boolean(exam.resultsPublishedAt);
-    const passingScorePct = exam.passingScore != null ? Number(exam.passingScore) : null;
+    // Passing threshold is an absolute point value on the same 0-10 scale as
+    // finalScore below (e.g. 5.0 means "must score at least 5.0/10") — NOT a
+    // percentage, even though the DB column has no unit of its own.
+    const passingScorePoint = exam.passingScore != null ? Number(exam.passingScore) : null;
 
     const rows = submissions.map((s) => {
       const adjustmentTotal = (s.scoreAdjustments || [])
@@ -5045,7 +5170,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         ? Number(Math.max(0, Math.min(10, rawScore + adjustmentTotal)).toFixed(2))
         : null;
       const percentage = finalScore != null ? Number((finalScore * 10).toFixed(1)) : null;
-      const passed = percentage != null && passingScorePct != null ? percentage >= passingScorePct : null;
+      const passed = finalScore != null && passingScorePoint != null ? finalScore >= passingScorePoint : null;
       const durationMinutes = s.startedAt && s.submittedAt
         ? Math.max(0, Math.round((new Date(s.submittedAt).getTime() - new Date(s.startedAt).getTime()) / 60000))
         : null;
@@ -5079,7 +5204,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         courseCode: exam.course?.code || '',
         courseName: exam.course?.name || '',
         totalPoints: exam.totalPoints,
-        passingScorePct,
+        passingScorePoint,
         resultsPublishedAt: exam.resultsPublishedAt ? exam.resultsPublishedAt.toISOString() : null,
       },
       rows,
@@ -5089,6 +5214,31 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
   private csvEscape(value: unknown): string {
     const str = value === null || value === undefined ? '' : String(value);
     return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  }
+
+  // Mirrors the labels the lecturer already sees on-screen for the same enum
+  // (FE StatusBadge domain="submission"/"integrity", status-badge.tsx) — the
+  // PDF/CSV export previously printed the raw English DB enum ("GRADED",
+  // "SUBMITTED"...) verbatim instead of translating it.
+  private getSubmissionStatusLabelVi(status: string | null | undefined): string {
+    const labels: Record<string, string> = {
+      IN_PROGRESS: 'Đang làm bài',
+      SUBMITTED: 'Đã nộp bài',
+      GRADED: 'Đã chấm',
+      FLAGGED: 'Cần xem xét',
+      FINALIZED: 'Đã hoàn tất',
+    };
+    return labels[String(status || '').toUpperCase()] || String(status || '-');
+  }
+
+  private getIntegrityStatusLabelVi(status: string | null | undefined): string {
+    const labels: Record<string, string> = {
+      PENDING: 'Chờ xem xét',
+      REVIEWED: 'Đã xem xét',
+      DISMISSED: 'Đã bỏ qua',
+      CONFIRMED: 'Đã xác nhận',
+    };
+    return labels[String(status || '').toUpperCase()] || String(status || '-');
   }
 
   /**
@@ -5188,7 +5338,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           row.studentName,
           row.email,
           row.attemptNo,
-          row.status,
+          this.getSubmissionStatusLabelVi(row.status),
           row.startedAt ?? '',
           row.submittedAt ?? '',
           row.gradedAt ?? '',
@@ -5198,7 +5348,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           row.finalScore ?? '',
           row.percentage ?? '',
           row.passed === null ? '' : row.passed ? 'Đạt' : 'Không đạt',
-          row.integrityStatus ?? '',
+          row.integrityStatus ? this.getIntegrityStatusLabelVi(row.integrityStatus) : '',
           row.integrityPenaltyPercent ?? '',
           row.resultsPublished ? 'Có' : 'Chưa',
         ]
@@ -5211,6 +5361,36 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Draws the ExamTrust mark (same artwork as examtrust-mark.svg used across
+   * the app header/sidebar) using PDFKit vector primitives. Avoids embedding
+   * a raster asset — the only PNG in the repo (FE/public/favicon.png) is a
+   * base64-text file, not a real binary PNG, and pdfkit doesn't render SVG.
+   */
+  private drawExamTrustLogo(doc: PDFKit.PDFDocument, x: number, y: number, size: number): void {
+    const scale = size / 512;
+    doc.save();
+    doc.translate(x, y).scale(scale);
+    doc.roundedRect(0, 0, 512, 512, 112).fill('#176f8c');
+    doc.roundedRect(9, 9, 494, 494, 105).lineWidth(18).stroke('#D9BE7A');
+    doc.path('M256 84 L412 132 V272 C412 356 340 414 256 440 C172 414 100 356 100 272 V132 Z').fill('#D9BE7A');
+    doc.path('M256 110 L390 151 V270 C390 341 327 392 256 415 C185 392 122 341 122 270 V151 Z').fill('#146B82');
+    doc.save();
+    doc.translate(14.5, 19.2).scale(0.92);
+    doc.path('M196 246 L316 246 C320 282 322 300 320 310 L256 334 L192 310 C190 300 192 282 196 246 Z').fill('#D9C289');
+    doc.save();
+    doc.translate(0, 12);
+    doc.path('M256 154 L386 210 L256 266 L126 210 Z').fill('#C7A85F');
+    doc.restore();
+    doc.path('M256 154 L386 210 L256 266 L126 210 Z').fill('#F0DEA8');
+    doc.path('M256 206 C312 200 358 214 372 242').lineWidth(9).stroke('#B4903F');
+    doc.path('M360 242 h24 a7 7 0 0 1 7 7 v11 a7 7 0 0 1 -7 7 h-24 a7 7 0 0 1 -7 -7 v-11 a7 7 0 0 1 7 -7 Z').fill('#D9C289');
+    doc.path('M360 267 h24 l7 36 a10 10 0 0 1 -10 10 h-18 a10 10 0 0 1 -10 -10 Z').fill('#EBD79B');
+    doc.circle(256, 210, 13).fill('#D9C289');
+    doc.restore();
+    doc.restore();
+  }
+
+  /**
    * Export exam results as a printable PDF report (summary + per-student table).
    */
   async exportExamResultsPdf(examId: string, user?: RequestUser): Promise<Buffer> {
@@ -5218,7 +5398,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const detailedStudents = await this.getExamDetailedPrintData(examId, user);
 
     return new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 40, size: 'A4' });
+      const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -5234,14 +5414,24 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         : null;
       const passedCount = rows.filter((r) => r.passed === true).length;
 
+      const logoSize = 34;
+      const headerTop = doc.y;
+      this.drawExamTrustLogo(doc, doc.page.margins.left, headerTop, logoSize);
+      doc.font('VN-Bold').fontSize(10).fillColor('#176f8c')
+        .text('ExamTrust', doc.page.margins.left + logoSize + 8, headerTop + 10);
+      doc.font('VN').fillColor('#000');
+      doc.x = doc.page.margins.left;
+      doc.y = headerTop;
+
       doc.fontSize(16).text('Báo cáo kết quả bài thi', { align: 'center' });
       doc.moveDown(0.3);
       doc.fontSize(12).text(exam.title, { align: 'center' });
       doc.moveDown(0.8);
 
       doc.fontSize(9).fillColor('#444');
+      doc.text(`Mã bài thi: ${exam.id}`);
       doc.text(`Học phần: ${exam.courseCode ? `${exam.courseCode} - ${exam.courseName}` : exam.courseName || '-'}`);
-      doc.text(`Tổng điểm: ${exam.totalPoints ?? '-'}    Điểm đạt: ${exam.passingScorePct != null ? exam.passingScorePct + '%' : '-'}`);
+      doc.text(`Tổng điểm: ${exam.totalPoints ?? '-'}    Điểm đạt: ${exam.passingScorePoint != null ? exam.passingScorePoint.toFixed(1) + '/10' : '-'}`);
       doc.text(`Kết quả đã công bố cho sinh viên: ${exam.resultsPublishedAt ? 'Có' : 'Chưa'}`);
       doc.text(`Tổng số lượt nộp bài: ${rows.length}    Điểm trung bình: ${avgScore != null ? avgScore.toFixed(2) : '-'}/10    Tỷ lệ đạt: ${rows.length ? Math.round((passedCount / rows.length) * 100) : 0}%`);
       doc.text(`Xuất lúc: ${new Date().toLocaleString('vi-VN')}`);
@@ -5273,6 +5463,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             return row.passed === null ? '-' : row.passed ? 'Đạt' : 'Không đạt';
           case 'submittedAt':
             return row.submittedAt ? new Date(row.submittedAt).toLocaleString('vi-VN') : '-';
+          case 'status':
+            return this.getSubmissionStatusLabelVi(row.status);
           default:
             return String((row as any)[key] ?? '-');
         }
@@ -5352,6 +5544,18 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
+      const pageRange = doc.bufferedPageRange();
+      for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
+        doc.switchToPage(i);
+        const pageNumber = i - pageRange.start + 1;
+        doc.font('VN').fontSize(7).fillColor('#888').text(
+          `Trang ${pageNumber}/${pageRange.count}`,
+          doc.page.margins.left,
+          doc.page.height - doc.page.margins.bottom + 12,
+          { width: doc.page.width - doc.page.margins.left - doc.page.margins.right, align: 'right' },
+        );
+      }
+
       doc.end();
     });
   }
@@ -5386,6 +5590,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
                 explanation: true,
                 // Include correct answer for review
                 correctAnswer: true,
+                mediaType: true,
+                mediaUrl: true,
               },
             },
             questionSnapshot: { select: { payload: true } },

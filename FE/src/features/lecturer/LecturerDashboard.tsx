@@ -25,6 +25,7 @@ import {
   Database,
   Layers3,
   BarChart3,
+  RefreshCw,
 } from "lucide-react";
 import { format, addHours } from "date-fns";
 import Link from "next/link";
@@ -78,12 +79,12 @@ interface QuestionBankSummary {
 
 const questionTypeLabels: Record<string, string> = {
   MULTIPLE_CHOICE: "Trắc nghiệm",
-  TRUE_FALSE: "Đúng/sai",
+  TRUE_FALSE: "Đúng / Sai",
   SHORT_ANSWER: "Tự luận ngắn",
   ESSAY: "Tự luận",
-  FILL_BLANK: "Điền khuyết",
+  FILL_IN_BLANK: "Điền vào chỗ trống",
   MATCHING: "Ghép đôi",
-  ORDERING: "Sắp xếp thứ tự",
+  ORDERING: "Sắp xếp",
   FIND_ERROR: "Tìm lỗi sai",
 };
 
@@ -236,30 +237,31 @@ export default function LecturerDashboard() {
   const [questionCount, setQuestionCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [examsData, questionsData, coursesData] = await Promise.all([
-          api.getExams(),
-          fetchAllQuestions(),
-          api.getMyCourses(),
-        ]);
-        const questions = questionsData;
-        const normalizedCourses = Array.isArray(coursesData)
-          ? coursesData
-          : unwrapPaginatedData<CourseSummary>(coursesData);
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [examsData, questionsData, coursesData] = await Promise.all([
+        api.getExams(),
+        fetchAllQuestions(),
+        api.getMyCourses(),
+      ]);
+      const questions = questionsData;
+      const normalizedCourses = Array.isArray(coursesData)
+        ? coursesData
+        : unwrapPaginatedData<CourseSummary>(coursesData);
 
-        setExams(unwrapPaginatedData(examsData));
-        setQuestionCount(questions.length);
-        setCourses(normalizedCourses);
-        setQuestionBanks(buildQuestionBankSummaries(questions, normalizedCourses));
-      } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+      setExams(unwrapPaginatedData(examsData));
+      setQuestionCount(questions.length);
+      setCourses(normalizedCourses);
+      setQuestionBanks(buildQuestionBankSummaries(questions, normalizedCourses));
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -291,16 +293,32 @@ export default function LecturerDashboard() {
               Tổng quan khóa học, bài thi và ngân hàng câu hỏi của bạn.
             </p>
           </div>
-          <Button
-            asChild
-            className="rounded-xl shadow-sm gap-2 shine animate-fade-in opacity-0"
-            style={{ animationDelay: "0.1s" }}
-          >
-            <Link href="/lecturer/exams/create">
-              <Plus className="h-4 w-4" />
-              Tạo bài thi
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchData}
+              disabled={loading}
+              className="gap-2"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Làm mới
+            </Button>
+            <Button
+              asChild
+              className="rounded-xl shadow-sm gap-2 shine animate-fade-in opacity-0"
+              style={{ animationDelay: "0.1s" }}
+            >
+              <Link href="/lecturer/exams/create">
+                <Plus className="h-4 w-4" />
+                Tạo bài thi
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className="grid items-stretch gap-6 xl:grid-cols-2">
@@ -391,7 +409,14 @@ export default function LecturerDashboard() {
                         >
                           <div className="min-w-0 space-y-2">
                             <div className="flex min-w-0 items-center gap-2.5">
-                              <h4 className="min-w-0 truncate font-semibold leading-5 text-foreground">
+                              {/* flex-1 (not just min-w-0) so the title always
+                                  claims the same available width regardless of
+                                  its own text length — otherwise a short title
+                                  left the badge sitting right next to it while
+                                  a long one pushed its badge much further
+                                  right, so the badges never lined up as a
+                                  column down the list. */}
+                              <h4 className="min-w-0 flex-1 truncate font-semibold leading-5 text-foreground">
                                 {exam.title}
                               </h4>
                               {isExpired ? (

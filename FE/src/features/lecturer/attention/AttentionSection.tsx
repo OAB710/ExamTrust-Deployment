@@ -66,19 +66,32 @@ export function AttentionSection() {
               Các nhiệm vụ quan trọng và thời hạn sắp tới
             </CardDescription>
           </div>
-          {items.length > 0 && (
+          <div className="flex items-center gap-1">
             <Button
+              type="button"
               variant="ghost"
               size="sm"
               className="text-xs text-muted-foreground hover:text-foreground gap-1"
-              asChild
+              onClick={() => void retry()}
+              disabled={loading}
             >
-              <Link href="/lecturer/exams">
-                Xem tất cả
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              Làm mới
             </Button>
-          )}
+            {items.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground hover:text-foreground gap-1"
+                asChild
+              >
+                <Link href="/lecturer/exams">
+                  Xem tất cả
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
