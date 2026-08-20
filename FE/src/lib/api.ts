@@ -1266,8 +1266,9 @@ class ApiClient {
     });
   }
 
-  async getExamIntelligence(examId: string) {
-    return this.request<any>(`/submissions/exam/${examId}/intelligence`);
+  async getExamIntelligence(examId: string, params?: { attemptScope?: string }) {
+    const query = params?.attemptScope ? `?attemptScope=${encodeURIComponent(params.attemptScope)}` : "";
+    return this.request<any>(`/submissions/exam/${examId}/intelligence${query}`);
   }
 
   async getSubmissionTimeline(submissionId: string) {

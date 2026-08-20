@@ -12,6 +12,9 @@ export type ExamOption = {
   id: string;
   title: string;
   status?: string;
+  maxAttempts?: number | null;
+  gradingStrategy?: string | null;
+  settings?: any;
   endTime?: string | null;
   course?: AnalyticsCourseInfo;
   _count?: { submissions?: number };
@@ -394,10 +397,64 @@ export const translateMetricText = (value: string) =>
     .replace(/Prioritize targeted timed practice/g, "\u01afu ti\u00ean luy\u1ec7n t\u1eadp c\u00f3 gi\u1edbi h\u1ea1n th\u1eddi gian")
     .replace(/before the next full test/g, "tr\u01b0\u1edbc b\u00e0i ki\u1ec3m tra \u0111\u1ea7y \u0111\u1ee7 ti\u1ebfp theo");
 
+export type AttemptScope = "all" | "first" | "retakes" | "best" | "latest";
+
+export type AttemptBreakdownItem = {
+  attemptNo: number;
+  submissionCount: number;
+  avgScorePct: number;
+  passRate: number;
+};
+
+export type AttemptStats = {
+  maxAttempts: number | null;
+  allowsMultipleAttempts: boolean;
+  isUnlimited: boolean;
+  totalUniqueStudents: number;
+  studentsWithRetakes: number;
+  retakeRate: number;
+  avgAttemptsPerStudent: number;
+  firstAttemptAvgScore: number;
+  firstAttemptPassRate: number;
+  retakeAttemptsAvgScore: number | null;
+  retakeAttemptsPassRate: number | null;
+  avgScoreImprovement: number | null;
+  attemptBreakdown: AttemptBreakdownItem[];
+};
+
+export const getScopeForGradingStrategy = (strategy?: string | null): AttemptScope => {
+  const s = String(strategy || "HIGHEST").toUpperCase();
+  if (s === "FIRST_ATTEMPT") return "first";
+  if (s === "LAST_ATTEMPT") return "latest";
+  if (s === "AVERAGE") return "all";
+  return "best"; // HIGHEST
+};
+
+export const getGradingStrategyLabel = (strategy?: string | null): string => {
+  const s = String(strategy || "HIGHEST").toUpperCase();
+  if (s === "FIRST_ATTEMPT") return "Lượt làm đầu tiên";
+  if (s === "LAST_ATTEMPT") return "Lượt làm cuối cùng";
+  if (s === "AVERAGE") return "Lấy điểm trung bình";
+  return "Lấy điểm cao nhất";
+};
+
 export type IntelligencePayload = {
-  exam: { id: string; title: string; courseId: string };
+  exam: {
+    id: string;
+    title: string;
+    courseId: string;
+    maxAttempts?: number | null;
+    gradingStrategy?: string | null;
+    passingScore?: number | null;
+    passingScorePct?: number | null;
+  };
+  gradingStrategy?: string | null;
+  passingScorePct?: number | null;
   analyticsScope?: "OFFICIAL" | "PRACTICE";
   isUnlimited?: boolean;
+  allowsMultipleAttempts?: boolean;
+  attemptScope?: AttemptScope;
+  attemptStats?: AttemptStats;
   kpis: {
     totalSubmissions: number;
     analyzedSubmissions?: number;

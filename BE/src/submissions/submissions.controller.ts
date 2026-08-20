@@ -263,8 +263,12 @@ export class SubmissionsController {
   @Get('exam/:examId/intelligence')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('LECTURER', 'ADMIN')
-  getExamIntelligence(@Param('examId') examId: string, @Request() req) {
-    return this.submissionsService.getExamIntelligence(examId, req.user);
+  getExamIntelligence(
+    @Param('examId') examId: string,
+    @Query('attemptScope') attemptScope: string,
+    @Request() req,
+  ) {
+    return this.submissionsService.getExamIntelligence(examId, req.user, { attemptScope });
   }
 
   @Post(':id/risk-assessment')

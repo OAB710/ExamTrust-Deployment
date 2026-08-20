@@ -22,7 +22,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ExternalLink, Sparkles, TrendingUp, AlertTriangle, BarChart3, CheckCircle2, Filter, RefreshCw, X, XCircle } from "lucide-react";
+import { Loader2, ExternalLink, Sparkles, TrendingUp, AlertTriangle, BarChart3, CheckCircle2, Filter, RefreshCw, X, XCircle, RotateCcw, Users, Layers, Lock } from "lucide-react";
 import api from "@/lib/api";
 import { unwrapPaginatedData } from "@/lib/api";
 import { AdminPageShell } from "@/components/admin/AdminPageShell";
@@ -37,6 +37,8 @@ import {
   getChangedComparisonFields,
   getCourseLabel,
   getDifficultyLabel,
+  getGradingStrategyLabel,
+  getScopeForGradingStrategy,
   normalizeCorrectAnswerIds,
   normalizeEditableOptions,
   toQuery,
@@ -45,6 +47,7 @@ import {
   translateMetricText,
   type AiImprovementDetail,
   type AiImprovementSummary,
+  type AttemptScope,
   type ComparisonFieldKey,
   type EditableOption,
   type ExamOption,
@@ -63,6 +66,8 @@ export default function ExamAnalytics() {
   const [selectedExamId, setSelectedExamId] = useState<string>("");
   const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
   const [selectedTerm, setSelectedTerm] = useState<string>("");
+  const [selectedAttemptFilter, setSelectedAttemptFilter] = useState<string>("__all__");
+  const [selectedAttemptScope, setSelectedAttemptScope] = useState<AttemptScope>("all");
   const [loading, setLoading] = useState(true);
   const [loadingIntelligence, setLoadingIntelligence] = useState(false);
   const [data, setData] = useState<IntelligencePayload | null>(null);
@@ -109,7 +114,26 @@ export default function ExamAnalytics() {
     return Array.from(termSet);
   }, [examOptions, selectedAcademicYear]);
 
-  // Derived: exams filtered by academic year and term
+  // Derived: unique maxAttempts values from exams
+  const availableMaxAttempts = useMemo(() => {
+    const set = new Set<number>();
+    let hasUnlimited = false;
+    examOptions.forEach((ex) => {
+      const max = ex.maxAttempts ?? ex.settings?.maxAttempts;
+      if (max === null || max === undefined) {
+        hasUnlimited = true;
+      } else {
+        const num = Number(max);
+        if (Number.isFinite(num) && num > 0) {
+          set.add(num);
+        }
+      }
+    });
+    const numbers = Array.from(set).sort((a, b) => a - b);
+    return { numbers, hasUnlimited };
+  }, [examOptions]);
+
+  // Derived: exams filtered by academic year, term, and attempt configuration
   const filteredExams = useMemo(() => {
     let result = examOptions;
     if (selectedAcademicYear && selectedAcademicYear !== "__all__") {
@@ -118,8 +142,22 @@ export default function ExamAnalytics() {
     if (selectedTerm && selectedTerm !== "__all__") {
       result = result.filter((ex) => ex.course?.term === selectedTerm);
     }
+    if (selectedAttemptFilter !== "__all__") {
+      if (selectedAttemptFilter === "UNLIMITED") {
+        result = result.filter((ex) => {
+          const max = ex.maxAttempts ?? ex.settings?.maxAttempts;
+          return max === null || max === undefined;
+        });
+      } else {
+        const targetNum = Number(selectedAttemptFilter);
+        result = result.filter((ex) => {
+          const max = ex.maxAttempts ?? ex.settings?.maxAttempts;
+          return Number(max) === targetNum;
+        });
+      }
+    }
     return result;
-  }, [examOptions, selectedAcademicYear, selectedTerm]);
+  }, [examOptions, selectedAcademicYear, selectedTerm, selectedAttemptFilter]);
 
   // Sync selected exam when filters change
   useEffect(() => {
@@ -164,7 +202,7 @@ export default function ExamAnalytics() {
     if (!selectedExamId) return;
     try {
       setLoadingIntelligence(true);
-      const payload = await api.getExamIntelligence(selectedExamId);
+      const payload = await api.getExamIntelligence(selectedExamId, { attemptScope: selectedAttemptScope });
       setData(payload as IntelligencePayload);
       const nextImprovements: Record<string, AiImprovementSummary> = {};
       for (const item of (payload as IntelligencePayload).mostIncorrectQuestions || []) {
@@ -181,10 +219,19 @@ export default function ExamAnalytics() {
     }
   };
 
+  // Whenever selectedExamId changes, auto-select default attemptScope from exam's gradingStrategy
+  useEffect(() => {
+    if (!selectedExamId) return;
+    const current = examOptions.find((ex) => ex.id === selectedExamId);
+    const currentStrategy = current?.gradingStrategy ?? current?.settings?.gradingStrategy;
+    setSelectedAttemptScope(getScopeForGradingStrategy(currentStrategy));
+  }, [selectedExamId, examOptions]);
+
+  // Load intelligence when exam or attemptScope changes
   useEffect(() => {
     if (!selectedExamId) return;
     loadIntelligence();
-  }, [selectedExamId]);
+  }, [selectedExamId, selectedAttemptScope]);
 
   useEffect(() => {
     const activeEntries = Object.entries(aiImprovements).filter(([, item]) =>
@@ -492,40 +539,46 @@ export default function ExamAnalytics() {
     }
   };
 
-  const getKpiCards = (payload: IntelligencePayload) => [
-    {
-      icon: TrendingUp,
-      value: (payload.kpis.avgScorePct / 10).toFixed(1) + "/10",
-      label: "Điểm trung bình",
-      iconWrapClassName: "bg-sky-500/10",
-      iconClassName: "text-sky-600",
-      className: "border-border/70 bg-sky-50/35",
-    },
-    {
-      icon: TrendingUp,
-      value: payload.kpis.passRate.toFixed(1) + "%",
-      label: "Tỷ lệ đạt",
-      iconWrapClassName: "bg-emerald-500/10",
-      iconClassName: "text-emerald-600",
-      className: "border-border/70 bg-emerald-50/35",
-    },
-    {
-      icon: TrendingUp,
-      value: payload.kpis.completionRate.toFixed(1) + "%",
-      label: "Hoàn thành",
-      iconWrapClassName: "bg-amber-500/10",
-      iconClassName: "text-amber-600",
-      className: "border-border/70 bg-amber-50/35",
-    },
-    {
-      icon: AlertTriangle,
-      value: payload.creatorQualityAlerts?.length ?? 0,
-      label: "Cảnh báo chất lượng",
-      iconWrapClassName: "bg-rose-500/10",
-      iconClassName: "text-rose-600",
-      className: "border-border/70 bg-rose-50/35",
-    },
-  ];
+  const getKpiCards = (payload: IntelligencePayload) => {
+    const rawPassing = payload.exam?.passingScore ?? payload.passingScorePct ?? 50;
+    const passingPct = rawPassing > 10 ? rawPassing : rawPassing * 10;
+    const passingPoint = (passingPct / 10).toFixed(1);
+
+    return [
+      {
+        icon: TrendingUp,
+        value: (payload.kpis.avgScorePct / 10).toFixed(1) + "/10",
+        label: "Điểm trung bình",
+        iconWrapClassName: "bg-sky-500/10",
+        iconClassName: "text-sky-600",
+        className: "border-border/70 bg-sky-50/35",
+      },
+      {
+        icon: TrendingUp,
+        value: payload.kpis.passRate.toFixed(1) + "%",
+        label: `Tỷ lệ đạt (≥ ${passingPoint}/10 · ${passingPct}%)`,
+        iconWrapClassName: "bg-emerald-500/10",
+        iconClassName: "text-emerald-600",
+        className: "border-border/70 bg-emerald-50/35",
+      },
+      {
+        icon: TrendingUp,
+        value: payload.kpis.completionRate.toFixed(1) + "%",
+        label: "Hoàn thành",
+        iconWrapClassName: "bg-amber-500/10",
+        iconClassName: "text-amber-600",
+        className: "border-border/70 bg-amber-50/35",
+      },
+      {
+        icon: AlertTriangle,
+        value: payload.creatorQualityAlerts?.length ?? 0,
+        label: "Cảnh báo chất lượng",
+        iconWrapClassName: "bg-rose-500/10",
+        iconClassName: "text-rose-600",
+        className: "border-border/70 bg-rose-50/35",
+      },
+    ];
+  };
 
   const trackAction = async (name: string) => {
     try {
@@ -632,7 +685,7 @@ export default function ExamAnalytics() {
             </div>
           </div>
           <div className="border-t border-border/60 pt-3.5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Năm học</label>
                 <Select value={selectedAcademicYear} onValueChange={(val) => { setSelectedAcademicYear(val); setSelectedTerm(""); }}>
@@ -664,22 +717,53 @@ export default function ExamAnalytics() {
               </div>
 
               <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Số lần làm cho phép tối đa
+                </label>
+                <Select value={selectedAttemptFilter} onValueChange={setSelectedAttemptFilter}>
+                  <SelectTrigger className="h-9 rounded-lg border-border bg-card text-xs">
+                    <SelectValue placeholder="Tất cả" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tất cả</SelectItem>
+                    {availableMaxAttempts.numbers.map((num) => (
+                      <SelectItem key={num} value={String(num)}>
+                        {num} {num === 1 ? "(Thi 1 lần)" : `(Làm lại ${num} lần)`}
+                      </SelectItem>
+                    ))}
+                    {availableMaxAttempts.hasUnlimited && (
+                      <SelectItem value="UNLIMITED">Không giới hạn (Luyện tập)</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Bài thi</label>
                 <Select
                   value={selectedExamId}
-                  onValueChange={setSelectedExamId}
+                  onValueChange={(val) => {
+                    setSelectedExamId(val);
+                    setSelectedAttemptScope("all");
+                  }}
                   disabled={loadingIntelligence || filteredExams.length === 0}
                 >
                   <SelectTrigger className="h-9 rounded-lg border-border bg-card text-xs">
                     <SelectValue placeholder={filteredExams.length === 0 ? "Không tìm thấy bài thi" : "Chọn bài thi"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {sortExamsForAnalytics(filteredExams).map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.course?.code ? `${e.course.code} - ` : ""}{e.title}
-                        {!(Number(e._count?.submissions || 0) > 0) ? " (chưa có lượt nộp)" : ""}
-                      </SelectItem>
-                    ))}
+                    {sortExamsForAnalytics(filteredExams).map((e) => {
+                      const maxAttempts = e.maxAttempts ?? e.settings?.maxAttempts;
+                      const isMulti = maxAttempts === null || maxAttempts === undefined || Number(maxAttempts) > 1;
+                      const attemptLabel = maxAttempts === 1 ? "1 lần" : maxAttempts ? `tối đa ${maxAttempts} lần` : "làm lại tự do";
+                      return (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.course?.code ? `${e.course.code} - ` : ""}{e.title}
+                          {" "}({attemptLabel})
+                          {!(Number(e._count?.submissions || 0) > 0) ? " · chưa có lượt nộp" : ""}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -689,13 +773,34 @@ export default function ExamAnalytics() {
             {selectedExamId && (() => {
               const current = examOptions.find((ex) => ex.id === selectedExamId);
               if (!current) return null;
+              const max = current.maxAttempts ?? current.settings?.maxAttempts;
+              const isMulti = max === null || max === undefined || Number(max) > 1;
+              const currentStrategy = current.gradingStrategy ?? current.settings?.gradingStrategy ?? data?.gradingStrategy ?? "HIGHEST";
               return (
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <span className="text-xs text-muted-foreground">Đang phân tích:</span>
                   {current.course?.code && <Badge variant="outline" className="text-xs">{current.course.code}</Badge>}
                   {current.course?.academicYear && <Badge variant="outline" className="text-xs">{current.course.academicYear}</Badge>}
                   {current.course?.term && <Badge variant="outline" className="text-xs">{formatTerm(current.course.term)}</Badge>}
-                  <Badge variant="secondary" className="text-xs">{current.title}</Badge>
+                  <Badge variant={isMulti ? "secondary" : "outline"} className="text-xs">
+                    {isMulti ? (max ? `Cho phép làm lại (${max} lần)` : "Luyện tập không giới hạn") : "Thi 1 lần"}
+                  </Badge>
+                  {isMulti && (
+                    <Badge variant="outline" className="text-xs border-primary/40 bg-primary/5 text-primary font-medium flex items-center gap-1">
+                      <RotateCcw className="h-3 w-3" /> Cách tính điểm: {getGradingStrategyLabel(currentStrategy)}
+                    </Badge>
+                  )}
+                  {(() => {
+                    const rawPassing = data?.exam?.passingScore ?? data?.passingScorePct ?? 50;
+                    const passingPct = rawPassing > 10 ? rawPassing : rawPassing * 10;
+                    const passingPoint = (passingPct / 10).toFixed(1);
+                    return (
+                      <Badge variant="outline" className="text-xs border-emerald-300 bg-emerald-50/60 text-emerald-700 font-medium">
+                        Điểm đạt: {passingPoint}/10 ({passingPct}%)
+                      </Badge>
+                    );
+                  })()}
+                  <Badge variant="secondary" className="text-xs font-semibold">{current.title}</Badge>
                 </div>
               );
             })()}
@@ -751,19 +856,238 @@ export default function ExamAnalytics() {
             }
             return (
             <div className="space-y-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {getKpiCards(data).map((card) => (
-                <AdminStatCard
-                  key={card.label}
-                  icon={card.icon}
-                  value={card.value}
-                  label={card.label}
-                  iconWrapClassName={card.iconWrapClassName}
-                  iconClassName={card.iconClassName}
-                  className={card.className}
-                />
-              ))}
-            </div>
+              {/* Attempt Scope Bar for Multi-attempt exams */}
+              {(data.allowsMultipleAttempts || data.attemptStats?.allowsMultipleAttempts) && (() => {
+                const currentExam = examOptions.find((ex) => ex.id === selectedExamId);
+                const currentStrategy = currentExam?.gradingStrategy ?? currentExam?.settings?.gradingStrategy ?? data?.gradingStrategy ?? "HIGHEST";
+                const officialScope = getScopeForGradingStrategy(currentStrategy);
+
+                return (
+                  <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between shadow-xs">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <RotateCcw className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground flex flex-wrap items-center gap-2">
+                          Phân tích theo lượt làm bài:
+                          <Badge variant="outline" className="text-xs bg-background border-primary/30 text-primary font-medium">
+                            Mặc định bài thi: {getGradingStrategyLabel(currentStrategy)}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs bg-background">
+                            {data.attemptStats?.isUnlimited
+                              ? "Không giới hạn số lần"
+                              : `Tối đa ${data.attemptStats?.maxAttempts ?? ""} lần`}
+                          </Badge>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Hệ thống tự động chọn tab theo quy tắc bài thi. Bạn có thể tự do bấm chọn các tab khác để xem phân tích từng nhóm lượt thi.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border/80 bg-background p-1 shadow-xs">
+                      {[
+                        {
+                          key: "best",
+                          label: "Điểm cao nhất",
+                          isOfficial: officialScope === "best",
+                          count: data.attemptStats?.totalUniqueStudents,
+                        },
+                        {
+                          key: "first",
+                          label: "Lượt đầu (Lần 1)",
+                          isOfficial: officialScope === "first",
+                          count: data.attemptStats?.attemptBreakdown?.find((b) => b.attemptNo === 1)?.submissionCount,
+                        },
+                        {
+                          key: "latest",
+                          label: "Lượt gần nhất",
+                          isOfficial: officialScope === "latest",
+                          count: data.attemptStats?.totalUniqueStudents,
+                        },
+                        {
+                          key: "all",
+                          label: "Tất cả lượt làm",
+                          isOfficial: officialScope === "all",
+                          count: data.attemptStats?.attemptBreakdown?.reduce((sum, b) => sum + b.submissionCount, 0),
+                        },
+                      ].map((tab) => {
+                        const isSelected = selectedAttemptScope === tab.key;
+                        return (
+                          <Button
+                            key={tab.key}
+                            variant={isSelected ? "default" : "ghost"}
+                            size="sm"
+                            onClick={() => setSelectedAttemptScope(tab.key as AttemptScope)}
+                            className={`h-8 text-xs font-medium transition-all ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground shadow-xs"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                            }`}
+                          >
+                            {tab.label}
+                            {tab.isOfficial && (
+                              <span className="ml-1 text-[10px] opacity-80 font-normal">
+                                (mặc định)
+                              </span>
+                            )}
+                            {tab.count !== undefined && tab.count > 0 ? (
+                              <span
+                                className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                                  isSelected
+                                    ? "bg-primary-foreground/20 text-primary-foreground"
+                                    : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                {tab.count}
+                              </span>
+                            ) : null}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Smart Notice banner for Unlimited attempts (Practice mode) */}
+              {data?.isUnlimited && (
+                <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-4 text-sky-900 shadow-xs flex items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700">
+                    <Sparkles className="h-4 w-4" />
+                  </span>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold">Chế độ phân tích: Bài thi luyện tập không giới hạn</p>
+                    <p className="text-xs text-sky-800 leading-relaxed">
+                      Do bài thi cho phép nộp lại tự do, hệ thống tự động lọc sạch dữ liệu nhiễu (loại trừ các lượt nộp thử hoặc bỏ dở) bằng cách ưu tiên tổng hợp theo <strong>lượt nộp tốt nhất / gần nhất của từng sinh viên</strong>. Bạn cũng có thể chọn các tab phạm vi phía trên để phân tích chi tiết từng nhóm lượt làm.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {getKpiCards(data).map((card) => (
+                  <AdminStatCard
+                    key={card.label}
+                    icon={card.icon}
+                    value={card.value}
+                    label={card.label}
+                    iconWrapClassName={card.iconWrapClassName}
+                    iconClassName={card.iconClassName}
+                    className={card.className}
+                  />
+                ))}
+              </div>
+
+              {/* Retake & Progression Statistics Card */}
+              {data.attemptStats && data.attemptStats.allowsMultipleAttempts && (
+                <Card className="border-border/70 bg-card shadow-sm">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+                          <TrendingUp className="h-4 w-4 text-primary" /> Phân tích tiến độ & hiệu quả làm lại
+                        </CardTitle>
+                        <CardDescription className="mt-1">
+                          Thống kê so sánh giữa lượt làm bài đầu tiên và các lượt làm lại tiếp theo của sinh viên.
+                        </CardDescription>
+                      </div>
+                      {data.attemptStats.avgScoreImprovement !== null && (
+                        <Badge
+                          variant="outline"
+                          className={
+                            data.attemptStats.avgScoreImprovement >= 0
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold"
+                              : "border-rose-200 bg-rose-50 text-rose-700 font-semibold"
+                          }
+                        >
+                          {data.attemptStats.avgScoreImprovement >= 0
+                            ? `Tiến bộ TB: +${(data.attemptStats.avgScoreImprovement / 10).toFixed(1)} điểm`
+                            : `Giảm TB: ${(data.attemptStats.avgScoreImprovement / 10).toFixed(1)} điểm`}
+                        </Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="rounded-lg border bg-muted/20 p-3">
+                        <p className="text-xs text-muted-foreground">Tổng sinh viên tham gia</p>
+                        <p className="mt-1 text-lg font-bold text-foreground">{data.attemptStats.totalUniqueStudents} SV</p>
+                        <p className="text-xs text-muted-foreground">Đã nộp ít nhất 1 bài</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/20 p-3">
+                        <p className="text-xs text-muted-foreground">Sinh viên làm lại (Lần 2+)</p>
+                        <p className="mt-1 text-lg font-bold text-foreground">{data.attemptStats.studentsWithRetakes} SV</p>
+                        <p className="text-xs text-muted-foreground">Tỷ lệ: {data.attemptStats.retakeRate.toFixed(1)}%</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/20 p-3">
+                        <p className="text-xs text-muted-foreground">Số lượt làm trung bình</p>
+                        <p className="mt-1 text-lg font-bold text-foreground">{data.attemptStats.avgAttemptsPerStudent} lượt</p>
+                        <p className="text-xs text-muted-foreground">Mỗi sinh viên</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/20 p-3">
+                        <p className="text-xs text-muted-foreground">Điểm TB Lần 1 vs Làm lại</p>
+                        <p className="mt-1 text-lg font-bold text-foreground">
+                          {(data.attemptStats.firstAttemptAvgScore / 10).toFixed(1)}
+                          <span className="text-sm font-normal text-muted-foreground"> → </span>
+                          <span className="text-emerald-600">
+                            {data.attemptStats.retakeAttemptsAvgScore !== null
+                              ? (data.attemptStats.retakeAttemptsAvgScore / 10).toFixed(1)
+                              : "—"}
+                          </span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">Thang điểm 10</p>
+                      </div>
+                    </div>
+
+                    {/* Progression Breakdown by Attempt Number */}
+                    {data.attemptStats.attemptBreakdown && data.attemptStats.attemptBreakdown.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-border/70">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Chi tiết kết quả theo từng lượt làm bài
+                        </p>
+                        <div className="space-y-2">
+                          {data.attemptStats.attemptBreakdown.map((item) => (
+                            <div
+                              key={item.attemptNo}
+                              className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="flex items-center gap-3">
+                                <Badge
+                                  variant={item.attemptNo === 1 ? "secondary" : "outline"}
+                                  className={`h-6 text-xs font-semibold ${
+                                    item.attemptNo === 1 ? "bg-primary/10 text-primary border-primary/20" : ""
+                                  }`}
+                                >
+                                  Lần {item.attemptNo}
+                                </Badge>
+                                <div>
+                                  <span className="text-sm font-semibold text-foreground">
+                                    {(item.avgScorePct / 10).toFixed(1)}/10 điểm TB
+                                  </span>
+                                  <span className="ml-2 text-xs text-muted-foreground">
+                                    · {item.submissionCount} lượt nộp
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <div className="w-32 sm:w-44">
+                                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                                    <span>Tỷ lệ đạt</span>
+                                    <span className="font-medium text-foreground">{item.passRate.toFixed(1)}%</span>
+                                  </div>
+                                  <Progress value={item.passRate} className="h-2" />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
             <Card className="border-border/70 bg-card shadow-sm">
               <CardHeader className="pb-3">
@@ -952,7 +1276,7 @@ export default function ExamAnalytics() {
                       {data.mostIncorrectQuestions.length > 8 ? <Badge variant="secondary" className="text-xs">Hiển thị 8/{data.mostIncorrectQuestions.length}</Badge> : null}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Các câu hỏi được ưu tiên dựa trên nhiều tín hiệu; giảng viên nên xem bằng chứng trước khi kết luận câu hỏi có vấn đề.
+                      Hỗ trợ cải thiện chất lượng nội dung & phương pháp dạy (Giúp giảng viên thấy câu nào sinh viên làm kém nhất để sửa đề hoặc ôn tập lại).
                     </p>
                     <div className="divide-y divide-border/70 rounded-md border border-border/70">
                       {data.mostIncorrectQuestions.length === 0 ? (
@@ -1118,7 +1442,9 @@ export default function ExamAnalytics() {
                 <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <CardTitle className="text-base font-semibold text-foreground">Cảnh báo chất lượng câu hỏi</CardTitle>
-                    <CardDescription>Hỗ trợ giảng viên rà soát nội dung câu hỏi.</CardDescription>
+                    <CardDescription>
+                      Cảnh báo lỗi kỹ thuật & thiết kế đề thi (Phát hiện các câu hỏi bị lỗi, quá tối nghĩa hoặc bị sinh viên khiếu nại/bỏ qua hàng loạt). Nếu bài thi chất lượng tốt, phần này sẽ hiển thị 0 cảnh báo.
+                    </CardDescription>
                   </div>
                 </CardHeader>
                 <CardContent>

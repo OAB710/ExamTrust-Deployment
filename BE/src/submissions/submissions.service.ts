@@ -4045,7 +4045,11 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async getExamIntelligence(examId: string, user?: RequestUser) {
+  async getExamIntelligence(
+    examId: string,
+    user?: RequestUser,
+    options?: { attemptScope?: string },
+  ) {
     if (user) {
       await this.accessPolicy.assertInstructorCanAccessExam(examId, user);
     }
@@ -4059,6 +4063,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         passingScore: true,
         totalPoints: true,
         maxAttempts: true,
+        gradingStrategy: true,
         settings: true,
         duration: true,
         timeLimitMinutes: true,
@@ -4099,6 +4104,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         select: {
           id: true,
           studentId: true,
+          attemptNo: true,
           status: true,
           score: true,
           startedAt: true,
@@ -4169,16 +4175,154 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       // Legacy databases may not have question_topics/topics in expected shape.
     }
 
-    const isUnlimited = this.isUnlimitedAttemptsExam(exam);
-    const scopedCompletedSubmissions = isUnlimited
-      ? this.collapseLatestCompletedSubmissions(
-          submissions.filter((s) =>
-            ['SUBMITTED', 'GRADED', 'FLAGGED'].includes(String(s.status).toUpperCase()),
-          ),
-        )
-      : submissions.filter((s) =>
-          ['SUBMITTED', 'GRADED', 'FLAGGED'].includes(String(s.status).toUpperCase()),
-        );
+    const configuredMaxAttempts = this.resolveConfiguredMaxAttempts(exam);
+    const isUnlimited = configuredMaxAttempts === null;
+    const allowsMultipleAttempts = isUnlimited || (configuredMaxAttempts !== null && configuredMaxAttempts > 1);
+
+    const allCompletedSubmissions = submissions.filter((s) =>
+      ['SUBMITTED', 'GRADED', 'FLAGGED'].includes(String(s.status).toUpperCase()),
+    );
+
+    // Group submissions by student to calculate multi-attempt progression statistics
+    const studentSubmissionsMap = new Map<string, typeof submissions>();
+    for (const sub of allCompletedSubmissions) {
+      const sKey = sub.studentId || sub.id;
+      const list = studentSubmissionsMap.get(sKey) || [];
+      list.push(sub);
+      studentSubmissionsMap.set(sKey, list);
+    }
+
+    const totalUniqueStudents = studentSubmissionsMap.size;
+    let studentsWithRetakes = 0;
+    let totalScoreImprovementSum = 0;
+    let retakeStudentCount = 0;
+
+    const firstAttemptSubmissions: typeof submissions = [];
+    const retakeSubmissions: typeof submissions = [];
+    const attemptBuckets = new Map<number, typeof submissions>();
+
+    for (const [, studentSubs] of studentSubmissionsMap.entries()) {
+      studentSubs.sort((a, b) => (a.attemptNo ?? 1) - (b.attemptNo ?? 1));
+      if (studentSubs.length > 1) {
+        studentsWithRetakes += 1;
+        const firstScore = Number(studentSubs[0]?.score ?? 0) * 10;
+        const bestRetakeScore = Math.max(...studentSubs.slice(1).map((s) => Number(s.score ?? 0) * 10));
+        const diff = bestRetakeScore - firstScore;
+        totalScoreImprovementSum += diff;
+        retakeStudentCount += 1;
+      }
+      for (const sub of studentSubs) {
+        const attNo = sub.attemptNo ?? 1;
+        if (attNo === 1) {
+          firstAttemptSubmissions.push(sub);
+        } else {
+          retakeSubmissions.push(sub);
+        }
+        const b = attemptBuckets.get(attNo) || [];
+        b.push(sub);
+        attemptBuckets.set(attNo, b);
+      }
+    }
+
+    const rawPassingScore = Number(exam.passingScore ?? 50);
+    // Normalize passing threshold to 0-100 percentage scale:
+    // If rawPassingScore > 10 (e.g. 50 meaning 50%), threshold is 50.
+    // If rawPassingScore <= 10 (e.g. 5.0 meaning 5/10), threshold is 50.
+    const passingScorePct = rawPassingScore > 10 ? rawPassingScore : rawPassingScore * 10;
+
+    const attemptBreakdown = Array.from(attemptBuckets.entries())
+      .map(([attemptNo, subs]) => {
+        const avgScorePct = subs.length
+          ? Number((subs.reduce((acc, s) => acc + Number(s.score || 0) * 10, 0) / subs.length).toFixed(1))
+          : 0;
+        const passRate = subs.length
+          ? this.clampPercent((subs.filter((s) => Number(s.score || 0) * 10 >= passingScorePct).length / subs.length) * 100)
+          : 0;
+        return {
+          attemptNo,
+          submissionCount: subs.length,
+          avgScorePct,
+          passRate,
+        };
+      })
+      .sort((a, b) => a.attemptNo - b.attemptNo);
+
+    const avgAttemptsPerStudent = totalUniqueStudents > 0 ? allCompletedSubmissions.length / totalUniqueStudents : 1;
+    const firstAttemptAvgScore = firstAttemptSubmissions.length
+      ? firstAttemptSubmissions.reduce((sum, s) => sum + Number(s.score || 0) * 10, 0) / firstAttemptSubmissions.length
+      : 0;
+    const firstAttemptPassRate = firstAttemptSubmissions.length
+      ? this.clampPercent((firstAttemptSubmissions.filter((s) => Number(s.score || 0) * 10 >= passingScorePct).length / firstAttemptSubmissions.length) * 100)
+      : 0;
+    const retakeAvgScore = retakeSubmissions.length
+      ? retakeSubmissions.reduce((sum, s) => sum + Number(s.score || 0) * 10, 0) / retakeSubmissions.length
+      : 0;
+    const retakePassRate = retakeSubmissions.length
+      ? this.clampPercent((retakeSubmissions.filter((s) => Number(s.score || 0) * 10 >= passingScorePct).length / retakeSubmissions.length) * 100)
+      : 0;
+    const avgScoreImprovement = retakeStudentCount > 0 ? totalScoreImprovementSum / retakeStudentCount : null;
+
+    const attemptStats = {
+      maxAttempts: configuredMaxAttempts,
+      allowsMultipleAttempts,
+      isUnlimited,
+      totalUniqueStudents,
+      studentsWithRetakes,
+      retakeRate: this.clampPercent((studentsWithRetakes / Math.max(1, totalUniqueStudents)) * 100),
+      avgAttemptsPerStudent: Number(avgAttemptsPerStudent.toFixed(1)),
+      firstAttemptAvgScore: Number(firstAttemptAvgScore.toFixed(1)),
+      firstAttemptPassRate: Number(firstAttemptPassRate.toFixed(1)),
+      retakeAttemptsAvgScore: retakeSubmissions.length ? Number(retakeAvgScore.toFixed(1)) : null,
+      retakeAttemptsPassRate: retakeSubmissions.length ? Number(retakePassRate.toFixed(1)) : null,
+      avgScoreImprovement: avgScoreImprovement !== null ? Number(avgScoreImprovement.toFixed(1)) : null,
+      attemptBreakdown,
+    };
+
+    const rawGradingStrategy = (
+      exam.gradingStrategy ??
+      (exam.settings as any)?.gradingStrategy ??
+      'HIGHEST'
+    ).toString().toUpperCase();
+
+    const officialScope =
+      rawGradingStrategy === 'FIRST_ATTEMPT'
+        ? 'first'
+        : rawGradingStrategy === 'LAST_ATTEMPT'
+          ? 'latest'
+          : rawGradingStrategy === 'AVERAGE'
+            ? 'all'
+            : 'best'; // HIGHEST
+
+    // Filter scopedCompletedSubmissions according to attemptScope parameter or default to officialScope
+    const requestedScope = String(options?.attemptScope || officialScope).toLowerCase();
+    let scopedCompletedSubmissions: typeof submissions;
+    let effectiveAttemptScope = officialScope;
+
+    if (allowsMultipleAttempts && requestedScope === 'first') {
+      scopedCompletedSubmissions = firstAttemptSubmissions;
+      effectiveAttemptScope = 'first';
+    } else if (allowsMultipleAttempts && requestedScope === 'retakes') {
+      scopedCompletedSubmissions = retakeSubmissions.length > 0 ? retakeSubmissions : allCompletedSubmissions;
+      effectiveAttemptScope = 'retakes';
+    } else if (allowsMultipleAttempts && requestedScope === 'best') {
+      const bestMap = new Map<string, (typeof submissions)[0]>();
+      for (const sub of allCompletedSubmissions) {
+        const key = sub.studentId || sub.id;
+        const cur = bestMap.get(key);
+        if (!cur || Number(sub.score || 0) > Number(cur.score || 0)) {
+          bestMap.set(key, sub);
+        }
+      }
+      scopedCompletedSubmissions = Array.from(bestMap.values());
+      effectiveAttemptScope = 'best';
+    } else if (allowsMultipleAttempts && requestedScope === 'latest') {
+      scopedCompletedSubmissions = this.collapseLatestCompletedSubmissions(allCompletedSubmissions);
+      effectiveAttemptScope = 'latest';
+    } else {
+      scopedCompletedSubmissions = allCompletedSubmissions;
+      effectiveAttemptScope = 'all';
+    }
+
     const completedSubmissionIds = scopedCompletedSubmissions.map((s) => s.id);
 
     const completionDurations = scopedCompletedSubmissions
@@ -4526,12 +4670,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const avgScorePct = scoreRows.length
       ? Number((scoreRows.reduce((sum, r) => sum + r.scorePct, 0) / scoreRows.length).toFixed(1))
       : 0;
-    // passingScore is an absolute point value on the 0-10 scale (e.g. 5.0 —
-    // see getExamResultsExportData), not a percentage — scorePct is 0-100,
-    // so convert the threshold to that same range before comparing.
-    const passingScorePoint = Number(exam.passingScore ?? 5);
     const passRate = this.clampPercent(
-      (scoreRows.filter((r) => r.scorePct >= passingScorePoint * 10).length / Math.max(1, scoreRows.length)) * 100,
+      (scoreRows.filter((r) => r.scorePct >= passingScorePct).length / Math.max(1, scoreRows.length)) * 100,
     );
 
     const weakestTopic = weakestTopics[0];
@@ -4572,9 +4712,19 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       }));
 
     return {
-      exam,
+      exam: {
+        ...exam,
+        passingScore: rawPassingScore,
+        passingScorePct,
+        gradingStrategy: rawGradingStrategy,
+      },
+      gradingStrategy: rawGradingStrategy,
+      passingScorePct,
       analyticsScope: isUnlimited ? 'PRACTICE' : 'OFFICIAL',
       isUnlimited,
+      allowsMultipleAttempts,
+      attemptScope: effectiveAttemptScope,
+      attemptStats,
       kpis: {
         totalSubmissions: submissions.length,
         analyzedSubmissions: scopedCompletedSubmissions.length,
