@@ -133,6 +133,14 @@ export class UpdateExamDto {
   @IsOptional()
   @IsEnum(['DRAFT', 'PUBLISHED', 'ONGOING', 'COMPLETED', 'ARCHIVED'])
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  courseId?: string;
+
+  @IsOptional()
+  @IsArray()
+  questionIds?: string[];
 }
 
 export class RescheduleExamDto {

@@ -223,6 +223,7 @@ export default function ExamManagement() {
           // the UI page never skips another 500-record backend page.
           page: 1,
           limit: 500, // Fetch all exams for client-side pagination
+          includeArchived: true,
         }),
         api.getMyCourses(),
       ]);
@@ -275,6 +276,10 @@ export default function ExamManagement() {
   };
 
   const handleEditExam = (exam: Exam) => {
+    if (exam.status === "DRAFT") {
+      router.push(`/lecturer/exams/create?id=${exam.id}`);
+      return;
+    }
     setSelectedExam(exam);
     setEditForm({
       title: exam.title,
@@ -522,7 +527,9 @@ export default function ExamManagement() {
             .includes(normalizedSearch);
 
       const matchesStatus =
-        !statusValue || statusValue === "all" || exam.status === statusValue;
+        !statusValue ||
+        statusValue === "all" ||
+        exam.status?.toUpperCase() === statusValue.toUpperCase();
       const matchesCourse =
         !courseValue || courseValue === "all" || exam.course.id === courseValue;
       const matchesTitle = matchesText(exam.title, titleFilter);

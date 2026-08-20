@@ -626,28 +626,37 @@ export class ExamsService {
     timeRange?: string;
     sort?: string;
   }, pagination?: PaginationDto) {
-    const where: any = { deletedAt: null };
+    const andConditions: any[] = [{ deletedAt: null }];
 
     if (filters?.courseId) {
-      where.courseId = filters.courseId;
+      andConditions.push({ courseId: filters.courseId });
     }
 
     if (filters?.creatorId) {
-      where.creatorId = filters.creatorId;
+      andConditions.push({
+        OR: [
+          { creatorId: filters.creatorId },
+          { course: { lecturerId: filters.creatorId } },
+        ],
+      });
     }
 
     if (filters?.status) {
-      where.status = filters.status;
+      andConditions.push({ status: filters.status });
     } else if (!filters?.includeArchived) {
-      where.status = { not: 'ARCHIVED' };
+      andConditions.push({ status: { not: 'ARCHIVED' } });
     }
 
     if (filters?.search) {
-      where.OR = [
-        { title: { contains: filters.search } },
-        { course: { is: { OR: [{ code: { contains: filters.search } }, { name: { contains: filters.search } }] } } },
-      ];
+      andConditions.push({
+        OR: [
+          { title: { contains: filters.search } },
+          { course: { is: { OR: [{ code: { contains: filters.search } }, { name: { contains: filters.search } }] } } },
+        ],
+      });
     }
+
+    const where: any = { AND: andConditions };
 
     const page = pagination?.page || 1;
     const limit = pagination?.limit || 20;
@@ -806,7 +815,8 @@ export class ExamsService {
       throw new ConflictException('Chỉ có thể sửa bài thi ở trạng thái bản nháp. Hãy lưu trữ và tạo bản nháp mới nếu cần thay đổi bài thi đã công bố.');
     }
 
-    const updateData: any = { ...updateExamDto };
+    const { questionIds, ...rawUpdateData } = updateExamDto as any;
+    const updateData: any = { ...rawUpdateData };
 
     if (updateExamDto.startTime) {
       updateData.startTime = new Date(updateExamDto.startTime);
@@ -830,7 +840,12 @@ export class ExamsService {
       },
     });
 
-
+    if (Array.isArray(questionIds)) {
+      await this.prisma.examQuestion.deleteMany({ where: { examId: id } });
+      if (questionIds.length > 0) {
+        await this.addQuestionsToExam(id, questionIds);
+      }
+    }
 
     return updatedExam;
   }

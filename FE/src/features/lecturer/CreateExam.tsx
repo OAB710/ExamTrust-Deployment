@@ -131,6 +131,8 @@ export default function CreateExam() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("info");
   const [form, setForm] = useState<ExamForm>(() => createDefaultForm());
+  const [editingExamId, setEditingExamId] = useState<string | null>(null);
+  const [isLoadingDraftExam, setIsLoadingDraftExam] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [created, setCreated] = useState(false);
   const [isStandardizing, setIsStandardizing] = useState(false);
@@ -310,6 +312,104 @@ export default function CreateExam() {
     };
 
     loadCourses();
+  }, []);
+
+  useEffect(() => {
+    const paramId =
+      new URLSearchParams(window.location.search).get("id") ||
+      new URLSearchParams(window.location.search).get("examId");
+    if (!paramId) return;
+
+    setEditingExamId(paramId);
+    const loadDraftExam = async () => {
+      setIsLoadingDraftExam(true);
+      try {
+        const exam = await api.getExam(paramId);
+        if (!exam) return;
+
+        let startDate = "";
+        let startTime = "";
+        let endDate = "";
+        let endTime = "";
+        if (exam.startTime) {
+          const d = new Date(exam.startTime);
+          if (!Number.isNaN(d.getTime())) {
+            startDate = toDateInputValue(d);
+            startTime = toTimeInputValue(d);
+          }
+        }
+        if (exam.endTime) {
+          const d = new Date(exam.endTime);
+          if (!Number.isNaN(d.getTime())) {
+            endDate = toDateInputValue(d);
+            endTime = toTimeInputValue(d);
+          }
+        }
+
+        const settings = exam.settings || {};
+        const webcamPolicy = settings.webcamEvidencePolicy || {};
+        const eventLimits = webcamPolicy.eventCaptureLimits || {};
+        const qConfig = exam.questionSelectionConfig || {};
+
+        setForm((prev) => ({
+          ...prev,
+          title: exam.title || "",
+          course: exam.courseId || exam.course?.id || prev.course,
+          description: exam.description || "",
+          duration: String(exam.duration ?? settings.timeLimitMinutes ?? 60),
+          unlimitedTime: exam.timeLimitMinutes === null && settings.timeLimitMinutes === null,
+          maxAttempts: exam.maxAttempts ? String(exam.maxAttempts) : (settings.maxAttempts ? String(settings.maxAttempts) : "1"),
+          gradingStrategy: exam.gradingStrategy || "HIGHEST",
+          passingScore: exam.passingScore !== undefined && exam.passingScore !== null ? String(exam.passingScore) : "50",
+          startDate: startDate || prev.startDate,
+          startTime: startTime || prev.startTime,
+          endDate: endDate || prev.endDate,
+          endTime: endTime || prev.endTime,
+          requiresProctoring: settings.requiresProctoring ?? settings.proctoringEnabled ?? true,
+          webcamEvidenceEnabled: webcamPolicy.enabled ?? false,
+          webcamEvidenceLimitTabSwitch: String(eventLimits.tab_switch ?? 3),
+          webcamEvidenceLimitFullscreenExit: String(eventLimits.fullscreen_exit ?? 3),
+          webcamEvidenceLimitPasteExternal: String(eventLimits.paste_external ?? 3),
+          webcamEvidenceLimitMouseIdle: String(eventLimits.mouse_idle ?? 3),
+          webcamEvidenceMouseIdleThresholdSeconds: String(Math.round((webcamPolicy.mouseIdleThresholdMs || 60000) / 1000)),
+          webcamEvidenceCooldownSeconds: String(Math.round((webcamPolicy.eventCooldownMs || 60000) / 1000)),
+          webcamEvidenceScheduledIntervalSeconds: webcamPolicy.scheduledCaptureIntervalSeconds ? String(webcamPolicy.scheduledCaptureIntervalSeconds) : "",
+          screenCaptureEnabled: webcamPolicy.screenCaptureEnabled ?? false,
+          allowLateSubmission: exam.allowLateSubmission ?? settings.allowLateSubmission ?? false,
+          shuffleQuestions: settings.shuffleQuestions ?? true,
+          showResultImmediately: settings.showResultImmediately ?? false,
+          questionType: qConfig.questionType || settings.questionType || "mixed",
+          bankDifficulty: qConfig.bankDifficulty || settings.bankDifficulty || "mixed",
+          questionCount: String(qConfig.requestedQuestionCount || settings.requestedQuestionCount || 20),
+          sourceMethod: qConfig.sourceMethod || settings.sourceMethod || "bank",
+          aiGenerationMode: settings.aiGenerationMode ?? false,
+          aiPrompt: settings.aiPrompt || "",
+          aiDifficulty: settings.aiDifficulty ? (settings.aiDifficulty <= 0.4 ? "easy" : settings.aiDifficulty >= 0.6 ? "hard" : "medium") : "medium",
+          aiReviewRequired: settings.aiReviewRequired ?? true,
+        }));
+
+        if (exam.reviewSettings) {
+          setReviewSettingsDraft({
+            enabled: exam.reviewSettings.enabled ?? true,
+            phases: exam.reviewSettings.phases || createDefaultReviewSettingsDraft().phases,
+          });
+        }
+
+        if (Array.isArray(exam.examQuestions) && exam.examQuestions.length > 0) {
+          const questionIds = exam.examQuestions
+            .map((eq: any) => eq.questionId || eq.question?.id)
+            .filter(Boolean);
+          setSelectedBankQuestionIds(questionIds);
+          setQuestionSourceMode("bank-select");
+        }
+      } catch (err) {
+        console.error("Failed to load draft exam for editing:", err);
+        toast.error("Không thể tải thông tin bài thi nháp");
+      } finally {
+        setIsLoadingDraftExam(false);
+      }
+    };
+    void loadDraftExam();
   }, []);
 
   useEffect(() => {
@@ -873,7 +973,7 @@ export default function CreateExam() {
         questionIds = selectedBankQuestionIds;
       }
 
-      await api.createExam({
+      const examPayload = {
         title: form.title.trim(),
         description: form.description.trim() || undefined,
         courseId: form.course,
@@ -974,12 +1074,20 @@ export default function CreateExam() {
           aiDifficulty: difficultyOptionToValue(form.aiDifficulty),
           aiReviewRequired: form.aiReviewRequired,
         },
-      });
+      };
+
+      if (editingExamId) {
+        await api.updateExam(editingExamId, examPayload);
+        toast.success("Đã cập nhật bài thi nháp thành công!");
+      } else {
+        await api.createExam(examPayload);
+        toast.success("Đã tạo bài thi thành công!");
+      }
 
       setCreated(true);
     } catch (error: any) {
-      console.error("Failed to create exam:", error);
-      toast.error(error.message || "Không thể tạo bài thi");
+      console.error("Failed to save exam:", error);
+      toast.error(error.message || (editingExamId ? "Không thể cập nhật bài thi" : "Không thể tạo bài thi"));
     } finally {
       setIsCreating(false);
     }
@@ -1127,10 +1235,11 @@ export default function CreateExam() {
             <CheckCircle2 className="h-10 w-10 text-green-600" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold mb-1">Đã tạo bài thi!</h2>
+            <h2 className="text-2xl font-bold mb-1">
+              {editingExamId ? "Đã cập nhật bài thi!" : "Đã tạo bài thi!"}
+            </h2>
             <p className="text-muted-foreground">
-              <strong>"{form.title}"</strong> has been saved and is ready to be
-              configured.
+              <strong>"{form.title}"</strong> đã được lưu thành công.
             </p>
           </div>
           <div className="flex gap-3">
@@ -1140,7 +1249,7 @@ export default function CreateExam() {
               size="default"
             />
             <Button onClick={() => router.push("/lecturer/exams")}>
-              <Plus className="h-4 w-4 mr-2" /> Add Questions
+              Danh sách bài thi
             </Button>
           </div>
         </div>
@@ -1157,9 +1266,13 @@ export default function CreateExam() {
       >
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold">Tạo bài thi mới</h1>
+          <h1 className="text-2xl font-bold">
+            {editingExamId ? "Chỉnh sửa bài thi nháp" : "Tạo bài thi mới"}
+          </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Thiết lập bài thi mới trong 4 bước
+            {editingExamId
+              ? "Cập nhật và hoàn thiện bài thi trong 4 bước"
+              : "Thiết lập bài thi mới trong 4 bước"}
           </p>
         </div>
 
@@ -3027,10 +3140,11 @@ export default function CreateExam() {
               className="gap-2"
             >
               {isCreating ? (
-                "Đang tạo…"
+                editingExamId ? "Đang lưu…" : "Đang tạo…"
               ) : (
                 <>
-                  <CheckCircle2 className="h-4 w-4" /> Tạo bài thi
+                  <CheckCircle2 className="h-4 w-4" />{" "}
+                  {editingExamId ? "Lưu bài thi" : "Tạo bài thi"}
                 </>
               )}
             </Button>
