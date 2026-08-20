@@ -40,6 +40,15 @@ export const COURSE_TOPIC_LABELS: Record<string, string[]> = {
   'seven-types': ['Tổng hợp kiểm thử'],
 };
 
+// Manual-grading types are worth more points than auto-graded ones — both
+// more realistic, and it gives SubmissionAnswer.pointsAwarded (an Int column)
+// a real 0..N range to show partial credit in. Set once here (the single
+// source of truth for a question's weight) so every exam that pulls this
+// question inherits the same value instead of guessing it independently.
+function pointsForType(type: QuestionType): number {
+  return type === 'ESSAY' || type === 'FILL_IN_BLANK' ? 4 : 1;
+}
+
 function buildTypePlan(count: number, emphasize: QuestionType[] = [], rng: () => number): QuestionType[] {
   const plan: QuestionType[] = [...QUESTION_TYPES];
   const remaining = Math.max(0, Math.min(100, count) - plan.length);
@@ -105,8 +114,8 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedCourses>>) {
             correctAnswer: template.correctAnswer ?? Prisma.JsonNull,
             explanation: template.explanation,
             difficulty,
-            points: 1,
-            defaultPoints: 1,
+            points: pointsForType(template.type),
+            defaultPoints: pointsForType(template.type),
             courseId: course.id,
             creatorId: course.lecturerId,
             status,
@@ -128,7 +137,7 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedCourses>>) {
             answerKey: template.correctAnswer ?? Prisma.JsonNull,
             explanation: template.explanation,
             difficulty,
-            points: 1,
+            points: pointsForType(template.type),
             metadata: { seededQuestionType: template.type },
             createdBy: question.creatorId,
             createdAt,
@@ -166,7 +175,7 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedCourses>>) {
           answerKey: q.correctAnswer ?? Prisma.JsonNull,
           explanation: q.explanation,
           difficulty: newDifficulty,
-          points: 1,
+          points: pointsForType(q.type),
           metadata: { seededQuestionType: q.type, revisionOf: 1 },
           createdBy: q.creatorId,
           createdAt: revisedAt,

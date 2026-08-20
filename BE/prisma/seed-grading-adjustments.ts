@@ -28,13 +28,21 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedIntegrity>>) {
 
       const manualAnswer = gradedSubmission.answers.find((a) => a.manualGradedAt !== null);
       if (manualAnswer) {
+        // Cap at the question's real assigned score — this writes straight
+        // to the DB, bypassing gradeAnswer()'s own "cannot exceed max" check,
+        // so it has to enforce that cap itself or it can silently seed an
+        // over-award (previousPoints already at max + 1 > max).
+        const snapshotQuestions = entry.snapshot?.snapshotQuestions ?? [];
+        const maxPoints = Number(
+          snapshotQuestions.find((sq) => sq.questionId === manualAnswer.questionId)?.assignedScore ?? 1,
+        );
         const previousPoints = Number(manualAnswer.pointsAwarded ?? 0);
-        const newPoints = previousPoints + 1; // phúc khảo tăng thêm 1 điểm cho câu đó
+        const newPoints = Math.min(previousPoints + 1, maxPoints); // phúc khảo tăng thêm 1 điểm cho câu đó
         const reviewer = lecturerUsers[0];
         const existingLog = await prisma.examSubmissionRegradeLog.findFirst({
           where: { submissionAnswerId: manualAnswer.id, reason: { contains: 'Phúc khảo' } },
         });
-        if (!existingLog) {
+        if (!existingLog && newPoints > previousPoints) {
           await prisma.examSubmissionRegradeLog.create({
             data: {
               submissionId: gradedSubmission.id,
@@ -51,6 +59,26 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedIntegrity>>) {
             where: { id: manualAnswer.id },
             data: { pointsAwarded: newPoints, feedback: 'Sau khi phúc khảo, câu trả lời đáp ứng đủ ý theo rubric — tăng điểm.' },
           });
+
+          // Keep ExamSubmission.score in sync with the answers it's derived
+          // from — otherwise the regrade bumps one answer's points but the
+          // submission's displayed total silently stays stale.
+          const updatedAnswers = gradedSubmission.answers.map((a) =>
+            a.id === manualAnswer.id ? { ...a, pointsAwarded: newPoints } : a,
+          );
+          const rawScore = updatedAnswers.reduce((sum, a) => sum + Number(a.pointsAwarded || 0), 0);
+          const maxRawScore = updatedAnswers.reduce(
+            (sum, a) => sum + Number(snapshotQuestions.find((sq) => sq.questionId === a.questionId)?.assignedScore ?? 1),
+            0,
+          );
+          const normalizedScore = maxRawScore > 0
+            ? Number(Math.max(0, Math.min(10, (rawScore / maxRawScore) * 10)).toFixed(2))
+            : 0;
+          await prisma.examSubmission.update({
+            where: { id: gradedSubmission.id },
+            data: { score: normalizedScore },
+          });
+
           regradeLogs += 1;
         }
       }

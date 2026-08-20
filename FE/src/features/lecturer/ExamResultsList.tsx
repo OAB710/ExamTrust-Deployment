@@ -176,13 +176,9 @@ function getAnomalyDescription(eventType?: string, details?: string) {
   return "Hệ thống đã lưu sự kiện này để giảng viên đối chiếu khi cần.";
 }
 
-function formatScoreOnTen(score: unknown, totalPoints: unknown) {
-  const rawScore = Number(score);
-  const maxRawScore = Number(totalPoints);
-  if (!Number.isFinite(rawScore)) return "-";
-  const normalized = Number.isFinite(maxRawScore) && maxRawScore > 0
-    ? (rawScore / maxRawScore) * 10
-    : rawScore;
+function formatScoreOnTen(score: unknown) {
+  const normalized = Number(score);
+  if (!Number.isFinite(normalized)) return "-";
   return `${Math.max(0, Math.min(10, normalized)).toFixed(2)}/10`;
 }
 
@@ -903,7 +899,7 @@ export default function ExamResultsList() {
                         <TableCell className="py-4 font-medium text-foreground">
                           <div className="flex items-center gap-2">
                             <span>{s.score != null
-                              ? formatScoreOnTen(s.score, s.totalPoints ?? overview?.exam?.totalPoints)
+                              ? formatScoreOnTen(s.score)
                               : "-"}</span>
                             <Button
                               type="button"

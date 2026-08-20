@@ -36,6 +36,8 @@ export const INTEGRITY_EVENT_LABELS: Record<string, string> = {
   screen_share_restored: "Chia sẻ màn hình đã được khôi phục",
   navigation_attempt: "Cố gắng rời khỏi trang làm bài",
   page_reload: "Tải lại hoặc rời trang khi đang làm bài",
+  network_disconnected: "Mất kết nối mạng",
+  network_restored: "Đã khôi phục kết nối mạng, tiếp tục làm bài",
 };
 
 export function getIntegrityEventLabel(eventType?: string | null): string {

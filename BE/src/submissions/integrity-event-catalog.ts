@@ -37,6 +37,8 @@ export const INTEGRITY_EVENT_LABELS: Record<string, string> = {
   screen_share_restored: 'Chia sẻ màn hình đã được khôi phục',
   navigation_attempt: 'Cố gắng rời khỏi trang làm bài',
   page_reload: 'Tải lại hoặc rời trang khi đang làm bài',
+  network_disconnected: 'Mất kết nối mạng',
+  network_restored: 'Đã khôi phục kết nối mạng, tiếp tục làm bài',
 };
 
 export function getIntegrityEventLabel(eventType: string): string {
@@ -71,7 +73,7 @@ export function getIntegrityEventSeverity(eventType: string): 'low' | 'warning' 
   if (key.includes('fullscreen') || key === 'face_not_detected' || key === 'violation_escalation' || key === 'camera_recovery_timeout' || key === 'screen_share_recovery_timeout') {
     return 'critical';
   }
-  if (['tab_switch', 'window_blur', 'blur', 'copy', 'paste', 'paste_external', 'mouse_idle', 'mouse_anomaly', 'camera_stream_ended', 'screen_share_ended', 'navigation_attempt'].includes(key)) {
+  if (['tab_switch', 'window_blur', 'blur', 'copy', 'paste', 'paste_external', 'mouse_idle', 'mouse_anomaly', 'camera_stream_ended', 'screen_share_ended', 'navigation_attempt', 'network_disconnected'].includes(key)) {
     return 'warning';
   }
   return 'low';

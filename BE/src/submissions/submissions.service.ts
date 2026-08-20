@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException, ConflictException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
 import * as path from 'path';
 import * as PDFDocument from 'pdfkit';
@@ -128,6 +128,7 @@ const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALS
 
 @Injectable()
 export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(SubmissionsService.name);
   private expiredSubmissionTimer?: NodeJS.Timeout;
   constructor(
     private prisma: PrismaService,
@@ -138,7 +139,9 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    const run = () => this.finalizeExpiredSubmissions().catch(() => undefined);
+    const run = () => this.finalizeExpiredSubmissions().catch((error) => {
+      this.logger.error('finalizeExpiredSubmissions run failed', error?.stack || error);
+    });
     run();
     this.expiredSubmissionTimer = setInterval(run, 60_000);
   }
@@ -489,7 +492,15 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         // another app instance may finish it first; the next interval retries
         // only rows that remain IN_PROGRESS.
         if (!(error instanceof ConflictException) && !(error instanceof BadRequestException)) {
-          throw error;
+          // Candidates are processed oldest-`startedAt`-first — letting an
+          // unexpected error here escape the loop would abort every OTHER
+          // expired submission behind this one too, leaving them stuck
+          // IN_PROGRESS (and their "thời gian làm bài" climbing) until this
+          // one poison record is somehow fixed. Log and keep going instead.
+          this.logger.error(
+            `finalizeExpiredSubmissions: failed to auto-submit ${submission.id}`,
+            (error as any)?.stack || error,
+          );
         }
       }
     }
@@ -3275,7 +3286,14 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         answer: answer.answer,
         pointsAwarded: answer.pointsAwarded,
         manualGradedAt: answer.manualGradedAt,
-        maxPoints: Number(answer.questionVersion?.points ?? answer.question?.points ?? answer.question?.defaultPoints ?? 1),
+        maxPoints: Number(
+          snapshotPayload.assignedScore ??
+          snapshotPayload.points ??
+          answer.questionVersion?.points ??
+          answer.question?.points ??
+          answer.question?.defaultPoints ??
+          1,
+        ),
         feedback: answer.feedback || '',
         updatedAt: answer.updatedAt,
         };
@@ -3299,7 +3317,14 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             ?? this.parseJsonValue(answer.question?.correctAnswer, null),
           isCorrect: answer.isCorrect,
           pointsAwarded: answer.pointsAwarded,
-          maxPoints: Number(answer.questionVersion?.points ?? answer.question?.points ?? answer.question?.defaultPoints ?? 1),
+          maxPoints: Number(
+            snapshotPayload.assignedScore ??
+            snapshotPayload.points ??
+            answer.questionVersion?.points ??
+            answer.question?.points ??
+            answer.question?.defaultPoints ??
+            1,
+          ),
           updatedAt: answer.updatedAt,
         };
       });
@@ -3899,13 +3924,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       : submissions.filter((s) => ['SUBMITTED', 'GRADED', 'FLAGGED'].includes(s.status));
     const scoresPct = completed
       .filter((s) => s.score !== null && s.score !== undefined)
-      .map((s) => {
-        const scoreValue = Number(s.score || 0);
-        if ((exam.totalPoints || 0) > 0) {
-          return Math.max(0, Math.min(100, (scoreValue / Number(exam.totalPoints)) * 100));
-        }
-        return Math.max(0, Math.min(100, scoreValue));
-      });
+      .map((s) => this.clampPercent(Number(s.score || 0) * 10));
 
     // Bin boundaries stay in the 0-100 domain scoresPct is computed in below —
     // only the label is point-scale (0-10) text, since that's the unit the
@@ -4488,16 +4507,10 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       .sort((a, b) => b.skipRate - a.skipRate)
       .slice(0, 10);
 
-    const scoreRows = scopedCompletedSubmissions.map((s) => {
-      const raw = Number(s.score || 0);
-      const pct = Number(exam.totalPoints || 0) > 0
-        ? this.clampPercent((raw / Number(exam.totalPoints || 1)) * 100)
-        : this.clampPercent(raw);
-      return {
-        date: new Date(s.submittedAt || s.createdAt).toISOString().slice(0, 10),
-        scorePct: pct,
-      };
-    });
+    const scoreRows = scopedCompletedSubmissions.map((s) => ({
+      date: new Date(s.submittedAt || s.createdAt).toISOString().slice(0, 10),
+      scorePct: this.clampPercent(Number(s.score || 0) * 10),
+    }));
 
     const trendMap = new Map<string, { total: number; count: number }>();
     for (const row of scoreRows) {

@@ -24,6 +24,8 @@ import {
   Camera,
   Monitor,
   Info,
+  WifiOff,
+  RefreshCw,
 } from "lucide-react";
 
 import { api } from "@/lib/api";
@@ -41,6 +43,7 @@ import {
   isAnswered,
   mapBackendToUiQuestion,
   normalizeSubmissionAnswer,
+  denormalizeSubmissionAnswer,
   rawQuestions,
   shuffleArray,
   typeBadgeColor,
@@ -133,6 +136,15 @@ export default function ExamTaking() {
   const [screenShareRecoveryExpired, setScreenShareRecoveryExpired] = useState(false);
   const [showFullscreenExitConfirm, setShowFullscreenExitConfirm] = useState(false);
   const [showNavigationGuard, setShowNavigationGuard] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+  const [isCheckingConnection, setIsCheckingConnection] = useState(false);
+  const [connectionVerified, setConnectionVerified] = useState(false);
+  const wasOfflineRef = useRef(false);
+  const [pendingRestoreAnswers, setPendingRestoreAnswers] = useState<Array<{
+    questionId: string;
+    answer: unknown;
+  }> | null>(null);
+  const answersRestoredRef = useRef(false);
   const [securityState, setSecurityState] = useState<ExamSecurityState | null>(null);
   const [duringReviewFeedback, setDuringReviewFeedback] = useState<
     Record<string, DuringReviewFeedback>
@@ -196,6 +208,7 @@ export default function ExamTaking() {
           if (Number.isFinite(serverDeadlineAt)) setSubmissionDeadlineAt(serverDeadlineAt);
           const startedAt = new Date(submission?.startedAt || Date.now()).getTime();
           if (startedAt > 0) setExamStartedAt(startedAt);
+          if (Array.isArray(submission?.answers)) setPendingRestoreAnswers(submission.answers);
           // Sync verified state to localStorage so refreshes still work
           try {
             localStorage.setItem("currentSubmissionId", urlSubmissionId);
@@ -248,6 +261,7 @@ export default function ExamTaking() {
           if (submission?.securityState) setSecurityState(submission.securityState);
           const serverDeadlineAt = new Date(submission?.deadline || "").getTime();
           if (Number.isFinite(serverDeadlineAt)) setSubmissionDeadlineAt(serverDeadlineAt);
+          if (Array.isArray(submission?.answers)) setPendingRestoreAnswers(submission.answers);
         })
         .catch((error) => console.warn("Could not restore exam security state:", error));
       try {
@@ -341,6 +355,30 @@ export default function ExamTaking() {
     };
   }, [examId]);
 
+  // Applies previously-autosaved answers (fetched alongside the resumed
+  // submission above) back into the UI's answer state, once the questions
+  // needed to map questionId -> UI id and denormalize each answer are
+  // available. Runs once per session — `pendingRestoreAnswers` is only ever
+  // set by a *successful* getMySubmissionById() call, which itself only
+  // succeeds while online, so there's nothing to gate on offline here.
+  useEffect(() => {
+    if (!pendingRestoreAnswers || questions.length === 0 || answersRestoredRef.current) return;
+    answersRestoredRef.current = true;
+
+    setAnswers((prev) => {
+      const next = { ...prev };
+      for (const saved of pendingRestoreAnswers) {
+        const question = questions.find(
+          (q) => (q as Question & { questionId?: string }).questionId === saved.questionId,
+        );
+        if (!question || next[question.id] !== undefined) continue;
+        next[question.id] = denormalizeSubmissionAnswer(question, saved.answer);
+      }
+      return next;
+    });
+    setPendingRestoreAnswers(null);
+  }, [pendingRestoreAnswers, questions]);
+
   useEffect(() => {
     const init: Record<number, string[]> = {};
     const orderingQuestions = questions.filter((q): q is OrderingQ => q.type === "ordering");
@@ -417,6 +455,48 @@ export default function ExamTaking() {
     window.addEventListener("pagehide", flushPendingIntegrityEvents);
     return () => window.removeEventListener("pagehide", flushPendingIntegrityEvents);
   }, [examSessionStatus, isPreviewMode, submissionId]);
+
+  // Locks the exam UI behind a blocking dialog while offline. Deliberately
+  // does NOT auto-resume on the browser's "online" event — a flaky
+  // connection can fire online/offline back-to-back, and silently letting
+  // the student keep going into another drop is worse than asking them to
+  // confirm. `checkConnection()` hits the backend directly instead of
+  // trusting navigator.onLine, which only reflects the network adapter's
+  // link state (e.g. still "online" on wifi with no real internet).
+  useEffect(() => {
+    if (isPreviewMode || examSessionStatus !== "IN_PROGRESS") return;
+
+    const handleOffline = () => {
+      wasOfflineRef.current = true;
+      setConnectionVerified(false);
+      setIsOffline(true);
+      void persistIntegrityEvent("network_disconnected", "Mất kết nối mạng trong khi đang làm bài");
+    };
+
+    if (!navigator.onLine) handleOffline();
+    window.addEventListener("offline", handleOffline);
+    return () => window.removeEventListener("offline", handleOffline);
+  }, [examSessionStatus, isPreviewMode, persistIntegrityEvent]);
+
+  const handleCheckConnection = useCallback(async () => {
+    setIsCheckingConnection(true);
+    try {
+      const ok = await api.checkConnection();
+      setConnectionVerified(ok);
+      if (!ok) toast.error("Vẫn chưa có kết nối mạng. Vui lòng thử lại.");
+    } finally {
+      setIsCheckingConnection(false);
+    }
+  }, []);
+
+  const handleResumeAfterOffline = useCallback(() => {
+    setIsOffline(false);
+    setConnectionVerified(false);
+    if (wasOfflineRef.current) {
+      wasOfflineRef.current = false;
+      void persistIntegrityEvent("network_restored", "Đã xác nhận có mạng trở lại, tiếp tục làm bài");
+    }
+  }, [persistIntegrityEvent]);
 
   useEffect(() => () => {
     autosaveTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
@@ -1537,6 +1617,46 @@ export default function ExamTaking() {
               }}
             >
               Xác nhận thoát
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isOffline}>
+        <DialogContent
+          className="sm:max-w-md"
+          hideCloseButton
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <WifiOff className="h-5 w-5 text-destructive" />
+              Mất kết nối mạng
+            </DialogTitle>
+            <DialogDescription>
+              Bài thi đã tạm khoá vì thiết bị mất kết nối mạng. Câu trả lời đã lưu trước đó vẫn an toàn.
+              Khi có mạng trở lại, nhấn "Kiểm tra kết nối", sau đó nhấn "Tiếp tục làm bài".
+            </DialogDescription>
+          </DialogHeader>
+          {connectionVerified && (
+            <p className="flex items-center gap-2 text-sm font-medium text-emerald-600">
+              <CheckCircle2 className="h-4 w-4" />
+              Đã có kết nối mạng trở lại.
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => void handleCheckConnection()}
+              disabled={isCheckingConnection}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isCheckingConnection ? "animate-spin" : ""}`} />
+              Kiểm tra kết nối
+            </Button>
+            <Button onClick={handleResumeAfterOffline} disabled={!connectionVerified}>
+              Tiếp tục làm bài
             </Button>
           </DialogFooter>
         </DialogContent>

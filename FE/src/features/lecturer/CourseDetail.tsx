@@ -184,9 +184,9 @@ const completedSubmissionStatuses = new Set([
   "FINALIZED",
 ]);
 
-// `value` is a 0-100 percentage (score/totalPoints*100, same source as
-// ExamResultsList/ExamMonitor's avgScorePct) — displayed as points out of
-// 10 for consistency with those screens instead of a raw percentage.
+// `value` is a 0-100 percentage (score * 10, since submission.score is
+// already normalized to a 0-10 scale) — displayed as points out of 10 for
+// consistency with ExamResultsList/ExamMonitor's avgScorePct.
 const formatPercent = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) return "Chưa có dữ liệu";
   return `${(value / 10).toFixed(1)}/10`;
@@ -221,15 +221,9 @@ const getSubmissionReviewSignalCount = (submission: ExamSubmission) => {
   return explicitSignals + countedSignals + statusSignal;
 };
 
-const getSubmissionScorePct = (
-  submission: ExamSubmission,
-  totalPoints?: number | null,
-) => {
+const getSubmissionScorePct = (submission: ExamSubmission) => {
   if (typeof submission.score !== "number") return null;
-  if (typeof totalPoints === "number" && totalPoints > 0) {
-    return (submission.score / totalPoints) * 100;
-  }
-  return submission.score;
+  return submission.score * 10;
 };
 
 export default function CourseDetail() {
@@ -338,7 +332,7 @@ export default function CourseDetail() {
             examId: row.summary.id,
             examTitle: row.summary.title,
             status: submission.status || "SUBMITTED",
-            scorePct: getSubmissionScorePct(submission, row.totalPoints),
+            scorePct: getSubmissionScorePct(submission),
             submittedAt:
               submission.submittedAt ||
               submission.updatedAt ||

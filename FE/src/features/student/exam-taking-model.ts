@@ -383,6 +383,52 @@ export function normalizeSubmissionAnswer(
   return answer;
 }
 
+// Inverse of normalizeSubmissionAnswer — turns a saved SubmissionAnswer's
+// backend-shaped `answer` JSON back into the UI's own answer state shape, so
+// a resumed session (e.g. after closing/reopening the tab) can show
+// previously-selected options as already answered instead of blank. Relies
+// on each question's options/segments coming from the exam snapshot in a
+// stable order across reloads (no client-side reshuffling), so the
+// letter↔index mapping stays valid.
+export function denormalizeSubmissionAnswer(
+  question: Question | undefined,
+  answer: unknown,
+): unknown {
+  if (!question || answer === null || answer === undefined) return answer;
+
+  if (question.type === "single-choice") {
+    const letter = (answer as any)?.answer;
+    if (typeof letter === "string" && letter.length === 1) {
+      return letter.toUpperCase().charCodeAt(0) - 65;
+    }
+    return answer;
+  }
+
+  if (question.type === "multi-choice") {
+    const letters = (answer as any)?.answer;
+    if (typeof letters === "string") {
+      return letters
+        .split(",")
+        .map((label) => label.trim())
+        .filter(Boolean)
+        .map((label) => label.toUpperCase().charCodeAt(0) - 65);
+    }
+    return answer;
+  }
+
+  if (question.type === "true-false") {
+    const value = (answer as any)?.answer;
+    return typeof value === "boolean" ? value : answer;
+  }
+
+  if (question.type === "find-error") {
+    const values = (answer as any)?.answers;
+    return Array.isArray(values) ? values.map(String) : answer;
+  }
+
+  return answer;
+}
+
 export function shuffleArray<T>(arr: T[]): T[] {
   const s = [...arr];
   for (let i = s.length - 1; i > 0; i--) {

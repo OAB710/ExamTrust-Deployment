@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapBackendToUiQuestion, normalizeSubmissionAnswer, isAnswered } from "./exam-taking-model";
+import { mapBackendToUiQuestion, normalizeSubmissionAnswer, denormalizeSubmissionAnswer, isAnswered } from "./exam-taking-model";
 import type { FillBlankQ } from "./exam-taking-model";
 
 describe("exam-taking question contract", () => {
@@ -111,6 +111,37 @@ describe("exam-taking question contract", () => {
       }, 0) as FillBlankQ;
       expect(q.blanks).toBe(1);
       expect(q.template).toBe("Điền vào chỗ trống {{1}}");
+    });
+  });
+
+  describe("denormalizeSubmissionAnswer (resume-after-reload round trip)", () => {
+    it("round-trips a single-choice answer back to its option index", () => {
+      const q = mapBackendToUiQuestion({ type: "MULTIPLE_CHOICE", content: "Q", options: ["A", "B", "C"] }, 0);
+      const saved = normalizeSubmissionAnswer(q, 2);
+      expect(denormalizeSubmissionAnswer(q, saved)).toBe(2);
+    });
+
+    it("round-trips a multi-choice answer back to sorted option indices", () => {
+      const q = mapBackendToUiQuestion({ type: "MULTI_SELECT", content: "Q", options: ["A", "B", "C", "D"] }, 0);
+      const saved = normalizeSubmissionAnswer(q, [3, 0]);
+      expect(denormalizeSubmissionAnswer(q, saved)).toEqual([0, 3]);
+    });
+
+    it("round-trips a true-false answer", () => {
+      const q = mapBackendToUiQuestion({ type: "TRUE_FALSE", content: "Q" }, 0);
+      expect(denormalizeSubmissionAnswer(q, normalizeSubmissionAnswer(q, true))).toBe(true);
+      expect(denormalizeSubmissionAnswer(q, normalizeSubmissionAnswer(q, false))).toBe(false);
+    });
+
+    it("round-trips a find-error selection", () => {
+      const q = mapBackendToUiQuestion({ type: "FIND_ERROR", content: "Q", options: { A: "line 1", B: "line 2" } }, 0);
+      const saved = normalizeSubmissionAnswer(q, ["B"]);
+      expect(denormalizeSubmissionAnswer(q, saved)).toEqual(["B"]);
+    });
+
+    it("passes matching/ordering/fill-blank answers through unchanged", () => {
+      const ordering = mapBackendToUiQuestion({ type: "ORDERING", content: "Order", options: ["First", "Second"] }, 0);
+      expect(denormalizeSubmissionAnswer(ordering, ["Second", "First"])).toEqual(["Second", "First"]);
     });
   });
 
