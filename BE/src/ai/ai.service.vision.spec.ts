@@ -47,6 +47,22 @@ describe('AiService.analyzeProctoringImage', () => {
     expect(fallbackRequest.model).toBe('moondream');
   });
 
+  it('reports OpenRouter as unconfigured for vision instead of guessing a model', async () => {
+    // OpenRouter's default/configured text model (e.g. nemotron) has no
+    // vision support, and there is no reliable free vision model to assume
+    // on a caller's behalf — surfacing a clear "unsupported" error is safer
+    // than silently calling a model that may not exist on their account.
+    const service = new AiService(buildConfigService({
+      AI_PROVIDER: 'openrouter',
+      OPENROUTER_API_KEY: 'test-key',
+    }) as any, buildMockRedisService());
+    const createSpy = jest.spyOn((service as any).openRouterAI.chat.completions, 'create');
+
+    await expect(service.analyzeProctoringImage({ image: Buffer.from('frame'), mimeType: 'image/jpeg' }))
+      .rejects.toThrow(/chưa được cấu hình/);
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
   it('keeps mock mode free of any model request', async () => {
     const service = new AiService(buildConfigService({ AI_PROVIDER: 'mock' }) as any, buildMockRedisService());
     const fetchSpy = jest.spyOn(global, 'fetch');

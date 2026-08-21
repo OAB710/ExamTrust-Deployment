@@ -28,7 +28,7 @@ import {
   RejectQuestionAiImprovementDto,
   UpdateQuestionAiImprovementDraftDto,
 } from './dto/question-ai-improvement.dto';
-import { CopyQuestionBankDto, CreateQuestionCrudDto, UpdateQuestionCrudDto } from './dto/question-crud.dto';
+import { CopyQuestionBankDto, CreateQuestionCrudDto, PreviewCopyQuestionBankDto, UpdateQuestionCrudDto } from './dto/question-crud.dto';
 import { CreateDuplicateAnalysisJobDto, DuplicateQuestionCheckDto, UpdateDuplicatePreferenceDto } from './dto/question-duplicate.dto';
 import { ListQuestionsQueryDto } from './dto/question-v2-query.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -55,6 +55,11 @@ export class QuestionDraftsController {
   @Post('copy-bank')
   copyQuestionBank(@Body() dto: CopyQuestionBankDto, @Request() req) {
     return this.questionsService.copyQuestionBank(dto, req.user);
+  }
+
+  @Post('copy-bank/preview')
+  previewCopyQuestionBank(@Body() dto: PreviewCopyQuestionBankDto, @Request() req) {
+    return this.questionsService.previewCopyQuestionBank(dto, req.user);
   }
 
   @Post('duplicate-check')

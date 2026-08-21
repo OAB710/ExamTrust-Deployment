@@ -198,6 +198,14 @@ export class SubmissionsController {
     return this.proctoringEvidence.reviewCapture(id, captureId, dto, req.user);
   }
 
+  @Post(':id/evidence-captures/:captureId/reanalyze')
+  @UseGuards(JwtAuthGuard, RolesGuard, RateLimitGuard)
+  @Roles('LECTURER', 'ADMIN')
+  @RateLimit('integrity')
+  reanalyzeEvidenceCapture(@Param('id') id: string, @Param('captureId') captureId: string, @Request() req) {
+    return this.proctoringEvidence.reanalyzeCapture(id, captureId, req.user);
+  }
+
   @Patch('integrity/cases/:submissionId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'LECTURER')

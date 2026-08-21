@@ -593,8 +593,18 @@ class ApiClient {
     sourceCourseId: string;
     targetCourseId: string;
     topicIds?: string[];
+    questionIds?: string[];
+    forceDuplicateIds?: string[];
   }): Promise<{ copied: number; skipped: number; total: number }> {
     return this.request('/questions/copy-bank', { method: 'POST', body: data });
+  }
+
+  async previewCopyQuestionBank(data: {
+    sourceCourseId: string;
+    targetCourseId: string;
+    questionIds: string[];
+  }): Promise<{ duplicateQuestionIds: string[] }> {
+    return this.request('/questions/copy-bank/preview', { method: 'POST', body: data });
   }
 
   async saveQuestion(data: {
@@ -1327,6 +1337,10 @@ class ApiClient {
 
   async reviewEvidenceCapture(submissionId: string, captureId: string, data: { reviewStatus: 'REVIEWED' | 'DISMISSED'; reviewerNote?: string }) {
     return this.request<any>(`/submissions/${submissionId}/evidence-captures/${captureId}/review`, { method: 'PATCH', body: data });
+  }
+
+  async reanalyzeEvidenceCapture(submissionId: string, captureId: string) {
+    return this.request<any>(`/submissions/${submissionId}/evidence-captures/${captureId}/reanalyze`, { method: 'POST' });
   }
 
   async getEvidenceImageUrl(submissionId: string, captureId: string) {

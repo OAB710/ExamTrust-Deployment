@@ -436,6 +436,28 @@ export class ProctoringEvidenceService implements OnModuleInit {
     return this.prisma.proctoringEvidenceCapture.update({ where: { id: captureId }, data: { reviewStatus: dto.reviewStatus, reviewerNote: dto.reviewerNote || null, reviewedById: user.id, reviewedAt: new Date() } });
   }
 
+  // Lets a lecturer/admin retry AI analysis for one capture — needed because
+  // a capture that failed (e.g. the AI provider had no vision support
+  // configured at the time) is never retried automatically; the queue only
+  // enqueues this job once, right after upload, in finalizeCapture above.
+  async reanalyzeCapture(submissionId: string, captureId: string, user: any) {
+    const capture = await this.prisma.proctoringEvidenceCapture.findFirst({ where: { id: captureId, submissionId }, include: { submission: { select: { examId: true } } } });
+    if (!capture) throw new NotFoundException('Không tìm thấy bản chụp bằng chứng');
+    await this.accessPolicy.assertInstructorCanAccessExam(capture.submission.examId, user);
+    if (!capture.storageKey || capture.status === 'PURGED') throw new BadRequestException('Ảnh bằng chứng không còn khả dụng để phân tích lại');
+    await this.prisma.proctoringEvidenceCapture.update({ where: { id: captureId }, data: { status: 'ANALYZING', aiError: null } });
+    const job = await this.prisma.aIGenerationRecord.create({
+      data: {
+        submissionId,
+        section: 'RISK_ASSESSMENT',
+        provider: process.env.AI_PROVIDER || 'google',
+        prompt: { task: 'proctoring-evidence', captureId },
+      },
+    });
+    await this.queueService.enqueueAiGeneration({ jobId: job.id, task: 'proctoring-evidence', payload: { captureId } });
+    return { id: captureId, status: 'ANALYZING' };
+  }
+
   async purgeExpired(): Promise<number> {
     const captures = await this.prisma.proctoringEvidenceCapture.findMany({ where: { retentionUntil: { lte: new Date() }, status: { not: 'PURGED' } }, select: { id: true, storageKey: true } });
     for (const capture of captures) {

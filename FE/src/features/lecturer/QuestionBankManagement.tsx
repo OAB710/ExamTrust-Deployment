@@ -77,7 +77,6 @@ import {
   Filter,
   Edit2,
   Trash2,
-  Copy,
   ArrowLeft,
   BarChart3,
   Tag,
@@ -341,7 +340,16 @@ export default function QuestionBankManagement() {
   const [coursePage, setCoursePage] = useState(1);
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [copySourceCourseId, setCopySourceCourseId] = useState<string>("");
-  const [copyLoading, setCopyLoading] = useState(false);
+  const [copySourceQuestions, setCopySourceQuestions] = useState<Question[]>([]);
+  const [copySourceLoading, setCopySourceLoading] = useState(false);
+  const [copySelectedIds, setCopySelectedIds] = useState<string[]>([]);
+  const [copySearch, setCopySearch] = useState("");
+  const [copyTypeFilter, setCopyTypeFilter] = useState<string>("all");
+  const [copyTopicFilter, setCopyTopicFilter] = useState<string>("all");
+  const [copyDuplicateIds, setCopyDuplicateIds] = useState<string[]>([]);
+  const [copyConfirmDupOpen, setCopyConfirmDupOpen] = useState(false);
+  const [copyPreviewLoading, setCopyPreviewLoading] = useState(false);
+  const [copySubmitLoading, setCopySubmitLoading] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateLoading, setDuplicateLoading] = useState(false);
   const [duplicateStep, setDuplicateStep] = useState<1 | 2 | 3>(1);
@@ -494,33 +502,64 @@ export default function QuestionBankManagement() {
     }
   };
 
-  const handleDuplicate = async (q: Question) => {
-    try {
-      const newQuestion = await api.saveQuestion({
-        sourceQuestionId: q.id,
-        type: q.type,
-        content: `[Copy] ${q.content}`,
-        difficulty: q.difficulty,
-        points: q.points,
-        courseId: q.course?.code
-          ? courses.find((c) => c.code === q.course?.code)?.id
-          : undefined,
-      });
-      setQuestions((prev) => [newQuestion, ...prev]);
-    } catch (error) {
-      console.error("Failed to duplicate question:", error);
-    }
+  const resetCopyDialogState = () => {
+    setCopySourceCourseId("");
+    setCopySourceQuestions([]);
+    setCopySelectedIds([]);
+    setCopySearch("");
+    setCopyTypeFilter("all");
+    setCopyTopicFilter("all");
+    setCopyDuplicateIds([]);
+    setCopyConfirmDupOpen(false);
   };
 
-  const handleCopyQuestionBank = async () => {
-    const targetCourse = courses.find((c) => c.code === selectedCourse);
-    if (!targetCourse || !copySourceCourseId) return;
+  useEffect(() => {
+    if (!copySourceCourseId) {
+      setCopySourceQuestions([]);
+      return;
+    }
+    setCopySourceLoading(true);
+    setCopySelectedIds([]);
+    setCopyDuplicateIds([]);
+    api
+      .listQuestions({ courseId: copySourceCourseId, status: "PUBLISHED", limit: 200 })
+      .then((response) => setCopySourceQuestions(unwrapPaginatedData<Question>(response)))
+      .catch(() => {
+        setCopySourceQuestions([]);
+        toast.error("Không tải được câu hỏi của khóa học nguồn.");
+      })
+      .finally(() => setCopySourceLoading(false));
+  }, [copySourceCourseId]);
 
-    setCopyLoading(true);
+  const copySourceTopics = useMemo(() => {
+    const map = new Map<string, string>();
+    copySourceQuestions.forEach((q) => {
+      if (q.topic?.id && q.topic?.name) map.set(q.topic.id, q.topic.name);
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [copySourceQuestions]);
+
+  const copyVisibleQuestions = useMemo(() => {
+    const search = copySearch.trim().toLowerCase();
+    return copySourceQuestions.filter((q) => {
+      if (copyTypeFilter !== "all" && canonicalQuestionType(q.type) !== copyTypeFilter) return false;
+      if (copyTopicFilter !== "all" && q.topic?.id !== copyTopicFilter) return false;
+      if (search && !`${q.content} ${q.id}`.toLowerCase().includes(search)) return false;
+      return true;
+    });
+  }, [copySourceQuestions, copySearch, copyTypeFilter, copyTopicFilter]);
+
+  const runCopyQuestions = async (forceDuplicateIds: string[]) => {
+    const targetCourse = courses.find((c) => c.code === selectedCourse);
+    if (!targetCourse || !copySourceCourseId || copySelectedIds.length === 0) return;
+
+    setCopySubmitLoading(true);
     try {
       const result = await api.copyQuestionBank({
         sourceCourseId: copySourceCourseId,
         targetCourseId: targetCourse.id,
+        questionIds: copySelectedIds,
+        forceDuplicateIds,
       });
       toast.success(
         `Đã sao chép ${result.copied} câu hỏi${
@@ -528,7 +567,7 @@ export default function QuestionBankManagement() {
         }.`,
       );
       setCopyDialogOpen(false);
-      setCopySourceCourseId("");
+      resetCopyDialogState();
 
       const firstPage = await api.listQuestions({ page: 1, limit: 100 });
       const firstPageQuestions = unwrapPaginatedData<Question>(firstPage);
@@ -552,7 +591,32 @@ export default function QuestionBankManagement() {
       console.warn("Failed to copy question bank:", (error as Error)?.message ?? error);
       toast.error("Sao chép ngân hàng câu hỏi thất bại. Vui lòng thử lại.");
     } finally {
-      setCopyLoading(false);
+      setCopySubmitLoading(false);
+    }
+  };
+
+  const handleCopyClick = async () => {
+    const targetCourse = courses.find((c) => c.code === selectedCourse);
+    if (!targetCourse || !copySourceCourseId || copySelectedIds.length === 0) return;
+
+    setCopyPreviewLoading(true);
+    try {
+      const preview = await api.previewCopyQuestionBank({
+        sourceCourseId: copySourceCourseId,
+        targetCourseId: targetCourse.id,
+        questionIds: copySelectedIds,
+      });
+      if (preview.duplicateQuestionIds.length === 0) {
+        await runCopyQuestions([]);
+      } else {
+        setCopyDuplicateIds(preview.duplicateQuestionIds);
+        setCopyConfirmDupOpen(true);
+      }
+    } catch (error) {
+      console.warn("Failed to preview question copy:", (error as Error)?.message ?? error);
+      toast.error("Không kiểm tra được câu hỏi trùng lặp. Vui lòng thử lại.");
+    } finally {
+      setCopyPreviewLoading(false);
     }
   };
 
@@ -1463,13 +1527,6 @@ export default function QuestionBankManagement() {
                                       Sửa
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
-                                      className="gap-2 text-xs"
-                                      onClick={() => handleDuplicate(question)}
-                                    >
-                                      <Copy className="h-4 w-4" />
-                                      Sao chép
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
                                       className="gap-2 text-destructive text-xs"
                                       onClick={() => handleDelete(question.id)}
                                     >
@@ -1516,26 +1573,24 @@ export default function QuestionBankManagement() {
           open={copyDialogOpen}
           onOpenChange={(open) => {
             setCopyDialogOpen(open);
-            if (!open) setCopySourceCourseId("");
+            if (!open) resetCopyDialogState();
           }}
         >
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Sao chép ngân hàng câu hỏi</DialogTitle>
+              <DialogTitle>Sao chép câu hỏi từ khóa học khác</DialogTitle>
               <DialogDescription>
-                Sao chép các câu hỏi đã publish từ một khóa học khác vào{" "}
+                Chọn các câu hỏi đã publish để sao chép vào{" "}
                 <strong>
                   {courses.find((c) => c.code === selectedCourse)?.name ||
                     selectedCourse}
                 </strong>
-                . Câu hỏi trùng nội dung sẽ được bỏ qua.
+                .
               </DialogDescription>
             </DialogHeader>
-            <div className="py-2">
-              <Select
-                value={copySourceCourseId}
-                onValueChange={setCopySourceCourseId}
-              >
+
+            <div className="space-y-4">
+              <Select value={copySourceCourseId} onValueChange={setCopySourceCourseId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn khóa học nguồn" />
                 </SelectTrigger>
@@ -1549,28 +1604,153 @@ export default function QuestionBankManagement() {
                     ))}
                 </SelectContent>
               </Select>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setCopyDialogOpen(false)}
-                disabled={copyLoading}
-              >
-                Hủy
-              </Button>
-              <Button
-                onClick={handleCopyQuestionBank}
-                disabled={!copySourceCourseId || copyLoading}
-              >
-                {copyLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+
+              {copySourceCourseId && (
+                copySourceLoading ? (
+                  <div className="flex items-center justify-center gap-2 rounded-lg border p-8 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Đang tải câu hỏi...
+                  </div>
+                ) : copySourceQuestions.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                    Khóa học này chưa có câu hỏi đã publish.
+                  </div>
                 ) : (
-                  "Sao chép"
-                )}
-              </Button>
-            </DialogFooter>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Input
+                        value={copySearch}
+                        onChange={(event) => setCopySearch(event.target.value)}
+                        placeholder="Tìm theo nội dung, ID..."
+                        className="flex-1 min-w-[160px]"
+                      />
+                      <Select value={copyTypeFilter} onValueChange={setCopyTypeFilter}>
+                        <SelectTrigger className="w-[160px]">
+                          <SelectValue placeholder="Loại câu hỏi" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tất cả loại</SelectItem>
+                          {Object.keys(questionTypeLabels).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {questionTypeLabels[type] || type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={copyTopicFilter} onValueChange={setCopyTopicFilter}>
+                        <SelectTrigger className="w-[160px]">
+                          <SelectValue placeholder="Chủ đề" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tất cả chủ đề</SelectItem>
+                          {copySourceTopics.map((topic) => (
+                            <SelectItem key={topic.id} value={topic.id}>
+                              {topic.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={
+                          copyVisibleQuestions.length > 0 &&
+                          copyVisibleQuestions.every((q) => copySelectedIds.includes(q.id))
+                        }
+                        onChange={(event) =>
+                          setCopySelectedIds(
+                            event.target.checked
+                              ? [...new Set([...copySelectedIds, ...copyVisibleQuestions.map((q) => q.id)])]
+                              : copySelectedIds.filter(
+                                  (id) => !copyVisibleQuestions.some((q) => q.id === id),
+                                ),
+                          )
+                        }
+                      />
+                      Chọn tất cả kết quả đang hiển thị ({copyVisibleQuestions.length})
+                    </label>
+
+                    <div className="max-h-[40vh] space-y-2 overflow-y-auto rounded-lg border p-2">
+                      {copyVisibleQuestions.map((question) => {
+                        const isDuplicate = copyDuplicateIds.includes(question.id);
+                        return (
+                          <label
+                            key={question.id}
+                            className={`flex cursor-pointer gap-3 rounded-md border p-3 hover:bg-muted ${
+                              isDuplicate ? "border-red-200 bg-red-50" : "border-transparent"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={copySelectedIds.includes(question.id)}
+                              onChange={(event) =>
+                                setCopySelectedIds(
+                                  event.target.checked
+                                    ? [...copySelectedIds, question.id]
+                                    : copySelectedIds.filter((id) => id !== question.id),
+                                )
+                              }
+                            />
+                            <span>
+                              <span className="block text-sm">{question.content}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {question.id.slice(0, 8)} · {questionTypeLabels[question.type] || question.type}
+                                {isDuplicate ? " · Trùng với ngân hàng đích" : ""}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Đã chọn: {copySelectedIds.length} câu
+                      </span>
+                      <Button
+                        onClick={handleCopyClick}
+                        disabled={copySelectedIds.length === 0 || copyPreviewLoading || copySubmitLoading}
+                      >
+                        {copyPreviewLoading || copySubmitLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          `Sao chép ${copySelectedIds.length} câu`
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={copyConfirmDupOpen} onOpenChange={setCopyConfirmDupOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Phát hiện câu hỏi trùng lặp</AlertDialogTitle>
+              <AlertDialogDescription>
+                Có {copyDuplicateIds.length} câu trong số câu hỏi bạn chọn trùng nội dung với
+                câu hỏi đã có trong khóa học đích (đã tô đỏ trong danh sách). Bạn có muốn sao
+                chép luôn các câu này không?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setCopyConfirmDupOpen(false)}>
+                Không
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setCopyConfirmDupOpen(false);
+                  void runCopyQuestions(copyDuplicateIds);
+                }}
+              >
+                Có, sao chép luôn
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
           <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">

@@ -398,6 +398,7 @@ export default function ExamMonitor() {
   const [evidenceLoading, setEvidenceLoading] = useState(false);
   const [evidenceImageLoading, setEvidenceImageLoading] = useState(false);
   const [evidenceReviewLoading, setEvidenceReviewLoading] = useState(false);
+  const [reanalyzingEvidenceId, setReanalyzingEvidenceId] = useState<string | null>(null);
   const [evidenceReviewNote, setEvidenceReviewNote] = useState("");
   const [evidenceError, setEvidenceError] = useState<string | null>(null);
   const [evidenceFilter, setEvidenceFilter] = useState<"all" | "suspicious" | "scheduled" | "webcam" | "screen" | "unreviewed">("all");
@@ -840,6 +841,29 @@ export default function ExamMonitor() {
   };
 
   const formatEvidenceTime = (value?: string | null) => value ? new Date(value).toLocaleString("vi-VN") : "Chưa có";
+
+  // Analysis runs async on the AI queue worker — there is no push channel for
+  // this one capture, so after triggering a retry we short-poll the capture
+  // list until this specific capture leaves ANALYZING (or we give up).
+  const reanalyzeEvidence = async (captureId: string) => {
+    if (!evidenceDialogSubmission) return;
+    setReanalyzingEvidenceId(captureId);
+    try {
+      await api.reanalyzeEvidenceCapture(evidenceDialogSubmission.id, captureId);
+      setEvidenceCaptures((current) => current.map((capture) => capture.id === captureId ? { ...capture, status: "ANALYZING", aiError: null } : capture));
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const captures = await api.getEvidenceCaptures(evidenceDialogSubmission.id);
+        const updated = Array.isArray(captures) ? captures.find((item: EvidenceCapture) => item.id === captureId) : null;
+        if (updated) setEvidenceCaptures((current) => current.map((capture) => capture.id === captureId ? { ...capture, ...updated } : capture));
+        if (updated && updated.status !== "ANALYZING") break;
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Không thể phân tích lại ảnh bằng chứng.");
+    } finally {
+      setReanalyzingEvidenceId(null);
+    }
+  };
 
   const handleGenerateRisk = async () => {
     if (!riskDialogSubmission || !riskEligibility?.eligible) return;
@@ -1786,7 +1810,21 @@ export default function ExamMonitor() {
                     </div>
 
                     <div className="rounded-lg border p-3">
-                      <p className="flex items-center gap-1.5 text-sm font-medium"><Sparkles className="h-4 w-4 text-primary" /> Nhãn phân tích AI</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="flex items-center gap-1.5 text-sm font-medium"><Sparkles className="h-4 w-4 text-primary" /> Nhãn phân tích AI</p>
+                        {selectedEvidence.status !== "ANALYZING" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 gap-1.5 px-2 text-xs"
+                            disabled={reanalyzingEvidenceId === selectedEvidence.id}
+                            onClick={() => reanalyzeEvidence(selectedEvidence.id)}
+                          >
+                            <RefreshCw className={`h-3.5 w-3.5 ${reanalyzingEvidenceId === selectedEvidence.id ? "animate-spin" : ""}`} />
+                            Phân tích lại
+                          </Button>
+                        )}
+                      </div>
                       {selectedEvidence.status === "ANALYZING" ? <p className="mt-2 text-sm text-muted-foreground">Đang phân tích ảnh...</p> : selectedEvidence.aiError ? <p className="mt-2 text-sm text-red-600">{selectedEvidence.aiError}</p> : Array.isArray(selectedEvidence.aiTags) && selectedEvidence.aiTags.length > 0 ? <div className="mt-2 space-y-2">{selectedEvidence.aiTags.map((tag, index) => <div key={`${tag.tag}-${index}`} className="rounded-md bg-muted/50 p-2 text-sm"><span className="font-medium">{tag.tag || "Tín hiệu"}</span>{typeof tag.confidence === "number" && <span className="ml-2 text-xs text-muted-foreground">{Math.round(tag.confidence * 100)}%</span>}{tag.note && <p className="mt-1 text-xs text-muted-foreground">{tag.note}</p>}</div>)}</div> : <p className="mt-2 text-sm text-muted-foreground">Chưa có nhãn AI cho ảnh này.</p>}
                     </div>
 

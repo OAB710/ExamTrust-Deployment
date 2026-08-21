@@ -614,7 +614,24 @@ ${typeInstruction}
   }
 
   async analyzeProctoringImage(params: { image: Buffer; mimeType: string }) {
-    const prompt = `Analyze this webcam frame for an academic exam. Return ONLY JSON: {"tags":[{"tag":"FACE_NOT_VISIBLE|MULTIPLE_PEOPLE|FACE_PARTIALLY_OCCLUDED|CAMERA_COVERED_OR_DARK|IMAGE_TOO_BLURRY|CAMERA_FRAME_CHANGED|POSSIBLE_FROZEN_VIDEO|POSSIBLE_PHONE|PROHIBITED_MATERIAL_VISIBLE","confidence":0-1,"note":"short factual Vietnamese description"}]}. Tags are advisory evidence only. Do not claim cheating. Include only visually supported tags.`;
+    // Kept short and single-turn (no chat history, no few-shot examples) to
+    // minimize input tokens, and explicitly forbids reasoning/explanation
+    // text so reasoning-capable free-tier models don't burn output tokens
+    // narrating themselves before the JSON — that also breaks the parser
+    // below, which expects the JSON to be the only content.
+    const prompt = `You are a strict, factual exam-proctoring image auditor. Look ONLY at what is visually verifiable in this single webcam/screen frame from an ongoing academic exam.
+
+Allowed tags (use ONLY these, only when clearly visually supported): FACE_NOT_VISIBLE, MULTIPLE_PEOPLE, FACE_PARTIALLY_OCCLUDED, CAMERA_COVERED_OR_DARK, IMAGE_TOO_BLURRY, CAMERA_FRAME_CHANGED, POSSIBLE_FROZEN_VIDEO, POSSIBLE_PHONE, PROHIBITED_MATERIAL_VISIBLE.
+
+Rules:
+- Evidence only, never an accusation: do not conclude cheating, dishonesty, or intent.
+- Only include a tag if the frame itself visually supports it; when the frame looks normal, return an empty tags array.
+- Never invent people, objects, or events not visible in the frame.
+- confidence reflects how visually certain the tag is (0 = weak guess, 1 = unmistakable), not how serious it is.
+- note: one short factual Vietnamese sentence (max ~20 words) describing only what is seen, no speculation, no advice.
+- Output ONLY the JSON object below, nothing else — no explanation, no markdown fences, no reasoning.
+
+{"tags":[{"tag":"<one of the allowed tags>","confidence":0-1,"note":"<short factual Vietnamese description>"}]}`;
     if (this.provider === 'mock') return { tags: [], model: 'mock' };
     let text: string;
     let model: string;

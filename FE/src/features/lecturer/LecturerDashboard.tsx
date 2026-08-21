@@ -41,6 +41,8 @@ export interface Exam {
   totalPoints: number;
   status: string;
   startTime: string | null;
+  endTime?: string | null;
+  resultsPublishedAt?: string | null;
   createdAt: string;
   _count?: { examQuestions: number; submissions: number };
 }
@@ -383,6 +385,7 @@ export default function LecturerDashboard() {
                           : null;
                       const isScheduled = start ? now < start.getTime() : false;
                       const isExpired = end ? end.getTime() < now : false;
+                      const resultsPublished = Boolean(exam.resultsPublishedAt);
                       const isLiveByTime =
                         !!start &&
                         !!end &&
@@ -419,7 +422,13 @@ export default function LecturerDashboard() {
                               <h4 className="min-w-0 flex-1 truncate font-semibold leading-5 text-foreground">
                                 {exam.title}
                               </h4>
-                              {isExpired ? (
+                              {exam.status === "ARCHIVED" ? (
+                                <StatusBadge status={exam.status} domain="exam" className="shrink-0" />
+                              ) : resultsPublished ? (
+                                <StatusBadge tone="success" className="shrink-0">
+                                  Đã công bố kết quả
+                                </StatusBadge>
+                              ) : isExpired ? (
                                 <StatusBadge tone="danger" className="shrink-0">
                                   Đã hết hạn
                                 </StatusBadge>

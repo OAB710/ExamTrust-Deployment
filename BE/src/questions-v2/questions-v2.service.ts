@@ -415,11 +415,54 @@ export class QuestionsService {
     return created;
   }
 
-  async copyQuestionBank(
-    dto: { sourceCourseId: string; targetCourseId: string; topicIds?: string[] },
+  async previewCopyQuestionBank(
+    dto: { sourceCourseId: string; targetCourseId: string; questionIds: string[] },
     user: AuthUser,
   ) {
-    const { sourceCourseId, targetCourseId, topicIds } = dto;
+    const { sourceCourseId, targetCourseId, questionIds } = dto;
+
+    if (sourceCourseId === targetCourseId) {
+      throw new BadRequestException('Khóa học nguồn và khóa học đích phải khác nhau');
+    }
+
+    await this.assertCourseAccessible(sourceCourseId, user);
+    await this.assertCourseAccessible(targetCourseId, user);
+
+    const [sourceQuestions, targetQuestions] = await Promise.all([
+      this.prisma.question.findMany({
+        where: { id: { in: questionIds }, courseId: sourceCourseId },
+        select: { id: true, type: true, content: true },
+      }),
+      this.prisma.question.findMany({
+        where: { courseId: targetCourseId, status: 'PUBLISHED' },
+        select: { type: true, content: true },
+      }),
+    ]);
+
+    const duplicateQuestionIds = sourceQuestions
+      .filter((question) =>
+        targetQuestions.some(
+          (target) =>
+            target.type === question.type &&
+            this.lexicalSimilarity(question.content, target.content) >= 0.85,
+        ),
+      )
+      .map((question) => question.id);
+
+    return { duplicateQuestionIds };
+  }
+
+  async copyQuestionBank(
+    dto: {
+      sourceCourseId: string;
+      targetCourseId: string;
+      topicIds?: string[];
+      questionIds?: string[];
+      forceDuplicateIds?: string[];
+    },
+    user: AuthUser,
+  ) {
+    const { sourceCourseId, targetCourseId, topicIds, questionIds, forceDuplicateIds } = dto;
 
     if (sourceCourseId === targetCourseId) {
       throw new BadRequestException('Khóa học nguồn và khóa học đích phải khác nhau');
@@ -433,12 +476,15 @@ export class QuestionsService {
       include: { topicLinks: { include: { topic: true } } },
     });
 
-    const filtered = topicIds?.length
+    const filtered = questionIds?.length
+      ? sourceQuestions.filter((q) => questionIds.includes(q.id))
+      : topicIds?.length
       ? sourceQuestions.filter((q) =>
           q.topicLinks.some((link) => topicIds.includes(link.topicId)),
         )
       : sourceQuestions;
 
+    const forceIds = new Set(forceDuplicateIds || []);
     const topicIdMap = new Map<string, string>();
     let copied = 0;
     let skipped = 0;
@@ -448,7 +494,7 @@ export class QuestionsService {
         where: { courseId: targetCourseId, type: question.type, content: question.content },
         select: { id: true },
       });
-      if (existing) {
+      if (existing && !forceIds.has(question.id)) {
         skipped += 1;
         continue;
       }
