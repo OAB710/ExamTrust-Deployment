@@ -126,6 +126,11 @@ type RequestUser = {
 
 const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'FIND_ERROR']);
 
+// Event types that must be recorded even when the exam has no full
+// proctoring configured (no screenshot/webcam evidence involved), unlike
+// tab_switch/camera/face-detection which require proctoring to be enabled.
+const ALWAYS_RECORDED_EVENT_TYPES = new Set(['network_disconnected', 'network_restored']);
+
 @Injectable()
 export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SubmissionsService.name);
@@ -1871,10 +1876,18 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       : Boolean(integritySettings.proctoringEnabled)) &&
       (submission.exam.maxAttempts ?? integritySettings.maxAttempts ?? null) !== null &&
       (submission.exam.timeLimitMinutes ?? integritySettings.timeLimitMinutes ?? submission.exam.duration ?? null) !== null;
-    if (!integrityEnabled) return;
+
+    // Network connectivity events are session-continuity signals, not
+    // proctoring evidence — they carry no screenshot/webcam payload, so they
+    // must still be recorded (and counted) even on exams without full
+    // proctoring configured, unlike tab_switch/camera/etc which need it.
+    const entriesIn = logs || [];
+    const entries = integrityEnabled
+      ? entriesIn
+      : entriesIn.filter((l) => ALWAYS_RECORDED_EVENT_TYPES.has(String(l.type).toLowerCase()));
+    if (!integrityEnabled && entries.length === 0) return;
 
     // Validate logs payload (reuse same limits as submitExam)
-    const entries = logs || [];
     if (entries.length > 1000) {
       throw new BadRequestException('Quá nhiều bản ghi log');
     }
@@ -2154,6 +2167,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             id: true,
             attemptNo: true,
             studentId: true,
+            score: true,
             submittedAt: true,
             startedAt: true,
             createdAt: true,

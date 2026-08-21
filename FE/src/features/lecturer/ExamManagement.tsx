@@ -92,6 +92,7 @@ interface Exam {
   startTime?: string;
   endTime?: string;
   createdAt: string;
+  resultsPublishedAt?: string | null;
   _count?: {
     examQuestions: number;
     submissions: number;
@@ -815,6 +816,7 @@ export default function ExamManagement() {
                       // way LecturerDashboard's "recent exams" list already
                       // does, so the two screens agree on the same exam.
                       const isPastEnd = Boolean(exam.endTime) && new Date(exam.endTime as string).getTime() < Date.now();
+                      const resultsPublished = Boolean(exam.resultsPublishedAt);
                       return (
                         <TableRow key={exam.id} className="hover:bg-muted/50">
                           <TableCell className="min-w-[18rem]">
@@ -887,7 +889,17 @@ export default function ExamManagement() {
                             )}
                           </TableCell>
                           <TableCell>
-                            {isPastEnd && exam.status !== "ARCHIVED" ? (
+                            {exam.status === "ARCHIVED" ? (
+                              <StatusBadge
+                                status={exam.status}
+                                domain="exam"
+                                className="text-xs"
+                              />
+                            ) : resultsPublished ? (
+                              <StatusBadge tone="success" className="text-xs">
+                                Đã công bố kết quả
+                              </StatusBadge>
+                            ) : isPastEnd ? (
                               <StatusBadge tone="danger" className="text-xs">
                                 Đã hết hạn
                               </StatusBadge>

@@ -11,6 +11,28 @@ export class CopyQuestionBankDto {
   @IsArray()
   @IsString({ each: true })
   topicIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  questionIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  forceDuplicateIds?: string[];
+}
+
+export class PreviewCopyQuestionBankDto {
+  @IsString()
+  sourceCourseId: string;
+
+  @IsString()
+  targetCourseId: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  questionIds: string[];
 }
 
 export class CreateQuestionCrudDto {
