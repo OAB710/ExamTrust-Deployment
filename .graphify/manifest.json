@@ -231,25 +231,9 @@
     "mtime": 1777959542825.4626,
     "hash": "7172f2dc541e26e0356d1f8405b03e5c"
   },
-  "D:/KLTN2/ExamTrust/BE/prisma/seed-cls001-grade1-math.ts": {
-    "mtime": 1778654217673.528,
-    "hash": "2db9c73c8eb78e1e7d3a66f68248e8ba"
-  },
   "D:/KLTN2/ExamTrust/BE/prisma/seed-completed-submissions-522h0121.ts": {
     "mtime": 1784778320395.2393,
     "hash": "1304efa2d5a96405b2bf61160333a6a8"
-  },
-  "D:/KLTN2/ExamTrust/BE/prisma/seed-course-question-banks.ts": {
-    "mtime": 1785694578532.918,
-    "hash": "5af54d0cee93ae7166439fb78bb717fe"
-  },
-  "D:/KLTN2/ExamTrust/BE/prisma/seed-question-history-demo.ts": {
-    "mtime": 1785694578533.9258,
-    "hash": "38c1166d37e641d1d065738f5d943022"
-  },
-  "D:/KLTN2/ExamTrust/BE/prisma/seed.ts": {
-    "mtime": 1786770114412.8972,
-    "hash": "5a43e76d282f84f3b2f6ab1cfabf267b"
   },
   "D:/KLTN2/ExamTrust/BE/prisma/update-demo-email-domain.ts": {
     "mtime": 1784783773623.4272,
@@ -288,28 +272,28 @@
     "hash": "513c4702e0930c18a0c0f3a9e871b767"
   },
   "D:/KLTN2/ExamTrust/BE/src/admin-dashboard/admin-dashboard.service.ts": {
-    "mtime": 1786863109526.6104,
-    "hash": "b86743ed25b8f4bdd513e84a099efd3e"
+    "mtime": 1787232068518.8584,
+    "hash": "0d7e3a4bc6e4dede2f329e83e0a0edcd"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai-worker.module.ts": {
-    "mtime": 1780586056508.822,
-    "hash": "b9ecadb5705898397ddc1f629b126065"
+    "mtime": 1787232068518.8584,
+    "hash": "3b7c2432a8bfd9ee75f06d11592486d1"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai-worker.ts": {
     "mtime": 1780585611157.756,
     "hash": "c2db1adc2351dc8f2605860f585368d7"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai/ai-jobs.service.ts": {
-    "mtime": 1786792523018.3105,
-    "hash": "6c1abbe2cb55351ab0f83f073cbd974e"
+    "mtime": 1787232068520.8591,
+    "hash": "bb7f6ba1723b484faff6bf37160183d4"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai/ai-profile.ts": {
     "mtime": 1786789857291.5813,
     "hash": "c30f28f905ec264c85971a529f02d5f1"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai/ai-status.controller.ts": {
-    "mtime": 1785694578535.926,
-    "hash": "58700e469eb7af207afb31ee2f8e5459"
+    "mtime": 1787232068521.8574,
+    "hash": "56803b2dc32ceddffcc98d9a99b312aa"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai/ai.controller.ts": {
     "mtime": 1786625129312.9438,
@@ -320,28 +304,28 @@
     "hash": "e51c0c7f1190ce1e75043020d5a98014"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai/ai.service.risk-assessment.spec.ts": {
-    "mtime": 1786078311946.3142,
-    "hash": "09bda2080fa3b32a60b5350e561f7017"
+    "mtime": 1787232068523.9941,
+    "hash": "696f9054991614492d1a3dc58735b097"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai/ai.service.spec.ts": {
-    "mtime": 1786777691485.1562,
-    "hash": "f7826a27a193d85f16214f6afd85c918"
+    "mtime": 1787232068524.8567,
+    "hash": "257690364848f3d5546bce04f4e177a1"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai/ai.service.ts": {
-    "mtime": 1786866143833.8667,
-    "hash": "3aea466c6b899471f083d41afd146c15"
+    "mtime": 1787364293914.4248,
+    "hash": "562848b3917293bb9dcd3a3496887608"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai/ai.service.vision.spec.ts": {
-    "mtime": 1785695376980.8403,
-    "hash": "30acc2bc1baa450798eeda667a449662"
+    "mtime": 1787364293929.9465,
+    "hash": "c9e549d485374c7440d9305001ed1afb"
   },
   "D:/KLTN2/ExamTrust/BE/src/ai/dto/generate-question.dto.ts": {
     "mtime": 1786624835902.3716,
     "hash": "7c85a8f527b6cf5f112b649fb48bc191"
   },
   "D:/KLTN2/ExamTrust/BE/src/app.module.ts": {
-    "mtime": 1786675165930.5132,
-    "hash": "83d4f76e6ee7773870f1043e73c55c58"
+    "mtime": 1787232068541.8606,
+    "hash": "66ad74dd62900d545ed072d3a7f2df78"
   },
   "D:/KLTN2/ExamTrust/BE/src/audit/audit.controller.ts": {
     "mtime": 1784040436388.678,
@@ -512,8 +496,8 @@
     "hash": "3a89013134b8176307be85a1f3c6d0f1"
   },
   "D:/KLTN2/ExamTrust/BE/src/exams/dto/exam.dto.ts": {
-    "mtime": 1786675165931.5146,
-    "hash": "8174999d24404486bf29984e2906662d"
+    "mtime": 1787234067090.8352,
+    "hash": "66cb0776c15f9fd99d2b932cb1717cc2"
   },
   "D:/KLTN2/ExamTrust/BE/src/exams/exam-quality-review.service.spec.ts": {
     "mtime": 1784645875004.598,
@@ -532,8 +516,8 @@
     "hash": "cfaad29d5a1d283e78f8d74d262a9921"
   },
   "D:/KLTN2/ExamTrust/BE/src/exams/exams.service.ts": {
-    "mtime": 1786770114415.896,
-    "hash": "4c44e46ec55572e1ae2d752d79b16458"
+    "mtime": 1787234078236.132,
+    "hash": "5abe6375dfd012ee7edd2ad209ce9b11"
   },
   "D:/KLTN2/ExamTrust/BE/src/exams/exams.snapshot.spec.ts": {
     "mtime": 1784646787322.4902,
@@ -576,8 +560,8 @@
     "hash": "71af3a10d1e58aeb688355cddb09ba2b"
   },
   "D:/KLTN2/ExamTrust/BE/src/questions-v2/dto/question-crud.dto.ts": {
-    "mtime": 1786500286262.7383,
-    "hash": "a831198fd1976bb1c3727c1d0ff84716"
+    "mtime": 1787364293951.9282,
+    "hash": "044e12af618f389b1a7498e70d68f01f"
   },
   "D:/KLTN2/ExamTrust/BE/src/questions-v2/dto/question-draft.dto.ts": {
     "mtime": 1784276469694.5232,
@@ -596,8 +580,8 @@
     "hash": "e4fb3162db6264c8dbe6aa0cb0daaeff"
   },
   "D:/KLTN2/ExamTrust/BE/src/questions-v2/question-drafts.controller.ts": {
-    "mtime": 1786792546178.6135,
-    "hash": "c76b53b10dad92ae21d7a57866c7e61b"
+    "mtime": 1787364293967.4612,
+    "hash": "dcab3183495a6fdd38b4225628c65982"
   },
   "D:/KLTN2/ExamTrust/BE/src/questions-v2/question-metadata.controller.ts": {
     "mtime": 1779182766622.0452,
@@ -620,16 +604,16 @@
     "hash": "5995a7b89054b29e1f1e44128faef9a9"
   },
   "D:/KLTN2/ExamTrust/BE/src/questions-v2/questions-v2.service.ts": {
-    "mtime": 1786866143831.867,
-    "hash": "aca7f09efce0765c196a6a6f6be62eff"
+    "mtime": 1787364293984.4675,
+    "hash": "ba402ad4f679cfee7a5e9ed5dd01870c"
   },
   "D:/KLTN2/ExamTrust/BE/src/queue/processors/ai-generation.processor.spec.ts": {
     "mtime": 1786635195441.84,
     "hash": "13f8fbdcaef273583bead866c997e6ee"
   },
   "D:/KLTN2/ExamTrust/BE/src/queue/processors/ai-generation.processor.ts": {
-    "mtime": 1786793809025.651,
-    "hash": "1674ee2de799d2af06af5d4a154b6d04"
+    "mtime": 1787232068571.8623,
+    "hash": "4120f83b0a4228db433a89e763e1d0d9"
   },
   "D:/KLTN2/ExamTrust/BE/src/queue/processors/ai-generation.risk-assessment.processor.spec.ts": {
     "mtime": 1786635195474.8452,
@@ -676,16 +660,16 @@
     "hash": "881b1f24d0b089b8ad414e945b47c603"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/proctoring-evidence.service.ts": {
-    "mtime": 1786863109529.6108,
-    "hash": "1287bf3be1cecadc3cfe4a32b0a9e2da"
+    "mtime": 1787364294002.473,
+    "hash": "f36a3a50bab0755b4efb9e1b234c8bbd"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/submissions-events.service.ts": {
     "mtime": 1786770114418.896,
     "hash": "9bfa89053444b3bbd264507e2b392966"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/submissions.controller.ts": {
-    "mtime": 1786635195506.0132,
-    "hash": "057c383587297c18c229f5013321d33b"
+    "mtime": 1787364294015.4626,
+    "hash": "b29bdc7921eac54d1eef014ccd855d0c"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/submissions.find-error.spec.ts": {
     "mtime": 1785713160317.9421,
@@ -696,8 +680,8 @@
     "hash": "5a31c3929829fdf3a74f64d50b680e93"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/submissions.service.ts": {
-    "mtime": 1786770114422.2253,
-    "hash": "c80ce16bf9b6fec31908ddc7d33b1396"
+    "mtime": 1787364294037.463,
+    "hash": "ed4b3554c79dd770118b236b3a8c8148"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/submissions.snapshot-score.spec.ts": {
     "mtime": 1786678079082.9207,
@@ -736,12 +720,12 @@
     "hash": "0257ef15fff36a14ed0004570c97bc2b"
   },
   "D:/KLTN2/ExamTrust/FE/next-env.d.ts": {
-    "mtime": 1786863381162.7642,
+    "mtime": 1787232115058.8508,
     "hash": "fa92cfd0d8e2bf2b689f363aa84c5c3b"
   },
   "D:/KLTN2/ExamTrust/FE/next.config.ts": {
-    "mtime": 1785124030149.2122,
-    "hash": "ab2344a6f03212f56e597a8053878a7a"
+    "mtime": 1787232068611.4065,
+    "hash": "d127771468aead185a2cf02b3dac1c03"
   },
   "D:/KLTN2/ExamTrust/FE/open-next.config.ts": {
     "mtime": 1785117744069.8694,
@@ -798,10 +782,6 @@
   "D:/KLTN2/ExamTrust/FE/src/app/admin/exam/[id]/results/page.tsx": {
     "mtime": 1784205295682.2754,
     "hash": "dc58cdeb4388b9582e43c9c141cf9bf0"
-  },
-  "D:/KLTN2/ExamTrust/FE/src/app/admin/exam/[id]/submissions/[submissionId]/manual-grading/page.tsx": {
-    "mtime": 1784205295685.276,
-    "hash": "455700b08c68175c5cd1bf4a5b8e0490"
   },
   "D:/KLTN2/ExamTrust/FE/src/app/admin/exams/page.tsx": {
     "mtime": 1784205295673.7478,
@@ -902,10 +882,6 @@
   "D:/KLTN2/ExamTrust/FE/src/app/lecturer/exam/[id]/results/page.tsx": {
     "mtime": 1784205295650.1375,
     "hash": "dc58cdeb4388b9582e43c9c141cf9bf0"
-  },
-  "D:/KLTN2/ExamTrust/FE/src/app/lecturer/exam/[id]/submissions/[submissionId]/manual-grading/page.tsx": {
-    "mtime": 1784205295654.1343,
-    "hash": "455700b08c68175c5cd1bf4a5b8e0490"
   },
   "D:/KLTN2/ExamTrust/FE/src/app/lecturer/exams/create/page.tsx": {
     "mtime": 1784205295641.6038,
@@ -1064,8 +1040,8 @@
     "hash": "9ad38cefe9d1af24d3656aea43cfd165"
   },
   "D:/KLTN2/ExamTrust/FE/src/components/admin/IntegrityCaseDetail.tsx": {
-    "mtime": 1786863109533.6128,
-    "hash": "80137e45dd61b40997355f49266211cd"
+    "mtime": 1787368948543.9531,
+    "hash": "33d0cbddafa6d34ac5e8f0e9b38391b3"
   },
   "D:/KLTN2/ExamTrust/FE/src/components/common/BackToDashboardButton.tsx": {
     "mtime": 1785694565083.5215,
@@ -1084,16 +1060,16 @@
     "hash": "68329d1dab021ad0fe5e09bc6e719141"
   },
   "D:/KLTN2/ExamTrust/FE/src/components/common/DataPagination.tsx": {
-    "mtime": 1785694565086.8975,
-    "hash": "95c7fe4dd235d69cfb44a79d32800099"
+    "mtime": 1787232068618.3936,
+    "hash": "f173dcd96c6447f2ace51796f8ff90dc"
   },
   "D:/KLTN2/ExamTrust/FE/src/components/common/EmptyState.tsx": {
     "mtime": 1784203784069.573,
     "hash": "f77441b57d5be801abcdcda9a7f9ef2b"
   },
   "D:/KLTN2/ExamTrust/FE/src/components/common/ExamSecurityModal.tsx": {
-    "mtime": 1786770114428.201,
-    "hash": "407630cd1d66bd3b741037a28ce72788"
+    "mtime": 1787364294067.6638,
+    "hash": "b2e0d2658961e5e0c3a88b4675efb24b"
   },
   "D:/KLTN2/ExamTrust/FE/src/components/common/MetricCard.tsx": {
     "mtime": 1784203784070.5747,
@@ -1468,32 +1444,32 @@
     "hash": "a9796f4f9524380d80808eb445a11785"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/AdminAnalyticsDashboard.tsx": {
-    "mtime": 1785694565104.459,
-    "hash": "dea601a9a99193e30500caf125898395"
+    "mtime": 1787232068622.3933,
+    "hash": "c4f6822d148ff00645219778d8d1b70b"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/AdminDashboard.tsx": {
-    "mtime": 1785694565105.4763,
-    "hash": "449dbd9332e8fc7198b904a5bb7ccc2e"
+    "mtime": 1787232068624.3987,
+    "hash": "4132a645e12cc6c11fa27277c71d31df"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/AnalyticsReport.tsx": {
     "mtime": 1786078311994.3157,
     "hash": "c140f26131e2f5eb398801fce1ab9f35"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/AuditLogViewer.tsx": {
-    "mtime": 1786078311994.3157,
-    "hash": "6e15c86acc5e0f93bdc586d2aae38b54"
+    "mtime": 1787232068625.3965,
+    "hash": "0724f2cf1d7aefc63102c3d6a0f65080"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/CourseManagement.tsx": {
-    "mtime": 1786326185383.583,
-    "hash": "a23d9294503c54723055026f4854a971"
+    "mtime": 1787232068626.3938,
+    "hash": "aedce2c3471060f9851866019b0debe9"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/ExamManagement.tsx": {
-    "mtime": 1786770114435.267,
-    "hash": "ad73b1f599623833fc75fbbd8eadc9e9"
+    "mtime": 1787364294088.8967,
+    "hash": "15d6f77025f078db4b602d52718cfc5b"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/IntegrityOverview.tsx": {
-    "mtime": 1786770114436.2688,
-    "hash": "b9c1ee08deea605d5c3939acd684489d"
+    "mtime": 1787232068628.3933,
+    "hash": "64bb37f0ac1a4a3858e7f54b45dd8c47"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/MetricMethodologyReference.tsx": {
     "mtime": 1785694565111.4683,
@@ -1508,100 +1484,100 @@
     "hash": "191ad1ec5fecfc059ab24b53f0e10823"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/admin/UserRoleManagement.tsx": {
-    "mtime": 1786326185414.496,
-    "hash": "cb4c4f10ad0dea4f2410afee33b320ec"
+    "mtime": 1787232068629.392,
+    "hash": "a972688aa255b565b03c8f1d8c6072d5"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/AdvancedExamRuleConfig.tsx": {
     "mtime": 1786078312001.2805,
     "hash": "39f8ee768ef5b205b8e6d3acd8cc614f"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/CourseDetail.test.tsx": {
-    "mtime": 1785694565117.466,
-    "hash": "751fac0fd74e1568e1615a1c250158c8"
+    "mtime": 1787232068630.3916,
+    "hash": "ccb4c6709a275ed9dc344c97d4bbb509"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/CourseDetail.tsx": {
-    "mtime": 1786326185443.8408,
-    "hash": "c2da6f5dc55b38969bb9543d6460c88c"
+    "mtime": 1787232068646.3926,
+    "hash": "f0cdbd2dcc5d29627f61ccc5b051b667"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/CourseManagement.tsx": {
-    "mtime": 1785694565118.4753,
-    "hash": "3b4f8936209dc8b556d9e1fb2db68f02"
+    "mtime": 1787232068648.3916,
+    "hash": "2c6bb2c0184a845f031646f7801b563d"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/CreateCourse.test.tsx": {
     "mtime": 1785694565119.9973,
     "hash": "42a8bdabfffa9afd4ae5d81fa57264e5"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/CreateCourse.tsx": {
-    "mtime": 1786627170433.744,
-    "hash": "26155490867a6cb94eb57bbed5947313"
+    "mtime": 1787232068651.393,
+    "hash": "a45dd2463c91eaa9af14fafd65420c48"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/CreateExam.test.tsx": {
     "mtime": 1784248057527.3882,
     "hash": "8720b7fab5a3f845fe7611ecad6eae3a"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/CreateExam.tsx": {
-    "mtime": 1786863109537.6106,
-    "hash": "5e51a34873b0545d9236c1569cb485bf"
+    "mtime": 1787234206014.2332,
+    "hash": "962f9bf2bec5a31e42ef463f1b59661e"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ExamAnalytics.tsx": {
-    "mtime": 1786866925987.311,
-    "hash": "61e229ee7d9b41d1bbef69a2a9987133"
+    "mtime": 1787236796154.7627,
+    "hash": "b9d2bc2ca13eb02d43c8db8dab0a198e"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ExamManagement.tsx": {
-    "mtime": 1786863109539.6118,
-    "hash": "2b2cc8b51faf9ad31e3895e963ad4916"
+    "mtime": 1787364294104.8955,
+    "hash": "7284987ca8142d393a8f5d3968d8caa7"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ExamMonitor.tsx": {
-    "mtime": 1786863109541.6074,
-    "hash": "5c147a9da1e59f23cdc7012991a69201"
+    "mtime": 1787364294121.9023,
+    "hash": "d3bd7f12e71306f4fa97b09f9fb3c70a"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ExamPreview.tsx": {
-    "mtime": 1786675165933.512,
-    "hash": "1d378cc9eb261d152caed69811bde987"
+    "mtime": 1787232068673.397,
+    "hash": "a24b3ee076f1288c827358b9a71e236c"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ExamQR.tsx": {
-    "mtime": 1784276469737.2898,
-    "hash": "f1de76d5512447bdcd22fcfb53f57d81"
+    "mtime": 1787232068674.3943,
+    "hash": "6cb26e824e78dda3f1ba6f871161a9c4"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ExamResultsList.tsx": {
-    "mtime": 1786863109542.6072,
-    "hash": "52c19aea1979795ce325b3d59b5ee1ff"
+    "mtime": 1787232068688.4048,
+    "hash": "a06fbf6405cf238ed60c83a6c9ba9949"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/GenerateExamLink.tsx": {
-    "mtime": 1786078312017.5325,
-    "hash": "4bd0b9452c6f8e3f2d71a57a70351d8b"
+    "mtime": 1787232068689.4043,
+    "hash": "07afc38145f9eab36fc4b7d0d6abc5c4"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/LecturerDashboard.test.tsx": {
     "mtime": 1786865829797.687,
     "hash": "6e964828e0a006fef79cd30e97b724bf"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/LecturerDashboard.tsx": {
-    "mtime": 1786865824646.483,
-    "hash": "3fec7e78db1e1749001f756b1589c698"
+    "mtime": 1787364294134.8926,
+    "hash": "aebc624ac317e4cbc7814142bac48d8d"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ManualGradingDetail.tsx": {
-    "mtime": 1786863109544.6099,
-    "hash": "cfec514849933916093681152f06519e"
+    "mtime": 1787232068691.674,
+    "hash": "f5104df359a89b42a75f3dbd20b540f4"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/QuestionBankManagement.tsx": {
-    "mtime": 1786793834390.5256,
-    "hash": "31e444c4288c379d8de7fbb6b131bbff"
+    "mtime": 1787364294152.906,
+    "hash": "cd9bc7966a08c65012581ef4b5e2358e"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/QuestionEditor.tsx": {
     "mtime": 1786777657607.713,
     "hash": "ecb68eb7028a975c32c87fc3ddd4982e"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/QuestionHistoryAnalysis.tsx": {
-    "mtime": 1786786398243.3982,
-    "hash": "430792ef4647b3839029c3817a9751bb"
+    "mtime": 1787232068708.656,
+    "hash": "96b2f7c474efd6aa0c0b2fb5c44ccf89"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/UploadDocAIGen.tsx": {
     "mtime": 1786179998059.0603,
     "hash": "497474ab777989adae60985e066655f2"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/attention/AttentionSection.tsx": {
-    "mtime": 1785694565144.0068,
-    "hash": "2d7eaad54e358a5c847bda12658161a5"
+    "mtime": 1787232068710.6555,
+    "hash": "526f6b14863281b4a52ab1aaa60515f5"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/attention/types.ts": {
     "mtime": 1784639282074.839,
@@ -1628,8 +1604,8 @@
     "hash": "78691852d99aa8d65b80820f253fb9e8"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/exam-analytics-model.ts": {
-    "mtime": 1786677792891.7002,
-    "hash": "7a962d221b917eb9b4d78241ba983c36"
+    "mtime": 1787236326563.6875,
+    "hash": "3ac75954f7800358ef22c154a74eaaba"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/hooks/useQuestionAiGeneration.ts": {
     "mtime": 1786587475629.7246,
@@ -1640,8 +1616,8 @@
     "hash": "53cf2f6ecb80a25624b6ef27b660c7f9"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/hooks/useQuestionBankData.ts": {
-    "mtime": 1785694578617.8374,
-    "hash": "dc34cdb4db687ef05ed64049052e5dbb"
+    "mtime": 1787232068714.655,
+    "hash": "1546e649adf845e45b9ab6ced784f539"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/hooks/useQuestionBankRouteState.ts": {
     "mtime": 1785694578618.837,
@@ -1656,20 +1632,20 @@
     "hash": "5c999d3c396f689aae1a1f0790b86778"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/manual-grading-formatters.test.ts": {
-    "mtime": 1785695237728.4854,
-    "hash": "49ca43589c2f243df35b541dedaf6a6a"
+    "mtime": 1787232068715.6553,
+    "hash": "a81b37a2c9360de12511efe780a7e042"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/manual-grading-formatters.ts": {
-    "mtime": 1785695235547.9692,
-    "hash": "834399bb96383670056d3f8deebfc178"
+    "mtime": 1787232068717.6692,
+    "hash": "2ed81d0aa519b300c8ea1ad9c1fc31dd"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/question-bank-filters.ts": {
-    "mtime": 1786675344215.199,
-    "hash": "a4f6d1465f51ddb61b20be94d489b69c"
+    "mtime": 1787233066952.5515,
+    "hash": "8796927c4dabc0dd5d758fc4e71cd099"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/question-bank-utils.ts": {
-    "mtime": 1786587475630.7227,
-    "hash": "8b03cb0338596b4921f4f07ae7ea8bb8"
+    "mtime": 1787232068751.1812,
+    "hash": "b0d1a2b62e7432e3a6584e5c26c9e7ff"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/question-editor-persistence.ts": {
     "mtime": 1786500286361.9248,
@@ -1692,8 +1668,8 @@
     "hash": "d1fc1d51488c40a88968905700d874cf"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/ExamEventTimeline.tsx": {
-    "mtime": 1786770114445.753,
-    "hash": "4379feba11ca16fd1c09fdde62b3999e"
+    "mtime": 1787232068752.1846,
+    "hash": "55d9c07d85a559f79dbd05c102b27f3d"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/ExamQuestionRenderer.tsx": {
     "mtime": 1786587475647.7356,
@@ -1704,24 +1680,24 @@
     "hash": "1ec844e09c61c1b4f6ee8ec139e0b3e1"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/ExamTaking.tsx": {
-    "mtime": 1786863109548.6147,
-    "hash": "e097af71a708517ec499715966fdb4d3"
+    "mtime": 1787364294166.4487,
+    "hash": "ff0c665d2d6f75f3600ea6f672c5f2b5"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/FeedbackDetail.tsx": {
     "mtime": 1786078312031.5547,
     "hash": "39642ebe838305d53200dc366c839e4a"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/GradingBreakdown.tsx": {
-    "mtime": 1786433371551.1025,
-    "hash": "da6636e059db03dac7f309cff5fd7947"
+    "mtime": 1787232068771.1821,
+    "hash": "83c1edbbe7ade42d7e344fb46f55feaa"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/JoinExam.tsx": {
     "mtime": 1786078312033.5647,
     "hash": "badc2a6bc33c84ebc7f5586994ff8bad"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/JoinExamByLink.tsx": {
-    "mtime": 1786078312033.8958,
-    "hash": "91d4ad4644a5dfe90888139d4f2f8014"
+    "mtime": 1787232068772.182,
+    "hash": "0276048c956863c1976ff2aef4975f10"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/LearningFeedbackDetail.tsx": {
     "mtime": 1786078312033.8958,
@@ -1732,52 +1708,52 @@
     "hash": "f44b8751aff4cb970cdd381b83f123b5"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/StudentCourseDetail.tsx": {
-    "mtime": 1786434552442.6672,
-    "hash": "baed8b55acd354b79fdd5ba2730c9d60"
+    "mtime": 1787232068774.1838,
+    "hash": "ebc6e6f5441a92a03ad719bb1083a5e8"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/StudentCourses.tsx": {
-    "mtime": 1786327174412.859,
-    "hash": "d370ffa8b1c65206d91152a6048195fc"
+    "mtime": 1787232068775.3833,
+    "hash": "5a56467b4839c5d26578f4125bd46da6"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/StudentDashboard.tsx": {
-    "mtime": 1786500286398.9253,
-    "hash": "f844be099bc54b7525b6ac998626edd1"
+    "mtime": 1787232068790.9026,
+    "hash": "c1dd8a075cbcb1f8d340faffbb0df194"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/StudentExamDetail.tsx": {
-    "mtime": 1786587475679.2563,
-    "hash": "a018173b7768b081eb7f65ea944f9c46"
+    "mtime": 1787232068792.9182,
+    "hash": "a4d9c86b7283e62605962eec803f6478"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/StudentExams.tsx": {
-    "mtime": 1786433890899.4534,
-    "hash": "6a48c1765325eb1704c62f7dba75763c"
+    "mtime": 1787369983626.1782,
+    "hash": "5aa8101daeb05bfc6eb217ffdcd8999f"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/StudentResultDetail.tsx": {
     "mtime": 1782793967013.7344,
     "hash": "251d72928de9e09c26a906e2ff120688"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/StudentResults.tsx": {
-    "mtime": 1786433371553.1023,
-    "hash": "762674b59b9bbeb5633acf816a1b69b2"
+    "mtime": 1787232068810.916,
+    "hash": "19dcd3a58608b3fe01f057b96c069742"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/StudentSchedule.tsx": {
-    "mtime": 1785694578631.552,
-    "hash": "c81a70c909abf09394472cf06165adc8"
+    "mtime": 1787232068829.9128,
+    "hash": "3c353fb36f82610a5990fd7c387a5b82"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/exam-taking-model.test.ts": {
-    "mtime": 1786167621811.7295,
-    "hash": "252658e1db6a7d104ae98ffd3414f839"
+    "mtime": 1787232068845.9165,
+    "hash": "2b292127d855cc2c09e8661ca6efae54"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/exam-taking-model.ts": {
-    "mtime": 1786587475693.2593,
-    "hash": "e3a1339b1b1b4877e566ee4d065fe984"
+    "mtime": 1787232068864.9146,
+    "hash": "926b24b3580a59f93e1fecb6296a3065"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/grading-template.tsx": {
     "mtime": 1785694565164.0063,
     "hash": "4eeb9e2db6fbc6dbf4cbda4f4505f644"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/hooks/useStudentDashboardData.ts": {
-    "mtime": 1786770114449.851,
-    "hash": "03c85f1c2511e15fd985b0d8f32dc8c9"
+    "mtime": 1787232068865.917,
+    "hash": "59b9cb612e2bda58d9c7fd7636e03e5c"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/student/student-dashboard-types.ts": {
     "mtime": 1786327174408.8264,
@@ -1788,8 +1764,8 @@
     "hash": "fd20a75daa4a54a17d9078336a6721a3"
   },
   "D:/KLTN2/ExamTrust/FE/src/hooks/use-exam-security.ts": {
-    "mtime": 1786770114450.866,
-    "hash": "e343f368dec0bdc1cf7ea609ff03a75f"
+    "mtime": 1787232068867.9153,
+    "hash": "ae391a03db0e03b11be916c6d41adcc0"
   },
   "D:/KLTN2/ExamTrust/FE/src/hooks/use-mobile.tsx": {
     "mtime": 1781535642960.7356,
@@ -1800,8 +1776,8 @@
     "hash": "895be3e18021c7c5cd4fac68ea522dd4"
   },
   "D:/KLTN2/ExamTrust/FE/src/lib/api.ts": {
-    "mtime": 1786866143825.8633,
-    "hash": "0ef4c9e83bf2868c13b688228bdb2c96"
+    "mtime": 1787364294180.448,
+    "hash": "51674b27695dc12987ec59adcb7e1c58"
   },
   "D:/KLTN2/ExamTrust/FE/src/lib/course-exam-action.ts": {
     "mtime": 1785694565166.0188,
@@ -1876,12 +1852,12 @@
     "hash": "9586b452ff0e624d55a162147f8959fd"
   },
   "D:/KLTN2/ExamTrust/zalo-webhook-lambda/index.mjs": {
-    "mtime": 1786863109550.624,
-    "hash": "d8e702fdfca2552740f8dc4496f3d43e"
+    "mtime": 1787232068901.4456,
+    "hash": "1623a8f5f26eb737da8ea0c00526bed9"
   },
   "D:/KLTN2/ExamTrust/BE/API_DOCUMENTATION.md": {
-    "mtime": 1776328950194.8462,
-    "hash": "31ebd5f2654c0c80645b799c116f5343"
+    "mtime": 1787232068448.437,
+    "hash": "168786a45b8fc5fcf08048b7e8adec1a"
   },
   "D:/KLTN2/ExamTrust/BE/docker-compose.prod.yml": {
     "mtime": 1785117743995.4631,
@@ -1896,8 +1872,8 @@
     "hash": "b1df92e68d09b1510129e16148cc9167"
   },
   "D:/KLTN2/ExamTrust/EC2_DB_DEPLOY_NOTES.md": {
-    "mtime": 1786863109531.6106,
-    "hash": "b2aa5efc250e9c8d2b82dc31c8778473"
+    "mtime": 1787232068608.3914,
+    "hash": "1ede97ef956fa22f7a8a4aaf71abb9b1"
   },
   "D:/KLTN2/ExamTrust/FE/DB.TXT": {
     "mtime": 1771984244598.691,
@@ -2088,8 +2064,8 @@
     "hash": "a3fbec2ddba8d0a35825c242671b3655"
   },
   "D:/KLTN2/ExamTrust/.graphify/GRAPH_REPORT.md": {
-    "mtime": 1786866589690.3474,
-    "hash": "c9aa762a4ad9059c264d3d5f40bd6712"
+    "mtime": 1787369033778.4124,
+    "hash": "afc52a77deb14a0f11030d8bab5592e9"
   },
   "D:/KLTN2/ExamTrust/.graphify/studio/index.html": {
     "mtime": 1786182231736.4763,
@@ -2114,10 +2090,6 @@
   "D:/KLTN2/ExamTrust/BE/prisma/migrations/20260809210000_add_integrity_fixed_penalty/migration.sql": {
     "mtime": 1786283952028.5369,
     "hash": "375485244d308c70737b6f46c9c3e6ac"
-  },
-  "D:/KLTN2/ExamTrust/BE/prisma/seed-accounts-only.ts": {
-    "mtime": 1786326185281.5098,
-    "hash": "51111495a8016028198cee0dd1ad74ef"
   },
   "D:/KLTN2/ExamTrust/BE/prisma/migrations/20260811113000_add_integrity_log_client_event_id/migration.sql": {
     "mtime": 1786415546313.6877,
@@ -2208,8 +2180,8 @@
     "hash": "885fd133608a02d2652a4a07830cd7ce"
   },
   "D:/KLTN2/ExamTrust/BE/src/submissions/integrity-event-catalog.ts": {
-    "mtime": 1786770114417.8965,
-    "hash": "06f943e7e348b705e319ddaf7a26a1f8"
+    "mtime": 1787232068586.8809,
+    "hash": "8511c2782350d0841f0a7592efa27834"
   },
   "D:/KLTN2/ExamTrust/FE/src/app/register/page.tsx": {
     "mtime": 1786770114424.2007,
@@ -2236,8 +2208,8 @@
     "hash": "feb67076190a889fa922598d7c08199b"
   },
   "D:/KLTN2/ExamTrust/BE/docs/DATABASE_SETUP.md": {
-    "mtime": 1786770114409.9004,
-    "hash": "b277a186ca1af8c011e7ac8d2e643652"
+    "mtime": 1787232068449.452,
+    "hash": "98501fdb7455421aaeb2889bfe3081a6"
   },
   "D:/KLTN2/ExamTrust/FE/public/examtrust-mark.svg": {
     "mtime": 1786770114422.2253,
@@ -2284,8 +2256,8 @@
     "hash": "c3b8d75d32a886be502160be6bc41cf1"
   },
   "D:/KLTN2/ExamTrust/.claude/skills/release-versioning/SKILL.md": {
-    "mtime": 1786863109518.6077,
-    "hash": "da294bfcafa9111ee49ac3d2a0de5bbf"
+    "mtime": 1787232068445.4434,
+    "hash": "c2a770d5c536dbcfa2660a53bdc5856b"
   },
   "D:/KLTN2/ExamTrust/.github/workflows/clear-storage.yml": {
     "mtime": 1786863109519.6113,
@@ -2296,7 +2268,87 @@
     "hash": "42151fded48b7a5a9a0817e0747a5a49"
   },
   "D:/KLTN2/ExamTrust/CHANGELOG.md": {
-    "mtime": 1786863109530.6096,
-    "hash": "6c00b2214fa209956c46df26d0d5dd54"
+    "mtime": 1787232068607.3945,
+    "hash": "64d6aae7fb8a759b75cbb80c0b0ec2a2"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-courses.ts": {
+    "mtime": 1787232068451.4375,
+    "hash": "e7c6700a91732a339fef026da0f664fe"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-exams.ts": {
+    "mtime": 1787232068467.4363,
+    "hash": "47931dbeee9c1a40e8791afc199c1987"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-grading-adjustments.ts": {
+    "mtime": 1787232068484.4517,
+    "hash": "aca0abbeb64ecaf087778f6e0e27c395"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-helpers.ts": {
+    "mtime": 1787232068484.4517,
+    "hash": "941bb9583250ff9919bb00f992612a32"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-integrity.ts": {
+    "mtime": 1787232068485.447,
+    "hash": "dd35ff0d953b3a235a948560b4a37cf0"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-master.ts": {
+    "mtime": 1787232068486.4492,
+    "hash": "f0c1bb1a896e59ea12c7787d1568f7fa"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-question-bank-duplicates.ts": {
+    "mtime": 1787232068487.453,
+    "hash": "d08afe4da72fde8ae7ff255c6b383828"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-question-bank.ts": {
+    "mtime": 1787232068501.8586,
+    "hash": "fae38b0945b66f61d9f25079ff45ffa2"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-submissions.ts": {
+    "mtime": 1787232068514.8604,
+    "hash": "4c31b2b7479fed60753e60aa9921da9a"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-topics.ts": {
+    "mtime": 1787232068515.858,
+    "hash": "10fa3bb8686e32b2df471821b0a1eb6e"
+  },
+  "D:/KLTN2/ExamTrust/BE/prisma/seed-users.ts": {
+    "mtime": 1787232068516.861,
+    "hash": "55857b8403baaa9085946cc506786c2e"
+  },
+  "D:/KLTN2/ExamTrust/BE/src/health.controller.ts": {
+    "mtime": 1787232068554.859,
+    "hash": "d5685ae88b48f54a3be452145bf5caa0"
+  },
+  "D:/KLTN2/ExamTrust/BE/src/submissions/submissions.manual-grading-fix.spec.ts": {
+    "mtime": 1787232068588.8694,
+    "hash": "56f1d09fee45faebacde39d2388341d7"
+  },
+  "D:/KLTN2/ExamTrust/FE/src/app/admin/exam/[id]/submissions/[submissionId]/review/page.tsx": {
+    "mtime": 1787232068613.3923,
+    "hash": "a0cf0d127c406d4574a549a29a633351"
+  },
+  "D:/KLTN2/ExamTrust/FE/src/app/lecturer/exam/[id]/submissions/[submissionId]/review/page.tsx": {
+    "mtime": 1787232068615.3938,
+    "hash": "a0cf0d127c406d4574a549a29a633351"
+  },
+  "D:/KLTN2/ExamTrust/FE/src/lib/integrity-event-labels.ts": {
+    "mtime": 1787232068899.4482,
+    "hash": "5c2b8b3957382a304e29c5a04c5ca277"
+  },
+  "D:/KLTN2/ExamTrust/AUDIT_THANG_DIEM_10.md": {
+    "mtime": 1787232068447.4365,
+    "hash": "7f88a91d2ab69f7bf50cd7500b385365"
+  },
+  "D:/KLTN2/ExamTrust/BE/docs/SEED_DATA_ANALYSIS.md": {
+    "mtime": 1787027638598.2588,
+    "hash": "5a2c4068a1a607a0b7b2cad5e60c92df"
+  },
+  "D:/KLTN2/ExamTrust/BE/docs/SEED_REBUILD_PLAN.md": {
+    "mtime": 1787232068450.4365,
+    "hash": "bd81ecb2c228200f3648f1e196ca3d02"
+  },
+  "D:/KLTN2/ExamTrust/artifacts/score-dialog.png": {
+    "mtime": 1786871411730.2336,
+    "hash": "d5b1bdf0f18475b86928fccffd309213"
   }
 }

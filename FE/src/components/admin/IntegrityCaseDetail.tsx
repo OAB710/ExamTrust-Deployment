@@ -11,6 +11,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   ArrowLeft,
   AlertTriangle,
   Clock,
@@ -93,7 +103,7 @@ function getEvidenceGroupKey(capture: EvidenceCapture): string {
 }
 
 export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = false }: IntegrityCaseDetailProps) {
-  const [reviewNotes, setReviewNotes] = useState('');
+  const [reviewNotes, setReviewNotes] = useState(submission.integrityReview?.reviewerNote || '');
   const [integrityEvents, setIntegrityEvents] = useState<IntegrityTimelineEvent[]>([]);
   const [evidenceCaptures, setEvidenceCaptures] = useState<EvidenceCapture[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -106,10 +116,15 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
   const [reanalyzingEvidenceId, setReanalyzingEvidenceId] = useState<string | null>(null);
   const [evidenceFilter, setEvidenceFilter] = useState<'all' | 'suspicious' | 'scheduled' | 'webcam' | 'screen' | 'unreviewed'>('all');
   const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
+  const [dismissConfirmDialogOpen, setDismissConfirmDialogOpen] = useState(false);
   const [deductionPercent, setDeductionPercent] = useState<10 | 25 | 50 | 100>(10);
   const [applyPenalty, setApplyPenalty] = useState(false);
   const [penaltyMode, setPenaltyMode] = useState<'PERCENT' | 'FIXED'>('PERCENT');
   const [penaltyAmount, setPenaltyAmount] = useState('1');
+
+  useEffect(() => {
+    setReviewNotes(submission.integrityReview?.reviewerNote || '');
+  }, [submission.id, submission.submissionId, submission.integrityReview?.reviewerNote]);
 
   const getConfidenceLabel = (confidence: FlaggedSubmission['confidence']) => ({
     High: 'Cao',
@@ -407,6 +422,9 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
   const finalScore = Number(Math.max(0, academicScore - deductedScore).toFixed(2));
   const activePenalty = submission.integrityReview?.status === 'confirmed'
     && (submission.integrityReview.penaltyPercent || submission.integrityReview.penaltyAmount);
+  const isDismissed =
+    submission.status?.toLowerCase() === 'dismissed' ||
+    submission.integrityReview?.status?.toLowerCase() === 'dismissed';
 
   const confirmPenalty = async () => {
     await onReview(
@@ -432,6 +450,24 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
       }
     }
     setPenaltyDialogOpen(true);
+  };
+
+  const handleDismissClick = () => {
+    const hasActiveReview = Boolean(
+      activePenalty ||
+      submission.status?.toLowerCase() === 'confirmed' ||
+      submission.integrityReview?.status?.toLowerCase() === 'confirmed'
+    );
+    if (hasActiveReview) {
+      setDismissConfirmDialogOpen(true);
+    } else {
+      onReview('DISMISSED', reviewNotes);
+    }
+  };
+
+  const confirmDismiss = async () => {
+    setDismissConfirmDialogOpen(false);
+    await onReview('DISMISSED', reviewNotes);
   };
 
   return (
@@ -859,11 +895,11 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
                     <XCircle className="h-4 w-4 mr-2" />
                     {activePenalty ? 'Điều chỉnh mức khấu trừ' : 'Xác nhận cần xử lý'}
                   </Button>
-                  <Button className="w-full" variant="outline" disabled={isSaving} onClick={() => onReview('DISMISSED', reviewNotes)}>
+                  <Button className="w-full" variant="outline" disabled={isSaving || isDismissed} onClick={handleDismissClick}>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     Loại trừ tín hiệu
                   </Button>
-                  <Button className="w-full" variant="ghost" disabled={isSaving} onClick={() => onReview('REVIEWED', reviewNotes)}>
+                  <Button className="w-full" variant="ghost" disabled={isSaving || isDismissed} onClick={() => onReview('REVIEWED', reviewNotes)}>
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Đánh dấu đã xem xét
                   </Button>
@@ -923,6 +959,54 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={dismissConfirmDialogOpen} onOpenChange={setDismissConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Xác nhận loại trừ tín hiệu
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2 text-sm text-foreground">
+                <p>
+                  Bài nộp này hiện đang có quyết định <strong>xử lý vi phạm / khấu trừ điểm</strong>:
+                </p>
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Điểm học thuật:</span>
+                    <span className="font-semibold">{academicScore.toFixed(2)} / 10</span>
+                  </div>
+                  <div className="flex justify-between text-destructive">
+                    <span>Mức khấu trừ đang áp dụng:</span>
+                    <span className="font-semibold">
+                      {submission.integrityReview?.penaltyMode === 'FIXED'
+                        ? `-${Number(submission.integrityReview?.penaltyAmount ?? submission.integrityReview?.deductedScore ?? 0).toFixed(2)} điểm`
+                        : `${submission.integrityReview?.penaltyPercent ?? 0}% (-${Number(submission.integrityReview?.deductedScore ?? 0).toFixed(2)})`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Điểm cuối hiện tại:</span>
+                    <span className="font-semibold">{Number(submission.integrityReview?.finalScore ?? finalScore).toFixed(2)} / 10</span>
+                  </div>
+                </div>
+                <p className="text-muted-foreground">
+                  Khi bạn xác nhận <strong>Loại trừ tín hiệu</strong>, toàn bộ quyết định xử lý và mức khấu trừ điểm trên sẽ bị <strong>mất đi</strong>, điểm của sinh viên sẽ được khôi phục về điểm học thuật ban đầu (<strong>{academicScore.toFixed(2)} / 10</strong>).
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isSaving}
+              onClick={confirmDismiss}
+            >
+              Xác nhận loại trừ & khôi phục điểm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
