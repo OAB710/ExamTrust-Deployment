@@ -407,7 +407,7 @@ export default function StudentExams() {
           <CardHeader>
             <CardTitle>Bài thi của tôi</CardTitle>
             <CardDescription>
-              Theo dõi bài thi sắp tới, đang diễn ra và đã hoàn thành theo từng khóa học.
+              Theo dõi bài thi sắp tới và đang diễn ra theo từng khóa học.
             </CardDescription>
           </CardHeader>
           <CardContent>
