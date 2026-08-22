@@ -185,8 +185,18 @@ const AGGREGATE_ALERT_TYPES = new Set<IntegrityAlert["type"]>(["tab_switch", "mo
 
 function mergeIntegrityAlerts(existing: IntegrityAlert[], incoming: IntegrityAlert[]): IntegrityAlert[] {
   const merged = new Map<string, IntegrityAlert>();
+  // Discrete (non-aggregate) alerts still need de-duping across sources: the
+  // SSE push and the 10s REST poll both deliver the SAME underlying event
+  // with DIFFERENT minted ids (see comment above), so an id-only key lets
+  // both survive as separate rows. Bucketing by a 2s timestamp window
+  // instead collapses same-submission/same-type alerts that land within a
+  // couple seconds of each other — which in practice only happens when it's
+  // the same event arriving twice, since two genuinely distinct discrete
+  // violations of the same type are never observed that close together.
   const keyFor = (a: IntegrityAlert) =>
-    AGGREGATE_ALERT_TYPES.has(a.type) ? `${a.submissionId || "unknown"}|${a.type}` : `id:${a.id}`;
+    AGGREGATE_ALERT_TYPES.has(a.type)
+      ? `${a.submissionId || "unknown"}|${a.type}`
+      : `${a.submissionId || "unknown"}|${a.type}|${Math.floor(a.timestampMs / 2000)}`;
   existing.forEach((a) => merged.set(keyFor(a), a));
   incoming.forEach((a) => merged.set(keyFor(a), a));
   // Alerts arrive from two async sources (10s poll + SSE) that can land
@@ -280,7 +290,7 @@ const mapEventTypeToAlertType = (
   const key = String(eventType || "").toLowerCase();
   if (key === "tab_switch") return "tab_switch";
   if (key.startsWith("fullscreen") || key === "blur" || key === "window_blur" || key === "focus") return "fullscreen";
-  if (key.startsWith("camera") || key.startsWith("screen_share") || key === "face_not_detected") return "camera";
+  if (key.startsWith("camera") || key.startsWith("screen_share") || key === "face_not_detected" || key === "multi_monitor_detected") return "camera";
   if (key === "copy" || key === "paste" || key === "paste_external") return "copy_paste";
   if (key.startsWith("mouse")) return "mouse";
   return "other";

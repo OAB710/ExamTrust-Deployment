@@ -865,6 +865,115 @@ export default function ExamTaking() {
     void startScreenShare({ silent: true });
   }, [isPreviewMode, screenCaptureRequired, screenShareReady, startScreenShare]);
 
+  // Detects a physical monitor being plugged in mid-exam (student fullscreens
+  // on one display, then extends the desktop to a second one to view answers
+  // without ever leaving fullscreen/tab focus — a gap the fullscreenchange/
+  // blur listeners in useExamSecurity can't see). Baseline is the screen
+  // count at exam start; only an INCREASE is reported, since a monitor being
+  // unplugged is not itself suspicious.
+  //
+  // Chromium's Screen Details API (window.getScreenDetails) exposes a real
+  // `change` event on the returned object, so on supported browsers this is
+  // event-driven with no polling. Firefox/Safari don't implement it and
+  // expose no other hook for a hardware display change, so those fall back
+  // to a coarse periodic check of window.screen.isExtended.
+  const monitorBaselineRef = useRef<number | null>(null);
+  // Guards against reporting the same physical plug-in twice — the
+  // getScreenDetails() `change` event and the isExtended poll both run
+  // concurrently (see comment below) and can each observe the same increase
+  // moments apart, before the other has updated monitorBaselineRef.
+  const monitorLastReportedAtRef = useRef(0);
+  const MONITOR_REPORT_COOLDOWN_MS = 10_000;
+  useEffect(() => {
+    if (isPreviewMode) return;
+    let cancelled = false;
+    let screenDetails: any;
+    let onScreenDetailsChange: (() => void) | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    const debugLog = (...args: unknown[]) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[exam-security:monitor]", ...args);
+      }
+    };
+
+    const reportIfIncreased = (count: number, source: string) => {
+      debugLog("count check", { count, source, baseline: monitorBaselineRef.current });
+      if (monitorBaselineRef.current === null) {
+        monitorBaselineRef.current = count;
+        return;
+      }
+      if (examSessionStatusRef.current !== "IN_PROGRESS") return;
+      if (count > monitorBaselineRef.current) {
+        const from = monitorBaselineRef.current;
+        // Bump the baseline immediately, before the cooldown check — the
+        // other detection source's very next call must see the new count as
+        // "no longer an increase", not race to persist the same event too.
+        monitorBaselineRef.current = count;
+        const now = Date.now();
+        if (now - monitorLastReportedAtRef.current < MONITOR_REPORT_COOLDOWN_MS) {
+          debugLog("monitor increase detected but within cooldown, skipping duplicate", { from, to: count });
+          return;
+        }
+        monitorLastReportedAtRef.current = now;
+        debugLog("monitor increase detected — persisting violation", { from, to: count });
+        persistIntegrityEvent(
+          "multi_monitor_detected",
+          `Số lượng màn hình tăng từ ${from} lên ${count} trong lúc làm bài`,
+        );
+      } else if (count < monitorBaselineRef.current) {
+        monitorBaselineRef.current = count;
+      }
+    };
+
+    // `screen.isExtended` is the low-fidelity, permission-free half of the
+    // Window Management API — unlike getScreenDetails() it never prompts and
+    // reflects the live OS display count, so it's polled unconditionally as
+    // a safety net even when getScreenDetails() is available: that API
+    // requires transient user activation on its very first call, which an
+    // effect running on mount never has, so on a fresh page load it silently
+    // rejects every time and the student is never actually shown a
+    // permission prompt — permission stays "prompt" forever and this branch
+    // becomes the only one that ever fires in practice.
+    const startPolling = () => {
+      if (pollTimer) return;
+      reportIfIncreased((window.screen as any).isExtended ? 2 : 1, "isExtended-poll");
+      pollTimer = setInterval(() => {
+        reportIfIncreased((window.screen as any).isExtended ? 2 : 1, "isExtended-poll");
+      }, 5000);
+    };
+
+    (async () => {
+      if (typeof (window as any).getScreenDetails === "function") {
+        try {
+          screenDetails = await (window as any).getScreenDetails();
+          if (cancelled) return;
+          debugLog("getScreenDetails() granted", { screens: screenDetails.screens.length });
+          reportIfIncreased(screenDetails.screens.length, "getScreenDetails");
+          onScreenDetailsChange = () => reportIfIncreased(screenDetails.screens.length, "getScreenDetails-change");
+          screenDetails.addEventListener("change", onScreenDetailsChange);
+        } catch (error) {
+          debugLog("getScreenDetails() unavailable, using isExtended fallback", error);
+        }
+      } else {
+        debugLog("getScreenDetails() not supported by this browser, using isExtended fallback");
+      }
+      if (cancelled) return;
+      // Always poll isExtended too, even when getScreenDetails succeeded —
+      // it's the documented-reliable signal, whereas the 'change' event
+      // above is a nice-to-have that lands sooner when it does fire.
+      startPolling();
+    })();
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+      if (screenDetails && onScreenDetailsChange) {
+        screenDetails.removeEventListener("change", onScreenDetailsChange);
+      }
+    };
+  }, [isPreviewMode, persistIntegrityEvent]);
+
   // Returns whether the webcam frame was actually captured & uploaded — callers
   // that must not silently "use up" an attempt (e.g. a scheduled slot that
   // should retry until the grace window closes) need this instead of a
