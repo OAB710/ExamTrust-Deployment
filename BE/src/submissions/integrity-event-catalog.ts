@@ -35,6 +35,7 @@ export const INTEGRITY_EVENT_LABELS: Record<string, string> = {
   screen_share_ended: 'Chia sẻ màn hình không còn khả dụng',
   screen_share_recovery_timeout: 'Chia sẻ màn hình không được khôi phục kịp thời',
   screen_share_restored: 'Chia sẻ màn hình đã được khôi phục',
+  multi_monitor_detected: 'Phát hiện cắm thêm màn hình trong lúc làm bài',
   navigation_attempt: 'Cố gắng rời khỏi trang làm bài',
   page_reload: 'Tải lại hoặc rời trang khi đang làm bài',
   network_disconnected: 'Mất kết nối mạng',
@@ -57,7 +58,7 @@ export function getIntegrityEventCategory(eventType: string): IntegrityEventCate
   const key = String(eventType || '').toLowerCase();
   if (key === 'tab_switch') return 'tab_switch';
   if (key.startsWith('fullscreen') || key === 'blur' || key === 'window_blur' || key === 'focus') return 'fullscreen';
-  if (key.startsWith('camera') || key.startsWith('screen_share') || key === 'face_not_detected') return 'camera';
+  if (key.startsWith('camera') || key.startsWith('screen_share') || key === 'face_not_detected' || key === 'multi_monitor_detected') return 'camera';
   if (key === 'copy' || key === 'paste' || key === 'paste_external') return 'copy_paste';
   if (key.startsWith('mouse')) return 'mouse';
   return 'other';
@@ -70,7 +71,7 @@ export function getIntegrityEventCategory(eventType: string): IntegrityEventCate
 // only, hence 'low'.
 export function getIntegrityEventSeverity(eventType: string): 'low' | 'warning' | 'critical' {
   const key = String(eventType || '').toLowerCase();
-  if (key.includes('fullscreen') || key === 'face_not_detected' || key === 'violation_escalation' || key === 'camera_recovery_timeout' || key === 'screen_share_recovery_timeout') {
+  if (key.includes('fullscreen') || key === 'face_not_detected' || key === 'violation_escalation' || key === 'camera_recovery_timeout' || key === 'screen_share_recovery_timeout' || key === 'multi_monitor_detected') {
     return 'critical';
   }
   if (['tab_switch', 'window_blur', 'blur', 'copy', 'paste', 'paste_external', 'mouse_idle', 'mouse_anomaly', 'camera_stream_ended', 'screen_share_ended', 'navigation_attempt', 'network_disconnected'].includes(key)) {

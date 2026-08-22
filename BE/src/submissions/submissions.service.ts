@@ -635,7 +635,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
   private getIntegrityLogWeight(eventType: string): number {
     const event = String(eventType || '').toLowerCase();
-    if (event === 'fullscreen_exit' || event === 'face_not_detected') return 25;
+    if (event === 'fullscreen_exit' || event === 'face_not_detected' || event === 'multi_monitor_detected') return 25;
     if (['paste', 'copy', 'window_blur', 'tab_switch'].includes(event)) return 15;
     return 5;
   }
@@ -697,6 +697,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       'face_not_detected',
       'camera_stream_ended',
       'camera_recovery_timeout',
+      'multi_monitor_detected',
     ]);
 
     for (const entry of logs || []) {
@@ -3968,6 +3969,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       'face_not_detected',
       'camera_stream_ended',
       'camera_recovery_timeout',
+      'multi_monitor_detected',
     ]);
 
     const mappedLogs = integrityLogs

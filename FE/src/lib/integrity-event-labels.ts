@@ -34,6 +34,7 @@ export const INTEGRITY_EVENT_LABELS: Record<string, string> = {
   screen_share_ended: "Chia sẻ màn hình không còn khả dụng",
   screen_share_recovery_timeout: "Chia sẻ màn hình không được khôi phục kịp thời",
   screen_share_restored: "Chia sẻ màn hình đã được khôi phục",
+  multi_monitor_detected: "Phát hiện cắm thêm màn hình trong lúc làm bài",
   navigation_attempt: "Cố gắng rời khỏi trang làm bài",
   page_reload: "Tải lại hoặc rời trang khi đang làm bài",
   network_disconnected: "Mất kết nối mạng",
