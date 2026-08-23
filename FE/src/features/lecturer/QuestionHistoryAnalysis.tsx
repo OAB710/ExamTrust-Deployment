@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,8 +14,12 @@ import { FilterDefinition, FilterValues } from "@/components/common/list/filter-
 import { getActiveFilterCount, getFilterChips } from "@/components/common/list/filter-utils";
 import { typeLabels as questionTypeLabels } from "./question-bank-utils";
 import { api } from "@/lib/api";
-import { AlertTriangle, ArrowLeft, ArrowRight, BarChart3, CheckCircle2, Loader2, Minus, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, BarChart3, CheckCircle2, Layers, Loader2, Minus, RefreshCw, TableProperties, TrendingDown, TrendingUp } from "lucide-react";
 import { Bar, Line } from "react-chartjs-2";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { MATRIX_27_CASES, evaluateMatrixCase, type MatrixCase } from "./question-matrix-evaluator";
 import {
   BarElement,
   CategoryScale,
@@ -119,6 +123,19 @@ export default function QuestionHistoryAnalysis() {
   const [draftFilters, setDraftFilters] = useState<FilterValues>(EMPTY_HISTORY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<FilterValues>(EMPTY_HISTORY_FILTERS);
   const [analysisView, setAnalysisView] = useState<"versions" | "usages" | "history">("versions");
+  const [showMatrixModal, setShowMatrixModal] = useState(false);
+  const [matrixTab, setMatrixTab] = useState<"all" | "p_up" | "p_stable" | "p_down">("all");
+  const activeRowRef = useRef<HTMLTableRowElement | null>(null);
+
+  useEffect(() => {
+    if (showMatrixModal) {
+      setTimeout(() => {
+        if (activeRowRef.current) {
+          activeRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 150);
+    }
+  }, [showMatrixModal]);
 
   const loadHistory = async (activeCheck?: () => boolean) => {
     const isActive = () => !activeCheck || activeCheck();
@@ -206,6 +223,29 @@ export default function QuestionHistoryAnalysis() {
     [selectedQuestion],
   );
   const chartMetrics = analysisView === "usages" ? usageMetrics : versionMetrics;
+
+  const versionMatrixEvaluation = useMemo(() => {
+    const usable = versionMetrics.filter((m) => m.attempts > 0);
+    if (usable.length < 2) return null;
+    const first = usable[0];
+    const last = usable[usable.length - 1];
+    return evaluateMatrixCase(first, last);
+  }, [versionMetrics]);
+
+  const usageMatrixEvaluation = useMemo(() => {
+    const usable = usageMetrics.filter((m) => m.attempts > 0);
+    if (usable.length < 2) return null;
+    const first = usable[0];
+    const last = usable[usable.length - 1];
+    return evaluateMatrixCase(first, last);
+  }, [usageMetrics]);
+
+  const activeMatrixEvaluation = analysisView === "usages" ? usageMatrixEvaluation : versionMatrixEvaluation;
+
+  const filteredMatrixCases = useMemo(() => {
+    if (matrixTab === "all") return MATRIX_27_CASES;
+    return MATRIX_27_CASES.filter((c) => c.group === matrixTab);
+  }, [matrixTab]);
 
   const lineData = useMemo(
     () => ({
@@ -296,6 +336,17 @@ export default function QuestionHistoryAnalysis() {
     stable: "Ổn định",
   }[trend] || "Chưa xác định");
 
+  const formatRecommendation = (rec: string | null | undefined) => {
+    if (!rec) return "";
+    if (rec.includes("Review wording") || rec.includes("difficulty calibration") || rec.includes("distractors")) {
+      return "Cần xem xét lại cách diễn đạt, các phương án nhiễu và hiệu chỉnh lại độ khó trước khi tái sử dụng câu hỏi này.";
+    }
+    if (rec.includes("No completed submission data") || rec.includes("Keep collecting attempts")) {
+      return "Chưa có đủ dữ liệu bài nộp hoàn tất. Hãy thu thập thêm lượt làm bài trước khi đưa ra quyết định chất lượng.";
+    }
+    return rec;
+  };
+
   const currentMetric = chartMetrics[chartMetrics.length - 1];
 
   return (
@@ -314,20 +365,31 @@ export default function QuestionHistoryAnalysis() {
               Phân tích từ phiên bản câu hỏi, bài nộp và thống kê chất lượng đã lưu.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => loadHistory()}
-            disabled={loading}
-            className="gap-2"
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            Làm mới
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMatrixModal(true)}
+              className="gap-2 text-primary border-primary/30 hover:bg-primary/5"
+            >
+              <TableProperties className="h-4 w-4" />
+              Xem bảng ma trận
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => loadHistory()}
+              disabled={loading}
+              className="gap-2"
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Làm mới
+            </Button>
+          </div>
         </div>
 
         {loading && (
@@ -469,12 +531,124 @@ export default function QuestionHistoryAnalysis() {
                   <div className="col-span-2 space-y-4">
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Chất lượng qua phiên bản</CardTitle>
-                        <CardDescription className="line-clamp-1">{selectedQuestion.content}</CardDescription>
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <CardTitle className="text-base">Chất lượng qua phiên bản</CardTitle>
+                            <CardDescription className="line-clamp-1">{selectedQuestion.content}</CardDescription>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowMatrixModal(true)}
+                            className="gap-1.5 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/5"
+                          >
+                            <TableProperties className="h-3.5 w-3.5" />
+                            Xem bảng ma trận
+                          </Button>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         {chartMetrics.some((metric) => metric.attempts > 0) ? (
-                          <Line data={lineData} options={{ responsive: true, scales: { y: { min: 0, max: 1 } }, ...metricTooltipOptions }} />
+                          <>
+                            <Line data={lineData} options={{ responsive: true, scales: { y: { min: 0, max: 1 } }, ...metricTooltipOptions }} />
+
+                            {versionMatrixEvaluation?.matchedCase && (
+                              <div className="mt-4 rounded-lg border bg-gradient-to-r from-muted/50 via-muted/20 to-background p-4 text-sm space-y-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                                      <Layers className="h-4 w-4 text-primary" />
+                                      Trường hợp #{versionMatrixEvaluation.matchedCase.id} / 27:
+                                    </span>
+                                    <Badge
+                                      variant={
+                                        versionMatrixEvaluation.matchedCase.variant === "destructive"
+                                          ? "destructive"
+                                          : versionMatrixEvaluation.matchedCase.variant === "success"
+                                          ? "default"
+                                          : "secondary"
+                                      }
+                                      className={
+                                        versionMatrixEvaluation.matchedCase.variant === "success"
+                                          ? "bg-green-600 hover:bg-green-700 text-white"
+                                          : ""
+                                      }
+                                    >
+                                      {versionMatrixEvaluation.matchedCase.assessment}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-muted-foreground">
+                                    <span>
+                                      Δp (Độ dễ):{" "}
+                                      <strong
+                                        className={
+                                          versionMatrixEvaluation.deltaP > 0.05
+                                            ? "text-red-600 dark:text-red-400"
+                                            : versionMatrixEvaluation.deltaP < -0.05
+                                            ? "text-green-600 dark:text-green-400"
+                                            : "text-foreground"
+                                        }
+                                      >
+                                        {versionMatrixEvaluation.deltaP >= 0 ? `+${versionMatrixEvaluation.deltaP.toFixed(2)}` : versionMatrixEvaluation.deltaP.toFixed(2)} ({versionMatrixEvaluation.matchedCase.labelP})
+                                      </strong>
+                                    </span>
+                                    <span>
+                                      ΔD (Phân biệt):{" "}
+                                      <strong
+                                        className={
+                                          versionMatrixEvaluation.deltaD > 0.05
+                                            ? "text-blue-600 dark:text-blue-400"
+                                            : versionMatrixEvaluation.deltaD < -0.05
+                                            ? "text-red-600 dark:text-red-400"
+                                            : "text-foreground"
+                                        }
+                                      >
+                                        {versionMatrixEvaluation.deltaD >= 0 ? `+${versionMatrixEvaluation.deltaD.toFixed(2)}` : versionMatrixEvaluation.deltaD.toFixed(2)} ({versionMatrixEvaluation.matchedCase.labelD})
+                                      </strong>
+                                    </span>
+                                    <span>
+                                      ΔR (Tin cậy):{" "}
+                                      <strong
+                                        className={
+                                          versionMatrixEvaluation.deltaR > 0.05
+                                            ? "text-green-600 dark:text-green-400"
+                                            : versionMatrixEvaluation.deltaR < -0.05
+                                            ? "text-red-600 dark:text-red-400"
+                                            : "text-foreground"
+                                        }
+                                      >
+                                        {versionMatrixEvaluation.deltaR >= 0 ? `+${versionMatrixEvaluation.deltaR.toFixed(2)}` : versionMatrixEvaluation.deltaR.toFixed(2)} ({versionMatrixEvaluation.matchedCase.labelR})
+                                      </strong>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                    Hiện tượng khảo thí thực tế:
+                                  </p>
+                                  <p className="text-sm font-medium text-foreground leading-relaxed">
+                                    {versionMatrixEvaluation.matchedCase.explanation}
+                                  </p>
+                                </div>
+
+                                <div className="rounded-md bg-muted/60 p-2.5 text-xs text-muted-foreground flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                  <div>
+                                    <strong className="text-foreground">Khuyến nghị cho giảng viên: </strong>
+                                    {versionMatrixEvaluation.matchedCase.action}
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowMatrixModal(true)}
+                                    className="h-auto p-0 text-primary hover:underline font-medium shrink-0 flex items-center gap-1 text-xs"
+                                  >
+                                    Xem trên ma trận <ArrowRight className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </>
                         ) : (
                           <div className="py-12 text-center text-muted-foreground">Câu hỏi này chưa có lượt làm hoàn tất.</div>
                         )}
@@ -525,7 +699,7 @@ export default function QuestionHistoryAnalysis() {
                             <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
                             <div>
                               <p className="text-sm font-medium text-yellow-800">Khuyến nghị</p>
-                              <p className="text-sm text-yellow-700">{selectedQuestion.recommendation}</p>
+                              <p className="text-sm text-yellow-700">{formatRecommendation(selectedQuestion.recommendation)}</p>
                               <div className="flex gap-2 mt-2">
                                 <Button size="sm" variant="outline" className="gap-1 text-xs">
                                   <RefreshCw className="h-3 w-3" /> Tạo phiên bản mới
@@ -579,12 +753,124 @@ export default function QuestionHistoryAnalysis() {
                   <div className="col-span-2 space-y-4">
                     <Card>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Chất lượng qua các lần thi</CardTitle>
-                        <CardDescription className="line-clamp-1">{selectedQuestion.content}</CardDescription>
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <CardTitle className="text-base">Chất lượng qua các lần thi</CardTitle>
+                            <CardDescription className="line-clamp-1">{selectedQuestion.content}</CardDescription>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowMatrixModal(true)}
+                            className="gap-1.5 text-xs shrink-0 text-primary border-primary/30 hover:bg-primary/5"
+                          >
+                            <TableProperties className="h-3.5 w-3.5" />
+                            Xem bảng ma trận
+                          </Button>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         {chartMetrics.some((metric) => metric.attempts > 0) ? (
-                          <Line data={lineData} options={{ responsive: true, scales: { y: { min: 0, max: 1 } }, ...metricTooltipOptions }} />
+                          <>
+                            <Line data={lineData} options={{ responsive: true, scales: { y: { min: 0, max: 1 } }, ...metricTooltipOptions }} />
+
+                            {usageMatrixEvaluation?.matchedCase && (
+                              <div className="mt-4 rounded-lg border bg-gradient-to-r from-muted/50 via-muted/20 to-background p-4 text-sm space-y-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                                      <Layers className="h-4 w-4 text-primary" />
+                                      Trường hợp #{usageMatrixEvaluation.matchedCase.id} / 27 (theo đợt thi):
+                                    </span>
+                                    <Badge
+                                      variant={
+                                        usageMatrixEvaluation.matchedCase.variant === "destructive"
+                                          ? "destructive"
+                                          : usageMatrixEvaluation.matchedCase.variant === "success"
+                                          ? "default"
+                                          : "secondary"
+                                      }
+                                      className={
+                                        usageMatrixEvaluation.matchedCase.variant === "success"
+                                          ? "bg-green-600 hover:bg-green-700 text-white"
+                                          : ""
+                                      }
+                                    >
+                                      {usageMatrixEvaluation.matchedCase.assessment}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-muted-foreground">
+                                    <span>
+                                      Δp (Độ dễ):{" "}
+                                      <strong
+                                        className={
+                                          usageMatrixEvaluation.deltaP > 0.05
+                                            ? "text-red-600 dark:text-red-400"
+                                            : usageMatrixEvaluation.deltaP < -0.05
+                                            ? "text-green-600 dark:text-green-400"
+                                            : "text-foreground"
+                                        }
+                                      >
+                                        {usageMatrixEvaluation.deltaP >= 0 ? `+${usageMatrixEvaluation.deltaP.toFixed(2)}` : usageMatrixEvaluation.deltaP.toFixed(2)} ({usageMatrixEvaluation.matchedCase.labelP})
+                                      </strong>
+                                    </span>
+                                    <span>
+                                      ΔD (Phân biệt):{" "}
+                                      <strong
+                                        className={
+                                          usageMatrixEvaluation.deltaD > 0.05
+                                            ? "text-blue-600 dark:text-blue-400"
+                                            : usageMatrixEvaluation.deltaD < -0.05
+                                            ? "text-red-600 dark:text-red-400"
+                                            : "text-foreground"
+                                        }
+                                      >
+                                        {usageMatrixEvaluation.deltaD >= 0 ? `+${usageMatrixEvaluation.deltaD.toFixed(2)}` : usageMatrixEvaluation.deltaD.toFixed(2)} ({usageMatrixEvaluation.matchedCase.labelD})
+                                      </strong>
+                                    </span>
+                                    <span>
+                                      ΔR (Tin cậy):{" "}
+                                      <strong
+                                        className={
+                                          usageMatrixEvaluation.deltaR > 0.05
+                                            ? "text-green-600 dark:text-green-400"
+                                            : usageMatrixEvaluation.deltaR < -0.05
+                                            ? "text-red-600 dark:text-red-400"
+                                            : "text-foreground"
+                                        }
+                                      >
+                                        {usageMatrixEvaluation.deltaR >= 0 ? `+${usageMatrixEvaluation.deltaR.toFixed(2)}` : usageMatrixEvaluation.deltaR.toFixed(2)} ({usageMatrixEvaluation.matchedCase.labelR})
+                                      </strong>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                    Hiện tượng khảo thí qua các đợt thi:
+                                  </p>
+                                  <p className="text-sm font-medium text-foreground leading-relaxed">
+                                    {usageMatrixEvaluation.matchedCase.explanation}
+                                  </p>
+                                </div>
+
+                                <div className="rounded-md bg-muted/60 p-2.5 text-xs text-muted-foreground flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                  <div>
+                                    <strong className="text-foreground">Khuyến nghị cho giảng viên: </strong>
+                                    {usageMatrixEvaluation.matchedCase.action}
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowMatrixModal(true)}
+                                    className="h-auto p-0 text-primary hover:underline font-medium shrink-0 flex items-center gap-1 text-xs"
+                                  >
+                                    Xem trên ma trận <ArrowRight className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </>
                         ) : (
                           <div className="py-12 text-center text-muted-foreground">Chưa có response gắn với lần sử dụng cụ thể của câu hỏi này.</div>
                         )}
@@ -635,7 +921,7 @@ export default function QuestionHistoryAnalysis() {
                             <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
                             <div>
                               <p className="text-sm font-medium text-yellow-800">Khuyến nghị</p>
-                              <p className="text-sm text-yellow-700">{selectedQuestion.recommendation}</p>
+                              <p className="text-sm text-yellow-700">{formatRecommendation(selectedQuestion.recommendation)}</p>
                               <div className="flex gap-2 mt-2">
                                 <Button size="sm" variant="outline" className="gap-1 text-xs">
                                   <RefreshCw className="h-3 w-3" /> Tạo phiên bản mới
@@ -685,6 +971,128 @@ export default function QuestionHistoryAnalysis() {
             </Tabs>
           </>
         )}
+
+        {/* Modal Bảng ma trận 27 trường hợp */}
+        <Dialog open={showMatrixModal} onOpenChange={setShowMatrixModal}>
+          <DialogContent className="max-w-6xl w-[96vw] max-h-[88vh] flex flex-col p-6 overflow-hidden">
+            <DialogHeader className="pb-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <TableProperties className="h-5 w-5 text-primary" />
+                <DialogTitle className="text-lg">Ma trận 27 trường hợp đánh giá chất lượng câu hỏi (3×3×3)</DialogTitle>
+              </div>
+              <DialogDescription>
+                Kết hợp biến thiên 3 chỉ số khảo thí: <strong>Δp (Độ dễ / Tỷ lệ đúng)</strong> × <strong>ΔD (Độ phân biệt)</strong> × <strong>ΔR (Độ tin cậy)</strong>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-wrap gap-2 border-b pb-3 pt-1 shrink-0">
+              <Button
+                size="sm"
+                variant={matrixTab === "all" ? "default" : "outline"}
+                onClick={() => setMatrixTab("all")}
+                className="h-7 text-xs"
+              >
+                Tất cả (27 trường hợp)
+              </Button>
+              <Button
+                size="sm"
+                variant={matrixTab === "p_up" ? "default" : "outline"}
+                onClick={() => setMatrixTab("p_up")}
+                className="h-7 text-xs"
+              >
+                Nhóm I: Δp Tăng (Dễ hơn)
+              </Button>
+              <Button
+                size="sm"
+                variant={matrixTab === "p_stable" ? "default" : "outline"}
+                onClick={() => setMatrixTab("p_stable")}
+                className="h-7 text-xs"
+              >
+                Nhóm II: Δp Ổn định
+              </Button>
+              <Button
+                size="sm"
+                variant={matrixTab === "p_down" ? "default" : "outline"}
+                onClick={() => setMatrixTab("p_down")}
+                className="h-7 text-xs"
+              >
+                Nhóm III: Δp Giảm (Khó hơn)
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-auto rounded-md border min-h-0">
+              <Table className="w-full">
+                <TableHeader className="sticky top-0 bg-background z-20 shadow-sm">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-12 text-center font-bold">STT</TableHead>
+                    <TableHead className="w-20 text-center font-bold">Δp (Độ dễ)</TableHead>
+                    <TableHead className="w-20 text-center font-bold">ΔD (Phân biệt)</TableHead>
+                    <TableHead className="w-20 text-center font-bold">ΔR (Tin cậy)</TableHead>
+                    <TableHead className="w-48 font-bold">Đánh giá thuật toán</TableHead>
+                    <TableHead className="min-w-[260px] font-bold">Hiện tượng Sư phạm / Khảo thí thực tế</TableHead>
+                    <TableHead className="min-w-[220px] font-bold">Hành động khuyến nghị</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredMatrixCases.map((item) => {
+                    const isCurrent = activeMatrixEvaluation?.matchedCase?.id === item.id;
+                    return (
+                      <TableRow
+                        key={item.id}
+                        ref={isCurrent ? activeRowRef : undefined}
+                        className={
+                          isCurrent
+                            ? "bg-primary/10 hover:bg-primary/15 font-medium border-l-4 border-l-primary"
+                            : undefined
+                        }
+                      >
+                        <TableCell className="text-center font-mono text-xs">
+                          {isCurrent ? (
+                            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary text-primary-foreground font-bold text-xs shadow-sm">
+                              {item.id}
+                            </span>
+                          ) : (
+                            item.id
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center text-xs font-mono">{item.labelP}</TableCell>
+                        <TableCell className="text-center text-xs font-mono">{item.labelD}</TableCell>
+                        <TableCell className="text-center text-xs font-mono">{item.labelR}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <Badge
+                              variant={
+                                item.variant === "destructive"
+                                  ? "destructive"
+                                  : item.variant === "success"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                              className={
+                                item.variant === "success"
+                                  ? "bg-green-600 hover:bg-green-700 text-white text-[11px]"
+                                  : "text-[11px]"
+                              }
+                            >
+                              {item.assessment}
+                            </Badge>
+                            {isCurrent && (
+                              <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-semibold whitespace-nowrap">
+                                Đang áp dụng
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs leading-relaxed">{item.explanation}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground leading-relaxed">{item.action}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

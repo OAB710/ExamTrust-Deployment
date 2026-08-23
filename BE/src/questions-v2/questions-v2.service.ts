@@ -1654,7 +1654,7 @@ export class QuestionsService {
         return {
           ...input,
           examId: input.examId || null,
-          exam: input.exam || `Version ${input.versionNo}`,
+          exam: input.exam || `Phiên bản ${input.versionNo}`,
           date: new Date(input.date || 0).toISOString().slice(0, 10),
           students: input.students ?? null,
           correctRate,
@@ -1740,9 +1740,9 @@ export class QuestionsService {
 
       const recommendation =
         usableMetrics.length === 0
-          ? 'No completed submission data yet. Keep collecting attempts before making quality decisions.'
+          ? 'Chưa có đủ dữ liệu bài nộp hoàn tất. Hãy thu thập thêm lượt làm bài trước khi đưa ra quyết định chất lượng.'
           : trend === 'degrading'
-            ? 'Review wording, distractors, and difficulty calibration before reusing this question.'
+            ? 'Cần xem xét lại cách diễn đạt, các phương án nhiễu và hiệu chỉnh lại độ khó trước khi tái sử dụng câu hỏi này.'
             : null;
 
       return {
