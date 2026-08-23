@@ -145,6 +145,7 @@ const EMPTY_PATTERNS: IntegrityPatterns = {
 const EMPTY_FILTERS: FilterValues = {
   confidence: "all",
   examId: "all",
+  courseId: "all",
   term: "all",
   academicYear: "all",
   submittedAt: { from: undefined, to: undefined },
@@ -177,6 +178,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [examOptions, setExamOptions] = useState<{ value: string; label: string }[]>([]);
+  const [courseOptions, setCourseOptions] = useState<{ value: string; label: string }[]>([]);
   const [savingReview, setSavingReview] = useState(false);
 
   useEffect(() => {
@@ -240,6 +242,13 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
       ],
     },
     {
+      key: "courseId",
+      label: "Khóa học",
+      type: "select",
+      allLabel: "Tất cả khóa học",
+      options: courseOptions,
+    },
+    {
       key: "examId",
       label: "Bài thi",
       type: "select",
@@ -291,11 +300,35 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    // GET /courses is already role-scoped server-side (lecturer -> own
+    // courses, admin -> all), so this one call works for both entry points
+    // of this component.
+    api
+      .getCourses({ limit: 500 })
+      .then((res) => {
+        if (!mounted) return;
+        const courses = Array.isArray(res) ? res : unwrapPaginatedData(res);
+        setCourseOptions(
+          (courses || []).map((c: any) => ({
+            value: c.id,
+            label: c.code ? `${c.code} - ${c.name}` : c.name || "Không tên",
+          })),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const fetchCases = async (mountedRef?: { mounted: boolean }) => {
     setLoading(true);
     setError(null);
     try {
       const examIdFilter = appliedFilters.examId as string | undefined;
+      const courseIdFilter = appliedFilters.courseId as string | undefined;
       const termFilter = appliedFilters.term as string | undefined;
       const academicYearFilter = appliedFilters.academicYear as string | undefined;
       const submittedAtRange = appliedFilters.submittedAt as
@@ -307,6 +340,7 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
         search: appliedSearch || undefined,
         confidence: (appliedFilters.confidence as string | undefined) || "all",
         examId: examIdFilter && examIdFilter !== "all" ? examIdFilter : undefined,
+        courseId: courseIdFilter && courseIdFilter !== "all" ? courseIdFilter : undefined,
         term: termFilter && termFilter !== "all" ? termFilter : undefined,
         academicYear:
           academicYearFilter && academicYearFilter !== "all"
@@ -524,13 +558,6 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
 
         <div className="mb-6 space-y-3">
           <div className="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-center">
-            <SearchBar
-              value={searchInput}
-              onChange={setSearchInput}
-              onSearch={runSearch}
-              placeholder="Tìm theo sinh viên hoặc bài thi"
-              className="flex-1"
-            />
             <FilterPanel
               title="Bộ lọc tính toàn vẹn"
               description="Lọc theo mức tín hiệu, bài thi, ngày nộp và dấu hiệu bất thường."
@@ -544,6 +571,13 @@ export default function IntegrityOverview({ lecturerScope = false }: { lecturerS
               activeCount={activeFilterCount}
             />
           </div>
+          <SearchBar
+            value={searchInput}
+            onChange={setSearchInput}
+            onSearch={runSearch}
+            placeholder="Tìm theo sinh viên hoặc bài thi"
+            showSearchButton
+          />
           <ActiveFilterChips
             chips={activeFilterChips}
             onRemove={removeFilter}

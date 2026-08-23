@@ -92,7 +92,7 @@ export class AdminDashboardService {
     const days = Math.ceil((to.getTime() - from.getTime()) / 86400000) + 1; const bucket = days <= 31 ? 'day' : days <= 180 ? 'week' : 'month'; const range = { gte: from, lte: to };
     const [users, submissions, sessions, reviews, activeExams] = await Promise.all([
       this.prisma.user.findMany({ where: { createdAt: range }, select: { createdAt: true, role: true } }),
-      this.prisma.examSubmission.findMany({ where: { OR: [{ startedAt: range }, { submittedAt: range }] }, select: { id: true, startedAt: true, submittedAt: true, status: true, score: true, exam: { select: { maxAttempts: true } } } }),
+      this.prisma.examSubmission.findMany({ where: { OR: [{ startedAt: range }, { submittedAt: range }] }, select: { id: true, startedAt: true, submittedAt: true, status: true, score: true, exam: { select: { maxAttempts: true } }, scoreAdjustments: { select: { amount: true, revokedAt: true } }, integrityReview: { select: { status: true, finalScore: true } } } }),
       this.prisma.proctoringSession.findMany({ where: { createdAt: range }, select: { submissionId: true, createdAt: true } }),
       this.prisma.integrityReview.findMany({ where: { decidedAt: range }, select: { decidedAt: true, status: true } }),
       this.prisma.exam.count({ where: { startTime: { lte: now }, endTime: { gte: now }, status: { in: ['PUBLISHED', 'ONGOING'] } } }),
@@ -104,7 +104,12 @@ export class AdminDashboardService {
     new Set(sessions.map((x) => x.submissionId)).forEach((id) => { const session = sessions.find((x) => x.submissionId === id)!; row(maps.integrity, session.createdAt).signaled++; });
     reviews.forEach((x) => { if (x.decidedAt && x.status !== 'PENDING') row(maps.integrity, x.decidedAt).reviewed++; });
     const scored = submissions.filter((x) => x.submittedAt && COMPLETED.includes(x.status) && x.exam.maxAttempts !== null && x.score !== null && x.score !== undefined); const bands = [{ label: '0–<2', count: 0 }, { label: '2–<4', count: 0 }, { label: '4–<5', count: 0 }, { label: '5–<7', count: 0 }, { label: '7–<8.5', count: 0 }, { label: '8.5–10', count: 0 }];
-    scored.forEach((x) => { const score = Math.max(0, Math.min(10, Number(x.score))); const index = score < 2 ? 0 : score < 4 ? 1 : score < 5 ? 2 : score < 7 ? 3 : score < 8.5 ? 4 : 5; bands[index].count++; });
+    // Same as submissions.service.ts's effectiveScore: a confirmed integrity
+    // penalty's finalScore is the true official score, and non-revoked
+    // scoreAdjustments are part of the official grade — plain raw `score`
+    // would put a penalized submission in the wrong band.
+    const effectiveScore = (x: (typeof scored)[number]) => { if (String(x.integrityReview?.status || '').toUpperCase() === 'CONFIRMED' && x.integrityReview?.finalScore != null) return Number(x.integrityReview.finalScore); const adjustmentTotal = (x.scoreAdjustments || []).filter((a) => !a.revokedAt).reduce((sum, a) => sum + Number(a.amount), 0); return Math.max(0, Math.min(10, Number(x.score) + adjustmentTotal)); };
+    scored.forEach((x) => { const score = Math.max(0, Math.min(10, effectiveScore(x))); const index = score < 2 ? 0 : score < 4 ? 1 : score < 5 ? 2 : score < 7 ? 3 : score < 8.5 ? 4 : 5; bands[index].count++; });
     const pendingReview = await this.prisma.proctoringSession.count({ where: { OR: [{ tabSwitchCount: { gt: 0 } }, { mouseAnomalies: { gt: 0 } }, { logs: { some: {} } }], submission: { integrityReview: { is: null } } } }) + await this.prisma.integrityReview.count({ where: { status: 'PENDING' } });
     return { range: { from: from.toISOString(), to: to.toISOString(), bucket, timeZone: TZ }, kpis: { newUsers: users.length, activeExams, completedSubmissions: submissions.filter((x) => x.submittedAt && COMPLETED.includes(x.status) && x.submittedAt >= from && x.submittedAt <= to).length, pendingReview }, series: { activity: [...maps.activity.values()].sort((a,b) => a.period.localeCompare(b.period)), integrity: [...maps.integrity.values()].sort((a,b) => a.period.localeCompare(b.period)), users: [...maps.users.values()].sort((a,b) => a.period.localeCompare(b.period)) }, scoreDistribution: { sampleSize: scored.length, bands } };
   }

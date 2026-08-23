@@ -66,6 +66,7 @@ type IntegrityCasesQuery = {
   confidence?: string;
   examTitle?: string;
   examId?: string;
+  courseId?: string;
   term?: string;
   academicYear?: string;
   submittedFrom?: string;
@@ -83,6 +84,7 @@ type IntegrityCase = {
   studentName: string;
   examId: string;
   examTitle: string;
+  courseId?: string | null;
   academicYear?: string | null;
   term?: string | null;
   submittedAt: string;
@@ -520,8 +522,31 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       ? reviewSettings.phases.after
       : null;
     const canShowScore = resultsPublished && (afterReview ? Boolean(afterReview.showScore) : true);
+    // Older exams only had "showAnswers", which used to gate both right/wrong
+    // AND the answer key together — fall back to it so those exams keep
+    // behaving exactly as before instead of silently hiding correctness.
+    const canShowCorrectness = resultsPublished && (afterReview ? Boolean(afterReview.showCorrectness ?? afterReview.showAnswers) : true);
     const canShowAnswers = resultsPublished && (afterReview ? Boolean(afterReview.showAnswers) : true);
     const canShowFeedback = resultsPublished && (afterReview ? Boolean(afterReview.showFeedback) : true);
+    // Independent of resultsPublished/canShowScore on purpose — this is a
+    // separate lecturer decision about whether the question-by-question
+    // review (content, the student's own answer) is ever visible at all, not
+    // about when the score becomes official. Defaults to true so exams saved
+    // before this field existed keep behaving exactly as they always did.
+    const canReviewAnswers = reviewSettings?.enabled ? Boolean(reviewSettings?.allowSubmissionReview ?? true) : true;
+    // Provisional reveal (proposal in docs/grading-publish-flow-trace.md §5):
+    // when the lecturer turned on "show result immediately" but the exam has
+    // manual-graded questions blocking auto-publish, the auto-gradable part is
+    // already fully known at submit time — there's no reason to hide it. Only
+    // the manual-graded questions and the combined final score stay pending.
+    // The answer key text/explanation still wait for official publish (unlike
+    // correctness/score, those double as "what's the right answer" reveal).
+    const showResultImmediately = Boolean((submission?.exam?.settings as any)?.showResultImmediately);
+    const autoProvisionalReveal = !resultsPublished && showResultImmediately;
+    let autoRawScore = 0;
+    let autoRawMax = 0;
+    let hasAutoGradableAnswer = false;
+    let pendingManualCount = 0;
     const answers = Array.isArray(submission?.answers) ? submission.answers.map((answer: any) => {
       const snapshot = this.parseJsonValue(answer?.questionSnapshot?.payload, {});
       const question = answer?.question || {};
@@ -532,28 +557,45 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         answerKey,
       );
       const manualGradeAvailable = Boolean(answer?.manualGradedAt);
+      const autoRevealed = autoGradable && (canShowCorrectness || autoProvisionalReveal);
+      const showCorrectnessReview = autoRevealed;
       const showAnswerReview = canShowAnswers && autoGradable;
-      const showScoreReview = canShowScore && (autoGradable || manualGradeAvailable);
+      const showScoreReview = autoGradable
+        ? (canShowScore || autoProvisionalReveal)
+        : (canShowScore && manualGradeAvailable);
       const showFeedbackReview = canShowFeedback && (autoGradable || manualGradeAvailable);
       const assignedScore = this.toNumber(
         snapshot.assignedScore ?? snapshot.points ?? question.points ?? question.defaultPoints,
         0,
       );
 
+      if (autoGradable) {
+        hasAutoGradableAnswer = true;
+        autoRawMax += assignedScore;
+        autoRawScore += this.toNumber(answer?.pointsAwarded, 0);
+      } else if (!manualGradeAvailable) {
+        pendingManualCount += 1;
+      }
+
       return {
         ...answer,
         questionSnapshot: undefined,
         gradingMode: autoGradable ? 'AUTO' : 'MANUAL',
         maxPoints: assignedScore,
-        ...(showAnswerReview ? {} : { isCorrect: undefined }),
+        ...(showCorrectnessReview ? {} : { isCorrect: undefined }),
         ...(showScoreReview ? {} : { pointsAwarded: undefined, manualGradedAt: undefined }),
         ...(showFeedbackReview ? {} : { feedback: undefined }),
+        // Content is stripped separately from the score fields above — a
+        // submission with review disabled must still contribute correct
+        // pointsAwarded/isCorrect to the score-summary cards, it just never
+        // surfaces what was asked or answered.
+        ...(canReviewAnswers ? {} : { answer: undefined, feedback: undefined }),
         question: {
           ...safeQuestion,
-          content: snapshot.stem ?? snapshot.content ?? safeQuestion.content,
-          options: snapshot.options ?? safeQuestion.options,
-          ...(showAnswerReview && typeof answerKey !== 'undefined' ? { correctAnswer: answerKey } : {}),
-          ...(showFeedbackReview && autoGradable && typeof snapshot.explanation !== 'undefined'
+          content: canReviewAnswers ? (snapshot.stem ?? snapshot.content ?? safeQuestion.content) : undefined,
+          options: canReviewAnswers ? (snapshot.options ?? safeQuestion.options) : undefined,
+          ...(showAnswerReview && canReviewAnswers && typeof answerKey !== 'undefined' ? { correctAnswer: answerKey } : {}),
+          ...(showFeedbackReview && canReviewAnswers && autoGradable && typeof snapshot.explanation !== 'undefined'
             ? { explanation: snapshot.explanation }
             : {}),
         },
@@ -563,11 +605,58 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const adjustmentTotal = (submission?.scoreAdjustments || [])
       .filter((adjustment: any) => !adjustment.revokedAt)
       .reduce((total: number, adjustment: any) => total + this.toNumber(adjustment.amount), 0);
-    const adjustedScore = Number(Math.max(0, Math.min(10, this.toNumber(submission?.score) + adjustmentTotal)).toFixed(2));
+    // A confirmed integrity penalty's finalScore is the true official score —
+    // plain score+adjustments would show the pre-penalty number (see
+    // docs/integrity-penalty-flow-trace.md §3). Only meaningful once
+    // published; checked against the raw (ungated) integrityReview since the
+    // gated copy below hasn't been built yet at this point.
+    const integrityFinalScoreForTotal = canShowScore && String(submission?.integrityReview?.status || '').toUpperCase() === 'CONFIRMED'
+      ? submission?.integrityReview?.finalScore
+      : null;
+    const adjustedScore = integrityFinalScoreForTotal != null
+      ? this.toNumber(integrityFinalScoreForTotal)
+      : Number(Math.max(0, Math.min(10, this.toNumber(submission?.score) + adjustmentTotal)).toFixed(2));
 
+    // Independent of canShowScore/score on purpose — see the comment above the
+    // answers map. Never computed once results are already published, since
+    // `score` already carries the full, official value at that point.
+    const provisionalScore = autoProvisionalReveal && hasAutoGradableAnswer
+      ? this.normalizeScore(autoRawScore, autoRawMax)
+      : null;
+
+    // The integrity decision itself (status + reviewer's reason) is never a
+    // secret — telling a student "you're confirmed for a violation, here's
+    // why" doesn't leak anything about their score. The actual deduction
+    // amounts, though, are part of the score and must wait for publish like
+    // everything else, so a student can't back-calculate their pre-penalty
+    // score from academicScore/deductedScore before results are official.
+    const integrityReview = submission?.integrityReview
+      ? {
+          ...submission.integrityReview,
+          ...(canShowScore ? {} : {
+            penaltyMode: null,
+            penaltyPercent: null,
+            penaltyAmount: null,
+            academicScore: null,
+            deductedScore: null,
+            finalScore: null,
+            penaltyAppliedAt: null,
+          }),
+        }
+      : submission?.integrityReview;
+
+    // Same reasoning as integrityReview above: the adjustment amounts are
+    // part of the score and wait for publish, but hiding them entirely
+    // pre-publish (rather than leaking the list with the total blanked out)
+    // keeps the gating consistent across every score-affecting record.
     return {
       ...submission,
       answers,
+      integrityReview,
+      scoreAdjustments: canShowScore ? submission?.scoreAdjustments : [],
+      canReviewAnswers,
+      provisionalScore,
+      pendingManualCount,
       ...(canShowScore
         ? { academicScore: submission.score, adjustmentTotal: Number(adjustmentTotal.toFixed(2)), score: adjustedScore }
         : { score: null, gradedAt: null }),
@@ -578,6 +667,10 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const during = reviewSettings?.enabled && reviewSettings?.phases?.during;
     return {
       enabled: Boolean(during),
+      // Exams saved before "showCorrectness" existed only had "showAnswers",
+      // which used to cover both right/wrong AND the answer key together —
+      // fall back to it so those exams keep behaving exactly as before.
+      showCorrectness: Boolean(during?.showCorrectness ?? during?.showAnswers),
       showScore: Boolean(during?.showScore),
       showAnswers: Boolean(during?.showAnswers),
       showFeedback: Boolean(during?.showFeedback),
@@ -602,8 +695,10 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       feedback.pointsAwarded = isCorrect ? question.assignedScore : 0;
       feedback.maxPoints = question.assignedScore;
     }
-    if (policy.showAnswers) {
+    if (policy.showCorrectness) {
       feedback.isCorrect = isCorrect;
+    }
+    if (policy.showAnswers) {
       feedback.correctAnswer = question.answerKey;
     }
     if (policy.showFeedback && question.explanation) {
@@ -636,7 +731,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
   private getIntegrityLogWeight(eventType: string): number {
     const event = String(eventType || '').toLowerCase();
     if (event === 'fullscreen_exit' || event === 'face_not_detected' || event === 'multi_monitor_detected') return 25;
-    if (['paste', 'copy', 'window_blur', 'tab_switch'].includes(event)) return 15;
+    if (['paste', 'copy', 'window_blur', 'tab_switch', 'multi_monitor_at_start'].includes(event)) return 15;
     return 5;
   }
 
@@ -698,6 +793,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       'camera_stream_ended',
       'camera_recovery_timeout',
       'multi_monitor_detected',
+      'multi_monitor_at_start',
     ]);
 
     for (const entry of logs || []) {
@@ -2130,6 +2226,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const confidenceFilter = String(query.confidence || 'all').trim();
     const examTitleFilter = String(query.examTitle || '').trim().toLowerCase();
     const examIdFilter = String(query.examId || '').trim();
+    const courseIdFilter = String(query.courseId || '').trim();
     const termFilter = String(query.term || '').trim().toUpperCase();
     const academicYearFilter = String(query.academicYear || '').trim();
     const statusFilter = String(query.status || 'all').trim().toLowerCase();
@@ -2186,6 +2283,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
                 title: true,
                 course: {
                   select: {
+                    id: true,
                     term: true,
                     academicYear: true,
                   },
@@ -2286,6 +2384,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         studentName: session.submission?.student?.fullName || session.submission?.student?.email || 'Unknown student',
         examId: session.submission?.exam?.id || '',
         examTitle: session.submission?.exam?.title || 'Unknown exam',
+        courseId: session.submission?.exam?.course?.id || null,
         academicYear: session.submission?.exam?.course?.academicYear || null,
         term: session.submission?.exam?.course?.term || null,
         submittedAt: submittedAt ? new Date(submittedAt).toISOString() : new Date().toISOString(),
@@ -2337,6 +2436,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       if (confidenceFilter && confidenceFilter !== 'all' && item.confidence !== confidenceFilter) return false;
       if (examTitleFilter && !item.examTitle.toLowerCase().includes(examTitleFilter)) return false;
       if (examIdFilter && item.examId !== examIdFilter) return false;
+      if (courseIdFilter && item.courseId !== courseIdFilter) return false;
       if (academicYearFilter && item.academicYear !== academicYearFilter) return false;
       if (termFilter && item.term !== termFilter) return false;
       if (typeof timeAnomalyFilter === 'boolean' && Boolean(item.timeAnomaly) !== timeAnomalyFilter) return false;
@@ -2727,7 +2827,12 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      await this.recalculateSubmissionScore(existing.submissionId, tx);
+      const recalculated = await this.recalculateSubmissionScore(existing.submissionId, tx);
+      // Keep any confirmed integrity penalty in sync with the base score —
+      // otherwise a penalty applied while manual grading was still pending
+      // stays frozen against that partial score forever. No-ops when there's
+      // no penalty on this submission.
+      await this.refreshIntegrityScoreAfterAdjustment(tx, existing.submissionId, this.toNumber(recalculated.score));
       return next;
     });
 
@@ -2895,6 +3000,17 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             where: { revokedAt: null },
             select: { id: true, amount: true },
           },
+          integrityReview: {
+            select: {
+              status: true,
+              reviewerNote: true,
+              penaltyMode: true,
+              penaltyPercent: true,
+              penaltyAmount: true,
+              deductedScore: true,
+              finalScore: true,
+            },
+          },
           _count: {
             select: {
               evidenceCaptures: { where: { status: { not: 'PURGED' } } },
@@ -3055,6 +3171,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           questionSnapshotId: snapshotQuestion.questionSnapshotId || snapshotQuestion.questionSnapshot?.id || null,
           questionVersionId: snapshotQuestion.questionVersionId || null,
           stem: String(merged.stem || merged.content || 'Nội dung câu hỏi không khả dụng'),
+          type: String(merged.type || existing?.type || ''),
+          assignedScore: Number(merged.assignedScore ?? merged.points ?? existing?.assignedScore ?? 0),
           orderIndex: Math.min(existing?.orderIndex ?? Number.MAX_SAFE_INTEGER, orderIndex || Number.MAX_SAFE_INTEGER),
           isRandomBankQuestion: Boolean(existing?.isRandomBankQuestion || isRandomBankQuestion),
         });
@@ -3088,9 +3206,23 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         const answer = answersByKey.get(column.key);
         if (!answer || isBlank(answer.answer)) return [column.key, 'BLANK'];
         if (!answer.manualGradedAt && answer.isCorrect === null) return [column.key, 'PENDING_MANUAL'];
-        if (answer.isCorrect === true || (answer.manualGradedAt && Number(answer.pointsAwarded || 0) > 0)) {
-          return [column.key, 'CORRECT'];
+        if (answer.manualGradedAt) {
+          // Manually-graded (essay/short-answer) answers are almost never a
+          // clean right/wrong — a 1/10 partial-credit essay isn't "correct",
+          // but calling it flatly "incorrect" alongside a 0/10 essay loses
+          // just as much information. Report the actual score band instead
+          // of forcing it into the auto-graded CORRECT/INCORRECT states, so
+          // the matrix cell itself signals "this was graded on a scale" and
+          // roughly where on that scale it landed.
+          const ratio = column.assignedScore > 0
+            ? Number(answer.pointsAwarded || 0) / column.assignedScore
+            : (Number(answer.pointsAwarded || 0) > 0 ? 1 : 0);
+          if (ratio >= 0.75) return [column.key, 'ESSAY_STRONG'];
+          if (ratio >= 0.5) return [column.key, 'ESSAY_MODERATE'];
+          if (ratio >= 0.25) return [column.key, 'ESSAY_WEAK'];
+          return [column.key, 'ESSAY_POOR'];
         }
+        if (answer.isCorrect === true) return [column.key, 'CORRECT'];
         return [column.key, 'INCORRECT'];
       }));
       return {
@@ -3273,6 +3405,17 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
             revokedBy: { select: { id: true, fullName: true } },
           },
         },
+        integrityReview: {
+          select: {
+            status: true,
+            reviewerNote: true,
+            penaltyMode: true,
+            penaltyPercent: true,
+            penaltyAmount: true,
+            deductedScore: true,
+            finalScore: true,
+          },
+        },
       },
     });
 
@@ -3389,7 +3532,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
   async createScoreAdjustment(
     submissionId: string,
-    dto: { amount: number; category: 'QUESTION_ERROR' | 'PARTICIPATION' | 'OTHER'; reason: string },
+    dto: { amount: number; category: 'QUESTION_ERROR' | 'PARTICIPATION' | 'OTHER'; reason?: string },
     user: RequestUser,
   ) {
     const amount = Number(dto.amount);
@@ -3397,7 +3540,11 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     if (!Number.isFinite(amount) || amount === 0) {
       throw new BadRequestException('Số điểm điều chỉnh phải khác 0');
     }
-    if (!reason) throw new BadRequestException('Cần nhập lý do khi điều chỉnh điểm');
+    // Only the catch-all "Khác" category needs a free-text reason — the other
+    // categories are already self-explanatory as a label.
+    if (dto.category === 'OTHER' && !reason) {
+      throw new BadRequestException("Cần nhập lý do khi chọn loại 'Khác'");
+    }
 
     const submission = await this.prisma.examSubmission.findUnique({
       where: { id: submissionId },
@@ -3507,40 +3654,40 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     }
 
     const now = publishedAt;
-    await this.prisma.$transaction(
-      submissions.flatMap((submission) => {
+    await this.prisma.$transaction(async (tx) => {
+      for (const submission of submissions) {
         const rawScore = scoreBySubmission.get(submission.id) || 0;
         const maxRawScore = maxRawScoreBySubmission.get(submission.id) || 0;
         const normalizedScore = this.normalizeScore(rawScore, maxRawScore);
-        const updates: any[] = [
-          this.prisma.examSubmission.update({
-            where: { id: submission.id },
-            data: {
-              status: 'GRADED',
-              gradedAt: now,
-              score: normalizedScore,
-            },
-          }),
-        ];
+
+        await tx.examSubmission.update({
+          where: { id: submission.id },
+          data: {
+            status: 'GRADED',
+            gradedAt: now,
+            score: normalizedScore,
+          },
+        });
 
         if (submission.examInstanceId) {
-          updates.push(
-            this.prisma.examInstance.update({
-              where: { id: submission.examInstanceId },
-              data: {
-                status: 'GRADED',
-                rawScore,
-                maxRawScore,
-                normalizedScore,
-                lastActivityAt: now,
-              },
-            }),
-          );
+          await tx.examInstance.update({
+            where: { id: submission.examInstanceId },
+            data: {
+              status: 'GRADED',
+              rawScore,
+              maxRawScore,
+              normalizedScore,
+              lastActivityAt: now,
+            },
+          });
         }
 
-        return updates;
-      }),
-    );
+        // Same reasoning as in gradeAnswer: publishing can be the moment a
+        // submission's score first becomes final, so any confirmed penalty
+        // must be recalculated against it here too.
+        await this.refreshIntegrityScoreAfterAdjustment(tx, submission.id, normalizedScore);
+      }
+    });
 
     await this.prisma.exam.update({
       where: { id: examId },
@@ -3829,6 +3976,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
               studentId: true,
             },
           },
+          scoreAdjustments: { select: { amount: true, revokedAt: true } },
+          integrityReview: { select: { status: true, finalScore: true } },
         },
       }),
       this.prisma.proctoringSession.findMany({
@@ -3937,9 +4086,22 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           submissions.filter((s) => ['SUBMITTED', 'GRADED', 'FLAGGED'].includes(s.status)),
         )
       : submissions.filter((s) => ['SUBMITTED', 'GRADED', 'FLAGGED'].includes(s.status));
+    // Same reasoning as sanitizeStudentSubmissionView's `adjustedScore`: a
+    // confirmed integrity penalty's finalScore is the true official score,
+    // and non-revoked scoreAdjustments are part of the official grade too —
+    // averaging raw `score` here would silently ignore both.
+    const effectiveScore = (s: (typeof submissions)[number]) => {
+      if (String(s.integrityReview?.status || '').toUpperCase() === 'CONFIRMED' && s.integrityReview?.finalScore != null) {
+        return this.toNumber(s.integrityReview.finalScore);
+      }
+      const adjustmentTotal = (s.scoreAdjustments || [])
+        .filter((a) => !a.revokedAt)
+        .reduce((sum, a) => sum + this.toNumber(a.amount), 0);
+      return Number(Math.max(0, Math.min(10, this.toNumber(s.score) + adjustmentTotal)).toFixed(2));
+    };
     const scoresPct = completed
       .filter((s) => s.score !== null && s.score !== undefined)
-      .map((s) => this.clampPercent(Number(s.score || 0) * 10));
+      .map((s) => this.clampPercent(effectiveScore(s) * 10));
 
     // Bin boundaries stay in the 0-100 domain scoresPct is computed in below —
     // only the label is point-scale (0-10) text, since that's the unit the
@@ -3970,6 +4132,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       'camera_stream_ended',
       'camera_recovery_timeout',
       'multi_monitor_detected',
+      'multi_monitor_at_start',
     ]);
 
     const mappedLogs = integrityLogs
@@ -4133,6 +4296,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
               studentId: true,
             },
           },
+          scoreAdjustments: { select: { amount: true, revokedAt: true } },
+          integrityReview: { select: { status: true, finalScore: true } },
         },
       }),
       this.prisma.integrityLog.findMany({
@@ -4149,6 +4314,22 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         },
       }),
     ]);
+
+    // Same reasoning as sanitizeStudentSubmissionView's `adjustedScore` /
+    // getExamOverview's effectiveScore: a confirmed integrity penalty's
+    // finalScore is the true official score, and non-revoked scoreAdjustments
+    // are part of the official grade too. Every analytics stat below (avg,
+    // highest/lowest, per-attempt breakdown, first-vs-retake comparison,
+    // score-over-time) is derived from this, on the 0-10 scale.
+    const effectiveScoreOnTen = (s: (typeof submissions)[number]) => {
+      if (String(s.integrityReview?.status || '').toUpperCase() === 'CONFIRMED' && s.integrityReview?.finalScore != null) {
+        return this.toNumber(s.integrityReview.finalScore);
+      }
+      const adjustmentTotal = (s.scoreAdjustments || [])
+        .filter((a) => !a.revokedAt)
+        .reduce((sum, a) => sum + this.toNumber(a.amount), 0);
+      return Number(Math.max(0, Math.min(10, this.toNumber(s.score) + adjustmentTotal)).toFixed(2));
+    };
 
     const examQuestions = examQuestionRows.map((item) => ({
       questionId: item.questionId,
@@ -4221,8 +4402,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       studentSubs.sort((a, b) => (a.attemptNo ?? 1) - (b.attemptNo ?? 1));
       if (studentSubs.length > 1) {
         studentsWithRetakes += 1;
-        const firstScore = Number(studentSubs[0]?.score ?? 0) * 10;
-        const bestRetakeScore = Math.max(...studentSubs.slice(1).map((s) => Number(s.score ?? 0) * 10));
+        const firstScore = studentSubs[0] ? effectiveScoreOnTen(studentSubs[0]) * 10 : 0;
+        const bestRetakeScore = Math.max(...studentSubs.slice(1).map((s) => effectiveScoreOnTen(s) * 10));
         const diff = bestRetakeScore - firstScore;
         totalScoreImprovementSum += diff;
         retakeStudentCount += 1;
@@ -4249,10 +4430,10 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     const attemptBreakdown = Array.from(attemptBuckets.entries())
       .map(([attemptNo, subs]) => {
         const avgScorePct = subs.length
-          ? Number((subs.reduce((acc, s) => acc + Number(s.score || 0) * 10, 0) / subs.length).toFixed(1))
+          ? Number((subs.reduce((acc, s) => acc + effectiveScoreOnTen(s) * 10, 0) / subs.length).toFixed(1))
           : 0;
         const passRate = subs.length
-          ? this.clampPercent((subs.filter((s) => Number(s.score || 0) * 10 >= passingScorePct).length / subs.length) * 100)
+          ? this.clampPercent((subs.filter((s) => effectiveScoreOnTen(s) * 10 >= passingScorePct).length / subs.length) * 100)
           : 0;
         return {
           attemptNo,
@@ -4265,16 +4446,16 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
     const avgAttemptsPerStudent = totalUniqueStudents > 0 ? allCompletedSubmissions.length / totalUniqueStudents : 1;
     const firstAttemptAvgScore = firstAttemptSubmissions.length
-      ? firstAttemptSubmissions.reduce((sum, s) => sum + Number(s.score || 0) * 10, 0) / firstAttemptSubmissions.length
+      ? firstAttemptSubmissions.reduce((sum, s) => sum + effectiveScoreOnTen(s) * 10, 0) / firstAttemptSubmissions.length
       : 0;
     const firstAttemptPassRate = firstAttemptSubmissions.length
-      ? this.clampPercent((firstAttemptSubmissions.filter((s) => Number(s.score || 0) * 10 >= passingScorePct).length / firstAttemptSubmissions.length) * 100)
+      ? this.clampPercent((firstAttemptSubmissions.filter((s) => effectiveScoreOnTen(s) * 10 >= passingScorePct).length / firstAttemptSubmissions.length) * 100)
       : 0;
     const retakeAvgScore = retakeSubmissions.length
-      ? retakeSubmissions.reduce((sum, s) => sum + Number(s.score || 0) * 10, 0) / retakeSubmissions.length
+      ? retakeSubmissions.reduce((sum, s) => sum + effectiveScoreOnTen(s) * 10, 0) / retakeSubmissions.length
       : 0;
     const retakePassRate = retakeSubmissions.length
-      ? this.clampPercent((retakeSubmissions.filter((s) => Number(s.score || 0) * 10 >= passingScorePct).length / retakeSubmissions.length) * 100)
+      ? this.clampPercent((retakeSubmissions.filter((s) => effectiveScoreOnTen(s) * 10 >= passingScorePct).length / retakeSubmissions.length) * 100)
       : 0;
     const avgScoreImprovement = retakeStudentCount > 0 ? totalScoreImprovementSum / retakeStudentCount : null;
 
@@ -4325,7 +4506,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       for (const sub of allCompletedSubmissions) {
         const key = sub.studentId || sub.id;
         const cur = bestMap.get(key);
-        if (!cur || Number(sub.score || 0) > Number(cur.score || 0)) {
+        if (!cur || effectiveScoreOnTen(sub) > effectiveScoreOnTen(cur)) {
           bestMap.set(key, sub);
         }
       }
@@ -4669,7 +4850,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
     const scoreRows = scopedCompletedSubmissions.map((s) => ({
       date: new Date(s.submittedAt || s.createdAt).toISOString().slice(0, 10),
-      scorePct: this.clampPercent(Number(s.score || 0) * 10),
+      scorePct: this.clampPercent(effectiveScoreOnTen(s) * 10),
     }));
 
     const trendMap = new Map<string, { total: number; count: number }>();
@@ -5006,13 +5187,18 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         integrityReview: {
           select: {
             status: true,
+            reviewerNote: true,
+            penaltyMode: true,
             penaltyPercent: true,
+            penaltyAmount: true,
+            academicScore: true,
+            deductedScore: true,
             finalScore: true,
           },
         },
         scoreAdjustments: {
           where: { revokedAt: null },
-          select: { amount: true },
+          select: { id: true, amount: true, category: true, reason: true, createdAt: true },
         },
       },
       orderBy: { submittedAt: 'desc' },
@@ -5029,11 +5215,21 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       const canShowScore = Boolean(submission.exam.resultsPublishedAt)
         && (afterReview ? Boolean(afterReview.showScore) : true);
       if (canShowScore) {
+        // A confirmed integrity penalty's finalScore is the true official
+        // score — plain score+adjustments would show the pre-penalty number
+        // (see docs/integrity-penalty-flow-trace.md §3), same override
+        // getMyResultsHistory already applies.
+        const integrityFinalScore = String(submission.integrityReview?.status || '').toUpperCase() === 'CONFIRMED'
+          ? submission.integrityReview?.finalScore
+          : null;
+        const effectiveScore = integrityFinalScore != null
+          ? this.toNumber(integrityFinalScore)
+          : Number(Math.max(0, Math.min(10, this.toNumber(submission.score) + adjustmentTotal)).toFixed(2));
         return {
           ...submission,
           examInstance: this.sanitizeExamInstanceForStudent(submission.examInstance),
           academicScore: submission.score,
-          score: Number(Math.max(0, Math.min(10, this.toNumber(submission.score) + adjustmentTotal)).toFixed(2)),
+          score: effectiveScore,
           adjustmentTotal: Number(adjustmentTotal.toFixed(2)),
         };
       }
@@ -5042,11 +5238,61 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         examInstance: this.sanitizeExamInstanceForStudent(submission.examInstance),
         score: null,
         gradedAt: null,
+        // Status/reviewerNote stay visible pre-publish (the decision and its
+        // reason aren't part of the score); the deduction amounts are, so
+        // they wait for publish like everything else.
         integrityReview: submission.integrityReview
-          ? { ...submission.integrityReview, finalScore: null }
+          ? {
+              ...submission.integrityReview,
+              penaltyMode: null,
+              penaltyPercent: null,
+              penaltyAmount: null,
+              academicScore: null,
+              deductedScore: null,
+              finalScore: null,
+            }
           : submission.integrityReview,
+        // Same rule as the score itself — post-hoc adjustments are part of
+        // the final grade, so they wait for publish too.
+        scoreAdjustments: [],
       };
     });
+  }
+
+  // Shared with sanitizeStudentSubmissionView's provisional-score logic, but
+  // kept as its own small helper rather than refactored into one — that
+  // function's loop also builds the full per-question display payload, and
+  // untangling just the scoring part out of it isn't worth the risk to
+  // already-tuned code for what list callers need (aggregate numbers only).
+  private computeAutoGradableTotals(answers: any[]): {
+    autoRawScore: number;
+    autoRawMax: number;
+    hasAutoGradableAnswer: boolean;
+    pendingManualCount: number;
+  } {
+    let autoRawScore = 0;
+    let autoRawMax = 0;
+    let hasAutoGradableAnswer = false;
+    let pendingManualCount = 0;
+    for (const answer of answers || []) {
+      const snapshot = this.parseJsonValue(answer?.questionSnapshot?.payload, {});
+      const question = answer?.question || {};
+      const answerKey = snapshot.answerKey ?? snapshot.correctAnswer;
+      const autoGradable = this.isAutoGradable(String(snapshot.type ?? question.type ?? ''), answerKey);
+      const manualGradeAvailable = Boolean(answer?.manualGradedAt);
+      const assignedScore = this.toNumber(
+        snapshot.assignedScore ?? snapshot.points ?? question.points ?? question.defaultPoints,
+        0,
+      );
+      if (autoGradable) {
+        hasAutoGradableAnswer = true;
+        autoRawMax += assignedScore;
+        autoRawScore += this.toNumber(answer?.pointsAwarded, 0);
+      } else if (!manualGradeAvailable) {
+        pendingManualCount += 1;
+      }
+    }
+    return { autoRawScore, autoRawMax, hasAutoGradableAnswer, pendingManualCount };
   }
 
   /** Student-facing, grouped result history. Scores remain subject to the
@@ -5081,6 +5327,14 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           where: { revokedAt: null },
           select: { amount: true },
         },
+        answers: {
+          select: {
+            pointsAwarded: true,
+            manualGradedAt: true,
+            question: { select: { type: true, correctAnswer: true, points: true, defaultPoints: true } },
+            questionSnapshot: { select: { payload: true } },
+          },
+        },
       },
       orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
     });
@@ -5090,12 +5344,25 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       const afterReview = (submission.exam.reviewSettings as any)?.enabled
         ? (submission.exam.reviewSettings as any)?.phases?.after
         : null;
-      const canShowScore = Boolean(submission.exam.resultsPublishedAt)
+      const resultsPublished = Boolean(submission.exam.resultsPublishedAt);
+      const canShowScore = resultsPublished
         && (afterReview ? Boolean(afterReview.showScore) : true);
       const adjustmentTotal = submission.scoreAdjustments.reduce(
         (total, adjustment) => total + this.toNumber(adjustment.amount),
         0,
       );
+      // Same provisional-reveal rule as sanitizeStudentSubmissionView: only
+      // meaningful pre-publish, and only when the lecturer opted in.
+      const showResultImmediately = Boolean((submission.exam.settings as any)?.showResultImmediately);
+      let provisionalScore: number | null = null;
+      let pendingManualCount = 0;
+      if (!resultsPublished && showResultImmediately) {
+        const totals = this.computeAutoGradableTotals(submission.answers);
+        pendingManualCount = totals.pendingManualCount;
+        provisionalScore = totals.hasAutoGradableAnswer
+          ? this.normalizeScore(totals.autoRawScore, totals.autoRawMax)
+          : null;
+      }
       const integrityFinalScore = String(submission.integrityReview?.status || '').toUpperCase() === 'CONFIRMED'
         ? submission.integrityReview?.finalScore
         : null;
@@ -5116,7 +5383,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         },
         attempts: [],
         lastActivityAt: submission.submittedAt || submission.startedAt || submission.createdAt,
-        resultsPublished: Boolean(submission.exam.resultsPublishedAt),
+        resultsPublished,
       };
       group.attempts.push({
         submissionId: submission.id,
@@ -5126,6 +5393,8 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         submittedAt: submission.submittedAt,
         score: visibleScore,
         scoreAvailable: canShowScore && submission.score != null,
+        provisionalScore,
+        pendingManualCount,
       });
       const currentActivity = new Date(group.lastActivityAt || 0).getTime();
       const candidateActivity = new Date(submission.submittedAt || submission.startedAt || submission.createdAt).getTime();
@@ -5218,7 +5487,9 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
           select: {
             status: true,
             reviewerNote: true,
+            penaltyMode: true,
             penaltyPercent: true,
+            penaltyAmount: true,
             academicScore: true,
             deductedScore: true,
             finalScore: true,
@@ -5230,7 +5501,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
     if (!submission) return submission;
     const scoreAdjustments = await this.prisma.scoreAdjustment.findMany({
       where: { submissionId: submission.id, revokedAt: null },
-      select: { amount: true },
+      select: { id: true, amount: true, category: true, reason: true, createdAt: true },
     });
     const [sanitizedSubmission, securityState] = await Promise.all([
       Promise.resolve(this.sanitizeStudentSubmissionView({ ...submission, scoreAdjustments })),
@@ -5329,7 +5600,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       include: {
         student: { select: { fullName: true, studentId: true, email: true } },
         scoreAdjustments: { select: { amount: true, revokedAt: true } },
-        integrityReview: { select: { status: true, penaltyPercent: true } },
+        integrityReview: { select: { status: true, penaltyPercent: true, finalScore: true } },
       },
       orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
     });
@@ -5345,9 +5616,18 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         .filter((a) => !a.revokedAt)
         .reduce((sum, a) => sum + this.toNumber(a.amount), 0);
       const rawScore = s.score != null ? this.toNumber(s.score) : null;
-      const finalScore = rawScore != null
-        ? Number(Math.max(0, Math.min(10, rawScore + adjustmentTotal)).toFixed(2))
+      // A confirmed integrity penalty's finalScore is the true official score
+      // (see docs/integrity-penalty-flow-trace.md §3) — plain rawScore +
+      // adjustmentTotal would export the pre-penalty number.
+      const integrityFinalScore = String(s.integrityReview?.status || '').toUpperCase() === 'CONFIRMED'
+        && s.integrityReview?.finalScore != null
+        ? this.toNumber(s.integrityReview.finalScore)
         : null;
+      const finalScore = integrityFinalScore != null
+        ? integrityFinalScore
+        : (rawScore != null
+          ? Number(Math.max(0, Math.min(10, rawScore + adjustmentTotal)).toFixed(2))
+          : null);
       const percentage = finalScore != null ? Number((finalScore * 10).toFixed(1)) : null;
       const passed = finalScore != null && passingScorePoint != null ? finalScore >= passingScorePoint : null;
       const durationMinutes = s.startedAt && s.submittedAt
@@ -5447,18 +5727,64 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       if (Array.isArray(parsed)) return parsed.length === 0 || parsed.every((item) => !String(item ?? '').trim());
       return typeof parsed === 'object' && Object.keys(parsed).length === 0;
     };
-    const displayAnswer = (raw: any, type: string, isCorrect: boolean | null, manualGradedAt: Date | null, points: number | null) => {
-      if (isBlank(raw)) return '—';
+    // Renders an answer/answerKey value as full, human-readable text (never
+    // truncated — the print PDF's detail section needs the actual content,
+    // not just a code letter) — reused for both the student's answer and the
+    // question's answerKey so "Trả lời" and "Đáp án đúng" go through the same
+    // formatting per question type.
+    const formatAnswerValue = (raw: any, type: string, options?: Record<string, string>): string => {
       const parsed = this.parseJsonValue(raw, raw);
-      let value = '';
-      if (type === 'ESSAY' || type === 'SHORT_ANSWER') value = manualGradedAt ? `TL ${Number(points || 0)}` : 'TL';
-      else if (Array.isArray(parsed)) value = parsed.map((item) => String(item ?? '').trim()).filter(Boolean).join(',');
-      else if (parsed && typeof parsed === 'object') {
-        const candidate = parsed.answer ?? parsed.answers;
-        value = Array.isArray(candidate) ? candidate.join(',') : candidate != null ? String(candidate) : Object.values(parsed).map(String).join(',');
-      } else value = String(parsed);
-      const marker = isCorrect === true || (manualGradedAt && Number(points || 0) > 0) ? '✓' : isCorrect === false ? '✕' : '';
-      return `${value.slice(0, 14)}${marker}`;
+      if (parsed === null || typeof parsed === 'undefined') return '';
+      const describeChoice = (code: any) => {
+        const letter = String(code ?? '').trim();
+        if (!letter) return '';
+        return options?.[letter] ? `${letter}. ${options[letter]}` : letter;
+      };
+      switch (type) {
+        case 'MULTIPLE_CHOICE':
+        case 'SINGLE_CHOICE': {
+          const candidate = Array.isArray(parsed) ? parsed : (parsed?.answer ?? parsed?.answers ?? parsed);
+          const letters = Array.isArray(candidate) ? candidate : [candidate];
+          return letters.map(describeChoice).filter(Boolean).join('; ');
+        }
+        case 'TRUE_FALSE': {
+          // Stored either as a lettered choice (matching answerKey's A/B) or
+          // as a literal boolean/"true"/"false" — normalize the latter so it
+          // doesn't print the raw JS value verbatim.
+          const candidate = Array.isArray(parsed) ? parsed[0] : (parsed?.answer ?? parsed?.answers ?? parsed);
+          const normalized = String(candidate ?? '').trim().toLowerCase();
+          if (normalized === 'true' || normalized === 'đúng') return 'Đúng';
+          if (normalized === 'false' || normalized === 'sai') return 'Sai';
+          return describeChoice(candidate);
+        }
+        case 'MATCHING': {
+          const pairs = Array.isArray(parsed?.pairs) ? parsed.pairs : Array.isArray(parsed) ? parsed : [];
+          return pairs
+            .map((pair: any) => `${pair?.left ?? ''} → ${pair?.right ?? ''}`)
+            .filter((line: string) => line !== ' → ')
+            .join('; ');
+        }
+        case 'ORDERING': {
+          const items = Array.isArray(parsed?.items) ? parsed.items : Array.isArray(parsed) ? parsed : [];
+          return items.map((item: any, index: number) => `${index + 1}. ${item}`).join('  ');
+        }
+        case 'FIND_ERROR': {
+          const answersList = Array.isArray(parsed?.answers) ? parsed.answers : Array.isArray(parsed) ? parsed : [parsed];
+          return answersList.filter(Boolean).join(', ');
+        }
+        case 'ESSAY':
+        case 'SHORT_ANSWER':
+          return typeof parsed === 'string' ? parsed : String(parsed?.answer ?? '');
+        default: {
+          if (typeof parsed === 'string') return parsed;
+          if (Array.isArray(parsed)) return parsed.join(', ');
+          if (parsed && typeof parsed === 'object') {
+            const candidate = parsed.answer ?? parsed.answers;
+            return Array.isArray(candidate) ? candidate.join(', ') : candidate != null ? String(candidate) : Object.values(parsed).map(String).join(', ');
+          }
+          return String(parsed);
+        }
+      }
     };
 
     return submissions.map((submission) => {
@@ -5487,7 +5813,38 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         answers: orderedQuestions.map((question: any, index: number) => {
           const key = question.questionSnapshotId ?? question.questionVersionId ?? question.questionId;
           const answer = answers.get(key);
-          return { position: index + 1, display: displayAnswer(answer?.answer, String(question.type || ''), answer?.isCorrect ?? null, answer?.manualGradedAt ?? null, answer?.pointsAwarded ?? null) };
+          const type = String(question.type || '');
+          const isEssayType = type === 'ESSAY' || type === 'SHORT_ANSWER';
+          const options = question.options && typeof question.options === 'object' ? question.options : undefined;
+          const graded = isEssayType ? Boolean(answer?.manualGradedAt) : true;
+          const pointsAwarded = answer?.pointsAwarded != null ? Number(answer.pointsAwarded) : null;
+          // isBlank() only sees the raw JSON shape (e.g. `{pairs: []}` has a
+          // key, so it isn't "blank" by that check alone) — the real test is
+          // whether formatting it produces anything to show at all, so the
+          // matrix/detail views don't render an empty "Trả lời:" as if the
+          // student had answered.
+          const rawBlank = isBlank(answer?.answer);
+          const studentAnswerText = rawBlank ? '' : formatAnswerValue(answer?.answer, type, options);
+          const blank = rawBlank || (!isEssayType && !studentAnswerText.trim());
+          // null = "not yet meaningfully gradable" (blank, or essay not graded
+          // yet) — distinct from `false` (graded and wrong), so the matrix
+          // and detail section can render a neutral "—"/"TL" instead of a red ✕.
+          const correct = blank ? null : isEssayType ? (graded ? pointsAwarded !== null && pointsAwarded > 0 : null) : (answer?.isCorrect ?? null);
+          const correctAnswerKey = question.answerKey ?? question.correctAnswer;
+          const correctAnswerText = !isEssayType && !isBlank(correctAnswerKey) ? formatAnswerValue(correctAnswerKey, type, options) : null;
+          return {
+            position: index + 1,
+            questionType: type,
+            questionStem: String(question.stem || question.content || '').trim(),
+            assignedScore: Number(question.assignedScore ?? question.points ?? 0),
+            pointsAwarded,
+            blank,
+            isEssay: isEssayType,
+            graded,
+            correct,
+            studentAnswerText: blank ? '' : studentAnswerText,
+            correctAnswerText,
+          };
         }),
       };
     });
@@ -5610,7 +5967,7 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       doc.fontSize(9).fillColor('#444');
       doc.text(`Mã bài thi: ${exam.id}`);
       doc.text(`Học phần: ${exam.courseCode ? `${exam.courseCode} - ${exam.courseName}` : exam.courseName || '-'}`);
-      doc.text(`Tổng điểm: ${exam.totalPoints ?? '-'}    Điểm đạt: ${exam.passingScorePoint != null ? exam.passingScorePoint.toFixed(1) + '/10' : '-'}`);
+      doc.text(`Tổng điểm: ${exam.totalPoints ?? '-'}    Điểm đạt: ${exam.passingScorePoint != null ? exam.passingScorePoint.toFixed(2) + '/10' : '-'}`);
       doc.text(`Kết quả đã công bố cho sinh viên: ${exam.resultsPublishedAt ? 'Có' : 'Chưa'}`);
       doc.text(`Tổng số lượt nộp bài: ${rows.length}    Điểm trung bình: ${avgScore != null ? avgScore.toFixed(2) : '-'}/10    Tỷ lệ đạt: ${rows.length ? Math.round((passedCount / rows.length) * 100) : 0}%`);
       doc.text(`Xuất lúc: ${new Date().toLocaleString('vi-VN')}`);
@@ -5689,22 +6046,72 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
 
       // Page two onward: per-student answer audit. A student's C1/C2 labels
       // deliberately follow their own randomized immutable snapshot; they are
-      // not cross-student question-comparison columns.
+      // not cross-student question-comparison columns. This is a compact
+      // overview (✓/✕ symbols only, colored) — the full unabridged answer
+      // text lives in the "Chi tiết đáp án" section further below.
       const maxQuestions = Math.max(0, ...detailedStudents.map((student) => student.answers.length));
-      const questionChunks = Array.from({ length: Math.ceil(maxQuestions / 20) }, (_, index) => ({ start: index * 20, end: Math.min(maxQuestions, (index + 1) * 20) }));
+      const idWidth = 78;
+      const nameWidth = 125;
+      const scoreWidth = 42;
+      // Sized from the fixed A4-landscape/28pt-margin geometry used below
+      // (not a live `doc.page` read, since no landscape page exists yet at
+      // this point) so the column count is chosen BEFORE any page is added —
+      // every chunk's total width is guaranteed to stay within the printable
+      // width, however many/few columns land in the last chunk.
+      const landscapeRight = 841.89 - 28;
+      const landscapeLeft = 28;
+      const availableForQuestions = landscapeRight - landscapeLeft - idWidth - nameWidth - scoreWidth;
+      const minQuestionColWidth = 22;
+      const maxQuestionColWidth = 40;
+      // One fixed column width for the whole export (not recomputed per
+      // chunk) — otherwise a short exam's 7 questions would each stretch to
+      // fill the row (huge gaps between C1/C2/...), while a long exam's
+      // columns would still divide evenly but far too wide for the last,
+      // smaller chunk. Instead: shrink as the question count grows, floor at
+      // minQuestionColWidth (still legible), cap at maxQuestionColWidth (so
+      // a handful of questions doesn't spread out unreasonably either).
+      const questionColWidth = Math.min(
+        maxQuestionColWidth,
+        Math.max(minQuestionColWidth, availableForQuestions / Math.max(1, maxQuestions)),
+      );
+      const maxColsPerPage = Math.max(1, Math.floor(availableForQuestions / questionColWidth));
+      const questionChunks = Array.from({ length: Math.ceil(maxQuestions / maxColsPerPage) }, (_, index) => ({
+        start: index * maxColsPerPage,
+        end: Math.min(maxQuestions, (index + 1) * maxColsPerPage),
+      }));
+      // Same 4-band score-ratio scheme as the web "Ma trận đáp án" dialog
+      // (getExamAnswerMatrix) — a manually-graded essay is essentially never
+      // a clean right/wrong, so it never collapses into ✓/✕; it always
+      // prints as "TL" (the one consistent symbol for "graded on a scale"),
+      // colored by how much of the question's points were actually earned.
+      const essayTierColor = (ratio: number): string =>
+        ratio >= 0.75 ? '#16a34a' : ratio >= 0.5 ? '#65a30d' : ratio >= 0.25 ? '#ea580c' : '#dc2626';
+      const matrixCell = (answer: (typeof detailedStudents)[number]['answers'][number] | undefined): { symbol: string; color: string } => {
+        if (!answer || answer.blank) return { symbol: '—', color: '#999' };
+        if (answer.isEssay) {
+          if (!answer.graded) return { symbol: 'TL', color: '#b45309' };
+          const ratio = answer.assignedScore > 0 ? (answer.pointsAwarded ?? 0) / answer.assignedScore : ((answer.pointsAwarded ?? 0) > 0 ? 1 : 0);
+          return { symbol: 'TL', color: essayTierColor(ratio) };
+        }
+        if (answer.correct === true) return { symbol: '✓', color: '#16a34a' };
+        if (answer.correct === false) return { symbol: '✕', color: '#dc2626' };
+        // Answered, but this question type has no fixed answer key to check
+        // against (e.g. điền-vào-chỗ-trống without an exact-match key) — a
+        // real answer exists, just not auto-verdictable, so it must read
+        // differently from "—" (truly no answer) or a lecturer scanning the
+        // matrix would mistake "answered but ungraded" for "skipped".
+        return { symbol: '•', color: '#2563eb' };
+      };
       for (const chunk of questionChunks) {
         doc.addPage({ size: 'A4', layout: 'landscape', margin: 28 });
         const left = doc.page.margins.left;
         const top = doc.page.margins.top;
         const right = doc.page.width - doc.page.margins.right;
         const rowH = 18;
-        const idWidth = 78;
-        const nameWidth = 125;
-        const scoreWidth = 42;
-        const questionWidth = (right - left - idWidth - nameWidth - scoreWidth) / Math.max(1, chunk.end - chunk.start);
+        const questionWidth = questionColWidth;
         const matrixHeader = (pageY: number) => {
           doc.font('VN-Bold').fontSize(12).fillColor('#000').text('Ma trận phương án thí sinh đã chọn', left, pageY);
-          doc.font('VN').fontSize(8).fillColor('#555').text(`C${chunk.start + 1}–C${chunk.end}: thứ tự câu hỏi trong đề riêng của từng thí sinh. ✓ đúng · ✕ sai · — không trả lời · TL tự luận`, left, pageY + 16);
+          doc.font('VN').fontSize(8).fillColor('#555').text(`C${chunk.start + 1}–C${chunk.end}: thứ tự câu hỏi trong đề riêng của từng thí sinh. ✓ đúng (xanh) · ✕ sai (đỏ) · • đã trả lời, chưa có kết quả tự động (xanh dương) · — không trả lời · TL tự luận: cam = chưa chấm, còn lại tô theo % điểm đạt được (xanh lá ≥75% → xanh chuối 50–74% → cam đậm 25–49% → đỏ <25%). Đáp án chi tiết ở phần sau.`, left, pageY + 16, { width: right - left });
           let x = left;
           const headers = ['MSSV', 'Họ và tên', ...Array.from({ length: chunk.end - chunk.start }, (_, index) => `C${chunk.start + index + 1}`), 'Điểm'];
           const widths = [idWidth, nameWidth, ...Array(chunk.end - chunk.start).fill(questionWidth), scoreWidth];
@@ -5716,10 +6123,89 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         let matrix = matrixHeader(top);
         for (const student of detailedStudents) {
           if (matrix.y + rowH > doc.page.height - doc.page.margins.bottom) { doc.addPage({ size: 'A4', layout: 'landscape', margin: 28 }); matrix = matrixHeader(doc.page.margins.top); }
-          const values = [student.studentId, student.studentName, ...Array.from({ length: chunk.end - chunk.start }, (_, index) => student.answers[chunk.start + index]?.display || '—'), student.score != null ? student.score.toFixed(2) : '-'];
-          let x = left; doc.font('VN').fontSize(7).fillColor('#000');
-          values.forEach((value, index) => { doc.text(String(value), x + 2, matrix.y + 5, { width: matrix.widths[index] - 4, align: index >= 2 ? 'center' : 'left', ellipsis: true }); x += matrix.widths[index]; });
+          let x = left;
+          doc.font('VN').fontSize(7).fillColor('#000');
+          doc.text(student.studentId, x + 2, matrix.y + 5, { width: matrix.widths[0] - 4, ellipsis: true });
+          x += matrix.widths[0];
+          doc.text(student.studentName, x + 2, matrix.y + 5, { width: matrix.widths[1] - 4, ellipsis: true });
+          x += matrix.widths[1];
+          for (let index = chunk.start; index < chunk.end; index++) {
+            const { symbol, color } = matrixCell(student.answers[index]);
+            doc.fillColor(color).text(symbol, x + 2, matrix.y + 5, { width: matrix.widths[2 + (index - chunk.start)] - 4, align: 'center' });
+            x += matrix.widths[2 + (index - chunk.start)];
+          }
+          doc.fillColor('#000').text(student.score != null ? student.score.toFixed(2) : '-', x + 2, matrix.y + 5, { width: matrix.widths[matrix.widths.length - 1] - 4, align: 'center' });
           matrix.y += rowH;
+        }
+      }
+
+      // Full per-student, per-question answer detail — unabridged text (the
+      // matrix above only shows a ✓/✕/TL symbol per cell), so "what did they
+      // actually write/pick" and "what was the correct answer" are readable.
+      if (detailedStudents.length) {
+        const QUESTION_TYPE_LABELS_VI: Record<string, string> = {
+          MULTIPLE_CHOICE: 'Trắc nghiệm nhiều lựa chọn',
+          SINGLE_CHOICE: 'Một lựa chọn',
+          TRUE_FALSE: 'Đúng / Sai',
+          FILL_IN_BLANK: 'Điền vào chỗ trống',
+          MATCHING: 'Ghép đôi',
+          ORDERING: 'Sắp xếp thứ tự',
+          FIND_ERROR: 'Tìm lỗi sai',
+          ESSAY: 'Tự luận',
+          SHORT_ANSWER: 'Trả lời ngắn',
+        };
+        doc.addPage({ size: 'A4', margin: 40 });
+        let dy = doc.page.margins.top;
+        const dLeft = doc.page.margins.left;
+        const dWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const ensureSpace = (neededHeight: number) => {
+          if (dy + neededHeight > doc.page.height - doc.page.margins.bottom) {
+            doc.addPage({ size: 'A4', margin: 40 });
+            dy = doc.page.margins.top;
+          }
+        };
+        const drawWrapped = (text: string, options: { fontKey: string; size: number; color: string }) => {
+          doc.font(options.fontKey).fontSize(options.size);
+          const height = doc.heightOfString(text, { width: dWidth });
+          ensureSpace(height + 4);
+          doc.fillColor(options.color).text(text, dLeft, dy, { width: dWidth });
+          dy += height + 4;
+        };
+
+        doc.font('VN-Bold').fontSize(13).fillColor('#000').text('Chi tiết đáp án theo từng thí sinh', dLeft, dy);
+        dy += 22;
+
+        for (const student of detailedStudents) {
+          ensureSpace(24);
+          doc.moveTo(dLeft, dy).lineTo(dLeft + dWidth, dy).strokeColor('#ccc').stroke();
+          dy += 6;
+          drawWrapped(
+            `${student.studentId} — ${student.studentName} (Lượt ${student.attemptNo}) — Điểm: ${student.score != null ? student.score.toFixed(2) : '-'}/10`,
+            { fontKey: 'VN-Bold', size: 10, color: '#000' },
+          );
+          for (const answer of student.answers) {
+            const typeLabel = QUESTION_TYPE_LABELS_VI[answer.questionType] || answer.questionType;
+            drawWrapped(`Câu ${answer.position} (${typeLabel} · ${answer.assignedScore} điểm)`, { fontKey: 'VN-Bold', size: 9, color: '#333' });
+            if (answer.questionStem) drawWrapped(answer.questionStem, { fontKey: 'VN', size: 9, color: '#000' });
+            const answerColor = answer.blank
+              ? '#999'
+              : answer.isEssay
+                ? (answer.graded
+                    ? essayTierColor(answer.assignedScore > 0 ? (answer.pointsAwarded ?? 0) / answer.assignedScore : ((answer.pointsAwarded ?? 0) > 0 ? 1 : 0))
+                    : '#b45309')
+                : answer.correct === true ? '#16a34a' : answer.correct === false ? '#dc2626' : '#2563eb';
+            const answerLine = answer.blank
+              ? 'Trả lời: (không trả lời)'
+              : answer.isEssay
+                ? `Trả lời: ${answer.studentAnswerText}${answer.graded ? ` (${answer.pointsAwarded ?? 0}/${answer.assignedScore} điểm)` : ' (chưa chấm)'}`
+                : `Trả lời: ${answer.studentAnswerText}`;
+            drawWrapped(answerLine, { fontKey: 'VN', size: 9, color: answerColor });
+            if (answer.correctAnswerText && answer.correct !== true) {
+              drawWrapped(`Đáp án đúng: ${answer.correctAnswerText}`, { fontKey: 'VN', size: 9, color: '#16a34a' });
+            }
+            dy += 4;
+          }
+          dy += 8;
         }
       }
 
@@ -5727,11 +6213,19 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
       for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
         doc.switchToPage(i);
         const pageNumber = i - pageRange.start + 1;
+        // The footer sits a few points below the content margin, in the
+        // page's own margin gutter — that y is past page.maxY() (height -
+        // margins.bottom), so pdfkit's automatic overflow check in `.text()`
+        // (it compares against maxY before drawing anything) treats it as
+        // "doesn't fit" and silently inserts a whole new blank page to hold
+        // it, once per existing page, before the footer is drawn on THAT new
+        // page instead. `height` gives this call its own maxY (startY +
+        // height) so that check never fires for this one short footer line.
         doc.font('VN').fontSize(7).fillColor('#888').text(
           `Trang ${pageNumber}/${pageRange.count}`,
           doc.page.margins.left,
           doc.page.height - doc.page.margins.bottom + 12,
-          { width: doc.page.width - doc.page.margins.left - doc.page.margins.right, align: 'right' },
+          { width: doc.page.width - doc.page.margins.left - doc.page.margins.right, align: 'right', height: 20 },
         );
       }
 
@@ -5785,13 +6279,15 @@ export class SubmissionsService implements OnModuleInit, OnModuleDestroy {
         },
         scoreAdjustments: {
           where: { revokedAt: null },
-          select: { amount: true },
+          select: { id: true, amount: true, category: true, reason: true, createdAt: true },
         },
         integrityReview: {
           select: {
             status: true,
             reviewerNote: true,
+            penaltyMode: true,
             penaltyPercent: true,
+            penaltyAmount: true,
             academicScore: true,
             deductedScore: true,
             finalScore: true,

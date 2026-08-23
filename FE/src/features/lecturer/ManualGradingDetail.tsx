@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
-import { formatManualAnswer } from "./manual-grading-formatters";
+import { formatManualAnswer, formatSignedScoreAdjustment, getScoreAdjustmentCategoryLabel } from "./manual-grading-formatters";
+import { ContextHelp } from "@/components/common/ContextHelp";
 
 function toDisplayText(value: any): string {
   if (value == null) return "Chưa nộp câu trả lời";
@@ -184,27 +185,20 @@ export default function ManualGradingDetail() {
     try {
       setSavingId(answer.id);
       const updated = await api.gradeAnswer(answer.id, points, draft?.feedback || "");
-      const savedDraft = {
-        pointsAwarded: toSavedPoints(updated.pointsAwarded),
-        feedback: normalizeFeedback(updated.feedback),
-      };
-      setSubmission((current: any) => ({
-        ...current,
-        manualAnswers: (current?.manualAnswers || []).map((item: any) =>
-          item.id === answer.id
-            ? {
-                ...item,
-                pointsAwarded: updated.pointsAwarded,
-                manualGradedAt: updated.manualGradedAt,
-                feedback: updated.feedback || "",
-              }
-            : item,
-        ),
-      }));
+      // Update this field's draft immediately from the response so the input
+      // reflects the saved value without waiting on the refetch below, then
+      // reload everything else — grading a manual answer can change the
+      // submission's overall score, adjustment totals, and (if a penalty is
+      // confirmed) the integrity review numbers, none of which a local patch
+      // of just this one answer would pick up.
       setDrafts((current) => ({
         ...current,
-        [answer.id]: savedDraft,
+        [answer.id]: {
+          pointsAwarded: toSavedPoints(updated.pointsAwarded),
+          feedback: normalizeFeedback(updated.feedback),
+        },
       }));
+      await refreshSubmission();
       toast.success("Đã lưu điểm chấm thủ công.");
     } catch (err: any) {
       toast.error(err?.message || "Không thể lưu điểm.");
@@ -250,8 +244,8 @@ export default function ManualGradingDetail() {
       toast.error("Nhập số điểm điều chỉnh khác 0.");
       return;
     }
-    if (adjustmentReason.trim().length < 3) {
-      toast.error("Cần ghi rõ lý do điều chỉnh điểm.");
+    if (adjustmentCategory === "OTHER" && adjustmentReason.trim().length < 3) {
+      toast.error("Cần ghi rõ lý do khi chọn loại 'Khác'.");
       return;
     }
     try {
@@ -360,27 +354,47 @@ export default function ManualGradingDetail() {
               <CardContent className="space-y-4">
                 <div className="grid gap-3 md:grid-cols-[140px_190px_1fr_auto] md:items-end">
                   <div>
-                    <label className="text-sm font-medium">Điểm +/-</label>
+                    <label className="flex items-center gap-1 text-sm font-medium">
+                      Điểm +/-
+                      <ContextHelp content="Nhập số dương để cộng thêm điểm, số âm để trừ điểm. Đây chỉ là một khoản điều chỉnh cộng dồn — không đổi điểm gốc/đáp án đã chấm." />
+                    </label>
                     <Input className="mt-2" type="number" step="0.01" min={-10} max={10} value={adjustmentAmount} onChange={(event) => setAdjustmentAmount(event.target.value)} />
                   </div>
                   <div>
-                    <label className="text-sm font-medium">Loại</label>
+                    <label className="flex items-center gap-1 text-sm font-medium">
+                      Loại
+                      <ContextHelp content="Chỉ là nhãn phân loại để tra cứu/báo cáo sau này — hệ thống không tự kiểm tra đúng/sai, giảng viên tự xác định và ghi rõ trong ô Lý do bên cạnh. 'Lỗi đề thi': câu hỏi/đáp án trong đề bị phát hiện sai sau khi đã chấm. 'Điểm cộng thêm': điểm thưởng ngoài bài thi (phát biểu, tham gia...)." />
+                    </label>
                     <select className="mt-2 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={adjustmentCategory} onChange={(event) => setAdjustmentCategory(event.target.value as typeof adjustmentCategory)}>
-                      <option value="QUESTION_ERROR">Câu hỏi sai</option>
-                      <option value="PARTICIPATION">Điểm phát biểu</option>
-                      <option value="OTHER">Khác</option>
+                      <option value="QUESTION_ERROR">{getScoreAdjustmentCategoryLabel("QUESTION_ERROR")}</option>
+                      <option value="PARTICIPATION">{getScoreAdjustmentCategoryLabel("PARTICIPATION")}</option>
+                      <option value="OTHER">{getScoreAdjustmentCategoryLabel("OTHER")}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-sm font-medium">Lý do bắt buộc</label>
+                    <label className="text-sm font-medium">Lý do{adjustmentCategory === "OTHER" ? " (bắt buộc)" : " (tùy chọn)"}</label>
                     <Input className="mt-2" value={adjustmentReason} onChange={(event) => setAdjustmentReason(event.target.value)} placeholder="Ví dụ: Câu 4 có hai đáp án đúng, cộng 0.5 điểm" />
                   </div>
                   <Button className="gap-2" onClick={createAdjustment} disabled={isAdjusting}>
                     {isAdjusting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Điều chỉnh
                   </Button>
                 </div>
-                <div className="rounded-lg border border-indigo-100 bg-white/80 p-3 text-sm">
-                  Điểm gốc: <strong>{Number(submission?.academicScore ?? submission?.score ?? 0).toFixed(2)}</strong> · Điều chỉnh đang hiệu lực: <strong>{Number(submission?.activeAdjustmentTotal ?? 0).toFixed(2)}</strong> · Điểm học thuật sau điều chỉnh: <strong>{Number(submission?.adjustedAcademicScore ?? submission?.score ?? 0).toFixed(2)}</strong>/10
+                <div className="space-y-1.5 rounded-lg border border-indigo-100 bg-white/80 p-3 text-sm">
+                  <div>
+                    Điểm gốc: <strong>{Number(submission?.academicScore ?? submission?.score ?? 0).toFixed(2)}</strong> · Điều chỉnh đang hiệu lực: <strong>{Number(submission?.activeAdjustmentTotal ?? 0).toFixed(2)}</strong> · Điểm học thuật sau điều chỉnh: <strong>{Number(submission?.adjustedAcademicScore ?? submission?.score ?? 0).toFixed(2)}</strong>/10
+                  </div>
+                  {submission?.integrityReview?.status === 'CONFIRMED' && submission?.integrityReview?.penaltyMode ? (
+                    <div className="text-destructive">
+                      <div>
+                        Điểm bị trừ do vi phạm toàn vẹn: <strong>{Number(submission.integrityReview.penaltyMode === 'FIXED' ? (submission.integrityReview.penaltyAmount ?? submission.integrityReview.deductedScore ?? 0) : (submission.integrityReview.deductedScore ?? 0)).toFixed(2)}</strong>
+                        {submission.integrityReview.penaltyMode === 'PERCENT' ? ` (${submission.integrityReview.penaltyPercent}%)` : ""}
+                        {" "}— điểm cuối: <strong>{Number(submission.integrityReview.finalScore ?? 0).toFixed(2)}</strong>/10
+                      </div>
+                      {submission.integrityReview.reviewerNote ? (
+                        <div className="mt-0.5">Lý do: {submission.integrityReview.reviewerNote}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 {(submission?.scoreAdjustments || []).length > 0 ? (
                   <div className="space-y-2">
@@ -393,8 +407,8 @@ export default function ManualGradingDetail() {
                         >
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <strong className={revoked ? "text-muted-foreground line-through" : Number(adjustment.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}>{Number(adjustment.amount) >= 0 ? "+" : ""}{Number(adjustment.amount).toFixed(2)}</strong>
-                              <span>{adjustment.category}</span>
+                              <strong className={revoked ? "text-muted-foreground line-through" : Number(adjustment.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}>{formatSignedScoreAdjustment(Number(adjustment.amount))}</strong>
+                              <span>{getScoreAdjustmentCategoryLabel(adjustment.category)}</span>
                               <span className="text-muted-foreground">·</span>
                               <span>{adjustment.reason}</span>
                               {revoked ? (

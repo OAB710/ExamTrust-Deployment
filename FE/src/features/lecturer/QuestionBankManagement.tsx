@@ -115,6 +115,7 @@ import {
 } from "./question-bank-filters";
 import { useQuestionBankData } from "./hooks/useQuestionBankData";
 import { useQuestionBankRouteState } from "./hooks/useQuestionBankRouteState";
+import { saveQuestionEditorNavList } from "./question-editor-utils";
 
 const QUESTION_DRAFT_STORAGE_KEY = "question-draft";
 
@@ -226,6 +227,10 @@ function normalizeCorrectAnswer(
   if (typeof raw === "object" && raw !== null) {
     const obj = raw as Record<string, unknown>;
     if (obj.optionId) return [String(obj.optionId)];
+    // Format: { answers: ["B", "C"] } — used by FIND_ERROR (see
+    // question-editor-persistence.ts and submissions.service.ts's
+    // findErrorLineSet, both of which read this plural array key).
+    if (Array.isArray(obj.answers)) return obj.answers.map((v) => String(v ?? ""));
     // Format: { answer: "B" } or { answer: "A,B,C" }
     if ("answer" in obj && obj.answer !== undefined && obj.answer !== null) {
       const ans = typeof obj.answer === "object" ? JSON.stringify(obj.answer) : String(obj.answer);
@@ -1446,6 +1451,7 @@ export default function QuestionBankManagement() {
                               <ContextHelp content="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích." />
                             </div>
                           </TableHead>
+                          <TableHead className="w-24 text-center">Trọng số</TableHead>
                           <TableHead className="w-32 text-center">Thao tác</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1487,6 +1493,9 @@ export default function QuestionBankManagement() {
                                   {diff.text}
                                 </span>
                               </TableCell>
+                              <TableCell className="text-center text-sm">
+                                {question.points ?? 1}
+                              </TableCell>
                               <TableCell className="text-center">
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
@@ -1517,11 +1526,12 @@ export default function QuestionBankManagement() {
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                       className="gap-2 text-xs"
-                                      onClick={() =>
+                                      onClick={() => {
+                                        saveQuestionEditorNavList(filtered.map((item) => item.id));
                                         router.push(
                                           `${questionEditorPath}?id=${question.id}&courseCode=${selectedCourse}`,
-                                        )
-                                      }
+                                        );
+                                      }}
                                     >
                                       <Edit2 className="h-4 w-4" />
                                       Sửa

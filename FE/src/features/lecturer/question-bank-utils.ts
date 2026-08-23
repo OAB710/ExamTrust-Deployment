@@ -83,6 +83,8 @@ export function normalizeCorrectAnswer(correctAnswer: unknown): string[] {
   if (typeof raw === "object") {
     const value = raw as Record<string, unknown>;
     if (value.optionId) return [String(value.optionId)];
+    // Format: { answers: ["B", "C"] } — used by FIND_ERROR.
+    if (Array.isArray(value.answers)) return value.answers.map((a) => String(a ?? ""));
     if (value.answer != null) {
       const ans = typeof value.answer === "object" ? JSON.stringify(value.answer) : String(value.answer);
       return ans.split(",").map((a) => a.trim());

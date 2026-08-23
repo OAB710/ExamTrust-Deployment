@@ -884,6 +884,13 @@ export default function ExamTaking() {
   // moments apart, before the other has updated monitorBaselineRef.
   const monitorLastReportedAtRef = useRef(0);
   const MONITOR_REPORT_COOLDOWN_MS = 10_000;
+  // Previously only an INCREASE over baseline was ever reported — a student
+  // who already had a second monitor plugged in before starting (and never
+  // touched it again) set baseline > 1 on the very first measurement and was
+  // never flagged at all. This guards a one-time report of that starting
+  // state, separate from "multi_monitor_detected" (which specifically means
+  // a monitor was added mid-exam — a distinct, more suspicious signal).
+  const initialMultiMonitorReportedRef = useRef(false);
   useEffect(() => {
     if (isPreviewMode) return;
     let cancelled = false;
@@ -901,6 +908,14 @@ export default function ExamTaking() {
       debugLog("count check", { count, source, baseline: monitorBaselineRef.current });
       if (monitorBaselineRef.current === null) {
         monitorBaselineRef.current = count;
+        if (count > 1 && !initialMultiMonitorReportedRef.current) {
+          initialMultiMonitorReportedRef.current = true;
+          debugLog("multiple screens already present at start — persisting", { count });
+          persistIntegrityEvent(
+            "multi_monitor_at_start",
+            `Phát hiện đang dùng ${count} màn hình ngay khi bắt đầu làm bài`,
+          );
+        }
         return;
       }
       if (examSessionStatusRef.current !== "IN_PROGRESS") return;

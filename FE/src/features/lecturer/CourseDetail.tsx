@@ -189,7 +189,7 @@ const completedSubmissionStatuses = new Set([
 // consistency with ExamResultsList/ExamMonitor's avgScorePct.
 const formatPercent = (value: number | null) => {
   if (value === null || !Number.isFinite(value)) return "Chưa có dữ liệu";
-  return `${(value / 10).toFixed(1)}/10`;
+  return `${(value / 10).toFixed(2)}/10`;
 };
 
 const formatDateTime = (value: string | null) => {

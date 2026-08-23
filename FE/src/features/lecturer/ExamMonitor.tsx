@@ -290,7 +290,7 @@ const mapEventTypeToAlertType = (
   const key = String(eventType || "").toLowerCase();
   if (key === "tab_switch") return "tab_switch";
   if (key.startsWith("fullscreen") || key === "blur" || key === "window_blur" || key === "focus") return "fullscreen";
-  if (key.startsWith("camera") || key.startsWith("screen_share") || key === "face_not_detected" || key === "multi_monitor_detected") return "camera";
+  if (key.startsWith("camera") || key.startsWith("screen_share") || key === "face_not_detected" || key === "multi_monitor_detected" || key === "multi_monitor_at_start") return "camera";
   if (key === "copy" || key === "paste" || key === "paste_external") return "copy_paste";
   if (key.startsWith("mouse")) return "mouse";
   return "other";
@@ -1901,7 +1901,7 @@ export default function ExamMonitor() {
                       {(
                         submittedScores.reduce((a, b) => a + b, 0) /
                           submittedScores.length
-                      ).toFixed(1)}/10
+                      ).toFixed(2)}/10
                     </p>
                   </div>
                   <div className="rounded-lg border border-border/70 p-3">
@@ -1909,7 +1909,7 @@ export default function ExamMonitor() {
                       Cao nhất
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-green-600">
-                      {Math.max(...submittedScores).toFixed(1)}/10
+                      {Math.max(...submittedScores).toFixed(2)}/10
                     </p>
                   </div>
                   <div className="rounded-lg border border-border/70 p-3">
@@ -1917,7 +1917,7 @@ export default function ExamMonitor() {
                       Thấp nhất
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-red-600">
-                      {Math.min(...submittedScores).toFixed(1)}/10
+                      {Math.min(...submittedScores).toFixed(2)}/10
                     </p>
                   </div>
                 </div>

@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, Calculator, CheckCircle2, Clock3, Cpu, Image as ImageIcon, Loader2, MessageSquare, Music, RefreshCw, ShieldCheck, User, XCircle } from "lucide-react";
-import { formatManualAnswer } from "@/features/lecturer/manual-grading-formatters";
+import { AlertTriangle, Calculator, CheckCircle2, Clock3, Cpu, FileEdit, Image as ImageIcon, Loader2, MessageSquare, Music, RefreshCw, ShieldCheck, User, XCircle } from "lucide-react";
+import { formatManualAnswer, formatSignedScoreAdjustment, getScoreAdjustmentCategoryLabel } from "@/features/lecturer/manual-grading-formatters";
+import { ContextHelp } from "@/components/common/ContextHelp";
 
 type Question = {
   id: string;
@@ -24,6 +25,7 @@ type Question = {
   maxPoints: number;
   isCorrect: boolean;
   isGraded: boolean;
+  revealed: boolean;
   feedback?: string;
   explanation?: string;
   mediaType?: "image" | "audio" | null;
@@ -53,9 +55,9 @@ function MediaBadge({ mediaType }: { mediaType?: "image" | "audio" | null }) {
   return null;
 }
 
-// Student-facing scores use one decimal place. The underlying score keeps its
-// full precision; rounding happens only at presentation time.
-const formatPoints = (value: number) => Number(value || 0).toFixed(1);
+// Two decimal places to match the score format used everywhere else in the
+// app (lecturer results list, student results, exam analytics).
+const formatPoints = (value: number) => Number(value || 0).toFixed(2);
 
 function textValue(value: unknown): string {
   if (value == null) return "";
@@ -161,6 +163,10 @@ export default function GradingBreakdown() {
       maxPoints: Number(answer.maxPoints ?? question.points ?? 0),
       isCorrect: Boolean(answer.isCorrect),
       isGraded: Boolean(answer.manualGradedAt),
+      // The server strips pointsAwarded to `undefined` when this question's
+      // score isn't revealed yet (pending publish, or pending manual grading) —
+      // distinguish that from an actual, revealed score of 0.
+      revealed: typeof answer.pointsAwarded === "number",
       type: answer.gradingMode === "MANUAL" ? "manual" : "auto",
       feedback: answer.feedback || undefined,
       explanation: question.explanation || undefined,
@@ -195,9 +201,44 @@ export default function GradingBreakdown() {
   const showCorrectAnswers = resultsPublished && (afterReview ? Boolean(afterReview.showAnswers) : true);
   const showFeedback = resultsPublished && (afterReview ? Boolean(afterReview.showFeedback) : true);
   const autoCorrect = autoQuestions.filter((question) => question.isCorrect).length;
-  const integrityPenalty = submission?.integrityReview?.status === 'CONFIRMED' && submission?.integrityReview?.penaltyPercent
+  // Defaults true when the server hasn't sent the field at all (older cached
+  // response shape) — the lecturer setting itself defaults to "allowed" too.
+  const canReviewAnswers = submission?.canReviewAnswers !== false;
+  // Provisional score is computed server-side from the raw (unscrubbed) auto-gradable
+  // answers — client-side sums are wrong pre-publish because pointsAwarded/isGraded
+  // are stripped from the response, defaulting to 0/false (see the icon-fix note below).
+  const provisionalScore = typeof submission?.provisionalScore === "number" ? submission.provisionalScore : null;
+  const pendingManualCount = Number.isFinite(submission?.pendingManualCount) ? submission.pendingManualCount : manualPending;
+  // True once the auto-gradable questions' correctness/score are actually
+  // visible in `questions` (either results are officially published, or the
+  // lecturer turned on immediate results and the server revealed the
+  // auto-graded subset early — see submissions.service.ts autoProvisionalReveal).
+  const autoRevealed = resultsPublished || autoQuestions.some((question) => question.revealed);
+  const integrityConfirmed = submission?.integrityReview?.status === 'CONFIRMED';
+  // BE nulls out penaltyMode/deductedScore/finalScore etc. pre-publish (see
+  // sanitizeStudentSubmissionView) — so a non-null penaltyMode here means the
+  // deduction amounts are actually visible right now (i.e. results are
+  // published), regardless of PERCENT vs FIXED mode.
+  const integrityPenalty = integrityConfirmed && submission?.integrityReview?.penaltyMode
     ? submission.integrityReview
     : null;
+  // The decision + its reason are shown regardless of publish status — only
+  // the score impact waits for publish.
+  const integrityPendingReason = integrityConfirmed && !integrityPenalty && !resultsPublished
+    ? submission?.integrityReview?.reviewerNote
+    : null;
+  // BE returns an empty array pre-publish (same reasoning as the integrity
+  // penalty numbers above) — these are post-hoc score corrections, part of
+  // the official grade, so they only appear once results are published.
+  const scoreAdjustments: any[] = Array.isArray(submission?.scoreAdjustments) ? submission.scoreAdjustments : [];
+  // `submission.score` (when present) is the server's authoritative final
+  // score — it already folds in scoreAdjustments and, if confirmed,
+  // integrityReview.finalScore (see sanitizeStudentSubmissionView's
+  // `adjustedScore`). The client-side totalScoreOnTen sum below only adds up
+  // per-question points and would silently disagree with it (e.g. never
+  // reflecting an integrity penalty), so prefer the server value whenever
+  // it's available and fall back to the local sum only pre-publish.
+  const finalScoreOnTen = typeof submission?.score === "number" ? submission.score : totalScoreOnTen;
 
   if (!examId && !submissionId) return <DashboardLayout><div className="mx-auto max-w-5xl py-20 text-center"><h1 className="text-lg font-medium">Chưa chọn bài thi</h1><p className="mt-2 text-sm text-muted-foreground">Mở kết quả của một bài thi để xem chi tiết chấm điểm.</p><BackToDashboardButton to="/student/results" className="mt-5" /></div></DashboardLayout>;
 
@@ -217,29 +258,41 @@ export default function GradingBreakdown() {
     {loading ? <div className="py-20 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></div> : <div className="mt-6 space-y-6">
       <div className="flex flex-wrap gap-2"><Badge variant={gradingComplete ? "default" : "secondary"}>{gradingComplete ? "Đã hoàn tất chấm" : `Đã chấm tự động · Chờ giảng viên chấm ${manualPending} câu`}</Badge>{manualQuestions.length > 0 ? <Badge variant="outline">Chấm thủ công: {manualGraded}/{manualQuestions.length} câu</Badge> : null}</div>
 
+      {resultsPublished ? (
+        <Card className="border-emerald-500/30 bg-emerald-500/5"><CardContent className="flex items-start gap-3 pt-6"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><div><p className="font-medium text-emerald-700 dark:text-emerald-400">Kết quả đã được công bố</p><p className="mt-1 text-sm text-muted-foreground">Điểm và các thông tin bên dưới là kết quả chính thức. Nếu giảng viên chấm lại một câu tự luận, điểm sẽ được cập nhật ngay khi bạn làm mới trang.</p></div></CardContent></Card>
+      ) : autoRevealed ? (
+        <Card className="border-amber-500/30 bg-amber-500/5"><CardContent className="flex items-start gap-3 pt-6"><Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" /><div><p className="font-medium text-amber-700 dark:text-amber-400">Điểm tạm tính — chưa công bố chính thức</p><p className="mt-1 text-sm text-muted-foreground">Các câu chấm tự động đã hiện đúng/sai và điểm bên dưới. Còn {pendingManualCount} câu tự luận/chấm tay chưa chấm — điểm tổng (<span className="font-semibold text-foreground">{formatPoints(provisionalScore ?? 0)} / 10</span> tạm tính) CHƯA phải điểm cuối cùng và có thể thay đổi. Đáp án đúng và nhận xét vẫn được giữ kín cho tới khi giảng viên công bố kết quả chính thức.</p></div></CardContent></Card>
+      ) : (
+        <Card className="border-amber-500/30 bg-amber-500/5"><CardContent className="flex items-start gap-3 pt-6"><Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" /><div><p className="font-medium text-amber-700 dark:text-amber-400">Kết quả chưa được công bố</p><p className="mt-1 text-sm text-muted-foreground">Giảng viên chưa công bố kết quả bài thi này. Điểm, đáp án đúng/sai và nhận xét bên dưới hiện chưa hiển thị — làm mới trang sau khi giảng viên công bố để xem kết quả chính thức.</p></div></CardContent></Card>
+      )}
+
       <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Calculator className="h-5 w-5 text-primary" />Tổng quan điểm</CardTitle><CardDescription>Tất cả điểm tổng hợp được quy đổi về thang 10; cột điểm của câu chấm tự động cũng hiển thị theo thang này.</CardDescription></CardHeader><CardContent><div className="grid gap-4 sm:grid-cols-3">
-        <ScoreCard icon={<Cpu className="h-5 w-5" />} tone="blue" label="Phần chấm tự động" score={autoScoreOnTen} max={autoMaxOnTen} detail={`${autoQuestions.length} câu hỏi · quy đổi thang 10`} />
-        <ScoreCard icon={<User className="h-5 w-5" />} tone="violet" label="Phần chấm thủ công" score={manualScoreOnTen} max={manualMaxOnTen} detail={manualPending ? `Chờ giảng viên chấm ${manualPending} câu · quy đổi thang 10` : `Đã chấm ${manualGraded} câu · quy đổi thang 10`} />
-        <ScoreCard icon={<Calculator className="h-5 w-5" />} tone="primary" label={gradingComplete ? "Điểm cuối cùng" : "Điểm tạm tính"} score={totalScoreOnTen} max={10} detail={gradingComplete ? "Đã quy đổi theo thang 10" : "Sẽ cập nhật sau khi hoàn tất chấm"} />
+        <ScoreCard icon={<Cpu className="h-5 w-5" />} tone="blue" label="Phần chấm tự động" help="Điểm của các câu hệ thống tự động chấm ngay khi nộp bài: trắc nghiệm, nhiều đáp án, đúng/sai, tìm lỗi sai, ghép đôi, sắp xếp." score={autoScoreOnTen} max={autoMaxOnTen} detail={`${autoQuestions.length} câu hỏi · quy đổi thang 10`} />
+        <ScoreCard icon={<User className="h-5 w-5" />} tone="violet" label="Phần chấm thủ công" help="Điểm của các câu cần giảng viên chấm tay: tự luận, trả lời ngắn, điền vào chỗ trống. Điểm chỉ hiển thị sau khi giảng viên chấm xong và kết quả được công bố." score={manualScoreOnTen} max={manualMaxOnTen} detail={manualPending ? `Chờ giảng viên chấm ${manualPending} câu · quy đổi thang 10` : `Đã chấm ${manualGraded} câu · quy đổi thang 10`} />
+        <ScoreCard icon={<Calculator className="h-5 w-5" />} tone="primary" label={gradingComplete && resultsPublished ? "Điểm cuối cùng" : "Điểm tạm tính"} help={gradingComplete && resultsPublished ? "Đã bao gồm điểm hậu kiểm và điều chỉnh do vi phạm toàn vẹn (nếu có)." : undefined} score={finalScoreOnTen} max={10} detail={gradingComplete && resultsPublished ? "Đã quy đổi theo thang 10" : "Sẽ cập nhật sau khi hoàn tất chấm & công bố"} />
       </div></CardContent></Card>
 
-      {integrityPenalty ? <Card className="border-destructive/30 bg-destructive/5"><CardHeader><CardTitle className="flex items-center gap-2 text-lg text-destructive"><AlertTriangle className="h-5 w-5" />Điều chỉnh điểm do gian lận</CardTitle><CardDescription>Quyết định xử lý toàn vẹn học thuật đã được áp dụng cho bài làm này.</CardDescription></CardHeader><CardContent className="space-y-3"><div className="grid gap-3 sm:grid-cols-3"><div><p className="text-sm text-muted-foreground">Điểm học thuật</p><p className="text-lg font-semibold">{Number(integrityPenalty.academicScore ?? 0).toFixed(2)} / 10</p></div><div><p className="text-sm text-muted-foreground">Bị trừ do gian lận</p><p className="text-lg font-semibold text-destructive">{integrityPenalty.penaltyPercent}% (-{Number(integrityPenalty.deductedScore ?? 0).toFixed(2)})</p></div><div><p className="text-sm text-muted-foreground">Điểm cuối</p><p className="text-lg font-semibold">{Number(integrityPenalty.finalScore ?? 0).toFixed(2)} / 10</p></div></div>{integrityPenalty.reviewerNote ? <p className="rounded-md bg-background/70 p-3 text-sm text-foreground"><span className="font-medium">Lý do: </span>{integrityPenalty.reviewerNote}</p> : null}</CardContent></Card> : null}
+      {integrityPenalty ? <Card className="border-destructive/30 bg-destructive/5"><CardHeader><CardTitle className="flex items-center gap-2 text-lg text-destructive"><AlertTriangle className="h-5 w-5" />Điều chỉnh điểm do gian lận</CardTitle><CardDescription>Quyết định xử lý toàn vẹn học thuật đã được áp dụng cho bài làm này.</CardDescription></CardHeader><CardContent className="space-y-3"><div className="grid gap-3 sm:grid-cols-3"><div><p className="text-sm text-muted-foreground">Điểm học thuật</p><p className="text-lg font-semibold">{Number(integrityPenalty.academicScore ?? 0).toFixed(2)} / 10</p></div><div><p className="text-sm text-muted-foreground">Điểm bị trừ do vi phạm toàn vẹn</p><p className="text-lg font-semibold text-destructive">{integrityPenalty.penaltyMode === 'FIXED' ? `${Number(integrityPenalty.penaltyAmount ?? integrityPenalty.deductedScore ?? 0).toFixed(2)} điểm` : `${Number(integrityPenalty.deductedScore ?? 0).toFixed(2)} điểm (${integrityPenalty.penaltyPercent}%)`}</p></div><div><p className="text-sm text-muted-foreground">Điểm cuối</p><p className="text-lg font-semibold">{Number(integrityPenalty.finalScore ?? 0).toFixed(2)} / 10</p></div></div>{integrityPenalty.reviewerNote ? <p className="rounded-md bg-background/70 p-3 text-sm text-destructive"><span className="font-medium">Lý do: </span>{integrityPenalty.reviewerNote}</p> : null}</CardContent></Card> : integrityPendingReason ? <Card className="border-amber-500/30 bg-amber-500/5"><CardHeader><CardTitle className="flex items-center gap-2 text-lg text-amber-700 dark:text-amber-400"><AlertTriangle className="h-5 w-5" />Vụ việc vi phạm toàn vẹn đã được xác nhận</CardTitle><CardDescription>Mức điều chỉnh điểm (nếu có) sẽ hiển thị sau khi giảng viên công bố kết quả chính thức.</CardDescription></CardHeader><CardContent><p className="rounded-md bg-background/70 p-3 text-sm text-foreground"><span className="font-medium">Lý do: </span>{integrityPendingReason}</p></CardContent></Card> : null}
+
+      {scoreAdjustments.length > 0 ? <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FileEdit className="h-5 w-5 text-primary" />Điểm hậu kiểm</CardTitle><CardDescription>Các khoản cộng/trừ điểm giảng viên áp dụng sau khi chấm, ngoài điểm từng câu.</CardDescription></CardHeader><CardContent className="space-y-2">{scoreAdjustments.map((adjustment: any) => <div key={adjustment.id} className="rounded-lg border p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><span className={`font-semibold ${Number(adjustment.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{formatSignedScoreAdjustment(Number(adjustment.amount))} điểm</span><span className="text-muted-foreground">·</span><span>{getScoreAdjustmentCategoryLabel(adjustment.category)}</span></div>{adjustment.reason ? <p className="mt-1 text-muted-foreground">Lý do: {adjustment.reason}</p> : null}</div>)}</CardContent></Card> : null}
 
       {submission?.proctoring ? <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-primary" />Dữ liệu giám sát phiên thi</CardTitle><CardDescription>Phiên thi có dữ liệu giám sát được lưu để giảng viên đối chiếu khi cần.</CardDescription></CardHeader><CardContent><p className="text-sm text-muted-foreground">Dữ liệu này không phải điểm phạt, không tự kết luận hành vi và không làm thay đổi điểm số tự động. Chi tiết kỹ thuật chỉ hiển thị cho giảng viên khi cần xem xét.</p></CardContent></Card> : null}
 
-      <Card className="overflow-hidden"><CardHeader className="border-b bg-muted/30"><CardTitle className="flex items-center gap-2 text-lg"><Cpu className="h-5 w-5 text-blue-600" />Câu hỏi chấm tự động</CardTitle><CardDescription>{autoQuestions.length} câu · {formatPoints(autoScoreOnTen)} / {formatPoints(autoMaxOnTen)} điểm · quy đổi thang 10 · Đúng {autoCorrect} câu</CardDescription></CardHeader><CardContent className="pt-5">
-        {autoQuestions.length === 0 ? <EmptyQuestions /> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>#</TableHead><TableHead>Câu hỏi</TableHead><TableHead>Câu trả lời của bạn</TableHead>{showCorrectAnswers ? <TableHead>Đáp án đúng</TableHead> : null}<TableHead className="text-center">Điểm (thang 10)</TableHead><TableHead className="text-center">Kết quả</TableHead></TableRow></TableHeader><TableBody>{autoQuestions.map((question) => <TableRow key={question.id}><TableCell>{question.number}</TableCell><TableCell className="font-medium max-w-xs whitespace-normal break-words"><p><MediaBadge mediaType={question.mediaType} /> {question.content}</p>{question.mediaType === "image" && question.mediaUrl ? <img src={question.mediaUrl} alt="Hình ảnh minh họa câu hỏi" className="mt-2 max-h-40 w-full rounded-md border object-contain" /> : question.mediaType === "audio" && question.mediaUrl ? <audio src={question.mediaUrl} controls className="mt-2 w-full" /> : null}{showFeedback && question.explanation ? <p className="mt-2 text-sm font-normal text-muted-foreground"><span className="font-medium text-foreground">Giải thích: </span>{question.explanation}</p> : null}</TableCell><TableCell className="max-w-xs whitespace-normal break-words">{question.answer || "Chưa trả lời"}</TableCell>{showCorrectAnswers ? <TableCell className="max-w-xs whitespace-normal break-words">{question.correctAnswer || "Chưa công bố"}</TableCell> : null}<TableCell className="text-center whitespace-nowrap">{formatPoints(toTenPointScale(question.points))} / {formatPoints(toTenPointScale(question.maxPoints))} điểm</TableCell><TableCell className="text-center whitespace-nowrap">{question.isCorrect ? <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-600" /> : <XCircle className="mx-auto h-5 w-5 text-red-600 dark:text-red-400" />}</TableCell></TableRow>)}</TableBody></Table></div>}
+      {canReviewAnswers ? <>
+      <Card className="overflow-hidden"><CardHeader className="border-b bg-muted/30"><CardTitle className="flex items-center gap-2 text-lg"><Cpu className="h-5 w-5 text-blue-600" />Câu hỏi chấm tự động</CardTitle><CardDescription>{autoQuestions.length} câu · {autoRevealed ? `${formatPoints(autoScoreOnTen)} / ${formatPoints(autoMaxOnTen)} điểm · quy đổi thang 10 · Đúng ${autoCorrect} câu` : "Điểm và kết quả đúng/sai sẽ hiển thị sau khi giảng viên công bố kết quả"}</CardDescription></CardHeader><CardContent className="pt-5">
+        {autoQuestions.length === 0 ? <EmptyQuestions /> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>#</TableHead><TableHead>Câu hỏi</TableHead><TableHead>Câu trả lời của bạn</TableHead>{showCorrectAnswers ? <TableHead>Đáp án đúng</TableHead> : null}<TableHead className="text-center">Điểm (thang 10)</TableHead><TableHead className="text-center">Kết quả</TableHead></TableRow></TableHeader><TableBody>{autoQuestions.map((question) => <TableRow key={question.id}><TableCell>{question.number}</TableCell><TableCell className="font-medium max-w-xs whitespace-normal break-words"><p><MediaBadge mediaType={question.mediaType} /> {question.content}</p>{question.mediaType === "image" && question.mediaUrl ? <img src={question.mediaUrl} alt="Hình ảnh minh họa câu hỏi" className="mt-2 max-h-40 w-full rounded-md border object-contain" /> : question.mediaType === "audio" && question.mediaUrl ? <audio src={question.mediaUrl} controls className="mt-2 w-full" /> : null}{showFeedback && question.explanation ? <p className="mt-2 text-sm font-normal text-muted-foreground"><span className="font-medium text-foreground">Giải thích: </span>{question.explanation}</p> : null}</TableCell><TableCell className="max-w-xs whitespace-normal break-words">{question.answer || "Chưa trả lời"}</TableCell>{showCorrectAnswers ? <TableCell className="max-w-xs whitespace-normal break-words">{question.correctAnswer || "Chưa công bố"}</TableCell> : null}<TableCell className="text-center whitespace-nowrap">{question.revealed ? `${formatPoints(toTenPointScale(question.points))} / ${formatPoints(toTenPointScale(question.maxPoints))} điểm` : "— / " + formatPoints(toTenPointScale(question.maxPoints)) + " điểm"}</TableCell><TableCell className="text-center whitespace-nowrap">{!question.revealed ? <Clock3 className="mx-auto h-5 w-5 text-muted-foreground" aria-label="Chưa công bố kết quả" /> : question.isCorrect ? <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-600" /> : <XCircle className="mx-auto h-5 w-5 text-red-600 dark:text-red-400" />}</TableCell></TableRow>)}</TableBody></Table></div>}
         {(!showCorrectAnswers || !showFeedback) && autoQuestions.length > 0 ? <p className="mt-4 text-xs text-muted-foreground">Đáp án đúng và giải thích chỉ hiển thị khi giảng viên công bố kết quả và cho phép xem lại.</p> : null}
       </CardContent></Card>
 
-      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><User className="h-5 w-5 text-violet-600" />Câu hỏi chấm thủ công</CardTitle><CardDescription>Câu tự luận hiển thị điểm và nhận xét theo chính sách xem lại của bài thi. Điểm được quy đổi theo thang 10.</CardDescription></CardHeader><CardContent>{manualQuestions.length === 0 ? <EmptyQuestions /> : <div className="space-y-3">{manualQuestions.map((question) => <div key={question.id} className="rounded-lg border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium break-words"><MediaBadge mediaType={question.mediaType} /> Câu {question.number}. {question.content}</p><Badge variant={question.isGraded ? "outline" : "secondary"}>{question.isGraded ? `${formatPoints(toTenPointScale(question.points))} / ${formatPoints(toTenPointScale(question.maxPoints))} điểm` : "Chờ chấm"}</Badge></div>{question.mediaType === "image" && question.mediaUrl ? <img src={question.mediaUrl} alt="Hình ảnh minh họa câu hỏi" className="mt-3 max-h-56 w-full rounded-md border object-contain" /> : question.mediaType === "audio" && question.mediaUrl ? <audio src={question.mediaUrl} controls className="mt-3 w-full" /> : null}<div className="mt-3 rounded-md bg-muted/40 p-3 text-sm break-words"><span className="font-medium">Câu trả lời của bạn: </span>{question.answer || "Chưa trả lời"}</div>{showFeedback && question.feedback ? <div className="mt-3 flex gap-2 text-sm"><MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><p className="break-words"><span className="font-medium">Nhận xét của giảng viên: </span>{question.feedback}</p></div> : showFeedback && question.isGraded ? <p className="mt-3 text-sm text-muted-foreground">Giảng viên chưa để lại nhận xét.</p> : null}</div>)}</div>}</CardContent></Card>
+      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><User className="h-5 w-5 text-violet-600" />Câu hỏi chấm thủ công</CardTitle><CardDescription>Câu tự luận hiển thị điểm và nhận xét theo chính sách xem lại của bài thi. Điểm được quy đổi theo thang 10.</CardDescription></CardHeader><CardContent>{manualQuestions.length === 0 ? <EmptyQuestions /> : <div className="space-y-3">{manualQuestions.map((question) => <div key={question.id} className="rounded-lg border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><p className="font-medium break-words"><MediaBadge mediaType={question.mediaType} /> Câu {question.number}. {question.content}</p><Badge variant={question.isGraded ? "outline" : "secondary"}>{question.isGraded ? `${formatPoints(toTenPointScale(question.points))} / ${formatPoints(toTenPointScale(question.maxPoints))} điểm` : resultsPublished ? "Chờ chấm" : "Chưa công bố"}</Badge></div>{question.mediaType === "image" && question.mediaUrl ? <img src={question.mediaUrl} alt="Hình ảnh minh họa câu hỏi" className="mt-3 max-h-56 w-full rounded-md border object-contain" /> : question.mediaType === "audio" && question.mediaUrl ? <audio src={question.mediaUrl} controls className="mt-3 w-full" /> : null}<div className="mt-3 rounded-md bg-muted/40 p-3 text-sm break-words"><span className="font-medium">Câu trả lời của bạn: </span>{question.answer || "Chưa trả lời"}</div>{showFeedback && question.feedback ? <div className="mt-3 flex gap-2 text-sm"><MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><p className="break-words"><span className="font-medium">Nhận xét của giảng viên: </span>{question.feedback}</p></div> : showFeedback && question.isGraded ? <p className="mt-3 text-sm text-muted-foreground">Giảng viên chưa để lại nhận xét.</p> : null}</div>)}</div>}</CardContent></Card>
+      </> : <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Cpu className="h-5 w-5 text-muted-foreground" />Xem lại bài làm</CardTitle><CardDescription>Giảng viên đã tắt xem lại nội dung bài làm cho đề thi này.</CardDescription></CardHeader><CardContent><p className="text-sm text-muted-foreground">Bạn không thể xem lại nội dung câu hỏi và câu trả lời của mình cho đề thi này. Điểm số ở các thẻ phía trên vẫn được cập nhật và công bố bình thường theo đúng chính sách của đề thi.</p></CardContent></Card>}
     </div>}
   </div></DashboardLayout>;
 }
 
-function ScoreCard({ icon, tone, label, score, max, detail }: { icon: React.ReactNode; tone: "blue" | "violet" | "primary"; label: string; score: number; max: number; detail: string }) {
+function ScoreCard({ icon, tone, label, score, max, detail, help }: { icon: React.ReactNode; tone: "blue" | "violet" | "primary"; label: string; score: number; max: number; detail: string; help?: string }) {
   const color = tone === "blue" ? "border-blue-200 bg-blue-50/60 text-blue-700" : tone === "violet" ? "border-violet-200 bg-violet-50/60 text-violet-700" : "border-primary/20 bg-primary/5 text-primary";
-  return <div className={`rounded-lg border p-4 ${color}`}><div className="flex items-center gap-2">{icon}<p className="text-sm font-medium">{label}</p></div><p className="mt-3 text-xl font-bold">{formatPoints(score)} / {formatPoints(max)} điểm</p><p className="mt-1 text-xs opacity-80">{detail}</p><Progress value={max > 0 ? score / max * 100 : 0} className="mt-3 h-1.5" /></div>;
+  return <div className={`rounded-lg border p-4 ${color}`}><div className="flex items-center gap-2">{icon}<p className="text-sm font-medium">{label}</p>{help ? <ContextHelp content={help} /> : null}</div><p className="mt-3 text-xl font-bold">{formatPoints(score)} / {formatPoints(max)} điểm</p><p className="mt-1 text-xs opacity-80">{detail}</p><Progress value={max > 0 ? score / max * 100 : 0} className="mt-3 h-1.5" /></div>;
 }
 
 function EmptyQuestions() { return <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground"><Clock3 className="mx-auto mb-2 h-5 w-5" />Chưa có dữ liệu câu hỏi để hiển thị.</div>; }

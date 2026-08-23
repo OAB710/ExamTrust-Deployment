@@ -1236,6 +1236,7 @@ class ApiClient {
     confidence?: string;
     examTitle?: string;
     examId?: string;
+    courseId?: string;
     term?: string;
     academicYear?: string;
     submittedFrom?: string;
@@ -1251,6 +1252,7 @@ class ApiClient {
     if (params?.confidence && params.confidence !== 'all') query.append('confidence', params.confidence);
     if (params?.examTitle) query.append('examTitle', params.examTitle);
     if (params?.examId) query.append('examId', params.examId);
+    if (params?.courseId) query.append('courseId', params.courseId);
     if (params?.term) query.append('term', params.term);
     if (params?.academicYear) query.append('academicYear', params.academicYear);
     if (params?.submittedFrom) query.append('submittedFrom', params.submittedFrom);
