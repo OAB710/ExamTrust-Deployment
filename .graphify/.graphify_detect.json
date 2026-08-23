@@ -467,6 +467,7 @@
       "FE/src/features/lecturer/question-editor-persistence.ts",
       "FE/src/features/lecturer/question-editor-types.ts",
       "FE/src/features/lecturer/question-editor-utils.ts",
+      "FE/src/features/lecturer/question-matrix-evaluator.ts",
       "FE/src/features/lecturer/question-validation.constants.ts",
       "FE/src/features/lecturer/question-validation.ts",
       "FE/src/features/student/ExamEventTimeline.tsx",
@@ -603,17 +604,17 @@
       "1mb.mp3"
     ]
   },
-  "total_files": 593,
-  "total_words": 570932,
+  "total_files": 594,
+  "total_words": 573361,
   "needs_graph": true,
-  "warning": "Large corpus: 593 files · ~570,932 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
+  "warning": "Large corpus: 594 files · ~573,361 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.",
   "skipped_sensitive": [
     "FE/src/features/ResetPassword.tsx"
   ],
   "graphifyignore_patterns": 67,
   "git": {
     "source_owner": "git",
-    "source_hash": "736dcdda1475f067c3c23b5f686d0ae0afc2c4cb",
+    "source_hash": "649b41d566dd1bf923b72f89314e5b20a0b6e3c3",
     "branches": [
       "duc",
       "main"
@@ -627,11 +628,11 @@
     "source": "default-auto",
     "root": ".",
     "git_root": ".",
-    "head": "736dcdda1475f067c3c23b5f686d0ae0afc2c4cb",
-    "candidate_count": 657,
-    "included_count": 593,
-    "excluded_untracked_count": 1,
-    "excluded_ignored_count": 105274,
+    "head": "649b41d566dd1bf923b72f89314e5b20a0b6e3c3",
+    "candidate_count": 658,
+    "included_count": 594,
+    "excluded_untracked_count": 0,
+    "excluded_ignored_count": 105332,
     "excluded_sensitive_count": 1,
     "missing_committed_count": 0,
     "warnings": [],

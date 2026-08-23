@@ -1520,8 +1520,8 @@
     "hash": "962f9bf2bec5a31e42ef463f1b59661e"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ExamAnalytics.tsx": {
-    "mtime": 1787236796154.7627,
-    "hash": "b9d2bc2ca13eb02d43c8db8dab0a198e"
+    "mtime": 1787486142799.933,
+    "hash": "9f2f9de78c305b5449af592310e07b43"
   },
   "D:/KLTN2/ExamTrust/FE/src/features/lecturer/ExamManagement.tsx": {
     "mtime": 1787364294104.8955,
@@ -2064,8 +2064,8 @@
     "hash": "a3fbec2ddba8d0a35825c242671b3655"
   },
   "D:/KLTN2/ExamTrust/.graphify/GRAPH_REPORT.md": {
-    "mtime": 1787485631939.307,
-    "hash": "5008e4a2fc812b3ad9d7e75cea5115de"
+    "mtime": 1787485877631.038,
+    "hash": "250f173c759aacd93810c1de18a96e5a"
   },
   "D:/KLTN2/ExamTrust/.graphify/studio/index.html": {
     "mtime": 1786182231736.4763,
@@ -2370,5 +2370,9 @@
   "D:/KLTN2/ExamTrust/BE/prisma/seed-topic-similarity-demo.ts": {
     "mtime": 1787483793977.506,
     "hash": "1f002ffc1933493c843d949515e56870"
+  },
+  "D:/KLTN2/ExamTrust/FE/src/features/lecturer/question-matrix-evaluator.ts": {
+    "mtime": 1787484800458.3123,
+    "hash": "7ef2f668c430985c59a6e7587bf64879"
   }
 }
