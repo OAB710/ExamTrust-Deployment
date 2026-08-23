@@ -22,7 +22,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ExternalLink, Sparkles, TrendingUp, AlertTriangle, BarChart3, CheckCircle2, Filter, RefreshCw, X, XCircle, RotateCcw, Users, Layers, Lock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, ExternalLink, Sparkles, TrendingUp, AlertTriangle, BarChart3, CheckCircle2, Filter, RefreshCw, X, XCircle, RotateCcw, Users, Layers, Lock, Search } from "lucide-react";
 import api from "@/lib/api";
 import { unwrapPaginatedData } from "@/lib/api";
 import { AdminPageShell } from "@/components/admin/AdminPageShell";
@@ -68,6 +69,7 @@ export default function ExamAnalytics() {
   const [selectedTerm, setSelectedTerm] = useState<string>("");
   const [selectedAttemptFilter, setSelectedAttemptFilter] = useState<string>("__all__");
   const [selectedAttemptScope, setSelectedAttemptScope] = useState<AttemptScope>("all");
+  const [examSearchQuery, setExamSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadingIntelligence, setLoadingIntelligence] = useState(false);
   const [data, setData] = useState<IntelligencePayload | null>(null);
@@ -133,7 +135,7 @@ export default function ExamAnalytics() {
     return { numbers, hasUnlimited };
   }, [examOptions]);
 
-  // Derived: exams filtered by academic year, term, and attempt configuration
+  // Derived: exams filtered by academic year, term, attempt configuration, and search keyword
   const filteredExams = useMemo(() => {
     let result = examOptions;
     if (selectedAcademicYear && selectedAcademicYear !== "__all__") {
@@ -156,8 +158,17 @@ export default function ExamAnalytics() {
         });
       }
     }
+    if (examSearchQuery.trim()) {
+      const q = examSearchQuery.trim().toLowerCase();
+      result = result.filter((ex) => {
+        const title = (ex.title || "").toLowerCase();
+        const code = (ex.course?.code || "").toLowerCase();
+        const name = (ex.course?.name || "").toLowerCase();
+        return title.includes(q) || code.includes(q) || name.includes(q);
+      });
+    }
     return result;
-  }, [examOptions, selectedAcademicYear, selectedTerm, selectedAttemptFilter]);
+  }, [examOptions, selectedAcademicYear, selectedTerm, selectedAttemptFilter, examSearchQuery]);
 
   // Sync selected exam when filters change
   useEffect(() => {
@@ -675,13 +686,35 @@ export default function ExamAnalytics() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center gap-2.5 pb-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Filter className="h-4 w-4" />
-            </span>
-            <div>
-              <h3 className="text-sm font-semibold leading-5 text-foreground">Bộ lọc phân tích bài thi</h3>
-              <p className="text-xs text-muted-foreground">Chọn bài thi để xem phân tích hiệu suất</p>
+          <div className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Filter className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold leading-5 text-foreground">Bộ lọc phân tích bài thi</h3>
+                <p className="text-xs text-muted-foreground">Chọn hoặc tìm kiếm bài thi để xem phân tích hiệu suất</p>
+              </div>
+            </div>
+            <div className="relative w-full sm:w-72 md:w-80">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Tìm theo tên bài thi, mã môn..."
+                value={examSearchQuery}
+                onChange={(e) => setExamSearchQuery(e.target.value)}
+                className="h-8.5 pl-8 pr-7 text-xs rounded-lg bg-background border-border/80"
+              />
+              {examSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setExamSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded"
+                  title="Xóa tìm kiếm"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           </div>
           <div className="border-t border-border/60 pt-3.5">
@@ -739,7 +772,9 @@ export default function ExamAnalytics() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Bài thi</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Bài thi {filteredExams.length > 0 && <span className="text-[11px] font-normal text-muted-foreground">({filteredExams.length} bài)</span>}
+                </label>
                 <Select
                   value={selectedExamId}
                   onValueChange={(val) => {
@@ -749,7 +784,7 @@ export default function ExamAnalytics() {
                   disabled={loadingIntelligence || filteredExams.length === 0}
                 >
                   <SelectTrigger className="h-9 rounded-lg border-border bg-card text-xs">
-                    <SelectValue placeholder={filteredExams.length === 0 ? "Không tìm thấy bài thi" : "Chọn bài thi"} />
+                    <SelectValue placeholder={filteredExams.length === 0 ? (examSearchQuery ? "Không khớp bài thi" : "Không tìm thấy bài thi") : "Chọn bài thi"} />
                   </SelectTrigger>
                   <SelectContent>
                     {sortExamsForAnalytics(filteredExams).map((e) => {
@@ -779,6 +814,14 @@ export default function ExamAnalytics() {
               return (
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <span className="text-xs text-muted-foreground">Đang phân tích:</span>
+                  {examSearchQuery && (
+                    <Badge variant="outline" className="text-xs border-primary/30 bg-primary/5 text-primary flex items-center gap-1">
+                      <Search className="h-3 w-3" /> Tìm: "{examSearchQuery}"
+                      <button type="button" onClick={() => setExamSearchQuery("")} className="hover:text-destructive ml-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )}
                   {current.course?.code && <Badge variant="outline" className="text-xs">{current.course.code}</Badge>}
                   {current.course?.academicYear && <Badge variant="outline" className="text-xs">{current.course.academicYear}</Badge>}
                   {current.course?.term && <Badge variant="outline" className="text-xs">{formatTerm(current.course.term)}</Badge>}
@@ -814,10 +857,22 @@ export default function ExamAnalytics() {
               </div>
               <p className="text-lg font-medium">Không tìm thấy bài thi</p>
               <p className="text-sm mt-1">
-                {selectedAcademicYear || selectedTerm
+                {examSearchQuery
+                  ? `Không tìm thấy bài thi nào phù hợp với từ khóa "${examSearchQuery}".`
+                  : selectedAcademicYear || selectedTerm
                   ? "Không có bài thi trong năm học và học kỳ đã chọn."
                   : "Chưa có bài thi để phân tích. Hãy tạo bài thi trước."}
               </p>
+              {examSearchQuery && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setExamSearchQuery("")}
+                  className="mt-3 text-xs"
+                >
+                  Xóa bộ lọc tìm kiếm
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : loadingIntelligence ? (

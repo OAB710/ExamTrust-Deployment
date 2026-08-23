@@ -45,6 +45,11 @@ import { main as seedExams } from './seed-exams';
 import { main as seedSubmissions } from './seed-submissions';
 import { main as seedIntegrity } from './seed-integrity';
 import { main as seedGradingAdjustments } from './seed-grading-adjustments';
+import { main as seedAnalyticsDemo } from './seed-analytics-ui-demo';
+import { main as seedDuplicateDemo } from './seed-duplicate-demo';
+import { main as seedMonitorDemo } from './seed-monitor-ui-demo';
+import { main as seedQuestionHistoryDemo } from './seed-question-history-demo';
+import { main as seedTopicSimilarityDemo } from './seed-topic-similarity-demo';
 
 async function main() {
   console.log('\n=== [SEED TỔNG] 1/9 seed-users ===');
@@ -73,6 +78,21 @@ async function main() {
 
   console.log('\n=== [SEED TỔNG] 9/9 seed-grading-adjustments ===');
   await seedGradingAdjustments(step8);
+
+  console.log('\n=== [SEED DEMO] 10/14 seed-analytics-ui-demo ===');
+  await seedAnalyticsDemo();
+
+  console.log('\n=== [SEED DEMO] 11/14 seed-duplicate-demo ===');
+  await seedDuplicateDemo();
+
+  console.log('\n=== [SEED DEMO] 12/14 seed-monitor-ui-demo ===');
+  await seedMonitorDemo();
+
+  console.log('\n=== [SEED DEMO] 13/14 seed-question-history-demo ===');
+  await seedQuestionHistoryDemo();
+
+  console.log('\n=== [SEED DEMO] 14/14 seed-topic-similarity-demo ===');
+  await seedTopicSimilarityDemo();
 
   console.log('\n=== [SEED TỔNG] TOÀN BỘ SEED ĐÃ HOÀN TẤT ===');
 }
