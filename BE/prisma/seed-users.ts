@@ -4,7 +4,7 @@ import { PASSWORD, daysAgo } from './seed-helpers';
 
 const prisma = new PrismaClient();
 
-export const STUDENT_COUNT = 20;
+export const STUDENT_COUNT = 36;
 export const LECTURER_COUNT = 10;
 
 // Distinct real-looking full names — NOT "Giảng viên 01".."10", because the
