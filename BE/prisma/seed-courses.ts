@@ -26,7 +26,10 @@ export type CoursePlan = {
 // course nào", màn danh sách course rỗng).
 export const COURSE_PLANS: CoursePlan[] = [
   { key: 'intro-it', name: 'Nhập môn Công nghệ Thông tin', lecturerIndex: 0, createdDaysAgo: 40, term: 'TERM_1', enrollFraction: 1 },
-  { key: 'seven-types', name: 'Kiểm thử 7 loại câu hỏi', lecturerIndex: 0, createdDaysAgo: 15, term: 'TERM_2', enrollFraction: 0 }, // enrolled manually with only student01, see seed-question-bank/seed-exams
+  // enrollFraction: 1 (not 0) so its exam has enough enrolled students for a
+  // rich demo dataset (many attempts, every integrity violation type) — see
+  // "seven-types-exam" in seed-exams.ts / seed-submissions.ts / seed-integrity.ts.
+  { key: 'seven-types', name: 'Kiểm thử 7 loại câu hỏi', lecturerIndex: 0, createdDaysAgo: 15, term: 'TERM_2', enrollFraction: 1 },
   { key: 'dsa', name: 'Cấu trúc Dữ liệu và Giải thuật', lecturerIndex: 0, createdDaysAgo: 38, term: 'TERM_1', enrollFraction: 1 },
   { key: 'database', name: 'Cơ sở Dữ liệu', lecturerIndex: 0, createdDaysAgo: 36, term: 'TERM_1', enrollFraction: 1 },
   { key: 'networking', name: 'Mạng máy tính', lecturerIndex: 0, createdDaysAgo: 34, term: 'TERM_1', enrollFraction: 0.85 },
@@ -91,20 +94,6 @@ export async function main(seededUsers?: Awaited<ReturnType<typeof seedUsers>>) 
         });
       }
     }
-
-    // The "7 types" test course belongs only to lecturer01 + student01.
-    const sevenTypesCourse = coursesByKey['seven-types'];
-    await prisma.enrollment.upsert({
-      where: { courseId_studentId: { courseId: sevenTypesCourse.id, studentId: studentUsers[0].id } },
-      update: {},
-      create: {
-        courseId: sevenTypesCourse.id,
-        studentId: studentUsers[0].id,
-        status: 'active',
-        statusEnum: 'ACTIVE',
-        joinedAt: daysAgo(COURSE_PLANS.find((p) => p.key === 'seven-types')!.createdDaysAgo),
-      },
-    });
 
     console.log(`[seed-courses] courses=${Object.keys(coursesByKey).length}`);
     return { lecturerUsers, studentUsers, coursesByKey };

@@ -183,7 +183,7 @@ export class CacheService {
     if (filters.search) {
       result.OR = [
         { content: { contains: filters.search } },
-        { metadata: { path: ['title'], string_contains: filters.search } },
+        { metadata: { path: '$.title', string_contains: filters.search } },
       ];
     }
 

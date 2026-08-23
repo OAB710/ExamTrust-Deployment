@@ -1172,18 +1172,18 @@ export default function QuestionBankManagement() {
         ) : (
           /* QUESTION LIST VIEW (after selecting a course) */
           <>
-            <div className="flex items-start justify-between mb-6 flex-col sm:flex-row gap-3">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3 mb-6">
+              <div className="flex items-start gap-3 min-w-0">
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-9 w-9"
+                  className="h-9 w-9 shrink-0"
                   onClick={() => setSelectedCourse(null)}
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <div>
-                  <h1 className="text-2xl font-semibold text-foreground mb-0.5">
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-semibold text-foreground mb-0.5 break-words">
                     {selectedCourse} — Ngân hàng câu hỏi
                   </h1>
                   <p className="text-muted-foreground text-sm">
@@ -1192,7 +1192,7 @@ export default function QuestionBankManagement() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   variant="outline"
                   size="sm"

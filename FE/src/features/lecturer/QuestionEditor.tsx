@@ -504,6 +504,10 @@ export default function QuestionEditor() {
         resetFormForNextQuestion();
         return;
       }
+      if (questionId) {
+        toast.success("Đã lưu câu hỏi.");
+        return;
+      }
       router.push(questionBankPath);
     } catch (error) {
       console.warn("Failed to save question:", error);
@@ -527,32 +531,6 @@ export default function QuestionEditor() {
             <span className="hidden sm:inline">Quay lại ngân hàng câu hỏi</span>
             <span className="sm:hidden">Quay lại</span>
           </Button>
-
-          {questionId && navIndex >= 0 && (
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                disabled={!previousQuestionId}
-                onClick={() => previousQuestionId && goToQuestion(previousQuestionId)}
-              >
-                <ChevronLeft className="h-4 w-4" /> Câu trước
-              </Button>
-              <span className="px-1 text-xs text-muted-foreground whitespace-nowrap">
-                Câu {navIndex + 1}/{navIds.length}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                disabled={!nextQuestionId}
-                onClick={() => nextQuestionId && goToQuestion(nextQuestionId)}
-              >
-                Câu tiếp <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-0 mb-4 sm:mb-6">
@@ -1150,6 +1128,39 @@ export default function QuestionEditor() {
                   {/* Difficulty card remains above. The Allow multiple answers toggle
                       should always appear inside the Answer Options card below; removed
                       the separate card here. */}
+
+                  {questionId && navIndex >= 0 && (
+                    <Card>
+                      <CardHeader className="pb-2 px-4 pt-4">
+                        <CardTitle className="text-sm">Chuyển câu hỏi</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            disabled={!previousQuestionId}
+                            onClick={() => previousQuestionId && goToQuestion(previousQuestionId)}
+                          >
+                            <ChevronLeft className="h-4 w-4" /> Câu trước
+                          </Button>
+                          <span className="rounded-full border bg-muted px-2.5 py-1 text-xs font-medium text-foreground whitespace-nowrap">
+                            Câu {navIndex + 1}/{navIds.length}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            disabled={!nextQuestionId}
+                            onClick={() => nextQuestionId && goToQuestion(nextQuestionId)}
+                          >
+                            Câu tiếp <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
                 {/* end metadata sidebar */}
               </div>

@@ -58,7 +58,7 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedExams>>) {
 
       submissionsByExamKey[examKey] = [];
 
-      if (plan.status === 'ONGOING') {
+      if (plan.status === 'ONGOING' && !plan.keepOpenForDemo) {
         // A handful of students have started but not submitted yet.
         const inProgressIndices = studentIndices.slice(0, Math.min(6, studentIndices.length));
         for (const studentIndex of inProgressIndices) {
@@ -107,10 +107,15 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedExams>>) {
         continue;
       }
 
-      // COMPLETED_PUBLISHED / COMPLETED_PENDING: everyone enrolled submits.
+      // COMPLETED_PUBLISHED / COMPLETED_PENDING (and the "keepOpenForDemo"
+      // ONGOING exam, treated the same way here): everyone enrolled submits.
       const attemptPlan: Array<{ studentIndex: number; attempts: number }> = studentIndices.map((studentIndex: number) => ({
         studentIndex,
-        attempts: plan.key === 'webdev-multi-attempt' && studentIndex < 5 ? 2 + (studentIndex % 2) : 1,
+        attempts: plan.key === 'webdev-multi-attempt' && studentIndex < 5
+          ? 2 + (studentIndex % 2)
+          : plan.key === 'seven-types-exam'
+            ? 1 + (studentIndex % 3) // 1-3 attempts each — lots of submission data to demo with
+            : 1,
       }));
 
       const hasManualGrading = snapshot.snapshotQuestions.some((q) => !isAutoGradable(q.type, q.answerKey));
