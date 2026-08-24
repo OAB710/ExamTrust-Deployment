@@ -515,7 +515,6 @@ export default function ExamReadyCheck() {
                     <p className="text-xs text-muted-foreground">
                       Hệ thống phát hiện bạn đang dùng <span className="font-medium text-foreground">{detectedScreenCount} màn hình</span>
                       {detectedScreenCount > 1 ? " — hệ thống có khả năng nhận diện thiết bị dùng nhiều màn hình" : ""}.
-                      {" "}Đây chỉ là thông tin tham khảo, chưa dùng để chặn dự thi.
                     </p>
                   </div>
                 )}
@@ -550,6 +549,12 @@ export default function ExamReadyCheck() {
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                     <p>Vui lòng duy trì kết nối Internet ổn định trong phiên thi.</p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <p>
+                      Toàn bộ bài thi sẽ được ghi nhận hình ảnh và giám sát hành vi trong suốt quá trình làm bài. Vui lòng làm bài trung thực và tuân thủ quy chế thi.
+                    </p>
                   </div>
                 </div>
 

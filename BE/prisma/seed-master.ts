@@ -41,7 +41,7 @@ import { main as seedCourses } from './seed-courses';
 import { main as seedQuestionBank } from './seed-question-bank';
 import { main as seedQuestionBankDuplicates } from './seed-question-bank-duplicates';
 import { main as seedTopics } from './seed-topics';
-import { main as seedExams } from './seed-exams';
+import { main as seedExams, touchDemoExamToTop } from './seed-exams';
 import { main as seedSubmissions } from './seed-submissions';
 import { main as seedIntegrity } from './seed-integrity';
 import { main as seedGradingAdjustments } from './seed-grading-adjustments';
@@ -93,6 +93,9 @@ async function main() {
 
   console.log('\n=== [SEED DEMO] 14/14 seed-topic-similarity-demo ===');
   await seedTopicSimilarityDemo();
+
+  console.log('\n=== [SEED TỔNG] Đưa bài thi demo lên đầu danh sách ===');
+  await touchDemoExamToTop();
 
   console.log('\n=== [SEED TỔNG] TOÀN BỘ SEED ĐÃ HOÀN TẤT ===');
 }

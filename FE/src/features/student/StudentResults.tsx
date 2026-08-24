@@ -64,6 +64,8 @@ type ResultAttempt = {
   submittedAt?: string | null;
   score?: number | null;
   scoreAvailable: boolean;
+  provisionalScore?: number | null;
+  pendingManualCount?: number;
 };
 
 type ResultGroup = {
@@ -406,12 +408,14 @@ export default function StudentResults() {
                         <div className="rounded-lg border border-primary/15 bg-primary/5 px-4 py-3 text-left md:text-right">
                           <p className="text-xs text-muted-foreground">Điểm chính thức</p>
                           <p className="mt-1 text-lg font-semibold text-primary">
-                            {group.officialScore == null ? "Chờ công bố/chấm" : `${group.officialScore.toFixed(1)}/10`}
+                            {group.officialScore == null ? "Chờ công bố/chấm" : `${group.officialScore.toFixed(2)}/10`}
                           </p>
                         </div>
                       </div>
                       <div className="mt-4 space-y-2">
-                        {visibleAttempts.map((attempt) => (
+                        {visibleAttempts.map((attempt) => {
+                          const gradingComplete = ["GRADED", "FINALIZED"].includes(String(attempt.status || "").toUpperCase());
+                          return (
                           <div key={attempt.submissionId} className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/70 p-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
@@ -422,23 +426,31 @@ export default function StudentResults() {
                                 </Badge>
                                 <Badge variant="outline" className={scoreBadgeClass(attempt.score)}>
                                   <Trophy className="mr-1 h-3.5 w-3.5" />
-                                  {attempt.scoreAvailable && attempt.score != null ? `${attempt.score.toFixed(1)}/10` : "Chờ chấm"}
+                                  {attempt.scoreAvailable && attempt.score != null
+                                    ? `${attempt.score.toFixed(2)}/10`
+                                    : gradingComplete ? "Đã chấm — chờ công bố" : "Chờ chấm"}
                                 </Badge>
+                                {!attempt.scoreAvailable && attempt.provisionalScore != null ? (
+                                  <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                                    <Trophy className="mr-1 h-3.5 w-3.5" />
+                                    Tạm tính {attempt.provisionalScore.toFixed(2)}/10
+                                    {attempt.pendingManualCount ? ` · còn ${attempt.pendingManualCount} câu tự luận` : ""}
+                                  </Badge>
+                                ) : null}
                               </div>
                               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                                 <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />Nộp: {formatDateTime(attempt.submittedAt)}</span>
                                 <span className="inline-flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" />Thời gian làm: {formatDuration(attempt.startedAt, attempt.submittedAt)}</span>
                               </div>
                             </div>
-                            {attempt.scoreAvailable ? (
-                              <Button asChild size="sm">
-                                <Link href={`/student/grading?examId=${group.examId}&submissionId=${attempt.submissionId}`}>Xem kết quả</Link>
-                              </Button>
-                            ) : (
-                              <Button size="sm" variant="outline" disabled>Chờ chấm</Button>
-                            )}
+                            <Button asChild size="sm" variant={attempt.scoreAvailable ? "default" : "outline"}>
+                              <Link href={`/student/grading?examId=${group.examId}&submissionId=${attempt.submissionId}`}>
+                                {attempt.scoreAvailable ? "Xem kết quả" : "Xem chi tiết bài làm"}
+                              </Link>
+                            </Button>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       {group.attempts.length > ATTEMPTS_PER_PAGE && (
                         <div className="mt-4 flex flex-col gap-3 border-t border-border/70 pt-3 text-sm sm:flex-row sm:items-center sm:justify-between">

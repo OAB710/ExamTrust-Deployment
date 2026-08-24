@@ -100,3 +100,24 @@ export function formatManualAnswer(questionType: unknown, answer: unknown, optio
   }
   return [text(rawAnswer) || "Chưa nộp câu trả lời"];
 }
+
+// Rounding a tiny negative amount (e.g. -0.001) to 2 decimals produces
+// -0.00 — toFixed keeps the sign of the original number even when the
+// rounded magnitude is zero. Route the sign through the rounded value
+// instead of the raw one so a result that rounds to zero always reads as
+// a plain "0.00", never "-0.00".
+export function formatSignedScoreAdjustment(amount: number): string {
+  const rounded = Number(amount.toFixed(2));
+  const sign = rounded > 0 ? "+" : rounded < 0 ? "-" : "";
+  return `${sign}${Math.abs(rounded).toFixed(2)}`;
+}
+
+export const SCORE_ADJUSTMENT_CATEGORY_LABELS: Record<string, string> = {
+  QUESTION_ERROR: "Lỗi đề thi",
+  PARTICIPATION: "Điểm cộng thêm",
+  OTHER: "Khác",
+};
+
+export function getScoreAdjustmentCategoryLabel(category: unknown): string {
+  return SCORE_ADJUSTMENT_CATEGORY_LABELS[String(category)] || String(category ?? "");
+}

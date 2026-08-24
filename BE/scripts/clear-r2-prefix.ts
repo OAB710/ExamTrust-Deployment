@@ -15,6 +15,15 @@ const PREFIXES_BY_TARGET: Record<string, string[]> = {
   all: ['questions/', 'proctoring-evidence/'],
 };
 
+// Permanent demo media referenced by seed data (see seed-question-bank.ts,
+// course "seven-types") — must survive every "CQM"/"CAM" Zalo wipe, so it's
+// never deleted no matter what target is chosen or how PREFIXES_BY_TARGET
+// above changes later.
+const PROTECTED_PREFIXES = ['question-samples/'];
+function isProtected(key: string) {
+  return PROTECTED_PREFIXES.some((p) => key.startsWith(p));
+}
+
 function parseArgs() {
   const target = process.argv.find((a) => a.startsWith('--target='))?.split('=')[1];
   const confirm = process.argv.includes('--confirm');
@@ -30,7 +39,12 @@ async function deleteAllUnderPrefix(s3: S3Client, bucket: string, prefix: string
     const listed = await s3.send(
       new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: continuationToken }),
     );
-    const keys = (listed.Contents || []).map((o) => o.Key).filter((k): k is string => Boolean(k));
+    const allKeys = (listed.Contents || []).map((o) => o.Key).filter((k): k is string => Boolean(k));
+    const keys = allKeys.filter((k) => !isProtected(k));
+    const skipped = allKeys.length - keys.length;
+    if (skipped > 0) {
+      console.log(`Skipping ${skipped} protected object(s) under ${prefix}`);
+    }
     totalListed += keys.length;
 
     if (keys.length > 0 && confirm) {

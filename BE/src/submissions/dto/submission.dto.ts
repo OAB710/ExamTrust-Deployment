@@ -144,10 +144,13 @@ export class CreateScoreAdjustmentDto {
   @IsEnum(['QUESTION_ERROR', 'PARTICIPATION', 'OTHER'])
   category: 'QUESTION_ERROR' | 'PARTICIPATION' | 'OTHER';
 
+  // Only mandatory for category 'OTHER' — enforced in the service, since that
+  // depends on another field's value and class-validator can't express it
+  // declaratively here.
+  @IsOptional()
   @IsString()
-  @MinLength(3)
   @MaxLength(2000)
-  reason: string;
+  reason?: string;
 }
 
 export class RevokeScoreAdjustmentDto {

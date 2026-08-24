@@ -37,7 +37,14 @@ const ALLOWED_MINUTES = 90;
 const QUESTION_COUNT = 10;
 const TOTAL_POINTS = 10; // điểm 0-10 => scorePct 0-100 cho phân bố điểm số
 
-const hash64 = (suffix: string) => randomBytes(8).toString('hex') + randomBytes(24).toString('hex') + suffix;
+// ProctoringEvidenceCapture.captureNonceHash is @unique @db.VarChar(64) —
+// exactly 64 hex chars, no room for a suffix.
+const randomHash64 = () => randomBytes(32).toString('hex');
+// IntegrityLog.clientEventId is @db.VarChar(80), unique only within one
+// proctoring session (see the proctoringId_clientEventId compound key) — a
+// short random prefix is enough entropy, the descriptive suffix is for
+// readability during debugging, not uniqueness.
+const shortEventId = (suffix: string) => `${randomBytes(6).toString('hex')}-${suffix}`.slice(0, 80);
 
 type LogSpec = { type: string; details: string; minutesAgo: number };
 type Profile = {
@@ -275,7 +282,7 @@ export async function main() {
       await prisma.integrityLog.create({
         data: {
           proctoringId: proctoring.id,
-          clientEventId: hash64(`${proctoring.id}-${log.type}-${i}`),
+          clientEventId: shortEventId(`${log.type}-${i}`),
           eventType: log.type,
           details: log.details,
           timestamp: new Date(now - log.minutesAgo * 60_000),
@@ -296,7 +303,7 @@ export async function main() {
           captureSource: 'WEBCAM',
           triggerDetails: { signals: signalsFor },
           scheduledSlot: null,
-          captureNonceHash: hash64(`ev-${submission.id}-${e}`),
+          captureNonceHash: randomHash64(),
           nonceExpiresAt: new Date(now + 60 * 60_000),
           retentionUntil: new Date(now + 30 * 24 * 60 * 60_000),
           reviewStatus: 'PENDING',

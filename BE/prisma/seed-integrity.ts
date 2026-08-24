@@ -25,7 +25,11 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedSubmissions>>)
     const flatEntries: Array<{ examKey: string; submission: any; studentIndex: number }> = [];
     for (const [examKey, rows] of Object.entries(submissionsByExamKey)) {
       const plan = examsByKey[examKey].plan;
-      if (plan.status === 'ONGOING') continue; // in-progress sessions have no completed proctoring evidence yet
+      // in-progress sessions have no completed proctoring evidence yet — but
+      // a "keepOpenForDemo" exam is seeded with full completed attempts
+      // despite being ONGOING (see seed-submissions.ts), so it still needs
+      // integrity data too.
+      if (plan.status === 'ONGOING' && !plan.keepOpenForDemo) continue;
       for (const row of rows) flatEntries.push({ examKey, ...row });
     }
 
@@ -36,7 +40,7 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedSubmissions>>)
 
     const rng = makeRng(seedFromString('integrity:general'));
 
-    async function flagEntry(entry: typeof flatEntries[number], opts: { reviewStatus?: 'PENDING' | 'REVIEWED' | 'CONFIRMED' | 'DISMISSED'; penaltyPercent?: number; logCount?: number }) {
+    async function flagEntry(entry: typeof flatEntries[number], opts: { reviewStatus?: 'PENDING' | 'REVIEWED' | 'CONFIRMED' | 'DISMISSED'; penaltyPercent?: number; logCount?: number; eventTypeOverride?: string }) {
       const { submission } = entry;
       const tabSwitchCount = Math.round(1 + rng() * 5);
       const mouseAnomalies = Math.round(rng() * 3);
@@ -56,8 +60,8 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedSubmissions>>)
 
       const logCount = opts.logCount ?? Math.round(2 + rng() * 3);
       for (let i = 0; i < logCount; i++) {
-        const eventType = EVENT_TYPES[eventTypeCursor % EVENT_TYPES.length];
-        eventTypeCursor += 1;
+        const eventType = opts.eventTypeOverride ?? EVENT_TYPES[eventTypeCursor % EVENT_TYPES.length];
+        if (!opts.eventTypeOverride) eventTypeCursor += 1;
         const timestamp = addMinutes(submission.startedAt ?? submission.createdAt, rng() * 30);
         await prisma.integrityLog.upsert({
           where: { proctoringId_clientEventId: { proctoringId: session.id, clientEventId: `seed-${submission.id}-${i}` } },
@@ -106,6 +110,11 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedSubmissions>>)
     // non-trivial series across many weeks.
     for (const entry of flatEntries) {
       if (CHEATER_INDICES.includes(entry.studentIndex) || entry.studentIndex === FAST_STUDENT_INDEX) continue;
+      // seven-types-exam gets its violation coverage exclusively from step (4)
+      // below (one deterministic entry per type) — mixing in this random pass
+      // could flag the same submission first, and the later forced call would
+      // then upsert onto an existing log id and silently not add its type.
+      if (entry.examKey === 'seven-types-exam') continue;
       if (rng() > 0.18) continue;
       const roll = rng();
       const reviewStatus = roll < 0.4 ? 'PENDING' : roll < 0.7 ? 'REVIEWED' : roll < 0.85 ? 'CONFIRMED' : 'DISMISSED';
@@ -145,6 +154,33 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedSubmissions>>)
         },
       });
       anomalyFlagsCreated += 1;
+    }
+
+    // 4) Guaranteed full violation-type coverage on the live-demo exam
+    // ("seven-types-exam", see seed-exams.ts) — step (1) above only flags
+    // ~18% of entries with a shared, globally-cycling event-type cursor, so a
+    // single exam isn't guaranteed to see all 10 types. Force one distinct
+    // entry per type here instead, independent of that randomness, so the
+    // demo exam alone showcases every kind of violation the system records.
+    const demoEntries = flatEntries.filter(
+      (e) => e.examKey === 'seven-types-exam' && !CHEATER_INDICES.includes(e.studentIndex) && e.studentIndex !== FAST_STUDENT_INDEX,
+    );
+    for (let i = 0; i < EVENT_TYPES.length && i < demoEntries.length; i++) {
+      const entry = demoEntries[i];
+      const eventType = EVENT_TYPES[i];
+      const roll = rng();
+      const reviewStatus = roll < 0.34 ? 'PENDING' : roll < 0.67 ? 'REVIEWED' : roll < 0.85 ? 'CONFIRMED' : 'DISMISSED';
+      await flagEntry(entry, {
+        reviewStatus,
+        penaltyPercent: reviewStatus === 'CONFIRMED' ? Math.round(10 + rng() * 30) : 0,
+        logCount: 1,
+        eventTypeOverride: eventType,
+      });
+    }
+    if (demoEntries.length < EVENT_TYPES.length) {
+      console.warn(
+        `[seed-integrity] seven-types-exam only has ${demoEntries.length} eligible entries — fewer than the ${EVENT_TYPES.length} violation types, some types won't be represented`,
+      );
     }
 
     console.log(`[seed-integrity] sessions=${sessionsCreated} logs=${logsCreated} reviews=${reviewsCreated} anomalyFlags=${anomalyFlagsCreated}`);

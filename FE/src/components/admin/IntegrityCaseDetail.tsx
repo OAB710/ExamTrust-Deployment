@@ -931,7 +931,7 @@ export function IntegrityCaseDetail({ submission, onBack, onReview, isSaving = f
           </DialogHeader>
           <div className="space-y-4">
             <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
-              <Checkbox checked={applyPenalty} onCheckedChange={(checked) => setApplyPenalty(Boolean(checked))} />
+              <Checkbox checked={applyPenalty} onCheckedChange={(checked) => setApplyPenalty(Boolean(checked))} className="mt-0.5" />
               <span className="space-y-1 text-sm">
                 <span className="block font-medium">Hiệu chỉnh điểm của sinh viên</span>
                 <span className="block text-muted-foreground">Chọn tùy chọn này để áp dụng mức khấu trừ cho bài nộp. Nếu không chọn, điểm giữ nguyên.</span>

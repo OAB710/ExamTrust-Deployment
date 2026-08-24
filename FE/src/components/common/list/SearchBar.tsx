@@ -15,6 +15,11 @@ type SearchBarProps = {
   className?: string;
   disabled?: boolean;
   clearable?: boolean;
+  // Opt-in: renders an explicit "Tìm kiếm" button next to the input for
+  // pages where the debounce-as-you-type behavior isn't obvious enough on
+  // its own. Defaults to off so existing pages using this bar keep their
+  // current layout.
+  showSearchButton?: boolean;
 };
 
 export function SearchBar({
@@ -25,6 +30,7 @@ export function SearchBar({
   className,
   disabled,
   clearable = true,
+  showSearchButton = false,
 }: SearchBarProps) {
   const previousValue = useRef<string | null>(null);
 
@@ -71,6 +77,12 @@ export function SearchBar({
           </Button>
         ) : null}
       </div>
+      {showSearchButton ? (
+        <Button type="button" onClick={onSearch} disabled={disabled} className="h-11 shrink-0 gap-2">
+          <Search className="h-4 w-4" />
+          Tìm kiếm
+        </Button>
+      ) : null}
     </div>
   );
 }

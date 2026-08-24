@@ -33,19 +33,11 @@ function buildEvidenceStorageKey(params: {
   return `proctoring-evidence/${params.examId}/${params.submissionId}/${eventSlug}_${sourceSlug}_${ordinal}.${params.extension}`;
 }
 
-type EventCaptureLimits = {
-  tab_switch: number;
-  fullscreen_exit: number;
-  paste_external: number;
-  mouse_idle: number;
-};
-
 type WebcamEvidencePolicy = {
   enabled: boolean;
   examProfile: 'THEORY' | 'MIXED' | 'CALCULATION';
   scheduledCaptureIntervalSeconds: number | null;
   scheduledCaptureOffsetsMs: number[];
-  eventCaptureLimits: EventCaptureLimits;
   eventCooldownMs: number;
   mouseIdleThresholdMs: number;
   retentionDays: number;
@@ -66,19 +58,11 @@ const MIN_MOUSE_IDLE_THRESHOLD_MS = 1_000;
 const MIN_EVENT_COOLDOWN_MS = 1_000;
 const DEFAULT_MOUSE_IDLE_THRESHOLD_MS = 60_000;
 
-const DEFAULT_EVENT_CAPTURE_LIMITS: EventCaptureLimits = {
-  tab_switch: 3,
-  fullscreen_exit: 3,
-  paste_external: 3,
-  mouse_idle: 3,
-};
-
 const DEFAULT_POLICY: WebcamEvidencePolicy = {
   enabled: false,
   examProfile: 'MIXED',
   scheduledCaptureIntervalSeconds: null,
   scheduledCaptureOffsetsMs: [],
-  eventCaptureLimits: DEFAULT_EVENT_CAPTURE_LIMITS,
   eventCooldownMs: 60_000,
   mouseIdleThresholdMs: DEFAULT_MOUSE_IDLE_THRESHOLD_MS,
   retentionDays: 30,
@@ -141,13 +125,6 @@ export class ProctoringEvidenceService implements OnModuleInit {
   static normalizePolicy(input: any, _randomizationSeed?: string, durationMinutes?: number | null): WebcamEvidencePolicy {
     const source = input && typeof input === 'object' ? input : {};
     const enabled = Boolean(source.enabled) && String(source.examProfile || '').toUpperCase() === 'THEORY';
-    const sourceLimits = source.eventCaptureLimits && typeof source.eventCaptureLimits === 'object' ? source.eventCaptureLimits : {};
-    const eventCaptureLimits: EventCaptureLimits = {
-      tab_switch: Math.max(1, Number(sourceLimits.tab_switch) || DEFAULT_EVENT_CAPTURE_LIMITS.tab_switch),
-      fullscreen_exit: Math.max(1, Number(sourceLimits.fullscreen_exit) || DEFAULT_EVENT_CAPTURE_LIMITS.fullscreen_exit),
-      paste_external: Math.max(1, Number(sourceLimits.paste_external) || DEFAULT_EVENT_CAPTURE_LIMITS.paste_external),
-      mouse_idle: Math.max(1, Number(sourceLimits.mouse_idle) || DEFAULT_EVENT_CAPTURE_LIMITS.mouse_idle),
-    };
     const durationMs = Number(durationMinutes) > 0 ? Number(durationMinutes) * 60_000 : null;
 
     const rawIntervalSeconds = Number(source.scheduledCaptureIntervalSeconds);
@@ -173,7 +150,6 @@ export class ProctoringEvidenceService implements OnModuleInit {
       examProfile: String(source.examProfile || 'MIXED').toUpperCase() as WebcamEvidencePolicy['examProfile'],
       scheduledCaptureIntervalSeconds,
       scheduledCaptureOffsetsMs,
-      eventCaptureLimits,
       eventCooldownMs: Math.max(MIN_EVENT_COOLDOWN_MS, Number(source.eventCooldownMs) || DEFAULT_POLICY.eventCooldownMs),
       mouseIdleThresholdMs,
       retentionDays: 30,
@@ -276,14 +252,12 @@ export class ProctoringEvidenceService implements OnModuleInit {
         scheduledAt = new Date(startedAt.getTime() + next.offset);
       }
     } else {
-      const signalType = (dto.signals || []).find((signal): signal is keyof EventCaptureLimits =>
-        Object.prototype.hasOwnProperty.call(policy.eventCaptureLimits, signal),
-      );
-      const limit = signalType ? policy.eventCaptureLimits[signalType] : DEFAULT_EVENT_CAPTURE_LIMITS.tab_switch;
-      // Counted per triggering event, not per image — a paired webcam+screen
-      // capture from the same event must only consume one slot of the limit,
-      // so only the WEBCAM row (always created first, see below) is counted.
-      //
+      // No cap on how many times a given signal type can trigger a capture —
+      // every suspicious event should be captured. Only a short cooldown
+      // (policy.eventCooldownMs) throttles back-to-back captures of the same
+      // signal so one burst of events doesn't spam dozens of near-identical
+      // photos.
+      const signalType = (dto.signals || []).find((signal) => KNOWN_SIGNAL_SLUGS.includes(signal));
       // Filtering by triggerDetails.signals is done in application code, not
       // via Prisma's JSON `path`/`array_contains` filter: that filter compiles
       // to MySQL-only JSON functions and throws at the DB layer on MariaDB
@@ -293,16 +267,13 @@ export class ProctoringEvidenceService implements OnModuleInit {
         orderBy: { createdAt: 'desc' },
         take: 50,
       });
-      const recentEvents = (
-        signalType
-          ? recentEventsForSubmission.filter((event) => {
-              const signals = (event.triggerDetails as { signals?: unknown[] } | null)?.signals;
-              return Array.isArray(signals) && signals.includes(signalType);
-            })
-          : recentEventsForSubmission
-      ).slice(0, limit);
-      if (recentEvents.length >= limit) throw new BadRequestException('Đã đạt giới hạn số lần ghi bằng chứng cho loại sự kiện này');
-      if (recentEvents[0] && now.getTime() - recentEvents[0].createdAt.getTime() < policy.eventCooldownMs) {
+      const mostRecentForSignal = signalType
+        ? recentEventsForSubmission.find((event) => {
+            const signals = (event.triggerDetails as { signals?: unknown[] } | null)?.signals;
+            return Array.isArray(signals) && signals.includes(signalType);
+          })
+        : recentEventsForSubmission[0];
+      if (mostRecentForSignal && now.getTime() - mostRecentForSignal.createdAt.getTime() < policy.eventCooldownMs) {
         throw new BadRequestException('Đang trong thời gian chờ giữa các lần ghi bằng chứng sự kiện nghi vấn');
       }
     }

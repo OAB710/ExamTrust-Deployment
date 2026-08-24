@@ -15,6 +15,21 @@ import { PaginationDto, buildPaginatedResult } from '../common/dto/pagination.dt
 
 const AUTO_GRADED_TYPES = new Set(['MULTIPLE_CHOICE', 'MULTI_SELECT', 'TRUE_FALSE', 'FIND_ERROR']);
 
+// Once an exam leaves DRAFT, submissions may already reference its question
+// snapshots and grading config — those must stay frozen. These are the only
+// DTO fields still safe to change: they're read live by the exam-taking /
+// grading flow (never from a per-submission snapshot), so editing them can't
+// desync an already-taken or already-graded submission.
+const LOCKED_EXAM_EDITABLE_TOP_LEVEL_FIELDS = new Set(['description', 'reviewSettings', 'settings']);
+const LOCKED_EXAM_EDITABLE_SETTINGS_KEYS = new Set([
+  'showResultImmediately',
+  'allowLateSubmission',
+  'webcamEvidencePolicy',
+  'requiresProctoring',
+  'proctoringEnabled',
+  'devicePolicy',
+]);
+
 @Injectable()
 export class ExamsService {
   private examQuestionVersionColumnExists: boolean | null = null;
@@ -811,12 +826,31 @@ export class ExamsService {
       throw new BadRequestException('Vui lòng dùng hành động công bố, lưu trữ hoặc khôi phục riêng để thay đổi trạng thái bài thi');
     }
 
-    if (exam.status !== 'DRAFT') {
-      throw new ConflictException('Chỉ có thể sửa bài thi ở trạng thái bản nháp. Hãy lưu trữ và tạo bản nháp mới nếu cần thay đổi bài thi đã công bố.');
-    }
-
     const { questionIds, ...rawUpdateData } = updateExamDto as any;
-    const updateData: any = { ...rawUpdateData };
+    let updateData: any = { ...rawUpdateData };
+
+    if (exam.status !== 'DRAFT') {
+      // Content/grading fields are frozen once submissions may reference this
+      // exam's snapshots — only the narrow, live-read policy fields above stay
+      // editable. See LOCKED_EXAM_EDITABLE_TOP_LEVEL_FIELDS for why each is safe.
+      const disallowedKeys = Object.keys(rawUpdateData).filter(
+        (key) => !LOCKED_EXAM_EDITABLE_TOP_LEVEL_FIELDS.has(key),
+      );
+      if (disallowedKeys.length > 0 || Array.isArray(questionIds)) {
+        const blocked = [...disallowedKeys, ...(Array.isArray(questionIds) ? ['questionIds'] : [])];
+        throw new ConflictException(
+          `Bài thi đã công bố: chỉ có thể sửa mô tả, chính sách xem lại/công bố kết quả và cấu hình giám sát cho các lượt làm sau. Không thể sửa: ${blocked.join(', ')}.`,
+        );
+      }
+      if (rawUpdateData.settings && typeof rawUpdateData.settings === 'object') {
+        const currentSettings = (exam.settings as any) || {};
+        const mergedSettings = { ...currentSettings };
+        for (const key of LOCKED_EXAM_EDITABLE_SETTINGS_KEYS) {
+          if (key in rawUpdateData.settings) mergedSettings[key] = rawUpdateData.settings[key];
+        }
+        updateData = { ...updateData, settings: mergedSettings };
+      }
+    }
 
     if (updateExamDto.startTime) {
       updateData.startTime = new Date(updateExamDto.startTime);
@@ -881,19 +915,28 @@ export class ExamsService {
       throw new BadRequestException(`Không thể đổi lịch bài thi ở trạng thái ${exam.status}`);
     }
 
-    if (exam._count.submissions > 0) {
-      throw new BadRequestException('Không thể đổi lịch bài thi đã có lượt làm bài');
-    }
-
-    if (exam.startTime && exam.startTime.getTime() <= Date.now()) {
-      throw new BadRequestException('Không thể đổi lịch bài thi đã bắt đầu');
-    }
-
     const startTime = new Date(rescheduleExamDto.startTime);
     const endTime = new Date(rescheduleExamDto.endTime);
 
     if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
       throw new BadRequestException('Thời gian bắt đầu hoặc kết thúc không hợp lệ');
+    }
+
+    if (exam._count.submissions > 0) {
+      // A submission's deadline is resolved live as min(exam.endTime, startedAt
+      // + timeLimit) — never snapshotted — so widening the window can only add
+      // time, never take it away. Shrinking it could cut an in-progress
+      // attempt short, so only a strict extension is allowed once anyone has
+      // submitted.
+      const extendsStart = !exam.startTime || startTime.getTime() <= exam.startTime.getTime();
+      const extendsEnd = !exam.endTime || endTime.getTime() >= exam.endTime.getTime();
+      if (!extendsStart || !extendsEnd) {
+        throw new BadRequestException(
+          'Bài thi đã có lượt làm bài: chỉ có thể kéo dài khung giờ (mở sớm hơn và/hoặc kết thúc muộn hơn lịch cũ), không thể rút ngắn.',
+        );
+      }
+    } else if (exam.startTime && exam.startTime.getTime() <= Date.now()) {
+      throw new BadRequestException('Không thể đổi lịch bài thi đã bắt đầu');
     }
 
     if (endTime <= startTime) {

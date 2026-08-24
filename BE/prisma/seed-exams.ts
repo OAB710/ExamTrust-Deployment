@@ -19,6 +19,12 @@ export type ExamPlan = {
   gradingStrategy: 'HIGHEST' | 'AVERAGE' | 'FIRST_ATTEMPT' | 'LAST_ATTEMPT';
   maxAttempts: number;
   hasMatrix?: boolean;
+  // Status stays 'ONGOING' (window still open — see windowDays below — so a
+  // live demo can still submit a brand new attempt on the spot), but
+  // seed-submissions.ts/seed-integrity.ts treat it like a COMPLETED exam for
+  // data generation instead of skipping it (the default for ONGOING plans):
+  // full attempt history, every integrity violation type, all pre-seeded.
+  keepOpenForDemo?: boolean;
 };
 
 // startDaysAgo values are capped well under each exam's course's
@@ -27,7 +33,14 @@ export type ExamPlan = {
 // exam that "started" before its own course existed, or 100+ days before
 // today, would either be a logical impossibility or invisible on every chart.
 export const EXAM_PLANS: ExamPlan[] = [
-  { key: 'seven-types-exam', courseKey: 'seven-types', title: 'Đề kiểm thử đủ 7 loại câu hỏi', questionCount: 7, status: 'COMPLETED_PUBLISHED', startDaysAgo: 8, durationMinutes: 30, gradingStrategy: 'LAST_ATTEMPT', maxAttempts: 1 },
+  // Dedicated live-demo exam: kept ONGOING (window still open, see
+  // keepOpenForDemo) so the presenter can log in as a student and submit a
+  // brand new attempt during the demo itself, while still being pre-seeded
+  // with a full history of attempts + every integrity violation type so it
+  // isn't empty right after a reset. ⭐ prefix + [DEMO] tag make it
+  // impossible to miss in the exam list, which also always sorts it first
+  // (see the "đưa bài thi demo lên đầu danh sách" step in seed-master.ts).
+  { key: 'seven-types-exam', courseKey: 'seven-types', title: '⭐ [DEMO] Đề kiểm thử đủ 7 loại câu hỏi', questionCount: 7, status: 'ONGOING', keepOpenForDemo: true, startDaysAgo: 1, durationMinutes: 30, gradingStrategy: 'LAST_ATTEMPT', maxAttempts: 5 },
 
   { key: 'intro-it-midterm', courseKey: 'intro-it', title: 'Kiểm tra giữa kỳ - Nhập môn CNTT', questionCount: 20, status: 'COMPLETED_PUBLISHED', startDaysAgo: 30, durationMinutes: 45, gradingStrategy: 'LAST_ATTEMPT', maxAttempts: 1 },
   { key: 'intro-it-final', courseKey: 'intro-it', title: 'Kiểm tra cuối kỳ - Nhập môn CNTT', questionCount: 24, status: 'COMPLETED_PENDING', startDaysAgo: 10, durationMinutes: 60, gradingStrategy: 'LAST_ATTEMPT', maxAttempts: 1 },
@@ -190,6 +203,24 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedTopics>>) {
 
     console.log(`[seed-exams] exams=${Object.keys(examsByKey).length}`);
     return { ...result, examsByKey };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Called as the very last step of seed-master.ts (after every other seed
+// script has finished writing) so this exam's `updatedAt` is unambiguously
+// the newest row in the table — the exam list's default sort is
+// `updatedAt desc` (see exams.service.ts findAll) — regardless of where
+// "seven-types-exam" sits in EXAM_PLANS or how much later steps touch other
+// exams' rows.
+export async function touchDemoExamToTop() {
+  try {
+    const demoPlan = EXAM_PLANS.find((p) => p.key === 'seven-types-exam');
+    if (!demoPlan) return;
+    const exam = await prisma.exam.findFirst({ where: { title: demoPlan.title } });
+    if (!exam) return;
+    await prisma.exam.update({ where: { id: exam.id }, data: { updatedAt: new Date() } });
   } finally {
     await prisma.$disconnect();
   }

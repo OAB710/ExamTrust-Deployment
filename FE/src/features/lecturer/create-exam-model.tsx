@@ -34,10 +34,6 @@ export interface ExamForm {
   endTime: string;
   requiresProctoring: boolean;
   webcamEvidenceEnabled: boolean;
-  webcamEvidenceLimitTabSwitch: string;
-  webcamEvidenceLimitFullscreenExit: string;
-  webcamEvidenceLimitPasteExternal: string;
-  webcamEvidenceLimitMouseIdle: string;
   webcamEvidenceMouseIdleThresholdSeconds: string;
   webcamEvidenceCooldownSeconds: string;
   webcamEvidenceScheduledIntervalSeconds: string;
@@ -55,63 +51,72 @@ export interface ExamForm {
   aiReviewRequired: boolean;
 }
 
-export type ReviewPhaseKey = "during" | "after";
-
-export type ReviewPhaseConfig = {
-  showScore: boolean;
-  showAnswers: boolean;
-  showFeedback: boolean;
-};
-
+// Điểm, đúng/sai và đáp án đúng KHÔNG còn cho giảng viên tùy chọn theo giai
+// đoạn nữa: trong lúc thi luôn ẩn cả 3 (tránh sinh viên trao đổi chéo suy ra
+// đáp án khi đề thi mở theo khung giờ dài), và sau khi công bố kết quả luôn
+// hiện đầy đủ cả 3 (sinh viên cần thấy kết quả thật của mình). Phần duy nhất
+// giảng viên còn quyền quyết định là "showFeedback" — nhưng nó gộp 2 nguồn
+// khác nhau ở BE: trong lúc thi chỉ có thể là Question.explanation (giải
+// thích đáp án viết sẵn từ lúc tạo câu hỏi, giống nhau cho mọi sinh viên —
+// chưa chấm bài thì chưa có nhận xét cá nhân); sau khi có kết quả thì gồm cả
+// giải thích đó (câu tự động chấm) VÀ SubmissionAnswer.feedback (nhận xét
+// riêng giảng viên viết khi chấm tay câu tự luận). feedbackDuring/feedbackAfter
+// bật/tắt việc hiện thứ đó ở mỗi giai đoạn — không phải 2 loại nội dung khác nhau.
 export type ReviewSettingsDraft = {
-  enabled: boolean;
-  phases: Record<ReviewPhaseKey, ReviewPhaseConfig>;
+  feedbackDuring: boolean;
+  feedbackAfter: boolean;
+  // Independent of "công bố kết quả" (resultsPublishedAt) and of the score
+  // reveal rules above — this gates whether the student can ever open the
+  // per-question breakdown (question content, their own answer, correct
+  // answer, explanation/feedback) at all. Off means only the score summary
+  // cards on /student/grading show; the question-by-question review never
+  // appears, published or not.
+  allowSubmissionReview: boolean;
 };
-
-export const REVIEW_PHASE_META: { key: ReviewPhaseKey; title: string; description: string }[] = [
-  {
-    key: "during",
-    title: "Trong thời gian xem lại",
-    description: "Cho phép xem lại một phần khi bài thi vẫn đang diễn ra.",
-  },
-  {
-    key: "after",
-    title: "Sau khi nộp bài",
-    description: "Những gì sinh viên được xem sau khi đã nộp hoặc chấm bài.",
-  },
-];
 
 export const createDefaultReviewSettingsDraft = (): ReviewSettingsDraft => ({
-  enabled: true,
-  phases: {
-    during: {
-      showScore: false,
-      showAnswers: false,
-      showFeedback: false,
-    },
-    after: {
-      showScore: true,
-      showAnswers: true,
-      showFeedback: true,
-    },
-  },
+  feedbackDuring: false,
+  feedbackAfter: true,
+  allowSubmissionReview: true,
 });
+
+// Exams saved before this simplification stored a full during/after phase
+// matrix (showScore/showAnswers/showCorrectness/showFeedback). Reading them
+// back only recovers the "showFeedback" bit of each phase — the rest is now
+// fixed by policy rather than per-exam config. An exam that was never
+// customized (reviewSettings.enabled falsy/missing) defaults to "after"
+// feedback visible, matching the old implicit default. allowSubmissionReview
+// is newer still than that simplification, so it defaults to true (on)
+// regardless of isCustomized — an older exam predating the field should keep
+// behaving exactly as it always did (review always available).
+export const normalizeReviewSettingsDraft = (raw: any): ReviewSettingsDraft => {
+  const isCustomized = Boolean(raw?.enabled);
+  return {
+    feedbackDuring: isCustomized ? Boolean(raw?.phases?.during?.showFeedback) : false,
+    feedbackAfter: isCustomized ? Boolean(raw?.phases?.after?.showFeedback) : true,
+    allowSubmissionReview: raw?.allowSubmissionReview ?? true,
+  };
+};
 
 export const buildReviewSettingsPayload = (draft: ReviewSettingsDraft) => ({
   type: "phase-based",
-  enabled: draft.enabled,
-  phases: draft.phases,
+  enabled: true,
+  allowSubmissionReview: draft.allowSubmissionReview,
+  phases: {
+    during: {
+      showCorrectness: false,
+      showScore: false,
+      showAnswers: false,
+      showFeedback: draft.feedbackDuring,
+    },
+    after: {
+      showCorrectness: true,
+      showScore: true,
+      showAnswers: true,
+      showFeedback: draft.feedbackAfter,
+    },
+  },
 });
-
-export const reviewPhaseSummary = (phase: ReviewPhaseConfig) => {
-  const items = [
-    phase.showScore ? "Điểm" : null,
-    phase.showAnswers ? "Đáp án" : null,
-    phase.showFeedback ? "Phản hồi" : null,
-  ].filter(Boolean);
-
-  return items.length ? items.join(", ") : "Ẩn";
-};
 
 export const pad2 = (value: number) => String(value).padStart(2, "0");
 
@@ -163,10 +168,6 @@ export const createDefaultForm = (): ExamForm => {
     endTime: examWindow.endTime,
     requiresProctoring: true,
     webcamEvidenceEnabled: false,
-    webcamEvidenceLimitTabSwitch: "3",
-    webcamEvidenceLimitFullscreenExit: "3",
-    webcamEvidenceLimitPasteExternal: "3",
-    webcamEvidenceLimitMouseIdle: "3",
     webcamEvidenceMouseIdleThresholdSeconds: "60",
     webcamEvidenceCooldownSeconds: "60",
     webcamEvidenceScheduledIntervalSeconds: "",
@@ -184,10 +185,6 @@ export const createDefaultForm = (): ExamForm => {
     aiReviewRequired: true,
   };
 };
-
-export const MAX_ATTEMPT_OPTIONS = Array.from({ length: 10 }, (_, index) =>
-  String(index + 1),
-);
 
 export const getCurrentCourseTerm = (date = new Date()): CourseTerm => {
   const month = date.getMonth() + 1;
@@ -250,6 +247,16 @@ export const QUESTION_TYPE_OPTIONS = [
   { value: "short-answer", label: "Chỉ trả lời ngắn / tự luận" },
   { value: "custom", label: "Tùy chỉnh (Khác)" },
 ] as const;
+
+export const GRADING_STRATEGY_OPTIONS = [
+  { value: "HIGHEST", label: "Lấy điểm cao nhất" },
+  { value: "AVERAGE", label: "Lấy điểm trung bình" },
+  { value: "FIRST_ATTEMPT", label: "Lượt làm đầu tiên" },
+  { value: "LAST_ATTEMPT", label: "Lượt làm cuối cùng" },
+] as const;
+
+export const getGradingStrategyLabel = (value: string) =>
+  GRADING_STRATEGY_OPTIONS.find((option) => option.value === value)?.label || value;
 
 export const difficultyOptionToValue = (option: string): number => {
   if (option === "easy") return 0.3;

@@ -293,12 +293,12 @@ export function buildQuestionTemplate(type: QuestionType, topic: string, n: numb
       const options: Record<string, string> = {};
       letters.forEach((letter, idx) => {
         options[letter] = idx === correctIdx
-          ? `Đáp án đúng cho câu ${n} về ${topic}`
-          : `Phương án gây nhiễu ${letter} cho câu ${n} về ${topic}`;
+          ? `Đáp án đúng về ${topic}`
+          : `Phương án gây nhiễu ${letter} về ${topic}`;
       });
       return {
         type,
-        content: `Câu ${n}: Trong chủ đề "${topic}", phát biểu nào sau đây là đúng?`,
+        content: `Trong chủ đề "${topic}", phát biểu nào sau đây là đúng?`,
         options,
         correctAnswer: { answer: letters[correctIdx] },
         explanation: `Đáp án ${letters[correctIdx]} là phát biểu chính xác về ${topic}.`,
@@ -308,7 +308,7 @@ export function buildQuestionTemplate(type: QuestionType, topic: string, n: numb
       const isTrue = rng() > 0.5;
       return {
         type,
-        content: `Câu ${n}: Phát biểu về "${topic}" sau đây là ${isTrue ? 'đúng' : 'sai'} trên thực tế — hãy xác nhận.`,
+        content: `Phát biểu về "${topic}" sau đây là ${isTrue ? 'đúng' : 'sai'} trên thực tế — hãy xác nhận.`,
         options: { A: 'True', B: 'False' },
         correctAnswer: { answer: isTrue ? 'A' : 'B' },
         explanation: isTrue ? `Phát biểu đúng theo lý thuyết ${topic}.` : `Phát biểu sai theo lý thuyết ${topic}.`,
@@ -318,7 +318,7 @@ export function buildQuestionTemplate(type: QuestionType, topic: string, n: numb
       const answer = pick(rng, ['khái niệm cốt lõi', 'thuật toán chính', 'cấu trúc dữ liệu phù hợp', 'giao thức tương ứng']);
       return {
         type,
-        content: `Câu ${n}: Trong ${topic}, phần còn thiếu là [[${answer}]].`,
+        content: `Trong ${topic}, phần còn thiếu là [[${answer}]].`,
         options: null,
         correctAnswer: null,
         explanation: `Câu trả lời tham khảo: "${answer}" — giảng viên chấm tay theo mức độ chính xác.`,
@@ -332,7 +332,7 @@ export function buildQuestionTemplate(type: QuestionType, topic: string, n: numb
       ];
       return {
         type,
-        content: `Câu ${n}: Ghép mỗi khái niệm trong "${topic}" với định nghĩa tương ứng.`,
+        content: `Ghép mỗi khái niệm trong "${topic}" với định nghĩa tương ứng.`,
         options: { left: leftRight.map((p) => p[0]), right: leftRight.map((p) => p[1]) },
         correctAnswer: { pairs: leftRight.map(([left, right]) => ({ left, right })) },
         explanation: `Mỗi khái niệm của ${topic} khớp đúng 1 định nghĩa duy nhất.`,
@@ -342,7 +342,7 @@ export function buildQuestionTemplate(type: QuestionType, topic: string, n: numb
       const steps = [`Bước 1 (${topic})`, `Bước 2 (${topic})`, `Bước 3 (${topic})`, `Bước 4 (${topic})`];
       return {
         type,
-        content: `Câu ${n}: Sắp xếp đúng thứ tự các bước thực hiện trong "${topic}".`,
+        content: `Sắp xếp đúng thứ tự các bước thực hiện trong "${topic}".`,
         options: steps,
         correctAnswer: { items: steps },
         explanation: `Thứ tự chuẩn của quy trình ${topic}: ${steps.join(' → ')}.`,
@@ -350,15 +350,16 @@ export function buildQuestionTemplate(type: QuestionType, topic: string, n: numb
     }
     case 'FIND_ERROR': {
       const errorLine = pick(rng, ['A', 'B', 'C', 'D']);
+      const options: Record<string, string> = {};
+      ['A', 'B', 'C', 'D'].forEach((letter) => {
+        options[letter] = letter === errorLine
+          ? `// dòng ${letter} liên quan ${topic} (chứa lỗi)`
+          : `// dòng ${letter} liên quan ${topic}`;
+      });
       return {
         type,
-        content: `Câu ${n}: Tìm dòng chứa lỗi trong đoạn minh họa "${topic}" sau.`,
-        options: {
-          A: `// dòng A liên quan ${topic}`,
-          B: `// dòng B liên quan ${topic}`,
-          C: `// dòng C liên quan ${topic}`,
-          D: `// dòng D liên quan ${topic}`,
-        },
+        content: `Tìm dòng chứa lỗi trong đoạn minh họa "${topic}" sau.`,
+        options,
         correctAnswer: { answers: [errorLine] },
         explanation: `Dòng ${errorLine} chứa lỗi cú pháp/logic trong ví dụ về ${topic}.`,
       };
@@ -366,7 +367,7 @@ export function buildQuestionTemplate(type: QuestionType, topic: string, n: numb
     case 'ESSAY': {
       return {
         type,
-        content: `Câu ${n}: Trình bày phân tích của bạn về "${topic}" (tối thiểu 3 ý chính, có ví dụ minh hoạ).`,
+        content: `Trình bày phân tích của bạn về "${topic}" (tối thiểu 3 ý chính, có ví dụ minh hoạ).`,
         options: null,
         correctAnswer: { answer: `Rubric tham khảo: nêu được định nghĩa, ít nhất 2 đặc điểm, và 1 ví dụ thực tế liên quan tới ${topic}.` },
         explanation: 'Đáp án tham khảo dùng để chấm thủ công, không tự động chấm điểm.',

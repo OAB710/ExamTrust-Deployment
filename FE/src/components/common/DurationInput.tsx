@@ -38,6 +38,16 @@ export function DurationInput({
   // is Giờ would silently demand 10 hours instead of 10 seconds).
   const minInUnit = Math.ceil(minSeconds / UNIT_SECONDS[unit]);
 
+  // Switching units keeps the number on screen as-is instead of converting
+  // the total duration — typing "5" then switching Phút → Giờ shows "5 Giờ",
+  // not a silently rounded "0 Giờ". The unit picker only changes how the
+  // next number typed is interpreted, not what's already on screen.
+  const handleUnitChange = (nextUnit: Unit) => {
+    const raw = Number(displayValue) || 0;
+    setUnit(nextUnit);
+    onChangeSeconds(raw * UNIT_SECONDS[nextUnit]);
+  };
+
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <Input
@@ -51,7 +61,7 @@ export function DurationInput({
         }}
         className="w-28"
       />
-      <Select value={unit} onValueChange={(v) => setUnit(v as Unit)}>
+      <Select value={unit} onValueChange={(v) => handleUnitChange(v as Unit)}>
         <SelectTrigger className="w-24" aria-label="Đơn vị thời gian">
           <SelectValue />
         </SelectTrigger>

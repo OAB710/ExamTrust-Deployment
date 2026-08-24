@@ -1,6 +1,23 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { PrismaClient, QuestionLifecycleStatus, Prisma } from '@prisma/client';
 import { QUESTION_TYPES, QuestionType, buildQuestionTemplate, makeRng, seedFromString, pick, randInt } from './seed-helpers';
 import { main as seedCourses } from './seed-courses';
+
+// Prisma's own env auto-loading only covers prisma/.env, not this BE/.env at
+// the project root (see update-demo-email-domain.ts for the same workaround
+// with DATABASE_URL) — without this, R2_PUBLIC_BASE_URL is undefined when
+// running this script directly via ts-node (npm run db:rebuild locally).
+const backendEnvPath = join(process.cwd(), '.env');
+if (!process.env.R2_PUBLIC_BASE_URL && existsSync(backendEnvPath)) {
+  const envFile = readFileSync(backendEnvPath, 'utf8');
+  for (const line of envFile.split(/\r?\n/)) {
+    const match = line.match(/^\s*R2_PUBLIC_BASE_URL\s*=\s*(.*)\s*$/);
+    if (!match) continue;
+    process.env.R2_PUBLIC_BASE_URL = match[1].replace(/^['"]|['"]$/g, '');
+    break;
+  }
+}
 
 const prisma = new PrismaClient();
 
@@ -47,6 +64,30 @@ export const COURSE_TOPIC_LABELS: Record<string, string[]> = {
 // question inherits the same value instead of guessing it independently.
 function pointsForType(type: QuestionType): number {
   return type === 'ESSAY' || type === 'FILL_IN_BLANK' ? 4 : 1;
+}
+
+// Permanent demo media for the "seven-types" course, uploaded once and kept
+// forever under R2 prefix "question-samples/" (excluded from clear-r2-prefix.ts
+// no matter what target is picked — see PROTECTED_PREFIXES there). Re-attached
+// on every db:rebuild instead of being re-uploaded, so the demo always has a
+// real image on its MULTIPLE_CHOICE question and a real audio clip on its
+// ESSAY question.
+const SEVEN_TYPES_SAMPLE_MEDIA: Partial<Record<QuestionType, { key: string; type: 'image' | 'audio'; sizeBytes: number }>> = {
+  MULTIPLE_CHOICE: { key: 'question-samples/seven-types-mc-image.jpg', type: 'image', sizeBytes: 1155582 },
+  ESSAY: { key: 'question-samples/seven-types-essay-audio.mp3', type: 'audio', sizeBytes: 1223873 },
+};
+
+function buildSampleMediaFields(courseKey: string, type: QuestionType) {
+  if (courseKey !== 'seven-types') return {};
+  const sample = SEVEN_TYPES_SAMPLE_MEDIA[type];
+  if (!sample) return {};
+  const publicBase = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/+$/, '');
+  return {
+    mediaKey: sample.key,
+    mediaType: sample.type,
+    mediaUrl: publicBase ? `${publicBase}/${sample.key}` : null,
+    mediaSizeBytes: sample.sizeBytes,
+  };
 }
 
 function buildTypePlan(count: number, emphasize: QuestionType[] = [], rng: () => number): QuestionType[] {
@@ -123,6 +164,7 @@ export async function main(seeded?: Awaited<ReturnType<typeof seedCourses>>) {
             isReusable: true,
             createdAt,
             updatedAt: createdAt,
+            ...buildSampleMediaFields(courseKey, template.type),
           },
         });
 

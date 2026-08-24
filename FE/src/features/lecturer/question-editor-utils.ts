@@ -2,6 +2,33 @@ import { api, unwrapPaginatedData } from "@/lib/api";
 import type { QuestionOption } from "./question-editor-types";
 
 export const QUESTION_DRAFT_STORAGE_KEY = "question-draft";
+
+// Lets the editor offer "câu trước / câu tiếp" without an extra API call:
+// the list page stashes the ordered IDs it's currently showing (already
+// respecting its own filters/sort) right before navigating into edit mode,
+// and the editor reads them back to know its siblings. sessionStorage (not
+// localStorage) so a stale list from a different course/filter session
+// doesn't linger across browser restarts.
+export const QUESTION_EDITOR_NAV_STORAGE_KEY = "question-editor-nav-ids";
+
+export function saveQuestionEditorNavList(questionIds: string[]) {
+  try {
+    sessionStorage.setItem(QUESTION_EDITOR_NAV_STORAGE_KEY, JSON.stringify(questionIds));
+  } catch {
+    // Non-critical — Next/Previous just won't be available for this session.
+  }
+}
+
+export function loadQuestionEditorNavList(): string[] {
+  try {
+    const raw = sessionStorage.getItem(QUESTION_EDITOR_NAV_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export const DEFAULT_QUESTION_OPTIONS: QuestionOption[] = [
   { id: "A", text: "", isCorrect: true },
   { id: "B", text: "", isCorrect: false },

@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiJobsService } from '../ai/ai-jobs.service';
 import { AiService } from '../ai/ai.service';
@@ -816,7 +816,13 @@ export class QuestionsService {
     if (!examQuestion) throw new NotFoundException('Câu hỏi này không thuộc bài thi');
 
     const latestVersion = question.versions?.[0] || null;
-    const lockName = `question-ai-improvement:${dto.examId}:${dto.questionId}`;
+    // MySQL's GET_LOCK() rejects any name over 64 chars — two raw UUIDs plus
+    // the prefix runs to ~97, which always failed (error 4163) and surfaced
+    // to the lecturer as a 500. Hash the identifying pair down to a fixed,
+    // safely-short name instead; collisions are irrelevant here since the
+    // lock only needs to serialize concurrent requests for the same
+    // exam+question, not be reversible.
+    const lockName = `qai:${createHash('md5').update(`${dto.examId}:${dto.questionId}`).digest('hex')}`;
     const lockRows = await this.prisma.$queryRawUnsafe(`SELECT GET_LOCK(?, 5) AS locked`, lockName) as Array<{ locked: number }>;
     if (!lockRows?.[0]?.locked) {
       throw new ConflictException('Đang có yêu cầu cải thiện bằng AI khác được tạo cho câu hỏi này');

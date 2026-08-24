@@ -553,12 +553,12 @@ export default function ExamAnalytics() {
   const getKpiCards = (payload: IntelligencePayload) => {
     const rawPassing = payload.exam?.passingScore ?? payload.passingScorePct ?? 50;
     const passingPct = rawPassing > 10 ? rawPassing : rawPassing * 10;
-    const passingPoint = (passingPct / 10).toFixed(1);
+    const passingPoint = (passingPct / 10).toFixed(2);
 
     return [
       {
         icon: TrendingUp,
-        value: (payload.kpis.avgScorePct / 10).toFixed(1) + "/10",
+        value: (payload.kpis.avgScorePct / 10).toFixed(2) + "/10",
         label: "Điểm trung bình",
         iconWrapClassName: "bg-sky-500/10",
         iconClassName: "text-sky-600",
@@ -836,7 +836,7 @@ export default function ExamAnalytics() {
                   {(() => {
                     const rawPassing = data?.exam?.passingScore ?? data?.passingScorePct ?? 50;
                     const passingPct = rawPassing > 10 ? rawPassing : rawPassing * 10;
-                    const passingPoint = (passingPct / 10).toFixed(1);
+                    const passingPoint = (passingPct / 10).toFixed(2);
                     return (
                       <Badge variant="outline" className="text-xs border-emerald-300 bg-emerald-50/60 text-emerald-700 font-medium">
                         Điểm đạt: {passingPoint}/10 ({passingPct}%)
@@ -1058,8 +1058,8 @@ export default function ExamAnalytics() {
                           }
                         >
                           {data.attemptStats.avgScoreImprovement >= 0
-                            ? `Tiến bộ TB: +${(data.attemptStats.avgScoreImprovement / 10).toFixed(1)} điểm`
-                            : `Giảm TB: ${(data.attemptStats.avgScoreImprovement / 10).toFixed(1)} điểm`}
+                            ? `Tiến bộ TB: +${(data.attemptStats.avgScoreImprovement / 10).toFixed(2)} điểm`
+                            : `Giảm TB: ${(data.attemptStats.avgScoreImprovement / 10).toFixed(2)} điểm`}
                         </Badge>
                       )}
                     </div>
@@ -1084,11 +1084,11 @@ export default function ExamAnalytics() {
                       <div className="rounded-lg border bg-muted/20 p-3">
                         <p className="text-xs text-muted-foreground">Điểm TB Lần 1 vs Làm lại</p>
                         <p className="mt-1 text-lg font-bold text-foreground">
-                          {(data.attemptStats.firstAttemptAvgScore / 10).toFixed(1)}
+                          {(data.attemptStats.firstAttemptAvgScore / 10).toFixed(2)}
                           <span className="text-sm font-normal text-muted-foreground"> → </span>
                           <span className="text-emerald-600">
                             {data.attemptStats.retakeAttemptsAvgScore !== null
-                              ? (data.attemptStats.retakeAttemptsAvgScore / 10).toFixed(1)
+                              ? (data.attemptStats.retakeAttemptsAvgScore / 10).toFixed(2)
                               : "—"}
                           </span>
                         </p>
@@ -1119,7 +1119,7 @@ export default function ExamAnalytics() {
                                 </Badge>
                                 <div>
                                   <span className="text-sm font-semibold text-foreground">
-                                    {(item.avgScorePct / 10).toFixed(1)}/10 điểm TB
+                                    {(item.avgScorePct / 10).toFixed(2)}/10 điểm TB
                                   </span>
                                   <span className="ml-2 text-xs text-muted-foreground">
                                     · {item.submissionCount} lượt nộp
@@ -1175,7 +1175,7 @@ export default function ExamAnalytics() {
                               {item.studentCode ? <span className="text-xs text-muted-foreground">{item.studentCode}</span> : null}
                               <Badge variant="outline" className={item.severity === "HIGH" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-amber-200 bg-amber-50 text-amber-700"}>{item.severity === "HIGH" ? "Rủi ro cao" : "Cần xem xét"}</Badge>
                             </div>
-                            <p className="mt-1 text-sm text-muted-foreground">{item.elapsedMinutes} phút / {item.allowedMinutes} phút · {item.scorePct.toFixed(1)} điểm · nhanh hơn {((1 - item.completionRatio) * 100).toFixed(1)}% thời lượng cho phép</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{item.elapsedMinutes} phút / {item.allowedMinutes} phút · {(item.scorePct / 10).toFixed(2)}/10 điểm · nhanh hơn {((1 - item.completionRatio) * 100).toFixed(1)}% thời lượng cho phép</p>
                             {item.cohortMedianMinutes !== null ? <p className="mt-1 text-xs text-muted-foreground">Trung vị lớp: {item.cohortMedianMinutes} phút</p> : null}
                           </div>
                         </div>
@@ -1243,7 +1243,7 @@ export default function ExamAnalytics() {
                     <div key={row.date} className="flex items-center gap-3">
                       <span className="w-24 shrink-0 text-xs text-muted-foreground">{row.date}</span>
                       <Progress value={row.avgScorePct} className="h-1.5 flex-1 [&>div]:bg-primary" />
-                      <span className="w-12 text-right text-xs font-medium">{(row.avgScorePct / 10).toFixed(1)}/10</span>
+                      <span className="w-14 text-right text-xs font-medium">{(row.avgScorePct / 10).toFixed(2)}/10</span>
                     </div>
                   ))}
                 </CardContent>

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { ContextHelp, HelpedTitle } from "@/components/common/ContextHelp";
+import { HelpedTitle } from "@/components/common/ContextHelp";
 import {
   Card,
   CardContent,
@@ -42,9 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  BookOpen,
   Users,
   Shield,
   ChevronRight,
@@ -53,17 +51,12 @@ import {
   Check,
   Plus,
   FileText,
-  Settings,
   Eye,
   Sparkles,
   Wand2,
-  AlertCircle,
-  Upload,
   FileCheck,
-  FileSearch,
   Database,
   Loader2,
-  Trash2,
   Image,
   Music,
   Camera,
@@ -98,9 +91,8 @@ import {
 } from "@/lib/course-term";
 import { cn } from "@/lib/utils";
 import {
-  MAX_ATTEMPT_OPTIONS,
+  GRADING_STRATEGY_OPTIONS,
   QUESTION_TYPE_OPTIONS,
-  REVIEW_PHASE_META,
   STEPS,
   WHOLE_COURSE_LABEL,
   buildReviewSettingsPayload,
@@ -109,13 +101,14 @@ import {
   difficultyLabelFromValue,
   difficultyLabelViFromValue,
   difficultyOptionToBankValue,
+  getGradingStrategyLabel,
   difficultyOptionToValue,
   getDefaultExamWindow,
   mapQuestionTypeToAiApi,
   mapQuestionTypeToDb,
   normalizeDifficultyForQuestion,
+  normalizeReviewSettingsDraft,
   pad2,
-  reviewPhaseSummary,
   toDateInputValue,
   toTimeInputValue,
   type BankQuestionOption,
@@ -126,6 +119,58 @@ import {
   type ReviewSettingsDraft,
   type Step,
 } from "./create-exam-model";
+
+// Shared "icon + title (with hover help) + Switch" row used across the
+// settings step — factored out so every toggle group gets the same
+// border/padding/spacing instead of each call site re-typing it slightly
+// differently.
+function SettingToggleRow({
+  icon,
+  title,
+  help,
+  checked,
+  onCheckedChange,
+  disabled,
+}: {
+  icon: ReactNode;
+  title: ReactNode;
+  help: Parameters<typeof HelpedTitle>[0]["help"];
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+      <div className="flex items-center gap-3">
+        {icon}
+        <div className="text-sm font-medium">
+          <HelpedTitle help={help}>{title}</HelpedTitle>
+        </div>
+      </div>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
+    </div>
+  );
+}
+
+// Label-on-top / value-below tile used in the "Xem trước" step — stacking
+// avoids the ragged misalignment a same-row label+value layout gets once
+// values vary wildly in length (a 1-word value next to a 2-line one).
+function PreviewField({
+  label,
+  value,
+  highlight,
+}: {
+  label: ReactNode;
+  value: ReactNode;
+  highlight?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={highlight ? "text-base font-semibold text-primary" : "text-sm font-medium"}>{value}</p>
+    </div>
+  );
+}
 
 export default function CreateExam() {
   const router = useRouter();
@@ -146,7 +191,7 @@ export default function CreateExam() {
   const [numberErrors, setNumberErrors] = useState<Record<string, string>>({});
   const [reviewSettingsDraft, setReviewSettingsDraft] = useState<ReviewSettingsDraft>(() => createDefaultReviewSettingsDraft());
   const [questionSourceMode, setQuestionSourceMode] = useState<QuestionSourceMode>("manual");
-  const [selectedBankTopicId, setSelectedBankTopicId] = useState("");
+  const [selectedBankTopicId, setSelectedBankTopicId] = useState("__all__");
   const [bankQuestions, setBankQuestions] = useState<BankQuestionOption[]>([]);
   const [selectedBankQuestionIds, setSelectedBankQuestionIds] = useState<string[]>([]);
   const [isLoadingBankQuestions, setIsLoadingBankQuestions] = useState(false);
@@ -185,7 +230,6 @@ export default function CreateExam() {
     selectedTopicId: manualTopicId,
     onSelectTopic: setManualTopicId,
   });
-  const [manualLearningObjective, setManualLearningObjective] = useState("");
   const [manualAiPrompt, setManualAiPrompt] = useState("");
   const [isManualAiGenerating, setIsManualAiGenerating] = useState(false);
   const [manualAiSimilarityWarning, setManualAiSimilarityWarning] = useState("");
@@ -348,7 +392,6 @@ export default function CreateExam() {
 
         const settings = exam.settings || {};
         const webcamPolicy = settings.webcamEvidencePolicy || {};
-        const eventLimits = webcamPolicy.eventCaptureLimits || {};
         const qConfig = exam.questionSelectionConfig || {};
 
         setForm((prev) => ({
@@ -367,10 +410,6 @@ export default function CreateExam() {
           endTime: endTime || prev.endTime,
           requiresProctoring: settings.requiresProctoring ?? settings.proctoringEnabled ?? true,
           webcamEvidenceEnabled: webcamPolicy.enabled ?? false,
-          webcamEvidenceLimitTabSwitch: String(eventLimits.tab_switch ?? 3),
-          webcamEvidenceLimitFullscreenExit: String(eventLimits.fullscreen_exit ?? 3),
-          webcamEvidenceLimitPasteExternal: String(eventLimits.paste_external ?? 3),
-          webcamEvidenceLimitMouseIdle: String(eventLimits.mouse_idle ?? 3),
           webcamEvidenceMouseIdleThresholdSeconds: String(Math.round((webcamPolicy.mouseIdleThresholdMs || 60000) / 1000)),
           webcamEvidenceCooldownSeconds: String(Math.round((webcamPolicy.eventCooldownMs || 60000) / 1000)),
           webcamEvidenceScheduledIntervalSeconds: webcamPolicy.scheduledCaptureIntervalSeconds ? String(webcamPolicy.scheduledCaptureIntervalSeconds) : "",
@@ -389,10 +428,7 @@ export default function CreateExam() {
         }));
 
         if (exam.reviewSettings) {
-          setReviewSettingsDraft({
-            enabled: exam.reviewSettings.enabled ?? true,
-            phases: exam.reviewSettings.phases || createDefaultReviewSettingsDraft().phases,
-          });
+          setReviewSettingsDraft(normalizeReviewSettingsDraft(exam.reviewSettings));
         }
 
         if (Array.isArray(exam.examQuestions) && exam.examQuestions.length > 0) {
@@ -737,7 +773,6 @@ export default function CreateExam() {
         difficulty: difficultyOptionToValue(manualDifficulty),
         points: 1,
         topicId: manualTopicId || undefined,
-        learningObjective: manualLearningObjective.trim() || undefined,
         media: manualHasMedia ? manualMediaAttachment : null,
       },
     ]);
@@ -893,6 +928,7 @@ export default function CreateExam() {
 
     try {
       const durationError = form.unlimitedTime ? "" : getNumericInputError(form.duration, { min: 5, integer: true });
+      const maxAttemptsError = hasUnlimitedAttempts ? "" : getNumericInputError(form.maxAttempts, { min: 1, integer: true });
       const passingScoreError = getNumericInputError(form.passingScore, {
         min: 0,
         max: 100,
@@ -924,6 +960,7 @@ export default function CreateExam() {
 
       const nextErrors = {
         duration: durationError || "",
+        maxAttempts: maxAttemptsError || "",
         passingScore: passingScoreError || "",
         questionCount: questionCountError || "",
       };
@@ -935,9 +972,7 @@ export default function CreateExam() {
         return;
       }
 
-      const parsedReviewSettings = reviewSettingsDraft.enabled
-        ? buildReviewSettingsPayload(reviewSettingsDraft)
-        : null;
+      const parsedReviewSettings = buildReviewSettingsPayload(reviewSettingsDraft);
       const effectiveQuestionCount = composedQuestionCount;
 
       setIsCreating(true);
@@ -957,7 +992,6 @@ export default function CreateExam() {
               defaultPoints: Math.max(1, Number(q.points) || 1),
               courseId: form.course,
               topicId: q.topicId || undefined,
-              learningObjective: q.learningObjective || undefined,
               media: q.media || undefined,
             }),
           ),
@@ -1034,12 +1068,6 @@ export default function CreateExam() {
               ? parseNumericInput(form.webcamEvidenceScheduledIntervalSeconds, { min: 1, integer: true })
               : null,
             eventCooldownMs: (parseNumericInput(form.webcamEvidenceCooldownSeconds, { min: 1, integer: true }) || 60) * 1000,
-            eventCaptureLimits: {
-              tab_switch: parseNumericInput(form.webcamEvidenceLimitTabSwitch, { min: 1, integer: true }) || 3,
-              fullscreen_exit: parseNumericInput(form.webcamEvidenceLimitFullscreenExit, { min: 1, integer: true }) || 3,
-              paste_external: parseNumericInput(form.webcamEvidenceLimitPasteExternal, { min: 1, integer: true }) || 3,
-              mouse_idle: parseNumericInput(form.webcamEvidenceLimitMouseIdle, { min: 1, integer: true }) || 3,
-            },
             mouseIdleThresholdMs: (parseNumericInput(form.webcamEvidenceMouseIdleThresholdSeconds, { min: 10, integer: true }) || 60) * 1000,
             screenCaptureEnabled: form.screenCaptureEnabled,
             requireFullScreenCapture: form.screenCaptureEnabled,
@@ -1259,11 +1287,7 @@ export default function CreateExam() {
 
   return (
     <DashboardLayout>
-      <div
-        className={`mx-auto space-y-6 px-3 sm:px-0 transition-[max-width] duration-300 ${
-          step === "questions" ? "max-w-6xl" : "max-w-3xl"
-        }`}
-      >
+      <div className="mx-auto max-w-6xl space-y-6 px-3 sm:px-0">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold">
@@ -1313,7 +1337,7 @@ export default function CreateExam() {
                   Nhập tên bài thi, học phần và mô tả ngắn.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="grid gap-4 lg:grid-cols-2 lg:items-start">
                 <div>
                   <Label htmlFor="title">
                     Tên bài thi <span className="text-red-500">*</span>
@@ -1327,71 +1351,71 @@ export default function CreateExam() {
                   />
                 </div>
                 <div>
-                  <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="course-academic-year-filter"
-                        className="text-sm"
-                      >
-                        Năm học
-                      </Label>
-                      <Select
-                        value={courseAcademicYearFilter}
-                        onValueChange={setCourseAcademicYearFilter}
-                      >
-                        <SelectTrigger
-                          id="course-academic-year-filter"
-                          className="h-11 rounded-xl"
-                        >
-                          <SelectValue placeholder="Năm học" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Tất cả năm học</SelectItem>
-                          {courseAcademicYearOptions.map((year) => (
-                            <SelectItem key={year} value={year}>
-                              {year}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="course-term-filter" className="text-sm">
-                        Học kỳ
-                      </Label>
-                      <Select
-                        value={courseTermFilter}
-                        onValueChange={(value) =>
-                          setCourseTermFilter(value as CourseTerm | "all")
-                        }
-                      >
-                        <SelectTrigger
-                          id="course-term-filter"
-                          className="h-11 rounded-xl"
-                        >
-                          <SelectValue placeholder="Học kỳ" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Tất cả học kỳ</SelectItem>
-                          {COURSE_TERM_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="self-end"
-                      onClick={resetCourseFilters}
+                  <Label htmlFor="desc">Mô tả</Label>
+                  <Textarea
+                    id="desc"
+                    value={form.description}
+                    onChange={(e) => set("description", e.target.value)}
+                    placeholder="Mô tả ngắn phạm vi và mục tiêu của bài thi…"
+                    className="mt-1 h-11 min-h-0 resize-none py-2.5"
+                  />
+                </div>
+                <div>
+                  <Label className="block invisible">Lọc học phần</Label>
+                  <div className="flex items-center gap-2 rounded-lg bg-muted/40 p-2">
+                  <Select
+                    value={courseAcademicYearFilter}
+                    onValueChange={setCourseAcademicYearFilter}
+                  >
+                    <SelectTrigger
+                      id="course-academic-year-filter"
+                      className="h-8 flex-1 rounded-md border-none bg-transparent text-xs shadow-none"
                     >
-                      Đặt lại
-                    </Button>
+                      <SelectValue placeholder="Năm học" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả năm học</SelectItem>
+                      {courseAcademicYearOptions.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={courseTermFilter}
+                    onValueChange={(value) =>
+                      setCourseTermFilter(value as CourseTerm | "all")
+                    }
+                  >
+                    <SelectTrigger
+                      id="course-term-filter"
+                      className="h-8 flex-1 rounded-md border-none bg-transparent text-xs shadow-none"
+                    >
+                      <SelectValue placeholder="Học kỳ" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả học kỳ</SelectItem>
+                      {COURSE_TERM_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 shrink-0 px-2 text-xs"
+                    onClick={resetCourseFilters}
+                  >
+                    Đặt lại
+                  </Button>
                   </div>
-                  <Label htmlFor="course" className="mt-4 block">
+                </div>
+                <div>
+                  <Label htmlFor="course" className="block">
                     Học phần <span className="text-red-500">*</span>
                   </Label>
                   <Popover
@@ -1494,17 +1518,6 @@ export default function CreateExam() {
                     </p>
                   ) : null}
                 </div>
-                <div>
-                  <Label htmlFor="desc">Mô tả</Label>
-                  <Textarea
-                    id="desc"
-                    value={form.description}
-                    onChange={(e) => set("description", e.target.value)}
-                    placeholder="Mô tả ngắn phạm vi và mục tiêu của bài thi…"
-                    className="mt-1 resize-none"
-                    rows={3}
-                  />
-                </div>
               </CardContent>
             </>
           )}
@@ -1517,8 +1530,8 @@ export default function CreateExam() {
                   Cấu hình thời gian, cách tính điểm và quyền truy cập.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <Label>Thời lượng (phút)</Label>
                     <Input
@@ -1590,26 +1603,40 @@ export default function CreateExam() {
                     ) : null}
                   </div>
                   <div>
-                    <Label>Số lần làm tối đa</Label>
-                    <Select
-                      value={form.maxAttempts}
-                      onValueChange={(v) => set("maxAttempts", v)}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unlimited">Không giới hạn</SelectItem>
-                        {MAX_ATTEMPT_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Chọn giá trị từ 1 đến 10. Chọn 1 sẽ khóa nộp muộn.
-                    </p>
+                    <Label>
+                      <HelpedTitle help="Đặt 1 sẽ khóa nộp muộn.">
+                        Số lần làm tối đa
+                      </HelpedTitle>
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      disabled={hasUnlimitedAttempts}
+                      value={hasUnlimitedAttempts ? "" : form.maxAttempts}
+                      placeholder={hasUnlimitedAttempts ? "Không giới hạn" : undefined}
+                      onChange={(e) =>
+                        set("maxAttempts", sanitizeNumericInput(e.target.value, { min: 1, integer: true }))
+                      }
+                      onBlur={(e) =>
+                        setNumberErrors((prev) => ({
+                          ...prev,
+                          maxAttempts: getNumericInputError(e.target.value, { min: 1, integer: true }) || "",
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                    {numberErrors.maxAttempts ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        {numberErrors.maxAttempts}
+                      </p>
+                    ) : null}
+                    <div className="mt-2 flex items-center gap-2 text-xs">
+                      <Switch
+                        checked={hasUnlimitedAttempts}
+                        onCheckedChange={(v) => set("maxAttempts", v ? "unlimited" : "1")}
+                      />
+                      <span>Không giới hạn số lần làm</span>
+                    </div>
                   </div>
                   <div>
                     <Label>Cách tính điểm</Label>
@@ -1623,10 +1650,9 @@ export default function CreateExam() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="HIGHEST">Lấy điểm cao nhất</SelectItem>
-                        <SelectItem value="AVERAGE">Lấy điểm trung bình</SelectItem>
-                        <SelectItem value="FIRST_ATTEMPT">Lượt làm đầu tiên</SelectItem>
-                        <SelectItem value="LAST_ATTEMPT">Lượt làm cuối cùng</SelectItem>
+                        {GRADING_STRATEGY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1634,7 +1660,7 @@ export default function CreateExam() {
 
                 <Separator />
                 <p className="text-sm font-medium">Khung giờ thi</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <Label>
                       Ngày bắt đầu <span className="text-red-500">*</span>
@@ -1669,7 +1695,7 @@ export default function CreateExam() {
 
                 <Separator />
                 <p className="text-sm font-medium">Tùy chọn</p>
-                <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
                   {(
                     [
                       {
@@ -1690,33 +1716,17 @@ export default function CreateExam() {
                         desc: "Ngẫu nhiên thứ tự câu hỏi cho từng sinh viên",
                         icon: <Users className="h-4 w-4 text-primary" />,
                       },
-                      {
-                        key: "showResultImmediately",
-                        label: "Hiển thị kết quả ngay",
-                        desc: "Sinh viên xem điểm ngay sau khi nộp bài",
-                        icon: <Eye className="h-4 w-4 text-primary" />,
-                      },
                     ] as const
                   ).map(({ key, label, desc, icon }) => (
-                    <div
+                    <SettingToggleRow
                       key={key}
-                      className="flex items-center justify-between border rounded-lg p-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        {icon}
-                        <div>
-                          <p className="text-sm font-medium">{label}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {desc}
-                          </p>
-                        </div>
-                      </div>
-                      <Switch
-                        checked={form[key] as boolean}
-                        onCheckedChange={(v) => set(key, v)}
-                        disabled={(key === "allowLateSubmission" && isSingleAttempt) || (key === "requiresProctoring" && proctoringForcedOff)}
-                      />
-                    </div>
+                      icon={icon}
+                      title={label}
+                      help={desc}
+                      checked={form[key] as boolean}
+                      onCheckedChange={(v) => set(key, v)}
+                      disabled={(key === "allowLateSubmission" && isSingleAttempt) || (key === "requiresProctoring" && proctoringForcedOff)}
+                    />
                   ))}
                 </div>
                 {isSingleAttempt ? (
@@ -1726,213 +1736,156 @@ export default function CreateExam() {
                 ) : null}
                 {proctoringForcedOff ? <p className="text-xs text-muted-foreground">Giám sát AI được tự động tắt vì bài kiểm tra không giới hạn thời gian hoặc lượt làm.</p> : null}
 
-                {effectiveProctoring ? (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <Label className="text-sm font-medium">Ghi nhận bằng chứng giám sát trong khi thi</Label>
-                        <p className="text-xs text-muted-foreground mt-1">Khi bật, sinh viên phải cấp webcam trước khi vào bài. Ảnh tự xóa sau 30 ngày.</p>
+                <Separator />
+                <div className="grid gap-4 lg:grid-cols-3">
+                  {effectiveProctoring ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-3 lg:col-span-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <Label className="text-sm font-medium">
+                            <HelpedTitle
+                              help={{
+                                description: "Khi bật, sinh viên phải cấp webcam trước khi vào bài. Ảnh tự xóa sau 30 ngày.",
+                                usedBy: "Hệ thống tự chụp 1 ảnh webcam (kèm ảnh màn hình nếu bật) mỗi khi phát hiện: chuyển tab, thoát toàn màn hình, dán nội dung từ ngoài vào bài thi, hoặc không thao tác chuột/bàn phím quá lâu.",
+                                note: "Ngoài ra còn có các mốc chụp định kỳ theo thời gian làm bài (mặc định 0/25/50/75/100%), không phụ thuộc vào việc sinh viên có vi phạm hay không.",
+                              }}
+                            >
+                              Ghi nhận bằng chứng giám sát trong khi thi
+                            </HelpedTitle>
+                          </Label>
+                        </div>
+                        <Switch checked={form.webcamEvidenceEnabled} onCheckedChange={(v) => set("webcamEvidenceEnabled", v)} aria-label="Bật bằng chứng webcam" />
                       </div>
-                      <Switch checked={form.webcamEvidenceEnabled} onCheckedChange={(v) => set("webcamEvidenceEnabled", v)} aria-label="Bật bằng chứng webcam" />
-                    </div>
 
-                    {form.webcamEvidenceEnabled ? (
                       <div className="space-y-3 border-t border-amber-200 pt-3">
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Giới hạn chuyển tab</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={form.webcamEvidenceLimitTabSwitch}
-                              onChange={(e) => set("webcamEvidenceLimitTabSwitch", e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Giới hạn thoát fullscreen</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={form.webcamEvidenceLimitFullscreenExit}
-                              onChange={(e) => set("webcamEvidenceLimitFullscreenExit", e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Giới hạn dán nội dung ngoài</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={form.webcamEvidenceLimitPasteExternal}
-                              onChange={(e) => set("webcamEvidenceLimitPasteExternal", e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Giới hạn ngồi im</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={form.webcamEvidenceLimitMouseIdle}
-                              onChange={(e) => set("webcamEvidenceLimitMouseIdle", e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Ngưỡng không thao tác</Label>
-                            <DurationInput
-                              defaultUnit="s"
-                              minSeconds={1}
-                              valueSeconds={Number(form.webcamEvidenceMouseIdleThresholdSeconds) || 0}
-                              onChangeSeconds={(seconds) => set("webcamEvidenceMouseIdleThresholdSeconds", String(seconds))}
-                            />
-                            <p className="text-xs text-muted-foreground">Không di chuột/gõ phím quá thời gian sẽ ghi nhận.</p>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Cooldown giữa 2 lần chụp theo sự kiện</Label>
-                            <DurationInput
-                              defaultUnit="s"
-                              minSeconds={1}
-                              valueSeconds={Number(form.webcamEvidenceCooldownSeconds) || 0}
-                              onChangeSeconds={(seconds) => set("webcamEvidenceCooldownSeconds", String(seconds))}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-xs">Chụp định kỳ mỗi</Label>
-                          <DurationInput
-                            defaultUnit="m"
-                            minSeconds={1}
-                            placeholder="Mặc định"
-                            valueSeconds={Number(form.webcamEvidenceScheduledIntervalSeconds) || 0}
-                            onChangeSeconds={(seconds) => set("webcamEvidenceScheduledIntervalSeconds", String(seconds))}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Để trống: hệ thống tự chụp 5 mốc theo % thời gian làm bài (0%, 25%, 50%, 75%, 100%). Nhập giá trị để chụp đều đặn theo chu kỳ cố định — ảnh cuối luôn được thêm đúng lúc kết thúc bài thi kể cả khi không tròn chu kỳ.
-                          </p>
-                        </div>
-                        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-white/60 p-2">
-                          <div className="flex items-center gap-2">
-                            <Camera className="h-4 w-4 text-muted-foreground" />
-                            <Monitor className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <Label className="text-sm font-medium">Bật chụp màn hình song song</Label>
-                              <p className="text-xs text-muted-foreground">Mỗi lần chụp bằng chứng sẽ lấy đồng thời 1 ảnh webcam và 1 ảnh toàn bộ màn hình.</p>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">
+                                <HelpedTitle help="Không di chuột/gõ phím quá thời gian này sẽ được ghi nhận là một sự kiện nghi vấn.">
+                                  Ngưỡng không thao tác
+                                </HelpedTitle>
+                              </Label>
+                              <DurationInput
+                                defaultUnit="s"
+                                minSeconds={1}
+                                valueSeconds={Number(form.webcamEvidenceMouseIdleThresholdSeconds) || 0}
+                                onChangeSeconds={(seconds) => set("webcamEvidenceMouseIdleThresholdSeconds", String(seconds))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">
+                                <HelpedTitle
+                                  help={{
+                                    description: "Thông số kỹ thuật, không phải quy tắc \"cho phép vi phạm N lần\" — mọi vi phạm đều được ghi nhận đầy đủ.",
+                                    note: "Đây chỉ là khoảng nghỉ tối thiểu giữa 2 lần chụp ảnh cùng loại sự kiện, để tránh chụp dồn dập hàng chục ảnh trong vài giây khi sự kiện lặp lại liên tục (vd. tab bị nháy nhiều lần do trình duyệt). Không cần chỉnh nếu không rõ tác dụng — giá trị mặc định là đủ dùng.",
+                                  }}
+                                >
+                                  Cooldown giữa 2 lần chụp
+                                </HelpedTitle>
+                              </Label>
+                              <DurationInput
+                                defaultUnit="s"
+                                minSeconds={1}
+                                valueSeconds={Number(form.webcamEvidenceCooldownSeconds) || 0}
+                                onChangeSeconds={(seconds) => set("webcamEvidenceCooldownSeconds", String(seconds))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">
+                                <HelpedTitle help="Để trống: hệ thống tự chụp 5 mốc theo % thời gian làm bài (0%, 25%, 50%, 75%, 100%). Nhập giá trị để chụp đều đặn theo chu kỳ cố định — ảnh cuối luôn được thêm đúng lúc kết thúc bài thi kể cả khi không tròn chu kỳ.">
+                                  Chụp định kỳ mỗi
+                                </HelpedTitle>
+                              </Label>
+                              <DurationInput
+                                defaultUnit="m"
+                                minSeconds={1}
+                                placeholder="Mặc định"
+                                valueSeconds={Number(form.webcamEvidenceScheduledIntervalSeconds) || 0}
+                                onChangeSeconds={(seconds) => set("webcamEvidenceScheduledIntervalSeconds", String(seconds))}
+                              />
                             </div>
                           </div>
-                          <Switch checked={form.screenCaptureEnabled} onCheckedChange={(v) => set("screenCaptureEnabled", v)} aria-label="Bật chụp màn hình song song" />
-                        </div>
-                        <p className="text-xs text-muted-foreground italic">
-                          Đây là phiên bản thử nghiệm nên số lần chụp bằng chứng được giới hạn thấp để tiết kiệm chi phí lưu trữ và phân tích AI.
-                        </p>
+                          <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white/60 p-3">
+                            <div className="flex items-center gap-2">
+                              <Camera className="h-4 w-4 text-muted-foreground" />
+                              <Monitor className="h-4 w-4 text-muted-foreground" />
+                              <div>
+                                <Label className="text-sm font-medium">Bật chụp màn hình song song</Label>
+                                <p className="text-xs text-muted-foreground">Mỗi lần chụp bằng chứng sẽ lấy đồng thời 1 ảnh webcam và 1 ảnh toàn bộ màn hình.</p>
+                              </div>
+                            </div>
+                            <Switch checked={form.screenCaptureEnabled} onCheckedChange={(v) => set("screenCaptureEnabled", v)} aria-label="Bật chụp màn hình song song" />
+                          </div>
                       </div>
-                    ) : null}
-                  </div>
-                ) : null}
+                    </div>
+                  ) : null}
 
-                <Separator />
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className={cn("space-y-4", effectiveProctoring ? "lg:col-span-1" : "lg:col-span-3")}>
                     <div>
                       <Label className="text-base font-semibold">
-                        Cài đặt xem lại và phản hồi
+                        Xem lại & công bố kết quả
                       </Label>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Các thiết lập xem lại theo giai đoạn được lưu trong trường JSON hiện có, nên dữ liệu cũ vẫn được giữ nguyên.
+                        Gồm 2 phần: khi nào kết quả được công bố, và có hiển thị phản hồi của giảng viên hay không.
                       </p>
                     </div>
-                    <div className="flex items-center gap-3 rounded-lg border px-3 py-2">
-                      <div>
-                        <p className="text-sm font-medium">Bật cấu hình xem lại</p>
-                        <p className="text-xs text-muted-foreground">
-                          Lưu quy tắc xem lại theo giai đoạn cho bài thi này.
-                        </p>
+
+                    <SettingToggleRow
+                      icon={<Eye className="h-4 w-4 text-primary" />}
+                      title="Công bố kết quả ngay sau khi nộp"
+                      help="Chỉ áp dụng cho bài chấm hoàn toàn tự động. Nếu có câu tự luận/chấm tay, giảng viên vẫn phải công bố thủ công sau khi chấm xong."
+                      checked={form.showResultImmediately}
+                      onCheckedChange={(v) => set("showResultImmediately", v)}
+                    />
+
+                    <SettingToggleRow
+                      icon={<Eye className="h-4 w-4 text-primary" />}
+                      title="Cho phép sinh viên xem lại bài làm"
+                      help="Độc lập với việc công bố điểm. Khi bật, sinh viên luôn xem được nội dung câu hỏi và câu trả lời của mình ở trang chi tiết chấm điểm (đáp án đúng/nhận xét vẫn theo đúng lịch công bố như bình thường). Khi tắt, trang đó chỉ hiện các thẻ tổng quan điểm — không hiện danh sách câu hỏi/câu trả lời, kể cả sau khi đã công bố kết quả."
+                      checked={reviewSettingsDraft.allowSubmissionReview}
+                      onCheckedChange={(checked) =>
+                        setReviewSettingsDraft((draft) => ({ ...draft, allowSubmissionReview: checked }))
+                      }
+                    />
+
+                    <div className="rounded-lg border p-3 space-y-3">
+                      <div className="text-sm font-medium">
+                        <HelpedTitle
+                          help={{
+                            description: "Trong khi làm bài: hiện giải thích đáp án (viết sẵn khi tạo câu hỏi, giống nhau cho mọi sinh viên) ngay sau khi trả lời từng câu — dùng cho luyện tập, không cần biết đúng/sai trước.",
+                            note: "Sau khi có kết quả: hiện giải thích đáp án (câu tự động chấm) và nhận xét riêng của giảng viên (câu tự luận đã chấm tay). Điểm, đúng/sai và đáp án đúng luôn hiện đầy đủ sau khi công bố, và luôn ẩn trong lúc đang thi.",
+                          }}
+                        >
+                          Hiển thị giải thích đáp án & nhận xét
+                        </HelpedTitle>
                       </div>
-                      <Switch
-                        checked={reviewSettingsDraft.enabled}
-                        onCheckedChange={(checked) =>
-                          setReviewSettingsDraft((draft) => ({
-                            ...draft,
-                            enabled: checked,
-                          }))
-                        }
-                      />
+                      <div className="flex flex-col gap-2">
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={reviewSettingsDraft.feedbackDuring}
+                            onCheckedChange={(checked) =>
+                              setReviewSettingsDraft((draft) => ({ ...draft, feedbackDuring: checked }))
+                            }
+                          />
+                          Trong khi làm bài
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={reviewSettingsDraft.feedbackAfter}
+                            onCheckedChange={(checked) =>
+                              setReviewSettingsDraft((draft) => ({ ...draft, feedbackAfter: checked }))
+                            }
+                          />
+                          Sau khi có kết quả
+                        </label>
+                      </div>
+                      {reviewSettingsDraft.feedbackDuring ? (
+                        <p className="text-xs text-muted-foreground">
+                          Chỉ áp dụng với câu tự động chấm. Vì giải thích thường nói rõ đáp án đúng, chỉ nên bật khi cả lớp thi cùng lúc hoặc bài không tính điểm — nếu đề mở theo khung giờ dài, sinh viên làm sau có thể được người làm trước kể lại.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {REVIEW_PHASE_META.map((phase) => {
-                      const config = reviewSettingsDraft.phases[phase.key];
-                      const isActive = reviewSettingsDraft.enabled;
-
-                      return (
-                        <Card
-                          key={phase.key}
-                          className={!isActive ? "border-dashed bg-muted/30" : ""}
-                        >
-                          <CardHeader className="pb-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <CardTitle className="text-base">{phase.title}</CardTitle>
-                                <CardDescription className="text-xs mt-1">
-                                  {phase.description}
-                                </CardDescription>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            {([
-                              {
-                                key: "showScore",
-                                label: "Hiển thị điểm",
-                                desc: "Cho phép sinh viên xem điểm số.",
-                              },
-                              {
-                                key: "showAnswers",
-                                label: "Hiển thị đáp án",
-                                desc: "Cho phép sinh viên xem đáp án hoặc đáp án mẫu.",
-                              },
-                              {
-                                key: "showFeedback",
-                                label: "Hiển thị phản hồi",
-                                desc: "Hiển thị nhận xét và giải thích của giảng viên.",
-                              },
-                            ] as const).map((item) => (
-                              <div
-                                key={item.key}
-                                className="flex items-center justify-between gap-3 rounded-lg border p-3"
-                              >
-                                <div>
-                                  <p className="text-sm font-medium">{item.label}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {item.desc}
-                                  </p>
-                                </div>
-                                <Switch
-                                  checked={Boolean(config[item.key])}
-                                  disabled={!isActive}
-                                  onCheckedChange={(checked) =>
-                                    setReviewSettingsDraft((draft) => ({
-                                      ...draft,
-                                      phases: {
-                                        ...draft.phases,
-                                        [phase.key]: {
-                                          ...draft.phases[phase.key],
-                                          [item.key]: checked,
-                                        },
-                                      },
-                                    }))
-                                  }
-                                />
-                              </div>
-                            ))}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-
                 </div>
               </CardContent>
             </>
@@ -1946,7 +1899,7 @@ export default function CreateExam() {
                   Kết hợp câu hỏi từ nhiều nguồn. Đổi tab không làm mất câu hỏi đã thêm.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4">
                 {!questionSourceMode ? (
                   <button
                     type="button"
@@ -2015,14 +1968,81 @@ export default function CreateExam() {
 
                     {questionSourceMode === "manual" && (
                       <div className="space-y-4">
+                        <Card>
+                          <CardContent className="flex flex-wrap items-end gap-4 pt-5">
+                            <div className="min-w-[220px] flex-1 space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">
+                                <HelpedTitle
+                                  help={{
+                                    description: "Gắn câu hỏi vào chủ đề kiến thức trong khóa học.",
+                                    usedBy: "Dùng khi tạo câu hỏi thủ công, lọc ngân hàng câu hỏi và phân tích điểm yếu theo chủ đề.",
+                                    note: "Chủ đề càng rõ thì việc sinh đề và thống kê sau bài thi càng chính xác.",
+                                  }}
+                                >
+                                  Chủ đề
+                                </HelpedTitle>
+                              </Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => manualTopics.setShowTopicDialog(true)}
+                                disabled={!form.course}
+                                className="w-full justify-start text-left font-normal"
+                              >
+                                {manualTopicId
+                                  ? manualTopics.availableTopics.find((t) => t.id === manualTopicId)?.name || "Chủ đề không xác định"
+                                  : "Chọn hoặc tạo chủ đề..."}
+                              </Button>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground"><HelpedTitle help={{
+                                description: "Mức độ khó dự kiến của câu hỏi thủ công.",
+                                usedBy: "Dùng để cân bằng đề và hỗ trợ phân tích chất lượng câu hỏi sau khi có bài làm.",
+                                note: "Độ khó là nhãn ban đầu, có thể khác với độ khó thực tế khi sinh viên làm bài.",
+                              }}>Độ khó</HelpedTitle></Label>
+                              <div className="flex gap-2">
+                                {(
+                                  [
+                                    { key: "easy", label: "Dễ", active: "border-green-600 bg-green-600 text-white hover:bg-green-600", idle: "border-green-200 text-green-700 hover:bg-green-50" },
+                                    { key: "medium", label: "Trung bình", active: "border-amber-500 bg-amber-500 text-white hover:bg-amber-500", idle: "border-amber-200 text-amber-700 hover:bg-amber-50" },
+                                    { key: "hard", label: "Khó", active: "border-red-600 bg-red-600 text-white hover:bg-red-600", idle: "border-red-200 text-red-700 hover:bg-red-50" },
+                                  ] as const
+                                ).map(({ key, label, active, idle }) => (
+                                  <Button
+                                    key={key}
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setManualDifficulty(key)}
+                                    className={manualDifficulty === key ? active : idle}
+                                  >
+                                    {label}
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                            <Button type="button" onClick={addManualQuestion}>
+                              <Plus className="mr-2 h-4 w-4" /> Thêm vào bài thi
+                            </Button>
+                          </CardContent>
+                        </Card>
+
                         <div className="space-y-4">
+                          <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
                           <Card className="border-primary/20 bg-primary/5">
                             <CardHeader className="pb-3">
                               <div className="flex items-center gap-2">
                                 <Sparkles className="h-5 w-5 text-primary" />
-                                <CardTitle className="text-base text-primary">Trợ lý AI</CardTitle>
+                                <CardTitle className="text-base text-primary">
+                                  <HelpedTitle help={{
+                                    description: "Tạo bản nháp câu hỏi bằng AI dựa trên mô tả bạn nhập.",
+                                    usedBy: "Sau khi tạo, bạn vẫn xem lại và chỉnh sửa nội dung trước khi thêm vào bài thi.",
+                                    note: "Cần chọn học phần ở phần Thông tin cơ bản trước khi dùng.",
+                                  }}>
+                                    Trợ lý AI
+                                  </HelpedTitle>
+                                </CardTitle>
                               </div>
-                              <CardDescription>Tạo bản nháp, sau đó xem lại và chỉnh sửa trước khi thêm vào bài thi.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-3">
                               <div className="flex flex-col gap-2 sm:flex-row">
@@ -2087,6 +2107,7 @@ export default function CreateExam() {
                               </Select>
                             </CardContent>
                           </Card>
+                          </div>
 
                           <Card>
                             <CardHeader className="pb-3">
@@ -2259,74 +2280,10 @@ export default function CreateExam() {
                           </Card>
                         </div>
 
-                        <div className="grid items-stretch gap-4 md:grid-cols-[1fr_1fr_auto]">
-                          <Card>
-                            <CardHeader className="pb-3"><CardTitle className="text-sm">Học phần</CardTitle></CardHeader>
-                            <CardContent className="space-y-3">
-                              <p className="text-sm font-medium">
-                                {courses.find((course) => course.id === form.course)?.name || "Chọn học phần ở phần Thông tin cơ bản"}
-                              </p>
-                              <div className="space-y-1.5">
-                                <div className="inline-flex items-center gap-1.5">
-                                  <Label className="text-xs text-muted-foreground">Chủ đề</Label>
-                                  <ContextHelp content={{
-                                    description: "Gắn câu hỏi vào chủ đề kiến thức trong khóa học.",
-                                    usedBy: "Dùng khi tạo câu hỏi thủ công, lọc ngân hàng câu hỏi và phân tích điểm yếu theo chủ đề.",
-                                    note: "Chủ đề càng rõ thì việc sinh đề và thống kê sau bài thi càng chính xác.",
-                                  }} />
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => manualTopics.setShowTopicDialog(true)}
-                                  disabled={!form.course}
-                                  className="w-full justify-start text-left font-normal"
-                                >
-                                  {manualTopicId
-                                    ? manualTopics.availableTopics.find((t) => t.id === manualTopicId)?.name || "Chủ đề không xác định"
-                                    : "Chọn hoặc tạo chủ đề..."}
-                                </Button>
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-xs text-muted-foreground">Mục tiêu học tập</Label>
-                                <Input
-                                  value={manualLearningObjective}
-                                  onChange={(event) => setManualLearningObjective(event.target.value)}
-                                  placeholder="Ví dụ: Áp dụng thuật toán Dijkstra"
-                                />
-                              </div>
-                            </CardContent>
-                          </Card>
-                          <Card>
-                            <CardHeader className="pb-3"><CardTitle className="text-sm"><HelpedTitle help={{
-                              description: "Mức độ khó dự kiến của câu hỏi thủ công.",
-                              usedBy: "Dùng để cân bằng đề và hỗ trợ phân tích chất lượng câu hỏi sau khi có bài làm.",
-                              note: "Độ khó là nhãn ban đầu, có thể khác với độ khó thực tế khi sinh viên làm bài.",
-                            }}>Độ khó</HelpedTitle></CardTitle></CardHeader>
-                            <CardContent className="grid grid-cols-3 gap-2">
-                              {(["easy", "medium", "hard"] as const).map((difficulty) => (
-                                <Button
-                                  key={difficulty}
-                                  type="button"
-                                  variant={manualDifficulty === difficulty ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => setManualDifficulty(difficulty)}
-                                  className="capitalize"
-                                >
-                                  {difficulty === "easy" ? "Dễ" : difficulty === "medium" ? "Trung bình" : "Khó"}
-                                </Button>
-                              ))}
-                            </CardContent>
-                          </Card>
-                          <Button type="button" className="h-full min-h-20 px-8" onClick={addManualQuestion}>
-                            <Plus className="mr-2 h-4 w-4" /> Thêm vào bài thi
-                          </Button>
-                        </div>
-
                         {aiGeneratedQuestions.length > 0 && (
                           <Card>
                             <CardHeader className="pb-3">
-                              <CardTitle className="text-base">Questions added ({aiGeneratedQuestions.length})</CardTitle>
+                              <CardTitle className="text-base">Câu hỏi đã thêm ({aiGeneratedQuestions.length})</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-2">
                               {aiGeneratedQuestions.map((question, index) => (
@@ -2336,7 +2293,7 @@ export default function CreateExam() {
                                     <p className="text-xs text-muted-foreground">{question.type}</p>
                                   </div>
                                   <Button type="button" variant="ghost" size="sm" onClick={() => setAiGeneratedQuestions((questions) => questions.filter((_, itemIndex) => itemIndex !== index))}>
-                                    Remove
+                                    Xoá
                                   </Button>
                                 </div>
                               ))}
@@ -2349,14 +2306,17 @@ export default function CreateExam() {
                     {questionSourceMode === "bank-select" && (
                       <div className="space-y-4 rounded-xl border p-5">
                         <div>
-                          <div className="inline-flex items-center gap-1.5">
-                            <Label>Chọn chủ đề trước</Label>
-                            <ContextHelp content={{
-                              description: "Chọn chủ đề để giới hạn danh sách câu hỏi theo nhóm kiến thức cần đưa vào đề.",
-                              usedBy: "Dùng khi lấy câu hỏi từ ngân hàng thay vì tạo mới.",
-                              note: "Chọn đúng chủ đề giúp đề thi bám sát phạm vi ôn tập và mục tiêu đánh giá.",
-                            }} />
-                          </div>
+                          <Label>
+                            <HelpedTitle
+                              help={{
+                                description: "Chọn chủ đề để giới hạn danh sách câu hỏi theo nhóm kiến thức cần đưa vào đề.",
+                                usedBy: "Dùng khi lấy câu hỏi từ ngân hàng thay vì tạo mới.",
+                                note: "Chọn đúng chủ đề giúp đề thi bám sát phạm vi ôn tập và mục tiêu đánh giá.",
+                              }}
+                            >
+                              Chọn chủ đề trước
+                            </HelpedTitle>
+                          </Label>
                           <Select value={selectedBankTopicId} onValueChange={setSelectedBankTopicId}>
                             <SelectTrigger className="mt-1"><SelectValue placeholder="Chọn chủ đề" /></SelectTrigger>
                             <SelectContent>
@@ -2371,14 +2331,17 @@ export default function CreateExam() {
                           <>
                             <div className="grid gap-4 md:grid-cols-2">
                               <div>
-                                <div className="inline-flex items-center gap-1.5">
-                                  <Label>Loại câu hỏi</Label>
-                                  <ContextHelp content={{
-                                    description: "Lọc ngân hàng theo dạng câu hỏi như trắc nghiệm, đúng/sai hoặc tự luận.",
-                                    usedBy: "Dùng khi muốn đề thi có đúng cấu trúc câu hỏi đã thiết kế.",
-                                    note: "Nếu chọn quá hẹp, số câu khả dụng có thể không đủ cho đề.",
-                                  }} />
-                                </div>
+                                <Label>
+                                  <HelpedTitle
+                                    help={{
+                                      description: "Lọc ngân hàng theo dạng câu hỏi như trắc nghiệm, đúng/sai hoặc tự luận.",
+                                      usedBy: "Dùng khi muốn đề thi có đúng cấu trúc câu hỏi đã thiết kế.",
+                                      note: "Nếu chọn quá hẹp, số câu khả dụng có thể không đủ cho đề.",
+                                    }}
+                                  >
+                                    Loại câu hỏi
+                                  </HelpedTitle>
+                                </Label>
                                 <Select value={form.questionType} onValueChange={(value) => set("questionType", value)}>
                                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                                   <SelectContent>
@@ -2389,14 +2352,17 @@ export default function CreateExam() {
                                 </Select>
                               </div>
                               <div>
-                                <div className="inline-flex items-center gap-1.5">
-                                  <Label>Độ khó</Label>
-                                  <ContextHelp content={{
-                                    description: "Lọc câu hỏi theo mức độ khó đã gắn trong ngân hàng.",
-                                    usedBy: "Dùng để cân bằng đề hoặc tạo đề theo một mức độ cụ thể.",
-                                    note: "Số lượng câu mỗi mức phụ thuộc vào dữ liệu ngân hàng hiện có.",
-                                  }} />
-                                </div>
+                                <Label>
+                                  <HelpedTitle
+                                    help={{
+                                      description: "Lọc câu hỏi theo mức độ khó đã gắn trong ngân hàng.",
+                                      usedBy: "Dùng để cân bằng đề hoặc tạo đề theo một mức độ cụ thể.",
+                                      note: "Số lượng câu mỗi mức phụ thuộc vào dữ liệu ngân hàng hiện có.",
+                                    }}
+                                  >
+                                    Độ khó
+                                  </HelpedTitle>
+                                </Label>
                                 <Select value={form.bankDifficulty} onValueChange={(value) => set("bankDifficulty", value)}>
                                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                                   <SelectContent>
@@ -2460,20 +2426,22 @@ export default function CreateExam() {
                         </div>
                         <div className="grid gap-4 md:grid-cols-2">
                           <div>
-                            <div className="inline-flex items-center gap-1.5">
-                              <Label>Loại câu hỏi</Label>
-                              <ContextHelp content="Phân loại cách trả lời của câu hỏi, dùng khi tạo đề và phân tích kết quả." />
-                            </div>
+                            <Label>
+                              <HelpedTitle help="Phân loại cách trả lời của câu hỏi, dùng khi tạo đề và phân tích kết quả.">
+                                Loại câu hỏi
+                              </HelpedTitle>
+                            </Label>
                             <Select value={form.questionType} onValueChange={(value) => set("questionType", value)}>
                               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                               <SelectContent>{QUESTION_TYPE_OPTIONS.filter((type) => type.value !== "custom").map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
                           <div>
-                            <div className="inline-flex items-center gap-1.5">
-                              <Label>Độ khó</Label>
-                              <ContextHelp content="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích." />
-                            </div>
+                            <Label>
+                              <HelpedTitle help="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích.">
+                                Độ khó
+                              </HelpedTitle>
+                            </Label>
                             <Select value={form.bankDifficulty} onValueChange={(value) => set("bankDifficulty", value)}>
                               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                               <SelectContent><SelectItem value="mixed">Trộn tất cả mức độ</SelectItem><SelectItem value="easy">Dễ</SelectItem><SelectItem value="medium">Trung bình</SelectItem><SelectItem value="hard">Khó</SelectItem></SelectContent>
@@ -2498,539 +2466,6 @@ export default function CreateExam() {
                   </div>
                 )}
 
-                <Tabs
-                  value={form.sourceMethod}
-                  onValueChange={(v) => set("sourceMethod", v as any)}
-                  className="hidden"
-                >
-                  <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-4">
-                    <TabsTrigger value="bank" className="gap-2">
-                      <Database className="h-4 w-4" /> Bank
-                    </TabsTrigger>
-                    <TabsTrigger value="import" className="gap-2">
-                      <Upload className="h-4 w-4" /> Import
-                    </TabsTrigger>
-                    <TabsTrigger value="ai" className="gap-2">
-                      <Sparkles className="h-4 w-4" /> AI Gen
-                    </TabsTrigger>
-                  </TabsList>
-
-                  {/* --- TAB: QUESTION BANK --- */}
-                  <TabsContent
-                    value="bank"
-                    className="space-y-5 animate-in fade-in duration-300"
-                  >
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <Label>Số lượng câu hỏi</Label>
-                        <Input
-                          type="number"
-                          value={form.questionCount}
-                          onChange={(e) =>
-                            set(
-                              "questionCount",
-                              sanitizeNumericInput(e.target.value, { min: 1 }),
-                            )
-                          }
-                          min={1}
-                          onBlur={(e) =>
-                            setNumberErrors((prev) => ({
-                              ...prev,
-                              questionCount:
-                                getNumericInputError(e.target.value, {
-                                  min: 1,
-                                  integer: true,
-                                }) || "",
-                            }))
-                          }
-                          className="mt-1"
-                        />
-                        {numberErrors.questionCount ? (
-                          <p className="mt-1 text-xs text-destructive">
-                            {numberErrors.questionCount}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div>
-                        <div className="inline-flex items-center gap-1.5">
-                          <Label>Phân bổ dạng câu hỏi</Label>
-                          <ContextHelp content="Phân bổ dạng câu hỏi trong đề, dùng để kiểm soát cấu trúc đề thi." />
-                        </div>
-                        <Select
-                          value={form.questionType}
-                          onValueChange={(v) => set("questionType", v)}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {QUESTION_TYPE_OPTIONS.map((type) => (
-                              <SelectItem key={type.value} value={type.value}>
-                                {type.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <div className="inline-flex items-center gap-1.5">
-                          <Label>Độ khó</Label>
-                          <ContextHelp content="Mức độ khó của câu hỏi, dùng để phân loại và hỗ trợ phân tích." />
-                        </div>
-                        <Select
-                          value={form.bankDifficulty}
-                          onValueChange={(v) => set("bankDifficulty", v)}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="mixed">
-                              Mixed (all levels)
-                            </SelectItem>
-                            <SelectItem value="easy">Dễ</SelectItem>
-                            <SelectItem value="medium">Trung bình</SelectItem>
-                            <SelectItem value="hard">Khó</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {form.questionType === "custom" && (
-                      <div className="p-4 border rounded-lg bg-secondary/10 space-y-3">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                          Select Types to Include
-                        </Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {[
-                            "Single Choice",
-                            "Multiple Choice",
-                            "True / False",
-                            "Fill in the Blank",
-                            "Matching",
-                            "Ordering",
-                            "Essay",
-                          ].map((t) => (
-                            <label
-                              key={t}
-                              className="flex items-center gap-2 text-sm p-2 border rounded hover:bg-card cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                defaultChecked
-                                className="accent-primary"
-                              />
-                              {t}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <p className="inline-flex items-center gap-1.5 pt-2 text-sm font-medium text-muted-foreground">
-                      Topics to include
-                      <ContextHelp content="Các chủ đề được đưa vào đề, giúp đề thi bám sát phạm vi kiến thức mong muốn." />
-                    </p>
-                    {!form.course && (
-                      <p className="text-sm text-muted-foreground">
-                        Select a course to load available topics.
-                      </p>
-                    )}
-
-                    {form.course && isLoadingBankTopics && (
-                      <p className="text-sm text-muted-foreground">
-                        Loading topics...
-                      </p>
-                    )}
-
-                    {form.course &&
-                      !isLoadingBankTopics &&
-                      bankTopics.length === 0 && (
-                        <p className="text-sm text-muted-foreground">
-                          No topics found for this course yet.
-                        </p>
-                      )}
-
-                    {bankTopics.length > 0 && (
-                      <div className="space-y-2">
-                        {bankTopics.map((bank) => (
-                          <label
-                            key={bank.topicId}
-                            className={`flex items-center gap-3 border rounded-lg px-4 py-3 cursor-pointer transition-all
-                          ${bank.selected ? "border-primary bg-primary/5" : "border-border"}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={bank.selected}
-                              onChange={() =>
-                                setBankTopics((prev) =>
-                                  prev.map((item) =>
-                                    item.topicId === bank.topicId
-                                      ? {
-                                          ...item,
-                                          selected: !item.selected,
-                                          requestedCount: !item.selected
-                                            ? item.requestedCount === "0"
-                                              ? "1"
-                                              : item.requestedCount
-                                            : "0",
-                                        }
-                                      : item,
-                                  ),
-                                )
-                              }
-                              className="accent-primary"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium">{bank.topic}</p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {bank.count} available total
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div className="flex flex-col items-end gap-1">
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  value={bank.requestedCount}
-                                  onChange={(e) =>
-                                    setBankTopics((prev) =>
-                                      prev.map((item) =>
-                                        item.topicId === bank.topicId
-                                          ? {
-                                              ...item,
-                                              requestedCount: sanitizeNumericInput(e.target.value, { min: 0 }),
-                                              selected: Number(e.target.value || 0) > 0 || item.selected,
-                                            }
-                                          : item,
-                                      ),
-                                    )
-                                  }
-                                  className="w-20 h-9 text-sm text-right"
-                                />
-                                <span className="text-[10px] text-muted-foreground">
-                                  {form.questionType === "mixed" || form.questionType === "custom"
-                                    ? `${bank.count} available`
-                                    : `${Number(bank.availableByType?.[mapQuestionTypeToDb(form.questionType)] || 0)} available for this type`}
-                                </span>
-                              </div>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-
-                    {bankSelectionWarning && (
-                      <p className="text-xs text-amber-600 font-medium">
-                        {bankSelectionWarning}
-                      </p>
-                    )}
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full gap-2"
-                      onClick={() => router.push("/lecturer/question-bank")}
-                    >
-                      <Plus className="h-4 w-4" /> Go to Question Bank
-                    </Button>
-                  </TabsContent>
-
-                  {/* --- TAB: IMPORT DOC --- */}
-                  <TabsContent
-                    value="import"
-                    className="space-y-5 animate-in fade-in duration-300"
-                  >
-                    <input
-                      ref={docFileInputRef}
-                      type="file"
-                      accept=".pdf,.doc,.docx,.txt,.md"
-                      className="hidden"
-                      onChange={(e) => {
-                        const selected = e.target.files?.[0] || null;
-                        setDocFile(selected);
-                      }}
-                    />
-                    <div className="p-8 border-2 border-dashed rounded-xl bg-secondary/5 flex flex-col items-center justify-center text-center space-y-4">
-                      {!docFile ? (
-                        <>
-                          <div className="p-4 rounded-full bg-blue-100 text-blue-600">
-                            <Upload className="h-10 w-10" />
-                          </div>
-                          <div>
-                            <p className="font-bold text-lg">
-                              Upload your document
-                            </p>
-                            <p className="text-sm text-muted-foreground max-w-xs">
-                              AI will extract questions from your Word, PDF, or
-                              Plain Text files.
-                            </p>
-                          </div>
-                          <Button
-                            variant="outline"
-                            className="bg-background cursor-pointer"
-                            onClick={() => docFileInputRef.current?.click()}
-                          >
-                            <FileSearch className="h-4 w-4 mr-2" /> Browse Files
-                          </Button>
-                        </>
-                      ) : (
-                        <div className="w-full space-y-4">
-                          <div className="flex items-center justify-between p-4 border rounded-xl bg-blue-50/50 border-blue-200 w-full">
-                            <div className="flex items-center gap-4 text-left">
-                              <div className="h-12 w-12 rounded bg-blue-600 flex items-center justify-center text-white">
-                                <FileText className="h-6 w-6" />
-                              </div>
-                              <div>
-                                <p className="font-bold text-base text-blue-700">
-                                  {docFile.name}
-                                </p>
-                                <p className="text-xs text-blue-600 opacity-80">
-                                  Selected file • {formatFileSize(docFile.size)}
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setDocFile(null);
-                                if (docFileInputRef.current)
-                                  docFileInputRef.current.value = "";
-                              }}
-                            >
-                              <Plus className="h-5 w-5 rotate-45" />
-                            </Button>
-                          </div>
-                          <Button
-                            className="w-full gap-2 bg-blue-600 hover:bg-blue-700 py-6 text-base"
-                            onClick={handleImportExtract}
-                            disabled={isStandardizing}
-                          >
-                            {isStandardizing ? (
-                              <Loader2 className="h-5 w-5 animate-spin" />
-                            ) : (
-                              <Wand2 className="h-5 w-5" />
-                            )}
-                            Start AI Extraction
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-
-                    {isStandardizing && (
-                      <div className="space-y-2 p-4 border rounded-lg bg-blue-50/30 animate-in slide-in-from-top-4">
-                        <div className="flex justify-between text-[11px] text-blue-700 font-bold uppercase tracking-wider">
-                          <span>AI Agent: Extracting and generating...</span>
-                          <span>Đang xử lý</span>
-                        </div>
-                        <Progress value={65} className="h-2 bg-blue-100" />
-                      </div>
-                    )}
-
-                    {aiGeneratedQuestions.length > 0 && (
-                      <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                        <p className="text-sm font-medium text-green-800 mb-2">
-                          ✓ {aiGeneratedQuestions.length} questions extracted
-                        </p>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {aiGeneratedQuestions.map((q, i) => (
-                            <div
-                              key={i}
-                              className="text-xs bg-white p-2 rounded border"
-                            >
-                              <span className="font-medium text-muted-foreground">
-                                Q{i + 1}.
-                              </span>{" "}
-                              <span className="line-clamp-2">{q.content}</span>
-                              <div className="flex gap-2 mt-1">
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] h-4"
-                                >
-                                  {q.type}
-                                </Badge>
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] h-4"
-                                >
-                                  Độ khó:{" "}
-                                  {difficultyLabelViFromValue(q.difficulty)}
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  {/* --- TAB: AI GENERATION --- */}
-                  <TabsContent
-                    value="ai"
-                    className="space-y-5 animate-in fade-in duration-300"
-                  >
-                    <div className="p-6 border-2 border-primary/20 rounded-xl bg-primary/5 space-y-6">
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="ai-prompt"
-                          className="text-base font-bold"
-                        >
-                          What is the focus of this exam?
-                        </Label>
-                        <Textarea
-                          id="ai-prompt"
-                          placeholder="Ví dụ: Kiểm tra giữa kỳ môn Mạng máy tính. Tập trung vào các lớp OSI, sự khác biệt TCP/UDP và chia mạng con."
-                          value={form.aiPrompt}
-                          onChange={(e) => set("aiPrompt", e.target.value)}
-                          rows={4}
-                          className="bg-background text-base"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Số lượng câu hỏi</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={form.questionCount}
-                            onChange={(e) =>
-                              set(
-                                "questionCount",
-                                sanitizeNumericInput(e.target.value, { min: 1 }),
-                              )
-                            }
-                            onBlur={(e) =>
-                              setNumberErrors((prev) => ({
-                                ...prev,
-                                questionCount:
-                                  getNumericInputError(e.target.value, {
-                                    min: 1,
-                                    integer: true,
-                                  }) || "",
-                              }))
-                            }
-                          />
-                          {numberErrors.questionCount ? (
-                            <p className="mt-1 text-xs text-destructive">
-                              {numberErrors.questionCount}
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="inline-flex items-center gap-1.5">
-                            <Label>Phân bổ dạng câu hỏi</Label>
-                            <ContextHelp content="Phân bổ dạng câu hỏi trong đề, dùng để kiểm soát cấu trúc đề thi." />
-                          </div>
-                          <Select
-                            value={form.questionType}
-                            onValueChange={(v) => set("questionType", v)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {QUESTION_TYPE_OPTIONS.filter(
-                                (type) => type.value !== "custom",
-                              ).map((type) => (
-                                <SelectItem key={type.value} value={type.value}>
-                                  {type.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Độ khó</Label>
-                          <Select
-                            value={form.aiDifficulty}
-                            onValueChange={(v) => set("aiDifficulty", v)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="easy">Dễ</SelectItem>
-                              <SelectItem value="medium">Trung bình</SelectItem>
-                              <SelectItem value="hard">Khó</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="p-4 bg-amber-50 border border-amber-100 rounded-lg flex items-start gap-3">
-                        <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-                        <div className="space-y-1">
-                          <p className="text-sm font-bold text-amber-900">
-                            Mandatory Teacher Review
-                          </p>
-                          <p className="text-xs text-amber-800 leading-relaxed">
-                            Questions generated by AI will be placed in a
-                            pending state until you approve each one for
-                            accuracy and integrity.
-                          </p>
-                        </div>
-                      </div>
-
-                      <Button
-                        className="w-full py-6 text-base gap-2 shadow-lg shadow-primary/20"
-                        onClick={handleAiGenerate}
-                        disabled={isAiGenerating || !form.aiPrompt.trim()}
-                      >
-                        {isAiGenerating ? (
-                          <>
-                            <Loader2 className="h-5 w-5 animate-spin" />{" "}
-                            Generating Questions...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-5 w-5" /> Generate Complete
-                            Exam
-                          </>
-                        )}
-                      </Button>
-
-                      {aiGeneratedQuestions.length > 0 && (
-                        <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                          <p className="text-sm font-medium text-green-800 mb-2">
-                            ✓ {aiGeneratedQuestions.length} questions generated
-                          </p>
-                          <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {aiGeneratedQuestions.map((q, i) => (
-                              <div
-                                key={i}
-                                className="text-xs bg-white p-2 rounded border"
-                              >
-                                <span className="font-medium text-muted-foreground">
-                                  Q{i + 1}.
-                                </span>{" "}
-                                <span className="line-clamp-2">
-                                  {q.content}
-                                </span>
-                                <div className="flex gap-2 mt-1">
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px] h-4"
-                                  >
-                                    {q.type}
-                                  </Badge>
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px] h-4"
-                                  >
-                                    Độ khó:{" "}
-                                    {difficultyLabelViFromValue(q.difficulty)}
-                                  </Badge>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
-                </Tabs>
               </CardContent>
             </>
           )}
@@ -3043,69 +2478,83 @@ export default function CreateExam() {
                   Kiểm tra toàn bộ cài đặt trước khi tạo bài thi.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                {[
-                  { label: "Tiêu đề", value: form.title || "—" },
-                  {
-                    label: "Khóa học",
-                    value: courses.find((course) => course.id === form.course)
-                      ?.code
-                      ? `${courses.find((course) => course.id === form.course)?.code} - ${courses.find((course) => course.id === form.course)?.name}`
-                      : "—",
-                  },
-                  { label: "Mô tả", value: form.description || "—" },
-                  { label: "Thời lượng", value: `${form.duration} phút` },
-                  {
-                    label: "Số lần làm tối đa (1-10)",
-                    value: form.maxAttempts || "1",
-                  },
-                  {
-                    label: "Cách tính điểm",
-                    value: form.gradingStrategy,
-                  },
-                  { label: "Điểm đạt", value: `${form.passingScore}%` },
-                  {
-                    label: "Khung giờ thi",
-                    value: `${form.startDate} ${form.startTime} → ${form.endDate} ${form.endTime}`,
-                  },
-                  {
-                    label: "Câu hỏi",
-                    value: `${composedQuestionCount} câu (${aiGeneratedQuestions.length} trực tiếp + ${selectedBankQuestionIds.length} đã chọn + ${randomQuestionCount} ngẫu nhiên)`,
-                  },
-                  {
-                    label: "Giám sát AI",
-                    value: form.requiresProctoring ? "Đã bật" : "Đã tắt",
-                  },
-                  {
-                    label: "Nộp muộn",
-                    value: isSingleAttempt
-                      ? "Bị khóa khi số lần làm tối đa = 1"
-                      : form.allowLateSubmission
-                        ? "Cho phép"
-                        : "Không cho phép",
-                  },
-                  {
-                    label: "Xáo trộn",
-                    value: form.shuffleQuestions ? "Có" : "Không",
-                  },
-                  {
-                    label: "Cài đặt xem lại",
-                    value: reviewSettingsDraft.enabled ? "Theo giai đoạn" : "Mặc định",
-                  },
-                  {
-                    label: "Hiển thị kết quả",
-                    value: form.showResultImmediately
-                      ? "Ngay lập tức"
-                      : "Sau khi xem lại",
-                  },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex gap-3">
-                    <span className="text-muted-foreground w-36 shrink-0">
-                      {label}
-                    </span>
-                    <span className="font-medium">{value}</span>
+              <CardContent>
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm">
+                    <div className="flex items-center gap-2 border-b pb-3">
+                      <FileText className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-semibold">Nội dung & lịch thi</p>
+                    </div>
+                    <PreviewField label="Tiêu đề" value={form.title || "—"} />
+                    <PreviewField
+                      label="Khóa học"
+                      value={
+                        courses.find((course) => course.id === form.course)?.code
+                          ? `${courses.find((course) => course.id === form.course)?.code} - ${courses.find((course) => course.id === form.course)?.name}`
+                          : "—"
+                      }
+                    />
+                    <PreviewField label="Mô tả" value={form.description || "—"} />
+                    <PreviewField
+                      label="Câu hỏi"
+                      value={`${composedQuestionCount} câu (${aiGeneratedQuestions.length} trực tiếp + ${selectedBankQuestionIds.length} đã chọn + ${randomQuestionCount} ngẫu nhiên)`}
+                    />
+                    <PreviewField label="Thời lượng" value={`${form.duration} phút`} highlight />
+                    <PreviewField
+                      label="Khung giờ thi"
+                      value={`${form.startDate} ${form.startTime} → ${form.endDate} ${form.endTime}`}
+                    />
+                    <PreviewField
+                      label="Số lần làm tối đa"
+                      value={hasUnlimitedAttempts ? "Không giới hạn" : (form.maxAttempts || "1")}
+                      highlight
+                    />
                   </div>
-                ))}
+
+                  <div className="flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm">
+                    <div className="flex items-center gap-2 border-b pb-3">
+                      <Shield className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-semibold">Chấm điểm & giám sát</p>
+                    </div>
+                    <PreviewField label="Cách tính điểm" value={getGradingStrategyLabel(form.gradingStrategy)} />
+                    <PreviewField label="Điểm đạt" value={`${form.passingScore}%`} highlight />
+                    <PreviewField label="Giám sát AI" value={form.requiresProctoring ? "Đã bật" : "Đã tắt"} highlight />
+                    <PreviewField
+                      label="Nộp muộn"
+                      value={
+                        isSingleAttempt
+                          ? "Bị khóa (số lần làm tối đa = 1)"
+                          : form.allowLateSubmission
+                            ? "Cho phép"
+                            : "Không cho phép"
+                      }
+                    />
+                    <PreviewField label="Xáo trộn câu hỏi" value={form.shuffleQuestions ? "Có" : "Không"} />
+                    <PreviewField
+                      label="Giải thích & nhận xét"
+                      value={
+                        [
+                          reviewSettingsDraft.feedbackDuring ? "Trong khi làm bài" : null,
+                          reviewSettingsDraft.feedbackAfter ? "Sau khi có kết quả" : null,
+                        ]
+                          .filter(Boolean)
+                          .join(", ") || "Không hiển thị"
+                      }
+                    />
+                    <PreviewField
+                      label="Công bố kết quả"
+                      value={
+                        form.showResultImmediately
+                          ? "Tự động ngay sau khi nộp (chỉ bài chấm tự động)"
+                          : "Giảng viên công bố thủ công"
+                      }
+                    />
+                    <PreviewField
+                      label="Xem lại bài làm"
+                      value={reviewSettingsDraft.allowSubmissionReview ? "Cho phép" : "Không cho phép"}
+                    />
+                  </div>
+                </div>
               </CardContent>
             </>
           )}

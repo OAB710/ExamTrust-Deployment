@@ -168,12 +168,18 @@ export function formatPreviewDate(value?: string | null) {
   }).format(date);
 }
 
+// Keys must match the AI diagnosis prompt's issue.type enum exactly (see
+// BE/src/ai/ai.service.ts's question-improvement prompt) — the previous set
+// of keys here (AMBIGUOUS_QUESTION/INVALID_OPTIONS/POOR_CONTENT) never
+// matched what the model actually returns, so every issue silently fell back
+// to its raw English type string on screen.
 export const ISSUE_LABELS: Record<string, string> = {
+  AMBIGUOUS_WORDING: "Diễn đạt mơ hồ",
+  WEAK_DISTRACTOR: "Phương án nhiễu chưa chặt chẽ",
+  WRONG_DIFFICULTY: "Độ khó chưa phù hợp",
   INCORRECT_ANSWER: "Sai đáp án",
   POOR_EXPLANATION: "Giải thích chưa rõ",
-  AMBIGUOUS_QUESTION: "Câu hỏi mơ hồ",
-  INVALID_OPTIONS: "Phương án chưa hợp lệ",
-  POOR_CONTENT: "Nội dung chưa rõ",
+  OTHER: "Vấn đề khác",
 };
 
 export const safeJsonValue = (value: any) => {
@@ -215,6 +221,10 @@ export const normalizeCorrectAnswerIds = (value: any): string[] => {
   if (typeof raw === "object") {
     const obj = raw as Record<string, any>;
     if (obj.optionId) return [String(obj.optionId)];
+    // Format: { answers: ["B", "C"] } — used by FIND_ERROR (see
+    // question-editor-persistence.ts and submissions.service.ts's
+    // findErrorLineSet, both of which read this plural array key).
+    if (Array.isArray(obj.answers)) return obj.answers.map((item: any) => String(item ?? ""));
     if (obj.answer !== undefined && obj.answer !== null) {
       const answer = typeof obj.answer === "object" ? JSON.stringify(obj.answer) : String(obj.answer);
       return answer.includes(",") ? answer.split(",").map((item) => item.trim()) : [answer];

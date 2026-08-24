@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
-import { Activity, AlertTriangle, Camera, ClipboardCheck, History, Loader2, RefreshCw, Search, Send, ShieldCheck, TableProperties } from "lucide-react";
+import { Activity, AlertTriangle, Camera, ClipboardCheck, History, Info, Loader2, RefreshCw, Search, Send, ShieldCheck, TableProperties } from "lucide-react";
 import { toast } from "sonner";
 import {
   ResponsiveContainer,
@@ -31,8 +31,10 @@ import {
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
 import api, { API_BASE_URL, unwrapPaginatedData } from "@/lib/api";
 import { getIntegrityEventLabel } from "@/lib/integrity-event-labels";
+import { formatSignedScoreAdjustment, getScoreAdjustmentCategoryLabel } from "./manual-grading-formatters";
 
 type ExamOverview = {
   exam: {
@@ -40,6 +42,10 @@ type ExamOverview = {
     title: string;
     totalPoints?: number;
     maxAttempts?: number | null;
+    status?: string;
+    startTime?: string | null;
+    endTime?: string | null;
+    settings?: { allowLateSubmission?: boolean } | null;
   };
   analyticsScope?: "OFFICIAL" | "PRACTICE";
   isUnlimited?: boolean;
@@ -122,7 +128,7 @@ type AnswerMatrix = {
     submissionId: string;
     student?: { fullName?: string | null; studentId?: string | null } | null;
     status: string;
-    cells: Record<string, "CORRECT" | "INCORRECT" | "BLANK" | "PENDING_MANUAL" | "NOT_ASSIGNED" | "RANDOM_NOT_COMPARABLE">;
+    cells: Record<string, "CORRECT" | "INCORRECT" | "ESSAY_STRONG" | "ESSAY_MODERATE" | "ESSAY_WEAK" | "ESSAY_POOR" | "BLANK" | "PENDING_MANUAL" | "NOT_ASSIGNED" | "RANDOM_NOT_COMPARABLE">;
   }>;
   availableAttempts: number[];
   selectedAttemptNo: number;
@@ -352,6 +358,17 @@ export default function ExamResultsList() {
     (manualStatus?.submissions || []).map((row: any) => [row.submissionId, row]),
   );
 
+  // "Còn cho phép làm bài" here means startExam would still accept a new
+  // attempt — same status/window checks it enforces server-side (see
+  // submissions.service.ts startExam), just read-only for a heads-up. Doesn't
+  // account for individual students' remaining maxAttempts (would need a
+  // per-student query), only whether the exam itself is still open at all.
+  const examStatus = overview?.exam?.status;
+  const examEndTime = overview?.exam?.endTime ? new Date(overview.exam.endTime) : null;
+  const allowLateSubmission = Boolean(overview?.exam?.settings?.allowLateSubmission);
+  const examStillAcceptsAttempts = (examStatus === "PUBLISHED" || examStatus === "ONGOING")
+    && (!examEndTime || examEndTime.getTime() > Date.now() || allowLateSubmission);
+
   const handleExport = async (format: "csv" | "pdf" = "csv") => {
     if (!examId) return;
     try {
@@ -365,13 +382,46 @@ export default function ExamResultsList() {
       if (!res.ok) throw new Error("Xuất dữ liệu không thành công");
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${examTitle.replace(/\s+/g, "_") || "exam"}-results.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      if (format === "pdf") {
+        // Load the PDF into a hidden iframe on this same page and trigger the
+        // browser's own Print dialog — no new tab, current page stays put.
+        // That dialog already gives a preview pane plus a "Save as PDF"
+        // destination, so the lecturer can look it over before saving.
+        const iframe = document.createElement("iframe");
+        iframe.style.position = "fixed";
+        iframe.style.width = "0";
+        iframe.style.height = "0";
+        iframe.style.border = "0";
+        iframe.src = url;
+        let printed = false;
+        const runOnce = () => {
+          if (printed) return;
+          printed = true;
+          try {
+            iframe.contentWindow?.print();
+          } catch {
+            // Some browsers block scripted print on a PDF iframe — the file
+            // is still loaded, just without the dialog auto-opening.
+          }
+        };
+        iframe.onload = runOnce;
+        document.body.appendChild(iframe);
+        setTimeout(runOnce, 1200);
+        // Give the iframe time to load and the print dialog time to be used
+        // before tearing it down.
+        setTimeout(() => {
+          iframe.remove();
+          window.URL.revokeObjectURL(url);
+        }, 60_000);
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${examTitle.replace(/\s+/g, "_") || "exam"}-results.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      }
     } catch (err) {
       console.error("Không thể xuất dữ liệu", err);
       toast.error("Xuất dữ liệu không thành công. Vui lòng thử lại.");
@@ -635,6 +685,12 @@ export default function ExamResultsList() {
                       được chấm điểm xong.
                     </p>
                   ) : null}
+                  {!manualStatus.published && examStillAcceptsAttempts ? (
+                    <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-amber-800">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      Đề này vẫn còn cho phép làm bài (chưa hết hạn/maxAttempts) — công bố ngay có thể lộ đáp án cho người làm sau.
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <Button
@@ -667,11 +723,11 @@ export default function ExamResultsList() {
                 <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-muted-foreground">
                   Trung bình:{" "}
                   <span className="font-semibold text-foreground">
-                    {((overview?.summary?.avgScorePct ?? 0) / 10).toFixed(1)}/10
+                    {((overview?.summary?.avgScorePct ?? 0) / 10).toFixed(2)}/10
                   </span>{" "}
                   | Cao nhất:{" "}
                   <span className="font-semibold text-foreground">
-                    {((overview?.summary?.highestScorePct ?? 0) / 10).toFixed(1)}/10
+                    {((overview?.summary?.highestScorePct ?? 0) / 10).toFixed(2)}/10
                   </span>
                 </div>
               </div>
@@ -897,22 +953,52 @@ export default function ExamResultsList() {
                           {s.attemptNo ?? "-"}
                         </TableCell>
                         <TableCell className="py-4 font-medium text-foreground">
-                          <div className="flex items-center gap-2">
-                            <span>{s.score != null
-                              ? formatScoreOnTen(s.score)
-                              : "-"}</span>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-muted-foreground hover:text-primary"
-                              title="Lịch sử chỉnh điểm"
-                              aria-label="Lịch sử chỉnh điểm"
-                              onClick={() => openAdjustmentHistory(s)}
-                            >
-                              <History className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                          {(() => {
+                            const hasPenalty = s.integrityReview?.status === "CONFIRMED" && Boolean(s.integrityReview?.penaltyMode);
+                            const hasAdjustment = Number(s.adjustmentTotal ?? 0) !== 0;
+                            const finalScore = hasPenalty ? s.integrityReview.finalScore : s.score;
+                            return (
+                              <div className="flex items-center gap-2">
+                                <span className={hasPenalty ? "text-destructive" : undefined}>{finalScore != null ? formatScoreOnTen(finalScore) : "-"}</span>
+                                {hasPenalty || hasAdjustment ? (
+                                  <UiTooltip>
+                                    <UiTooltipTrigger asChild>
+                                      <span className={`inline-flex cursor-help items-center ${hasPenalty ? "text-destructive" : "text-muted-foreground"}`}>
+                                        <Info className="h-3.5 w-3.5" />
+                                      </span>
+                                    </UiTooltipTrigger>
+                                    <UiTooltipContent className="max-w-xs space-y-1 text-xs">
+                                      <p className="font-medium">Điểm gốc {formatScoreOnTen(s.academicScore)}</p>
+                                      {hasAdjustment ? (
+                                        <p>Điểm hậu kiểm {formatSignedScoreAdjustment(Number(s.adjustmentTotal))}</p>
+                                      ) : null}
+                                      {hasPenalty ? (
+                                        <p className="font-medium text-destructive">
+                                          Bị trừ do vi phạm {s.integrityReview.penaltyMode === "FIXED"
+                                            ? Number(s.integrityReview.penaltyAmount ?? s.integrityReview.deductedScore ?? 0).toFixed(2)
+                                            : `${Number(s.integrityReview.deductedScore ?? 0).toFixed(2)} (${s.integrityReview.penaltyPercent}%)`}
+                                        </p>
+                                      ) : null}
+                                      <p className="text-muted-foreground">
+                                        Điểm cuối <span className={hasPenalty ? "font-semibold text-destructive" : "font-semibold text-foreground"}>{formatScoreOnTen(finalScore)}</span>
+                                      </p>
+                                    </UiTooltipContent>
+                                  </UiTooltip>
+                                ) : null}
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                  title="Lịch sử chỉnh điểm"
+                                  aria-label="Lịch sử chỉnh điểm"
+                                  onClick={() => openAdjustmentHistory(s)}
+                                >
+                                  <History className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground">
                           {formatTimeSpent(s.startedAt, s.submittedAt)}
@@ -1118,8 +1204,8 @@ export default function ExamResultsList() {
                         className={`flex flex-col gap-2 rounded-lg border p-3 text-sm ${revoked ? "border-rose-200 bg-rose-50/60 opacity-90" : "border-rose-100 bg-white"}`}
                       >
                         <div className="flex flex-wrap items-center gap-2">
-                          <strong className={revoked ? "text-muted-foreground line-through" : Number(adjustment.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}>{Number(adjustment.amount) >= 0 ? "+" : ""}{Number(adjustment.amount).toFixed(2)}</strong>
-                          <span>{adjustment.category}</span>
+                          <strong className={revoked ? "text-muted-foreground line-through" : Number(adjustment.amount) >= 0 ? "text-emerald-700" : "text-rose-700"}>{formatSignedScoreAdjustment(Number(adjustment.amount))}</strong>
+                          <span>{getScoreAdjustmentCategoryLabel(adjustment.category)}</span>
                           <span className="text-muted-foreground">·</span>
                           <span>{adjustment.reason}</span>
                           {revoked ? (
@@ -1213,6 +1299,14 @@ export default function ExamResultsList() {
                           const display = {
                             CORRECT: ["bg-emerald-100 text-emerald-800", "Đúng", "✓"],
                             INCORRECT: ["bg-rose-100 text-rose-800", "Sai", "×"],
+                            // Tự luận/chấm tay không phải đúng/sai tuyệt đối —
+                            // dùng ký hiệu "TL" riêng (khác ✓/× của câu tự
+                            // động chấm) và tô màu theo tỷ lệ điểm đạt được,
+                            // không quy về đúng hẳn hoặc sai hẳn.
+                            ESSAY_STRONG: ["bg-emerald-100 text-emerald-800", "Tự luận: đạt phần lớn số điểm (≥75%)", "TL"],
+                            ESSAY_MODERATE: ["bg-lime-100 text-lime-800", "Tự luận: đạt trên nửa số điểm (50–74%)", "TL"],
+                            ESSAY_WEAK: ["bg-orange-100 text-orange-800", "Tự luận: đạt ít điểm (25–49%)", "TL"],
+                            ESSAY_POOR: ["bg-rose-100 text-rose-800", "Tự luận: đạt rất ít hoặc không có điểm (<25%)", "TL"],
                             BLANK: ["bg-amber-100 text-amber-800", "Để trống", "—"],
                             PENDING_MANUAL: ["bg-slate-300 text-slate-700", "Chờ chấm thủ công", "…"],
                             NOT_ASSIGNED: ["bg-slate-100 text-slate-400", "Không được giao", "—"],

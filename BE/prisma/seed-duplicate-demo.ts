@@ -89,7 +89,7 @@ export async function main() {
   let created = 0;
   for (const q of all) {
     const existing = await prisma.questionVersion.findFirst({
-      where: { question: { courseId: course.id }, metadata: { path: 'seededDuplicateKey', equals: q.key } },
+      where: { question: { courseId: course.id }, metadata: { path: '$.seededDuplicateKey', equals: q.key } },
       select: { questionId: true },
     });
     if (existing) continue;

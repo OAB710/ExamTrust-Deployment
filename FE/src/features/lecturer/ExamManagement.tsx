@@ -23,6 +23,7 @@ import {
 } from "@/components/common/list/filter-utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Table,
@@ -71,7 +72,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import api, { unwrapPaginatedData } from "@/lib/api";
-import { getIntegrityEventLabel } from "@/lib/integrity-event-labels";
 import {
   getNumericInputError,
   parseNumericInput,
@@ -92,6 +92,7 @@ interface Exam {
   startTime?: string;
   endTime?: string;
   createdAt: string;
+  updatedAt: string;
   resultsPublishedAt?: string | null;
   _count?: {
     examQuestions: number;
@@ -146,7 +147,7 @@ export default function ExamManagement() {
     title: { value: "", operator: "contains" },
     createdAt: { from: undefined, to: undefined },
   });
-  const [sortField, setSortField] = useState("createdAt");
+  const [sortField, setSortField] = useState("updatedAt");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
@@ -163,12 +164,10 @@ export default function ExamManagement() {
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [editForm, setEditForm] = useState({
-    title: "",
     description: "",
-    passingScore: "",
-    duration: "",
+    showResultImmediately: false,
   });
-  const [passingScoreError, setPassingScoreError] = useState("");
+  const [editFormLoading, setEditFormLoading] = useState(false);
   const [rescheduleForm, setRescheduleForm] = useState({
     startTime: "",
     endTime: "",
@@ -187,7 +186,14 @@ export default function ExamManagement() {
     if (exam.duration) parts.push(formatDurationVi(exam.duration));
     if (exam._count?.examQuestions) parts.push(`${exam._count.examQuestions} câu hỏi`);
     if (exam._count?.submissions) parts.push(`${exam._count.submissions} lượt nộp`);
-    parts.push(`tạo lúc ${formatDateTimeVi(exam.createdAt)}`);
+    // updatedAt equals createdAt (Prisma @updatedAt) until the exam is first
+    // edited — so this naturally falls back to the creation date on its own.
+    const hasBeenEdited = new Date(exam.updatedAt).getTime() - new Date(exam.createdAt).getTime() > 1000;
+    parts.push(
+      hasBeenEdited
+        ? `cập nhật lúc ${formatDateTimeVi(exam.updatedAt)}`
+        : `tạo lúc ${formatDateTimeVi(exam.createdAt)}`,
+    );
     return parts.join(" • ");
   };
 
@@ -276,20 +282,29 @@ export default function ExamManagement() {
     }
   };
 
-  const handleEditExam = (exam: Exam) => {
+  const handleEditExam = async (exam: Exam) => {
     if (exam.status === "DRAFT") {
       router.push(`/lecturer/exams/create?id=${exam.id}`);
       return;
     }
     setSelectedExam(exam);
-    setEditForm({
-      title: exam.title,
-      description: exam.description || "",
-      passingScore: exam.passingScore?.toString() || "",
-      duration: exam.duration?.toString() || "",
-    });
-    setPassingScoreError("");
+    setEditForm({ description: exam.description || "", showResultImmediately: false });
     setShowEditDialog(true);
+    setEditFormLoading(true);
+    try {
+      // Exam list rows don't carry `settings` — fetch the current value so the
+      // toggle doesn't silently default to off and overwrite it on save.
+      const detail = await api.getExam(exam.id);
+      setEditForm({
+        description: detail.description || "",
+        showResultImmediately: Boolean(detail.settings?.showResultImmediately),
+      });
+    } catch (error) {
+      console.error("Failed to load exam settings for edit:", error);
+      toast.error("Không thể tải cài đặt hiện tại của bài thi");
+    } finally {
+      setEditFormLoading(false);
+    }
   };
 
   const handleViewSettings = async (exam: Exam) => {
@@ -312,47 +327,19 @@ export default function ExamManagement() {
     if (!selectedExam) return;
     try {
       setIsUpdating(true);
-      const updateData: any = {
-        title: editForm.title,
+      // Exam is already PUBLISHED/etc. here (DRAFT exams route to the full
+      // create/edit page instead) — the BE only accepts description/
+      // reviewSettings/settings once an exam has left DRAFT, since submissions
+      // may already reference its question snapshots and grading config.
+      const updateData = {
         description: editForm.description,
+        settings: { showResultImmediately: editForm.showResultImmediately },
       };
-      if (editForm.duration) {
-        const durationMessage = getNumericInputError(editForm.duration, { min: 1, integer: true });
-        if (durationMessage) {
-          toast.error(durationMessage);
-          return;
-        }
-        const duration = parseNumericInput(editForm.duration, { min: 1 });
-        if (duration !== undefined) {
-          updateData.duration = duration;
-        }
-      }
-      if (editForm.passingScore) {
-        const message = getNumericInputError(editForm.passingScore, {
-          min: 0,
-          max: 100,
-          integer: true,
-        });
-        if (message) {
-          setPassingScoreError(message);
-          toast.error(message);
-          return;
-        }
-
-        const passingScore = parseNumericInput(editForm.passingScore, {
-          min: 0,
-          max: 100,
-        });
-        if (passingScore !== undefined) {
-          updateData.passingScore = passingScore;
-        }
-      }
       await api.updateExam(selectedExam.id, updateData);
 
-      // Update local state
       setExams(
         exams.map((e) =>
-          e.id === selectedExam.id ? { ...e, ...updateData } : e,
+          e.id === selectedExam.id ? { ...e, description: editForm.description } : e,
         ),
       );
 
@@ -361,7 +348,7 @@ export default function ExamManagement() {
       setSelectedExam(null);
     } catch (error) {
       console.error("Failed to update exam:", error);
-      toast.error("Không thể cập nhật bài thi");
+      toast.error(error instanceof Error ? error.message : "Không thể cập nhật bài thi");
     } finally {
       setIsUpdating(false);
     }
@@ -452,7 +439,7 @@ export default function ExamManagement() {
       setSelectedExam(null);
     } catch (error) {
       console.error("Failed to reschedule exam:", error);
-      toast.error("Không thể đổi lịch bài thi");
+      toast.error(error instanceof Error ? error.message : "Không thể đổi lịch bài thi");
     } finally {
       setIsRescheduling(false);
     }
@@ -616,7 +603,7 @@ export default function ExamManagement() {
   const activeFilterChips = getFilterChips(appliedFilters, examFilterDefinitions);
 
   const examSortOptions = [
-    { field: "createdAt", label: "Mới nhất" },
+    { field: "updatedAt", label: "Cập nhật gần nhất" },
     { field: "course.code", label: "Khóa học" },
     { field: "startTime", label: "Lịch thi" },
     { field: "status", label: "Trạng thái" },
@@ -974,26 +961,28 @@ export default function ExamManagement() {
                                     {exam.status === "ARCHIVED" ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
                                     {exam.status === "ARCHIVED" ? "Khôi phục" : "Lưu trữ"}
                                   </DropdownMenuItem>
+                                  {(exam.status === "DRAFT" ||
+                                    exam.status === "PUBLISHED" ||
+                                    exam.status === "ONGOING") && (
+                                    <DropdownMenuItem
+                                      className="gap-2 text-xs"
+                                      onClick={() => void handleEditExam(exam)}
+                                    >
+                                      <Edit2 className="h-4 w-4" />
+                                      Sửa
+                                    </DropdownMenuItem>
+                                  )}
                                   {exam.status === "DRAFT" && (
-                                    <>
-                                      <DropdownMenuItem
-                                        className="gap-2 text-xs"
-                                        onClick={() => handleEditExam(exam)}
-                                      >
-                                        <Edit2 className="h-4 w-4" />
-                                        Sửa
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        className="gap-2 text-destructive text-xs"
-                                        onClick={() => {
-                                          setSelectedExam(exam);
-                                          setShowDeleteDialog(true);
-                                        }}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                        Xóa
-                                      </DropdownMenuItem>
-                                    </>
+                                    <DropdownMenuItem
+                                      className="gap-2 text-destructive text-xs"
+                                      onClick={() => {
+                                        setSelectedExam(exam);
+                                        setShowDeleteDialog(true);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Xóa
+                                    </DropdownMenuItem>
                                   )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -1035,7 +1024,6 @@ export default function ExamManagement() {
                 ? Boolean(settings.requiresProctoring)
                 : Boolean(settings.proctoringEnabled);
               const webcamPolicy = settings.webcamEvidencePolicy || {};
-              const eventLimits = webcamPolicy.eventCaptureLimits || {};
               const maxAttempts = settingsExam.maxAttempts;
               const questionCount = Array.isArray(settingsExam.examQuestions) ? settingsExam.examQuestions.length : null;
               return (
@@ -1095,7 +1083,7 @@ export default function ExamManagement() {
                       <p className="mt-1 font-medium">{settingsExam.allowLateSubmission ? "Có" : "Không"}</p>
                     </div>
                     <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">Hiện kết quả ngay khi nộp</p>
+                      <p className="text-xs text-muted-foreground">Công bố kết quả ngay sau khi nộp</p>
                       <p className="mt-1 font-medium">{settings.showResultImmediately ? "Có" : "Không"}</p>
                     </div>
                     <div className="rounded-lg border p-3">
@@ -1118,10 +1106,6 @@ export default function ExamManagement() {
                       </p>
                       {webcamPolicy.enabled && (
                         <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-                          <p>Giới hạn {getIntegrityEventLabel("tab_switch").toLowerCase()}: <span className="text-foreground">{eventLimits.tab_switch ?? "—"}</span></p>
-                          <p>Giới hạn {getIntegrityEventLabel("fullscreen_exit").toLowerCase()}: <span className="text-foreground">{eventLimits.fullscreen_exit ?? "—"}</span></p>
-                          <p>Giới hạn {getIntegrityEventLabel("paste_external").toLowerCase()}: <span className="text-foreground">{eventLimits.paste_external ?? "—"}</span></p>
-                          <p>Giới hạn {getIntegrityEventLabel("mouse_idle").toLowerCase()}: <span className="text-foreground">{eventLimits.mouse_idle ?? "—"}</span></p>
                           <p>Ngưỡng không thao tác: <span className="text-foreground">{webcamPolicy.mouseIdleThresholdMs ? formatSecondsLabel(Math.round(webcamPolicy.mouseIdleThresholdMs / 1000)) : "—"}</span></p>
                           <p>Cooldown chụp sự kiện: <span className="text-foreground">{webcamPolicy.eventCooldownMs ? formatSecondsLabel(Math.round(webcamPolicy.eventCooldownMs / 1000)) : "—"}</span></p>
                           <p className="col-span-2">
@@ -1146,11 +1130,13 @@ export default function ExamManagement() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSettingsDialog(false)}>Đóng</Button>
-            {selectedExam?.status === "DRAFT" && (
+            {(selectedExam?.status === "DRAFT" ||
+              selectedExam?.status === "PUBLISHED" ||
+              selectedExam?.status === "ONGOING") && (
               <Button
                 onClick={() => {
                   setShowSettingsDialog(false);
-                  if (selectedExam) handleEditExam(selectedExam);
+                  if (selectedExam) void handleEditExam(selectedExam);
                 }}
               >
                 Sửa cài đặt
@@ -1163,21 +1149,13 @@ export default function ExamManagement() {
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sửa bài thi</DialogTitle>
-            <DialogDescription>Cập nhật thông tin bài thi</DialogDescription>
+            <DialogTitle>Sửa cài đặt bài thi</DialogTitle>
+            <DialogDescription>
+              Bài thi đã công bố và/hoặc đã có lượt làm bài nên chỉ có thể sửa mô tả và chính sách công bố kết quả —
+              câu hỏi, thời lượng, điểm đạt... đã bị khóa để không làm sai lệch các bài đã nộp/đã chấm.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Tiêu đề</Label>
-              <Input
-                id="title"
-                value={editForm.title}
-                onChange={(e) =>
-                  setEditForm((prev) => ({ ...prev, title: e.target.value }))
-                }
-                placeholder="Tiêu đề bài thi"
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="description">Mô tả</Label>
               <Textarea
@@ -1191,62 +1169,31 @@ export default function ExamManagement() {
                 }
                 placeholder="Mô tả bài thi"
                 rows={3}
+                disabled={editFormLoading}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="duration">Thời lượng (phút)</Label>
-              <Input
-                id="duration"
-                type="number"
-                min="1"
-                value={editForm.duration}
-                onChange={(e) =>
-                  setEditForm((prev) => ({
-                    ...prev,
-                    duration: sanitizeNumericInput(e.target.value, { min: 1 }),
-                  }))
-                }
-                placeholder="Thời lượng làm bài (phút)"
+            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+              <div>
+                <Label htmlFor="showResultImmediately" className="text-sm font-medium">
+                  Công bố kết quả ngay sau khi nộp
+                </Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Chỉ áp dụng cho bài chấm hoàn toàn tự động. Nếu có câu tự luận/chấm tay, vẫn phải bấm "Công bố kết quả" thủ công sau khi chấm xong.
+                </p>
+              </div>
+              <Switch
+                id="showResultImmediately"
+                checked={editForm.showResultImmediately}
+                onCheckedChange={(v) => setEditForm((prev) => ({ ...prev, showResultImmediately: v }))}
+                disabled={editFormLoading}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="passingScore">Điểm đạt</Label>
-              <Input
-                id="passingScore"
-                type="number"
-                min="0"
-                max="100"
-                value={editForm.passingScore}
-                onChange={(e) =>
-                  setEditForm((prev) => ({
-                    ...prev,
-                    passingScore: sanitizeNumericInput(e.target.value, {
-                      min: 0,
-                      max: 100,
-                    }),
-                  }))
-                }
-                onBlur={(e) =>
-                  setPassingScoreError(
-                    getNumericInputError(e.target.value, {
-                      min: 0,
-                      max: 100,
-                      integer: true,
-                    }) || "",
-                  )
-                }
-                placeholder="Điểm đạt (0-100)"
-              />
-              {passingScoreError ? (
-                <p className="text-xs text-destructive">{passingScoreError}</p>
-              ) : null}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               Hủy
             </Button>
-            <Button onClick={handleSaveEdit} disabled={isUpdating}>
+            <Button onClick={handleSaveEdit} disabled={isUpdating || editFormLoading}>
               {isUpdating ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}

@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Save,
   Plus,
   Tag,
@@ -37,7 +39,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BackToDashboardButton } from "@/components/common/BackToDashboardButton";
-import { QUESTION_DRAFT_STORAGE_KEY, snapQuestionDifficulty } from "./question-editor-utils";
+import {
+  QUESTION_DRAFT_STORAGE_KEY,
+  loadQuestionEditorNavList,
+  snapQuestionDifficulty,
+} from "./question-editor-utils";
 import type { EditableQuestion as Question, QuestionDraft } from "./question-editor-types";
 import { useQuestionAnswerState } from "./hooks/useQuestionAnswerState";
 import { useQuestionTopics } from "./hooks/useQuestionTopics";
@@ -70,6 +76,23 @@ export default function QuestionEditor() {
     ? `${basePath}/question-bank?courseCode=${encodeURIComponent(courseCodeParam)}`
     : `${basePath}/question-bank`;
   const restoreDraftParam = searchParams.get("restoreDraft") === "1";
+
+  // Ids of the questions the lecturer was browsing in the bank list right
+  // before opening this one for editing (see saveQuestionEditorNavList) —
+  // powers "Câu trước / Câu tiếp" so editing a batch doesn't require
+  // bouncing back to the list between every question.
+  const [navIds, setNavIds] = useState<string[]>([]);
+  useEffect(() => {
+    setNavIds(loadQuestionEditorNavList());
+  }, []);
+  const navIndex = questionId ? navIds.indexOf(questionId) : -1;
+  const previousQuestionId = navIndex > 0 ? navIds[navIndex - 1] : null;
+  const nextQuestionId = navIndex >= 0 && navIndex < navIds.length - 1 ? navIds[navIndex + 1] : null;
+  const goToQuestion = (id: string) => {
+    router.push(
+      `${basePath}/question-editor?id=${id}${courseCodeParam ? `&courseCode=${encodeURIComponent(courseCodeParam)}` : ""}`,
+    );
+  };
 
   const [question, setQuestion] = useState<Question | null>(null);
   const [courses, setCourses] = useState<
@@ -394,6 +417,13 @@ export default function QuestionEditor() {
   const loadQuestion = async () => {
     if (!questionId) return;
 
+    // Clears leftovers from whatever question was open before — navigating
+    // via Câu trước/Câu tiếp keeps this same component mounted (same route,
+    // only the `id` query param changes) instead of a fresh page load, so
+    // stale validation errors or an old AI prompt would otherwise carry over.
+    setValidationErrors([]);
+    ai.setAiPrompt("");
+
     try {
       const questionData = await persistence.load(questionId);
       setQuestion(questionData);
@@ -474,6 +504,10 @@ export default function QuestionEditor() {
         resetFormForNextQuestion();
         return;
       }
+      if (questionId) {
+        toast.success("Đã lưu câu hỏi.");
+        return;
+      }
       router.push(questionBankPath);
     } catch (error) {
       console.warn("Failed to save question:", error);
@@ -486,16 +520,18 @@ export default function QuestionEditor() {
       <div className="max-w-6xl mx-auto px-3 sm:px-0">
         {/* <BackToDashboardButton to={basePath} className="mb-2 -ml-2" /> */}
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-3 sm:mb-4 gap-2 text-muted-foreground -ml-2"
-          onClick={() => router.push(questionBankPath)}
-        >
-          <ArrowLeft className="h-4 w-4" />{" "}
-          <span className="hidden sm:inline">Quay lại ngân hàng câu hỏi</span>
-          <span className="sm:hidden">Quay lại</span>
-        </Button>
+        <div className="mb-3 sm:mb-4 flex flex-wrap items-center justify-between gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 text-muted-foreground -ml-2"
+            onClick={() => router.push(questionBankPath)}
+          >
+            <ArrowLeft className="h-4 w-4" />{" "}
+            <span className="hidden sm:inline">Quay lại ngân hàng câu hỏi</span>
+            <span className="sm:hidden">Quay lại</span>
+          </Button>
+        </div>
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-0 mb-4 sm:mb-6">
           <div className="flex-1 min-w-0">
@@ -1092,6 +1128,39 @@ export default function QuestionEditor() {
                   {/* Difficulty card remains above. The Allow multiple answers toggle
                       should always appear inside the Answer Options card below; removed
                       the separate card here. */}
+
+                  {questionId && navIndex >= 0 && (
+                    <Card>
+                      <CardHeader className="pb-2 px-4 pt-4">
+                        <CardTitle className="text-sm">Chuyển câu hỏi</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            disabled={!previousQuestionId}
+                            onClick={() => previousQuestionId && goToQuestion(previousQuestionId)}
+                          >
+                            <ChevronLeft className="h-4 w-4" /> Câu trước
+                          </Button>
+                          <span className="rounded-full border bg-muted px-2.5 py-1 text-xs font-medium text-foreground whitespace-nowrap">
+                            Câu {navIndex + 1}/{navIds.length}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            disabled={!nextQuestionId}
+                            onClick={() => nextQuestionId && goToQuestion(nextQuestionId)}
+                          >
+                            Câu tiếp <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
                 {/* end metadata sidebar */}
               </div>
